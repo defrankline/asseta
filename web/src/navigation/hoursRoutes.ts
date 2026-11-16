@@ -14,6 +14,9 @@ export const HOURS_ROUTES = {
   credit: '/tenant/hours/credit',
   creditDetail: '/tenant/hours/credit/:id',
   walkIns: '/tenant/hours/walk-ins',
+  /** Backend `tenant.hours.credit_invoices` (ADR-008): invoices for the credit part of orders. */
+  creditInvoices: '/tenant/hours/credit-invoices',
+  creditInvoiceDetail: '/tenant/hours/credit-invoices/:id',
   reasons: '/tenant/hours/reasons',
   /** No menu entry (none in the backend catalog): reached from purchases, customers and balances. */
   lowBalanceAlerts: '/tenant/hours/low-balance-alerts',
@@ -32,12 +35,23 @@ export const HOURS_MENU_PATHS: readonly string[] = [
   HOURS_ROUTES.discounts,
   HOURS_ROUTES.credit,
   HOURS_ROUTES.walkIns,
+  HOURS_ROUTES.creditInvoices,
   HOURS_ROUTES.reasons,
   HOURS_ROUTES.field,
 ];
 
 export function hoursPurchasePath(purchaseId: string): string {
   return `${HOURS_ROUTES.purchases}/${encodeURIComponent(purchaseId)}`;
+}
+
+export function creditInvoicePath(invoiceId: string): string {
+  return `${HOURS_ROUTES.creditInvoices}/${encodeURIComponent(invoiceId)}`;
+}
+
+/** Credit invoices pre-filtered (e.g. one customer or order). */
+export function creditInvoicesPath(filters: Readonly<Record<string, string>> = {}): string {
+  const qs = new URLSearchParams(filters).toString();
+  return qs === '' ? HOURS_ROUTES.creditInvoices : `${HOURS_ROUTES.creditInvoices}?${qs}`;
 }
 
 /** Ledger page pre-filtered (e.g. one purchase or job). */

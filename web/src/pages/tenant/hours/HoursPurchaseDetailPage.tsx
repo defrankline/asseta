@@ -27,7 +27,7 @@ import { shortId } from '../shared/financeDisplay';
 import { PersonName } from '../shared/PersonName';
 import { machineText, nameOr } from '../shared/names';
 import { recordedOnPhone } from '../shared/recordedOnPhone';
-import { BookedJobDetails } from './BookedJob';
+import { CreditInvoiceSummaryGrid } from './creditInvoices/CreditInvoiceParts';
 import { HoursOffNotice, ReasonDialog } from './HoursDialogs';
 import {
   hoursText,
@@ -268,9 +268,9 @@ export function HoursPurchaseDetailPage() {
                 ]}
               />
             </Section>
-            {d.job != null && (
-              <Section title="Booked job">
-                <BookedJobDetails job={d.job} timeZone={timeZone} />
+            {d.credit_invoice != null && (
+              <Section title="Credit invoice">
+                <CreditInvoiceSummaryGrid invoice={d.credit_invoice} currency={d.currency} />
               </Section>
             )}
             <Section title="Hours">
@@ -285,7 +285,7 @@ export function HoursPurchaseDetailPage() {
                   },
                   { label: 'On credit', value: hoursText(d.totals.activated_on_credit) },
                   { label: 'Awaiting activation', value: hoursText(d.totals.awaiting_activation) },
-                  { label: 'Used on jobs', value: hoursText(d.totals.consumed) },
+                  { label: 'Used', value: hoursText(d.totals.consumed) },
                   { label: PROVISIONAL_LABEL, value: hoursText(d.totals.provisional) },
                   { label: 'Transferred', value: hoursText(d.totals.transferred) },
                   { label: 'Expired', value: hoursText(d.totals.expired) },

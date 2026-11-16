@@ -21,7 +21,7 @@ import { useNotify } from '../../../notifications/useNotify';
 import { formatInstantIn } from '../../../utils/time';
 import { CustomerFilter, MachineFilter } from '../shared/financePickers';
 import { machineText, nameOr } from '../shared/names';
-import { BookedJobCell } from './BookedJob';
+import { CreditInvoiceLink } from './creditInvoices/CreditInvoiceParts';
 import { HoursOffNotice } from './HoursDialogs';
 import {
   CANCELLED_OPTIONS,
@@ -104,7 +104,12 @@ export function HoursPurchasesPage() {
         </>
       ),
     },
-    { id: 'job', header: 'Booked job', render: (p) => <BookedJobCell job={p.job} /> },
+    {
+      id: 'credit',
+      header: 'Credit invoice',
+      render: (p) =>
+        p.credit_invoice == null ? '—' : <CreditInvoiceLink invoice={p.credit_invoice} />,
+    },
     {
       id: 'created',
       header: 'Recorded',
@@ -185,6 +190,8 @@ export function HoursPurchasesPage() {
           timeZone={timeZone}
           walkInAllowed={hours.policy?.walkInAllowed ?? true}
           fieldNoncashPayments={hours.policy?.fieldNoncashPayments ?? false}
+          fieldCreditSales={hours.policy?.fieldCreditSales ?? false}
+          creditAllowed={hours.policy?.creditAllowed ?? null}
           onClose={() => {
             setRecording(false);
           }}

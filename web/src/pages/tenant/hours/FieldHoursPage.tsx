@@ -20,6 +20,7 @@ import { formatInstantIn } from '../../../utils/time';
 import { machineText, nameOr } from '../shared/names';
 import { HoursOffNotice } from './HoursDialogs';
 import { hoursText, PURCHASE_STATUS_LABELS, PURCHASE_STATUS_TONES } from './hoursDisplay';
+import { CreditInvoiceCreatedNotice } from './creditInvoices/CreditInvoiceParts';
 import { RequestTransferDialog } from './PurchaseActionDialogs';
 import { purchaseRecordedText } from './purchaseForm';
 import { RecordPurchaseDialog } from './RecordPurchaseDialog';
@@ -42,6 +43,7 @@ export function FieldHoursPage() {
   const canRead = hasPermission(PERMISSIONS.tenantHoursRead);
   const [open, setOpen] = useState<Open>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [creditSale, setCreditSale] = useState<HoursPurchaseDto | null>(null);
   const fetchPage = useCallback<FetchPage<HoursPurchaseDto>>(
     (query, signal) => hoursService.listPurchases(query, signal),
     [],
@@ -111,6 +113,17 @@ export function FieldHoursPage() {
       />
       <Stack spacing={2}>
         <HoursOffNotice off={hours.status === 'known' && !hours.on} />
+        {creditSale?.credit_invoice != null && (
+          <CreditInvoiceCreatedNotice
+            purchaseNumber={creditSale.purchase_number}
+            invoice={creditSale.credit_invoice}
+            currency={creditSale.currency}
+            linked={canRead}
+            onClose={() => {
+              setCreditSale(null);
+            }}
+          />
+        )}
         <Alert severity="info">
           Cash you record stays in your custody as claimed until the office verifies it; only then
           do the customer’s hours activate.
@@ -136,9 +149,12 @@ export function FieldHoursPage() {
           timeZone={timeZone}
           walkInAllowed={hours.policy?.walkInAllowed ?? true}
           fieldNoncashPayments={hours.policy?.fieldNoncashPayments ?? false}
+          fieldCreditSales={hours.policy?.fieldCreditSales ?? false}
+          creditAllowed={hours.policy?.creditAllowed ?? null}
           onClose={close}
           onRecorded={(p) => {
             notify.success(purchaseRecordedText(p));
+            setCreditSale(p.credit_invoice == null ? null : p);
             setReloadKey((k) => k + 1);
           }}
         />

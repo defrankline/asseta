@@ -3513,6 +3513,65 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/credit-invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Credit Invoices
+         * @description Credit invoices of orders, newest first (`q`: invoice or order number, customer). `status` UNPAID, PART_PAID,
+         *     PAID or CANCELLED; `overdue=true`: past the due date with a balance; dates filter the issue date.
+         */
+        get: operations["listCreditInvoices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/credit-invoices/{invoice_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Credit Invoice */
+        get: operations["getCreditInvoice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/credit-invoices/{invoice_id}/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Credit Invoice Payment
+         * @description A payment of the invoice in full or in part (cash into the recorder's custody; bank / mobile money with their
+         *     reference). Refused above the balance (INVOICE_OVERPAYMENT), when paid (INVOICE_PAID) or cancelled.
+         */
+        post: operations["recordCreditInvoicePayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/customer-discounts": {
         parameters: {
             query?: never;
@@ -3594,6 +3653,26 @@ export interface paths {
         put?: never;
         /** Withdraw Discount */
         post: operations["withdrawCustomerDiscount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/customer-hours": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Customer Hours
+         * @description Per customer: hours bought, activated, used, left, awaiting activation and credit still owed (ADR-008).
+         */
+        get: operations["listCustomerHours"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5658,6 +5737,224 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/machine-report-reasons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Reasons */
+        get: operations["listMachineReportReasons"];
+        put?: never;
+        /** Create Reason */
+        post: operations["createMachineReportReason"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/machine-report-reasons/{reason_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Reason */
+        put: operations["updateMachineReportReason"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/machine-report-reasons/{reason_id}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Deactivate Reason */
+        post: operations["deactivateMachineReportReason"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/machine-report-reasons/{reason_id}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reactivate Reason */
+        post: operations["reactivateMachineReportReason"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/machine-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Reports
+         * @description Machine reports, newest first (`q`: report number or machine). Field users see their own reports and those on
+         *     machines assigned to them; approvers see all. `queue=PENDING` is the approval queue; dates filter submission.
+         */
+        get: operations["listMachineReports"];
+        put?: never;
+        /**
+         * Submit Report
+         * @description Submit a report: the new reading and how its hours split across customers and non-productive reasons. The
+         *     customers' hours are reserved until an approver decides.
+         */
+        post: operations["submitMachineReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/machine-reports/available-hours": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Available
+         * @description Customers' hours a new report on the machine may draw on (activated - used - reserved by SUBMITTED reports).
+         */
+        get: operations["listReportHours"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/machine-reports/context/{machine_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Report Context
+         * @description What a new report on the machine starts from: previous reading, pending report, customers with available
+         *     hours and the reason list.
+         */
+        get: operations["getMachineReportContext"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/machine-reports/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Report Status
+         * @description Each machine's report status: last approved reading, pending report, days since the last report (field users:
+         *     their assigned machines).
+         */
+        get: operations["listMachineReportStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/machine-reports/{report_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Report
+         * @description A report with its lines, the reading's findings and the tracker cross-check (approver aid).
+         */
+        get: operations["getMachineReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/machine-reports/{report_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Report
+         * @description Approve (never your own): consumes the customers' hours FIFO and writes the allocation ledger.
+         */
+        post: operations["approveMachineReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/machine-reports/{report_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject Report
+         * @description Reject with a reason (never your own): the reservation is released; the supervisor corrects the split on the
+         *     same reading (a new report with corrects_report_id).
+         */
+        post: operations["rejectMachineReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/machines": {
         parameters: {
             query?: never;
@@ -7316,6 +7613,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/reports/credit_invoice_payments.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Credit invoice payments (CSV)
+         * @description Payments of credit invoices received in the period, by method. Same filters, sort and permission (tenant.hours.read) as `listCreditInvoices`; at most 10,000 rows, then a truncation note. Every export is audited.
+         */
+        get: operations["exportTenantCreditInvoicePaymentsReportCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/reports/credit_invoice_payments.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Credit invoice payments (PDF)
+         * @description Payments of credit invoices received in the period, by method. Same filters, sort and permission (tenant.hours.read) as `listCreditInvoices`; at most 2,000 rows, then a truncation note. Every export is audited.
+         */
+        get: operations["exportTenantCreditInvoicePaymentsReportPdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/reports/credit_invoices.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Credit invoices (CSV)
+         * @description Credit invoices of orders: amount, paid, balance, status and days overdue. Same filters, sort and permission (tenant.hours.read) as `listCreditInvoices`; at most 10,000 rows, then a truncation note. Every export is audited.
+         */
+        get: operations["exportTenantCreditInvoicesReportCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/reports/credit_invoices.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Credit invoices (PDF)
+         * @description Credit invoices of orders: amount, paid, balance, status and days overdue. Same filters, sort and permission (tenant.hours.read) as `listCreditInvoices`; at most 2,000 rows, then a truncation note. Every export is audited.
+         */
+        get: operations["exportTenantCreditInvoicesReportPdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/reports/customer_hours.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Customer hours (CSV)
+         * @description Per customer: hours bought, activated, used, left and still awaiting payment or activation. Same filters, sort and permission (tenant.hours.read) as `listCustomerHours`; at most 10,000 rows, then a truncation note. Every export is audited.
+         */
+        get: operations["exportTenantCustomerHoursReportCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/reports/customer_hours.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Customer hours (PDF)
+         * @description Per customer: hours bought, activated, used, left and still awaiting payment or activation. Same filters, sort and permission (tenant.hours.read) as `listCustomerHours`; at most 2,000 rows, then a truncation note. Every export is audited.
+         */
+        get: operations["exportTenantCustomerHoursReportPdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/reports/expenses.csv": {
         parameters: {
             query?: never;
@@ -7436,6 +7853,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/reports/machine_hours.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Productive and non-productive hours (CSV)
+         * @description Approved machine report hours per machine: customer work and each non-productive reason. Same filters, sort and permission (tenant.machine_report.read) as `listMachineReports`; at most 10,000 rows, then a truncation note. Every export is audited.
+         */
+        get: operations["exportTenantMachineHoursReportCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/reports/machine_hours.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Productive and non-productive hours (PDF)
+         * @description Approved machine report hours per machine: customer work and each non-productive reason. Same filters, sort and permission (tenant.machine_report.read) as `listMachineReports`; at most 2,000 rows, then a truncation note. Every export is audited.
+         */
+        get: operations["exportTenantMachineHoursReportPdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/reports/petty_cash_expenses.csv": {
         parameters: {
             query?: never;
@@ -7548,6 +8005,46 @@ export interface paths {
          * @description Opening/closing hour-meter readings with OCR, GPS evidence status and review state. Same filters, sort and permission (tenant.meter.read) as `listMeterCaptures`; at most 2,000 rows, then a truncation note. Every export is audited.
          */
         get: operations["exportTenantReadingsReportPdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/reports/sales_collections.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sales and collections by method (CSV)
+         * @description Hours sold in the period by payment line (cash, bank, mobile money, credit, unpaid) and money received in the period by method. Same filters, sort and permission (tenant.finance.read) as `listHoursPurchases`; at most 10,000 rows, then a truncation note. Every export is audited.
+         */
+        get: operations["exportTenantSalesCollectionsReportCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/reports/sales_collections.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sales and collections by method (PDF)
+         * @description Hours sold in the period by payment line (cash, bank, mobile money, credit, unpaid) and money received in the period by method. Same filters, sort and permission (tenant.finance.read) as `listHoursPurchases`; at most 2,000 rows, then a truncation note. Every export is audited.
+         */
+        get: operations["exportTenantSalesCollectionsReportPdf"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9297,7 +9794,7 @@ export interface components {
          * AllocationSource
          * @enum {string}
          */
-        AllocationSource: "DERIVED" | "BACKFILL" | "CORRECTION";
+        AllocationSource: "DERIVED" | "BACKFILL" | "CORRECTION" | "MACHINE_REPORT";
         /**
          * AllocationStatus
          * @enum {string}
@@ -9768,6 +10265,36 @@ export interface components {
             /** Tenant Id */
             tenant_id: string | null;
         };
+        /**
+         * AvailableHoursDto
+         * @description A customer's hours a new report may draw on: activated - consumed - reserved by other SUBMITTED reports.
+         */
+        AvailableHoursDto: {
+            /** Available */
+            available: string;
+            /**
+             * Customer Id
+             * Format: uuid
+             */
+            customer_id: string;
+            /** Customer Name */
+            customer_name?: string | null;
+            /**
+             * Machine Id
+             * @description Set when the tenant draws reports only on the machine's hours (scope MACHINE)
+             */
+            machine_id?: string | null;
+            /**
+             * Remaining
+             * @description Activated hours not yet used
+             */
+            remaining: string;
+            /**
+             * Reserved
+             * @description Held by SUBMITTED reports
+             */
+            reserved: string;
+        };
         /** BaselineDto */
         BaselineDto: {
             /** Accuracy M */
@@ -9946,37 +10473,6 @@ export interface components {
         Body_uploadRemittanceEvidence: {
             /** File */
             file: string;
-        };
-        /**
-         * BookedJobDto
-         * @description The job booked together with an hours sale.
-         */
-        BookedJobDto: {
-            /** Approved At */
-            approved_at: string | null;
-            /**
-             * Contract Id
-             * Format: uuid
-             */
-            contract_id: string;
-            /** Contract Number */
-            contract_number?: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Job Number */
-            job_number: string;
-            /** Planned End */
-            planned_end: string | null;
-            /**
-             * Planned Start
-             * Format: date-time
-             */
-            planned_start: string;
-            /** Status */
-            status: string;
         };
         /** BootstrapDto */
         BootstrapDto: {
@@ -11930,6 +12426,218 @@ export interface components {
             /** Limit Amount */
             limit_amount: string | null;
         };
+        /**
+         * CreditInvoiceDto
+         * @description CI-<yyyy>-<nnnnn>: created automatically for the CREDIT line of an order. Paid in full or in parts (cash, bank,
+         *     mobile money). Status: UNPAID, PART_PAID, PAID (CANCELLED when its order was cancelled); `overdue` once the due
+         *     date passed with a balance. Recorded payments count (claimed or verified) until rejected or reversed.
+         */
+        CreditInvoiceDto: {
+            /** Amount */
+            amount: string;
+            /** Balance */
+            balance: string;
+            /** Created By */
+            created_by: string | null;
+            /** Created By Name */
+            created_by_name?: string | null;
+            /** Currency */
+            currency: string;
+            /**
+             * Customer Id
+             * Format: uuid
+             */
+            customer_id: string;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Days Overdue */
+            days_overdue: number;
+            /**
+             * Due Date
+             * Format: date
+             */
+            due_date: string;
+            /**
+             * Hours
+             * @description Hours the credit amount pays for (amount / the order's effective rate)
+             */
+            hours: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Number */
+            invoice_number: string;
+            /**
+             * Issued At
+             * Format: date-time
+             */
+            issued_at: string;
+            /** Machine Code */
+            machine_code?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name?: string | null;
+            /** Overdue */
+            overdue: boolean;
+            /** Paid */
+            paid: string;
+            /**
+             * Paid Verified
+             * @description Of `paid`: money already verified
+             */
+            paid_verified: string;
+            /** Payment Terms Days */
+            payment_terms_days: number;
+            /**
+             * Payments
+             * @default []
+             */
+            payments: components["schemas"]["CreditInvoicePaymentDto"][];
+            /**
+             * Purchase Id
+             * Format: uuid
+             */
+            purchase_id: string;
+            /** Purchase Number */
+            purchase_number?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "UNPAID" | "PART_PAID" | "PAID" | "CANCELLED";
+            /**
+             * Unit Price
+             * @description The order's effective hourly rate
+             */
+            unit_price: string;
+        };
+        /**
+         * CreditInvoicePaymentDto
+         * @description One payment recorded against a credit invoice (its customer payment record carries the money's status).
+         */
+        CreditInvoicePaymentDto: {
+            /** Amount */
+            amount: string;
+            /** Collection Number */
+            collection_number?: string | null;
+            /**
+             * Counts
+             * @description False once the payment was rejected or reversed (it no longer pays the invoice)
+             */
+            counts: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            method: components["schemas"]["HirePaymentMethod"];
+            /**
+             * Payment Id
+             * Format: uuid
+             */
+            payment_id: string;
+            /** Payment Status */
+            payment_status: string;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Received By Staff Id */
+            received_by_staff_id: string | null;
+            /** Received By Staff Name */
+            received_by_staff_name?: string | null;
+            /** Recorded By */
+            recorded_by: string | null;
+            /** Recorded By Name */
+            recorded_by_name?: string | null;
+            /** Reference */
+            reference: string | null;
+        };
+        /**
+         * CreditInvoicePaymentIn
+         * @description A payment (in full or part) of a credit invoice. CASH goes into the recorder's (or the named custodian's) cash
+         *     custody like any collection; BANK and MOBILE_MONEY need the transaction reference and stay claimed until the
+         *     office verifies them. Field staff record bank / mobile money only when the tenant allows field non-cash payments.
+         */
+        CreditInvoicePaymentIn: {
+            /**
+             * Amount
+             * @description At most the invoice balance
+             */
+            amount: number | string;
+            /**
+             * Client Id
+             * @description Device/client id (offline idempotency)
+             */
+            client_id?: string | null;
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids?: string[];
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "CASH" | "BANK" | "MOBILE_MONEY";
+            /** Note */
+            note?: string | null;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /**
+             * Reference
+             * @description Required for BANK and MOBILE_MONEY
+             */
+            reference?: string | null;
+            /**
+             * Staff Member Id
+             * @description Cash custodian (defaults to the caller's staff record for CASH)
+             */
+            staff_member_id?: string | null;
+        };
+        /**
+         * CreditInvoiceSummaryDto
+         * @description The credit invoice of an order, as shown on the order.
+         */
+        CreditInvoiceSummaryDto: {
+            /** Amount */
+            amount: string;
+            /** Balance */
+            balance: string;
+            /**
+             * Due Date
+             * Format: date
+             */
+            due_date: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Number */
+            invoice_number: string;
+            /** Overdue */
+            overdue: boolean;
+            /** Paid */
+            paid: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "UNPAID" | "PART_PAID" | "PAID" | "CANCELLED";
+        };
         /** CurrencyTotalsDto */
         CurrencyTotalsDto: {
             /** Billable Assets */
@@ -12222,6 +12930,35 @@ export interface components {
             remaining_customers_total: number;
             unconfirmed_purchases: components["schemas"]["PurchaseQueueDto"];
             unpaid_purchases: components["schemas"]["PurchaseQueueDto"];
+        };
+        /**
+         * CustomerHoursSummaryDto
+         * @description One customer's hours (ADR-008): bought (orders not cancelled), activated, used (approved machine reports and
+         *     any older job allocations), left to use, still awaiting payment or activation, and credit still owed.
+         */
+        CustomerHoursSummaryDto: {
+            /** Activated */
+            activated: string;
+            /** Awaiting Activation */
+            awaiting_activation: string;
+            /** Bought */
+            bought: string;
+            /**
+             * Credit Owed
+             * @description Balance of the customer's open credit invoices (tenant currency)
+             */
+            credit_owed: string;
+            /**
+             * Customer Id
+             * Format: uuid
+             */
+            customer_id: string;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Left */
+            left: string;
+            /** Used */
+            used: string;
         };
         /** CustomerIn */
         CustomerIn: {
@@ -13372,7 +14109,7 @@ export interface components {
          * EngineHourReasonKind
          * @enum {string}
          */
-        EngineHourReasonKind: "NON_CUSTOMER_CATEGORY" | "VARIANCE_REASON" | "UNBILLABLE_REASON";
+        EngineHourReasonKind: "NON_CUSTOMER_CATEGORY" | "VARIANCE_REASON" | "UNBILLABLE_REASON" | "NON_PRODUCTIVE";
         /** EngineHourReasonUpdateIn */
         EngineHourReasonUpdateIn: {
             /** Code */
@@ -14469,6 +15206,13 @@ export interface components {
             created_by: string | null;
             /** Created By Name */
             created_by_name?: string | null;
+            /**
+             * Credit Amount
+             * @description The CREDIT line of the order (paid later on its credit invoice); null without one
+             */
+            credit_amount?: string | null;
+            /** @description The credit invoice created for the CREDIT line */
+            credit_invoice?: components["schemas"]["CreditInvoiceSummaryDto"] | null;
             /** Currency */
             currency: string;
             /**
@@ -14494,8 +15238,6 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** @description The job booked together with this sale, if any */
-            job?: components["schemas"]["BookedJobDto"] | null;
             /** Job Site Id */
             job_site_id: string | null;
             /** Job Site Name */
@@ -14562,8 +15304,6 @@ export interface components {
             customer_id?: string | null;
             /** Hours */
             hours: number | string;
-            /** @description Book the job with the sale (needs tenant.job.request too). The job id is derived from client_id (uuid5(client_id, 'job')), so offline retries create it exactly once. */
-            job?: components["schemas"]["SaleJobIn"] | null;
             /** Job Site Id */
             job_site_id?: string | null;
             /**
@@ -14577,7 +15317,7 @@ export interface components {
             payment?: components["schemas"]["PurchasePaymentIn"] | null;
             /**
              * Payments
-             * @description The bill split across methods (e.g. cash + bank + mobile money); each part needs its amount. Give payment or payments, not both. Together they may not exceed the purchase amount.
+             * @description The bill split across methods (cash + bank + mobile money + credit); each part needs its amount. Give payment or payments, not both. Together they may not exceed the purchase amount. At most one CREDIT line (registered customers only): it creates the order's credit invoice.
              */
             payments?: components["schemas"]["PurchasePaymentIn"][];
             walk_in?: components["schemas"]["WalkInCustomerIn"] | null;
@@ -15694,6 +16434,27 @@ export interface components {
             reference: string;
         };
         /**
+         * LotDto
+         * @description Hours of one order (lot) a customer line consumed on approval, oldest activated first.
+         */
+        LotDto: {
+            /** Hours */
+            hours: string;
+            /**
+             * Machine Id
+             * Format: uuid
+             * @description The machine the order's hours were on
+             */
+            machine_id: string;
+            /**
+             * Purchase Id
+             * Format: uuid
+             */
+            purchase_id: string;
+            /** Purchase Number */
+            purchase_number?: string | null;
+        };
+        /**
          * LowBalanceAlertDto
          * @description One crossing of the tenant's low-balance threshold by a purchase (the office was told once).
          */
@@ -16012,6 +16773,325 @@ export interface components {
              * Format: date-time
              */
             uploaded_at: string;
+        };
+        /**
+         * MachineReportContextDto
+         * @description What a new report on this machine starts from (the form's first step).
+         */
+        MachineReportContextDto: {
+            /** Customers */
+            customers: components["schemas"]["AvailableHoursDto"][];
+            /**
+             * Hours Scope
+             * @enum {string}
+             */
+            hours_scope: "CUSTOMER" | "MACHINE";
+            /** Last Report At */
+            last_report_at: string | null;
+            /** Machine Code */
+            machine_code?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name?: string | null;
+            /** Meter Decimal Places */
+            meter_decimal_places: number;
+            /** Meter Epoch */
+            meter_epoch: number;
+            /**
+             * Pending Report Id
+             * @description A SUBMITTED report holds the machine: the next waits
+             */
+            pending_report_id: string | null;
+            /** Previous At */
+            previous_at: string | null;
+            /**
+             * Previous Reading
+             * @description Null: no approved baseline yet (BASELINE_REQUIRED)
+             */
+            previous_reading: string | null;
+            previous_source: components["schemas"]["StartSource"] | null;
+            /** Reasons */
+            reasons: components["schemas"]["MachineReportReasonDto"][];
+        };
+        /** MachineReportDecisionIn */
+        MachineReportDecisionIn: {
+            /** Note */
+            note?: string | null;
+        };
+        /** MachineReportDto */
+        MachineReportDto: {
+            /**
+             * Capture Id
+             * Format: uuid
+             */
+            capture_id: string;
+            /** Capture State */
+            capture_state?: string | null;
+            /** Client Created At */
+            client_created_at: string | null;
+            /**
+             * Corrected By Id
+             * @description The report that corrected this rejected one
+             */
+            corrected_by_id?: string | null;
+            /** Corrects Id */
+            corrects_id: string | null;
+            /** Customer Hours */
+            customer_hours: string;
+            /** Decided At */
+            decided_at: string | null;
+            /** Decided By */
+            decided_by: string | null;
+            /** Decided By Name */
+            decided_by_name?: string | null;
+            /** Decision Note */
+            decision_note: string | null;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /** End Reading */
+            end_reading: string;
+            /**
+             * Findings
+             * @description The reading's findings (review evidence)
+             */
+            findings?: components["schemas"]["FindingDto"][];
+            /** Hours */
+            hours: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Lines
+             * @default []
+             */
+            lines: components["schemas"]["MachineReportLineDto"][];
+            /** Machine Code */
+            machine_code?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name?: string | null;
+            /** Non Productive Hours */
+            non_productive_hours: string;
+            /** Note */
+            note: string | null;
+            /** Photo Attachment Id */
+            photo_attachment_id?: string | null;
+            /** Policy Version */
+            policy_version: string;
+            /** Report Number */
+            report_number: string;
+            /** Source */
+            source: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /** Start Reading */
+            start_reading: string;
+            /**
+             * Start Ref
+             * Format: uuid
+             */
+            start_ref: string;
+            start_source: components["schemas"]["StartSource"];
+            status: components["schemas"]["MachineReportStatus"];
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /** Submitted By */
+            submitted_by: string | null;
+            /** Submitted By Name */
+            submitted_by_name?: string | null;
+            /** @description Detail only: tracker cross-check */
+            tracker?: components["schemas"]["TrackerCheckDto"] | null;
+        };
+        /**
+         * MachineReportIn
+         * @description A machine report: the new reading and how its hours split. Give the new reading as `capture` (a DAILY meter
+         *     reading of this machine: photo, OCR, GPS, time, exactly as POST /meter-captures) or as `capture_id` (a reading
+         *     already recorded, e.g. the reading of a rejected report being corrected, then with `corrects_report_id`). The
+         *     lines must add up to the difference between the machine's last approved reading and the new one exactly.
+         */
+        MachineReportIn: {
+            capture?: components["schemas"]["MeterCaptureIn"] | null;
+            /** Capture Id */
+            capture_id?: string | null;
+            /**
+             * Client Created At
+             * @description Device time the report was made
+             */
+            client_created_at?: string | null;
+            /**
+             * Corrects Report Id
+             * @description The REJECTED report this one corrects (same reading)
+             */
+            corrects_report_id?: string | null;
+            /**
+             * Id
+             * @description Device-generated report id (offline idempotency; the sync operation id)
+             */
+            id?: string | null;
+            /** Lines */
+            lines: components["schemas"]["MachineReportLineIn"][];
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Note */
+            note?: string | null;
+        };
+        /** MachineReportLineDto */
+        MachineReportLineDto: {
+            /**
+             * Available Hours
+             * @description SUBMITTED reports, customer lines: the customer's hours available to this report now (its own reservation included)
+             */
+            available_hours?: string | null;
+            /** Customer Id */
+            customer_id: string | null;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Hours */
+            hours: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kind: components["schemas"]["ReportLineKind"];
+            /** Line No */
+            line_no: number;
+            /**
+             * Lots
+             * @description APPROVED reports: the orders the hours came from
+             */
+            lots?: components["schemas"]["LotDto"][];
+            /** Note */
+            note: string | null;
+            /** Reason Code */
+            reason_code?: string | null;
+            /** Reason Id */
+            reason_id: string | null;
+            /** Reason Name */
+            reason_name?: string | null;
+        };
+        /**
+         * MachineReportLineIn
+         * @description CUSTOMER: `customer_id` + `hours` (drawn from the hours the customer bought). NON_PRODUCTIVE: `reason_id` (the
+         *     tenant's machine-report reason list) + `hours` + `note` (required).
+         */
+        MachineReportLineIn: {
+            /** Customer Id */
+            customer_id?: string | null;
+            /** Hours */
+            hours: number | string;
+            kind: components["schemas"]["ReportLineKind"];
+            /** Note */
+            note?: string | null;
+            /** Reason Id */
+            reason_id?: string | null;
+        };
+        /** MachineReportReasonDto */
+        MachineReportReasonDto: {
+            /** Code */
+            code: string;
+            /** Description */
+            description: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Version */
+            version: number;
+        };
+        /**
+         * MachineReportReasonIn
+         * @description A machine-report reason (the tenant's own list; e.g. Transit between sites, Breakdown / repair).
+         */
+        MachineReportReasonIn: {
+            /** Code */
+            code: string;
+            /** Description */
+            description?: string | null;
+            /** Name */
+            name: string;
+        };
+        /** MachineReportRejectIn */
+        MachineReportRejectIn: {
+            /** Reason */
+            reason: string;
+        };
+        /**
+         * MachineReportStatus
+         * @enum {string}
+         */
+        MachineReportStatus: "SUBMITTED" | "APPROVED" | "REJECTED";
+        /**
+         * MachineReportStatusDto
+         * @description One machine's report status (supervisor dashboard, owner overview).
+         */
+        MachineReportStatusDto: {
+            /** Days Since Report */
+            days_since_report: number | null;
+            /** Last Approved At */
+            last_approved_at: string | null;
+            /** Last Approved Reading */
+            last_approved_reading: string | null;
+            /** Last Report At */
+            last_report_at: string | null;
+            /** Machine Code */
+            machine_code?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name?: string | null;
+            /**
+             * Meter Decimal Places
+             * @default 1
+             */
+            meter_decimal_places: number;
+            /** Pending Report Id */
+            pending_report_id: string | null;
+            /** Pending Report Number */
+            pending_report_number: string | null;
+            /** Previous At */
+            previous_at?: string | null;
+            /**
+             * Previous Reading
+             * @description Where a new report starts (last approved reading, baseline or reset); null: none
+             */
+            previous_reading?: string | null;
+            previous_source?: components["schemas"]["StartSource"] | null;
+            /**
+             * Rejected Report Id
+             * @description The machine's latest report was rejected and not yet corrected
+             */
+            rejected_report_id: string | null;
         };
         /**
          * MachineStatus
@@ -17650,7 +18730,7 @@ export interface components {
              * Op Type
              * @enum {string}
              */
-            op_type: "METER_CAPTURE" | "JOB_ACTIVITY" | "JOB_ACKNOWLEDGEMENT" | "JOB_TRANSITION" | "EXPENSE" | "CASH_COLLECTION" | "CASH_HANDOVER" | "CASH_TRANSFER" | "CASH_TRANSFER_ACKNOWLEDGEMENT" | "CASH_FLOAT_ACKNOWLEDGEMENT" | "FUEL_EVENT" | "METER_RESET_REQUEST" | "JOB_REQUEST" | "HOURS_PURCHASE" | "HOURS_TRANSFER_REQUEST" | "METER_BASELINE" | "METER_CORRECTION" | "CASH_RETENTION_REQUEST" | "SITE_CHECKIN" | "DAILY_REPORT" | "PETTY_CASH_ACKNOWLEDGEMENT" | "PETTY_CASH_TOP_UP_REQUEST" | "PETTY_CASH_RETURN" | "PETTY_CASH_COUNT" | "PETTY_CASH_ADVANCE_CLEARANCE" | "PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT" | "PETTY_CASH_ADVANCE";
+            op_type: "METER_CAPTURE" | "JOB_ACTIVITY" | "JOB_ACKNOWLEDGEMENT" | "JOB_TRANSITION" | "EXPENSE" | "CASH_COLLECTION" | "CASH_HANDOVER" | "CASH_TRANSFER" | "CASH_TRANSFER_ACKNOWLEDGEMENT" | "CASH_FLOAT_ACKNOWLEDGEMENT" | "FUEL_EVENT" | "METER_RESET_REQUEST" | "JOB_REQUEST" | "HOURS_PURCHASE" | "HOURS_TRANSFER_REQUEST" | "METER_BASELINE" | "METER_CORRECTION" | "CASH_RETENTION_REQUEST" | "SITE_CHECKIN" | "DAILY_REPORT" | "PETTY_CASH_ACKNOWLEDGEMENT" | "PETTY_CASH_TOP_UP_REQUEST" | "PETTY_CASH_RETURN" | "PETTY_CASH_COUNT" | "PETTY_CASH_ADVANCE_CLEARANCE" | "PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT" | "PETTY_CASH_ADVANCE" | "MACHINE_REPORT" | "CREDIT_INVOICE_PAYMENT";
             /** Payload */
             payload: {
                 [key: string]: unknown;
@@ -18116,6 +19196,17 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** Page[CreditInvoiceDto] */
+        Page_CreditInvoiceDto_: {
+            /** Items */
+            items: components["schemas"]["CreditInvoiceDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
         /** Page[CustodianDto] */
         Page_CustodianDto_: {
             /** Items */
@@ -18373,6 +19464,17 @@ export interface components {
         Page_MachineEngineHoursSummaryDto_: {
             /** Items */
             items: components["schemas"]["MachineEngineHoursSummaryDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[MachineReportDto] */
+        Page_MachineReportDto_: {
+            /** Items */
+            items: components["schemas"]["MachineReportDto"][];
             /** Page */
             page: number;
             /** Page Size */
@@ -20318,8 +21420,10 @@ export interface components {
         };
         /**
          * PurchasePaymentIn
-         * @description Money taken together with the purchase. It is recorded as a CLAIMED customer payment (cash enters the
-         *     custodian's custody) and linked to the purchase; hours activate only when someone else verifies it.
+         * @description One payment line of the order. CASH / BANK / MOBILE_MONEY: money taken with the sale, recorded as a CLAIMED
+         *     customer payment (cash enters the custodian's custody) and linked to the purchase; hours activate once it is
+         *     verified (or per the tenant's cash activation). CREDIT: amount only (registered customers, at most one line); it
+         *     creates the order's credit invoice and activates nothing by itself.
          */
         PurchasePaymentIn: {
             /**
@@ -20329,14 +21433,14 @@ export interface components {
             amount?: number | string | null;
             /** Evidence Attachment Ids */
             evidence_attachment_ids?: string[];
-            method: components["schemas"]["HirePaymentMethod"];
+            method: components["schemas"]["SalePaymentMethod"];
             /** Note */
             note?: string | null;
             /**
              * Received At
-             * Format: date-time
+             * @description Required for every method except CREDIT
              */
-            received_at: string;
+            received_at?: string | null;
             /**
              * Reference
              * @description Required for BANK and MOBILE_MONEY
@@ -20936,6 +22040,11 @@ export interface components {
             title: string;
         };
         /**
+         * ReportLineKind
+         * @enum {string}
+         */
+        ReportLineKind: "CUSTOMER" | "NON_PRODUCTIVE";
+        /**
          * RequestStatus
          * @enum {string}
          */
@@ -21301,38 +22410,12 @@ export interface components {
          */
         RuleCode: "UNREPORTED_ENGINE_ACTIVITY" | "DUPLICATE_RECEIPT" | "FUEL_ALLOWANCE_EXCEEDED" | "EXPENSE_THRESHOLD_EXCEEDED" | "CASH_NOT_HANDED_OVER" | "WORK_WITHOUT_AUTHORIZATION" | "UNEXPLAINED_ENGINE_HOURS" | "ENGINE_RUNNING_WITHOUT_WORK" | "MACHINE_FUEL_ABOVE_NORM" | "REPEATED_PATTERN";
         /**
-         * SaleJobIn
-         * @description Book the job together with the hours sale (one step): a field job request for the sale's customer and machine,
-         *     billed from these prepaid hours, waiting for approval like any field request (or approved automatically once the
-         *     sale is fully paid and verified, when the tenant's CUSTOMER_HOURS policy prepaid_job_auto_approval is on).
+         * SalePaymentMethod
+         * @description A payment line of an order (ADR-008 §1). CREDIT is not money received: the customer pays it later on the
+         *     credit invoice the sale creates.
+         * @enum {string}
          */
-        SaleJobIn: {
-            /**
-             * Contract Id
-             * @description Omit to use the customer's only active contract (for that site when one is given); a walk-in without a contract gets a standard one when the tenant allows it (walk_in_standard_contract)
-             */
-            contract_id?: string | null;
-            /**
-             * Job Site Id
-             * @description Defaults to the sale's site, then to the contract's site
-             */
-            job_site_id?: string | null;
-            /**
-             * Note
-             * @description What the customer asked for
-             */
-            note?: string | null;
-            /**
-             * Planned End
-             * @description Omit for an open-ended booking
-             */
-            planned_end?: string | null;
-            /**
-             * Planned Start
-             * Format: date-time
-             */
-            planned_start: string;
-        };
+        SalePaymentMethod: "CASH" | "BANK" | "MOBILE_MONEY" | "CREDIT";
         /** ScorecardDetailDto */
         ScorecardDetailDto: {
             /** Records */
@@ -22169,6 +23252,12 @@ export interface components {
          * @enum {string}
          */
         StandbyTreatment: "EXCLUDED" | "INCLUDED" | "STANDBY_RATE";
+        /**
+         * StartSource
+         * @description Where the report's previous reading comes from.
+         * @enum {string}
+         */
+        StartSource: "REPORT" | "BASELINE" | "RESET";
         /** StatementLineDto */
         StatementLineDto: {
             /**
@@ -22643,6 +23732,21 @@ export interface components {
              */
             jobs: components["schemas"]["JobDto"][];
             /**
+             * Machine Report Hours
+             * @default []
+             */
+            machine_report_hours: components["schemas"]["AvailableHoursDto"][];
+            /**
+             * Machine Report Reasons
+             * @default []
+             */
+            machine_report_reasons: components["schemas"]["MachineReportReasonDto"][];
+            /**
+             * Machine Report States
+             * @default []
+             */
+            machine_report_states: components["schemas"]["MachineReportStatusDto"][];
+            /**
              * Machines
              * @default []
              */
@@ -22678,6 +23782,11 @@ export interface components {
              */
             my_job_activities: components["schemas"]["SyncJobActivityDto"][];
             /**
+             * My Machine Reports
+             * @default []
+             */
+            my_machine_reports: components["schemas"]["MachineReportDto"][];
+            /**
              * My Meter Captures
              * @default []
              */
@@ -22687,6 +23796,11 @@ export interface components {
              * @default []
              */
             my_meter_resets: components["schemas"]["SyncMeterResetDto"][];
+            /**
+             * Open Credit Invoices
+             * @default []
+             */
+            open_credit_invoices: components["schemas"]["CreditInvoiceDto"][];
             /**
              * Open Invoices
              * @default []
@@ -23673,6 +24787,30 @@ export interface components {
              * Format: uuid
              */
             tracker_id: string;
+        };
+        /**
+         * TrackerCheckDto
+         * @description Approver aid: engine hours the machine's tracker counted over the report's period, against the meter.
+         */
+        TrackerCheckDto: {
+            /**
+             * Available
+             * @description False when the machine has no tracker engine-hour counts for the period
+             */
+            available: boolean;
+            /**
+             * Difference
+             * @description meter_hours - tracker_hours
+             */
+            difference: string | null;
+            /** Meter Hours */
+            meter_hours: string;
+            /** Tracker From At */
+            tracker_from_at?: string | null;
+            /** Tracker Hours */
+            tracker_hours: string | null;
+            /** Tracker To At */
+            tracker_to_at?: string | null;
         };
         /** TrackerDto */
         TrackerDto: {
@@ -44709,6 +45847,284 @@ export interface operations {
             };
         };
     };
+    listCreditInvoices: {
+        parameters: {
+            query?: {
+                customer_id?: string | null;
+                purchase_id?: string | null;
+                status?: ("UNPAID" | "PART_PAID" | "PAID" | "CANCELLED") | null;
+                overdue?: boolean | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CreditInvoiceDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getCreditInvoice: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditInvoiceDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    recordCreditInvoicePayment: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreditInvoicePaymentIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditInvoiceDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listCustomerDiscounts: {
         parameters: {
             query?: {
@@ -45281,6 +46697,94 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiscountDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listCustomerHours: {
+        parameters: {
+            query?: {
+                customer_id?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerHoursSummaryDto"][];
                 };
             };
             /** @description Bad Request */
@@ -58288,6 +59792,1187 @@ export interface operations {
             };
         };
     };
+    listMachineReportReasons: {
+        parameters: {
+            query?: {
+                include_inactive?: boolean;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MachineReportReasonDto"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createMachineReportReason: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MachineReportReasonIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MachineReportReasonDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateMachineReportReason: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                reason_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EngineHourReasonUpdateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MachineReportReasonDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    deactivateMachineReportReason: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                reason_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LifecycleChangeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MachineReportReasonDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    reactivateMachineReportReason: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                reason_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LifecycleChangeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MachineReportReasonDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listMachineReports: {
+        parameters: {
+            query?: {
+                machine_id?: string | null;
+                status?: components["schemas"]["MachineReportStatus"] | null;
+                /** @description PENDING: reports waiting for a decision (SUBMITTED) */
+                queue?: string | null;
+                customer_id?: string | null;
+                mine?: boolean;
+                date_from?: string | null;
+                date_to?: string | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_MachineReportDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    submitMachineReport: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MachineReportIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MachineReportDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listReportHours: {
+        parameters: {
+            query: {
+                machine_id: string;
+                customer_id?: string[] | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvailableHoursDto"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getMachineReportContext: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                machine_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MachineReportContextDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listMachineReportStatus: {
+        parameters: {
+            query?: {
+                machine_id?: string[] | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MachineReportStatusDto"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getMachineReport: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MachineReportDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    approveMachineReport: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MachineReportDecisionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MachineReportDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    rejectMachineReport: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MachineReportRejectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MachineReportDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listMachines: {
         parameters: {
             query?: {
@@ -68078,6 +70763,546 @@ export interface operations {
             };
         };
     };
+    exportTenantCreditInvoicePaymentsReportCsv: {
+        parameters: {
+            query?: {
+                /** @description Tenant-local first day (default: first day of this month) */
+                from?: string | null;
+                /** @description Tenant-local last day (default: today) */
+                to?: string | null;
+                customer_id?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    exportTenantCreditInvoicePaymentsReportPdf: {
+        parameters: {
+            query?: {
+                /** @description Tenant-local first day (default: first day of this month) */
+                from?: string | null;
+                /** @description Tenant-local last day (default: today) */
+                to?: string | null;
+                customer_id?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description PDF file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    exportTenantCreditInvoicesReportCsv: {
+        parameters: {
+            query?: {
+                customer_id?: string | null;
+                status?: ("UNPAID" | "PART_PAID" | "PAID" | "CANCELLED") | null;
+                overdue?: boolean | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    exportTenantCreditInvoicesReportPdf: {
+        parameters: {
+            query?: {
+                customer_id?: string | null;
+                status?: ("UNPAID" | "PART_PAID" | "PAID" | "CANCELLED") | null;
+                overdue?: boolean | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description PDF file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    exportTenantCustomerHoursReportCsv: {
+        parameters: {
+            query?: {
+                customer_id?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    exportTenantCustomerHoursReportPdf: {
+        parameters: {
+            query?: {
+                customer_id?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description PDF file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     exportTenantExpensesReportCsv: {
         parameters: {
             query?: {
@@ -68545,6 +71770,190 @@ export interface operations {
                 /** @description Job number contains */
                 q?: string | null;
                 status?: components["schemas"]["JobStatus"] | null;
+                machine_id?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description PDF file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    exportTenantMachineHoursReportCsv: {
+        parameters: {
+            query?: {
+                /** @description Tenant-local first day (default: first day of this month) */
+                from?: string | null;
+                /** @description Tenant-local last day (default: today) */
+                to?: string | null;
+                machine_id?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    exportTenantMachineHoursReportPdf: {
+        parameters: {
+            query?: {
+                /** @description Tenant-local first day (default: first day of this month) */
+                from?: string | null;
+                /** @description Tenant-local last day (default: today) */
+                to?: string | null;
                 machine_id?: string | null;
             };
             header?: {
@@ -69102,6 +72511,188 @@ export interface operations {
                 captured_from?: string | null;
                 /** @description Exclusive */
                 captured_to?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description PDF file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    exportTenantSalesCollectionsReportCsv: {
+        parameters: {
+            query?: {
+                /** @description Tenant-local first day (default: first day of this month) */
+                from?: string | null;
+                /** @description Tenant-local last day (default: today) */
+                to?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    exportTenantSalesCollectionsReportPdf: {
+        parameters: {
+            query?: {
+                /** @description Tenant-local first day (default: first day of this month) */
+                from?: string | null;
+                /** @description Tenant-local last day (default: today) */
+                to?: string | null;
             };
             header?: {
                 "x-tenant-id"?: string | null;

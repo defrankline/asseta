@@ -7,9 +7,9 @@ import { array, mixed, object, string, type ObjectSchema, type Schema } from 'yu
 import type {
   ActivationSource,
   AllocationLineDto,
-  BookedJobDto,
   CancellationDto,
   CreditArrangementDto,
+  CreditInvoiceSummaryDto,
   CreditExposureDto,
   DiscountDto,
   HoursBalanceDto,
@@ -138,16 +138,16 @@ export const hoursQuoteSchema: Schema<HoursQuoteDto> = object({
   minimum_hours: text(),
 });
 
-/** The job booked with the sale (null when none was booked). */
-const bookedJobSchema: Schema<BookedJobDto> = object({
+/** The credit invoice a sale with a CREDIT line created. */
+export const creditInvoiceSummarySchema: Schema<CreditInvoiceSummaryDto> = object({
   id: id(),
-  job_number: text(),
-  status: text(),
-  contract_id: id(),
-  contract_number: nullableText().default(null),
-  planned_start: text(),
-  planned_end: nullableText(),
-  approved_at: nullableText(),
+  invoice_number: text(),
+  amount: text(),
+  paid: text(),
+  balance: text(),
+  due_date: text(),
+  status: oneOf(['UNPAID', 'PART_PAID', 'PAID', 'CANCELLED'] as const),
+  overdue: bool(),
 });
 
 export const hoursPurchaseSchema: Schema<HoursPurchaseDto> = object({
@@ -184,10 +184,15 @@ export const hoursPurchaseSchema: Schema<HoursPurchaseDto> = object({
     .nullable()
     .default(null)
     .test('payment', 'invalid payment', (v) => v == null || customerPaymentSchema.isValidSync(v)),
-  job: mixed<BookedJobDto>()
+  credit_amount: nullableText().default(null),
+  credit_invoice: mixed<CreditInvoiceSummaryDto>()
     .nullable()
     .default(null)
-    .test('job', 'invalid booked job', (v) => v == null || bookedJobSchema.isValidSync(v)),
+    .test(
+      'credit_invoice',
+      'invalid credit invoice',
+      (v) => v == null || creditInvoiceSummarySchema.isValidSync(v),
+    ),
 });
 
 export const hoursBalanceSchema: Schema<HoursBalanceDto> = object({

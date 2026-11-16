@@ -92,6 +92,7 @@ export const REASON_KIND_LABELS: Readonly<Record<EngineHourReasonKind, string>> 
   NON_CUSTOMER_CATEGORY: 'Non-customer activity category',
   VARIANCE_REASON: 'Variance reason',
   UNBILLABLE_REASON: 'Unbillable reason',
+  NON_PRODUCTIVE: 'Machine report reason',
 };
 
 export const REASON_KIND_OPTIONS: readonly Option<EngineHourReasonKind>[] = [

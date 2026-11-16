@@ -1,10 +1,12 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '../../../api/ApiError';
 import type { HoursPurchaseDto, HoursQuoteDto } from '../../../api/hoursTypes';
 import type { hoursService } from '../../../api/services/hoursService';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
 import { renderWithProviders } from '../../../test/renderWithProviders';
+import { purchaseRecordedText } from './purchaseForm';
 import { RecordPurchaseDialog } from './RecordPurchaseDialog';
 
 const mocks = vi.hoisted(() => ({
@@ -46,13 +48,19 @@ const QUOTE: HoursQuoteDto = {
 const RECORD = 'tenant.collection.record';
 const FINANCE = 'tenant.finance.payment';
 
-function open(perms: string[], fieldNoncashPayments = false) {
+function open(
+  perms: string[],
+  fieldNoncashPayments = false,
+  extra: { fieldCreditSales?: boolean; creditAllowed?: boolean | null; walkIn?: boolean } = {},
+) {
   renderWithProviders(
     <RecordPurchaseDialog
       timeZone="Africa/Dar_es_Salaam"
       field
-      walkInAllowed={false}
+      walkInAllowed={extra.walkIn ?? false}
       fieldNoncashPayments={fieldNoncashPayments}
+      fieldCreditSales={extra.fieldCreditSales ?? false}
+      creditAllowed={extra.creditAllowed ?? null}
       onClose={vi.fn()}
       onRecorded={vi.fn()}
     />,
@@ -219,5 +227,128 @@ describe('RecordPurchaseDialog payments', () => {
       expect(mocks.record).toHaveBeenCalled();
     });
     expect(nthCall().payments).toEqual([]);
+  });
+});
+
+const ACTIVATE = 'tenant.hours.credit_activate';
+
+describe('RecordPurchaseDialog credit line', () => {
+  it('is not offered to field staff while field credit sales are off', async () => {
+    const user = userEvent.setup();
+    open([RECORD]);
+    await toPaymentStep(user);
+    expect(await methodOptions(user, 0)).toEqual(['Cash']);
+  });
+
+  it('is offered when the company allows field credit sales', async () => {
+    const user = userEvent.setup();
+    open([RECORD], false, { fieldCreditSales: true });
+    await toPaymentStep(user);
+    expect(await methodOptions(user, 0)).toEqual(['Cash', 'Credit']);
+  });
+
+  it('is never offered when the company switched credit off', async () => {
+    const user = userEvent.setup();
+    open([RECORD, ACTIVATE], false, { fieldCreditSales: true, creditAllowed: false });
+    await toPaymentStep(user);
+    expect(await methodOptions(user, 0)).toEqual(['Cash']);
+  });
+
+  it('takes an amount only, at most one line, and sends CREDIT without money fields', async () => {
+    const user = userEvent.setup();
+    open([RECORD, FINANCE, ACTIVATE]);
+    await toPaymentStep(user);
+    await user.clear(amounts().at(0) as HTMLElement);
+    await user.type(amounts().at(0) as HTMLElement, '400000');
+    await user.click(screen.getByRole('button', { name: 'Add payment' }));
+    expect(await methodOptions(user, 1)).toEqual([
+      'Cash',
+      'Bank transfer',
+      'Mobile money',
+      'Credit',
+    ]);
+    const timeFields = screen.getAllByLabelText(/Received at/).length;
+    await user.click(screen.getAllByRole('combobox', { name: /Method/ }).at(1) as HTMLElement);
+    await user.click(screen.getByRole('option', { name: 'Credit' }));
+    // Amount only: no reference, time or evidence on the credit line.
+    expect(screen.getAllByLabelText(/Received at/).length).toBe(timeFields / 2);
+    expect(screen.getByText(/A credit invoice is created when you save/)).toBeInTheDocument();
+    // One credit line: the first line no longer offers Credit.
+    expect(await methodOptions(user, 0)).toEqual(['Cash', 'Bank transfer', 'Mobile money']);
+
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(
+      await screen.findByText(/Credit · TZS 170,000 · paid later on a credit invoice/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/The credit part creates an invoice automatically/),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Record purchase' }));
+    await waitFor(() => {
+      expect(mocks.record).toHaveBeenCalled();
+    });
+    const body = nthCall();
+    expect(body.payments?.[1]).toEqual({
+      method: 'CREDIT',
+      amount: '170000',
+      evidence_attachment_ids: [],
+    });
+    expect(body).not.toHaveProperty('job');
+  });
+
+  it('keeps credit for registered customers (walk-ins pay now)', async () => {
+    const user = userEvent.setup();
+    open([RECORD, ACTIVATE], false, { walkIn: true });
+    await user.click(screen.getByLabelText('New walk-in customer'));
+    await user.type(screen.getByLabelText(/Walk-in customer name/), 'Asha');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.type(screen.getByLabelText('Machine'), 'm1');
+    await user.type(screen.getByLabelText(/Hours bought/), '6');
+    await screen.findByText('Total: TZS 570,000 (6 h × 95,000/h)');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByRole('button', { name: 'Add payment' });
+    expect(await methodOptions(user, 0)).toEqual(['Cash']);
+  });
+
+  it('explains a refused credit sale in plain words', async () => {
+    mocks.record.mockRejectedValue(
+      new ApiError({
+        status: 403,
+        code: 'CREDIT_SALES_NOT_ALLOWED',
+        message: 'x',
+        correlationId: null,
+      }),
+    );
+    const user = userEvent.setup();
+    open([RECORD], false, { fieldCreditSales: true });
+    await toPaymentStep(user);
+    await user.click(screen.getAllByRole('combobox', { name: /Method/ }).at(0) as HTMLElement);
+    await user.click(screen.getByRole('option', { name: 'Credit' }));
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(await screen.findByRole('button', { name: 'Record purchase' }));
+    expect(await screen.findByText(/does not let field staff sell on credit/)).toBeInTheDocument();
+  });
+
+  it('names the credit invoice in the success message', () => {
+    expect(purchaseRecordedText({ purchase_number: 'HP-1', credit_invoice: null })).toBe(
+      'Hours purchase HP-1 recorded.',
+    );
+    expect(
+      purchaseRecordedText({
+        purchase_number: 'HP-1',
+        credit_invoice: {
+          id: 'i1',
+          invoice_number: 'CI-2026-00001',
+          amount: '170000',
+          paid: '0',
+          balance: '170000',
+          due_date: '2026-12-16',
+          status: 'UNPAID',
+          overdue: false,
+        },
+      }),
+    ).toBe(
+      'Hours purchase HP-1 recorded. Credit invoice CI-2026-00001 created for 170000, due 2026-12-16.',
+    );
   });
 });

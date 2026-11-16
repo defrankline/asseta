@@ -213,6 +213,15 @@ export const PERMISSIONS = {
   tenantHoursCancelApprove: 'tenant.hours.cancel_approve',
   /** The tenant's discount / credit / transfer / cancellation reason lists. */
   tenantHoursReasons: 'tenant.hours.reasons',
+  /** Record payments of credit invoices (ADR-008). */
+  tenantHoursInvoicePayment: 'tenant.hours.invoice_payment',
+  // ---- Machine reports (ADR-008); the submitter never decides their own report ----
+  /** Submit reports on the machines assigned to you. */
+  tenantMachineReportSubmit: 'tenant.machine_report.submit',
+  /** Read reports, report status and the tracker cross-check. */
+  tenantMachineReportRead: 'tenant.machine_report.read',
+  /** Approve or reject reports (never your own); report on any machine. */
+  tenantMachineReportApprove: 'tenant.machine_report.approve',
   // ---- Oversight (DEC-031 Phase 5) ----
   /** The people scorecard: per-person items to look at (read). */
   tenantOversightScorecardRead: 'tenant.oversight.scorecard.read',

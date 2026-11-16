@@ -9,9 +9,14 @@ type Schemas = components['schemas'];
 export type HoursPurchaseDto = Schemas['HoursPurchaseDto'];
 export type HoursPurchaseIn = Schemas['HoursPurchaseIn'];
 export type HoursQuoteDto = Schemas['HoursQuoteDto'];
-/** The job booked together with an hours sale (`HoursPurchaseIn.job` / `HoursPurchaseDto.job`). */
-export type SaleJobIn = Schemas['SaleJobIn'];
-export type BookedJobDto = Schemas['BookedJobDto'];
+/** A payment line method of an order: CREDIT is paid later on the credit invoice the sale creates. */
+export type SalePaymentMethod = Schemas['SalePaymentMethod'];
+export type CreditInvoiceSummaryDto = Schemas['CreditInvoiceSummaryDto'];
+export type CreditInvoiceDto = Schemas['CreditInvoiceDto'];
+export type CreditInvoiceStatus = CreditInvoiceDto['status'];
+export type CreditInvoicePaymentDto = Schemas['CreditInvoicePaymentDto'];
+export type CreditInvoicePaymentIn = Schemas['CreditInvoicePaymentIn'];
+export type CustomerHoursSummaryDto = Schemas['CustomerHoursSummaryDto'];
 export type HoursPurchaseStatus = HoursPurchaseDto['status'];
 export type PurchasePaymentIn = Schemas['PurchasePaymentIn'];
 export type PurchaseAllocationDto = Schemas['PurchaseAllocationDto'];

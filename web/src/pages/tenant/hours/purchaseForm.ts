@@ -1,20 +1,18 @@
 import { array, boolean, mixed, object, string, type ObjectSchema } from 'yup';
-import type { BookedJobDto, HoursPurchaseIn, SaleJobIn } from '../../../api/hoursTypes';
-import type { AttachmentDto, FieldContractDto, HirePaymentMethod } from '../../../api/types';
-import { PAYMENT_METHODS } from '../../../api/services/financeSchemas';
+import type { HoursPurchaseDto, HoursPurchaseIn, SalePaymentMethod } from '../../../api/hoursTypes';
+import type { AttachmentDto } from '../../../api/types';
 import { positiveDecimalField } from '../../platform/shared/validators';
 import { compareDecimal, isDecimalString, sumDecimals } from '../../../utils/money';
 import { optionalText, orNull } from '../shared/formRules';
-import { formatInstantIn } from '../../../utils/time';
 import { remainingBalance } from './hoursQuote';
 
 export type CustomerMode = 'EXISTING' | 'WALK_IN';
 
-/** One part of the bill (cash, bank or mobile money). */
+/** One part of the bill (cash, bank, mobile money, or credit paid later on an invoice). */
 export interface PaymentLine {
   /** Stable React key only; never sent. */
   key: string;
-  method: HirePaymentMethod;
+  method: SalePaymentMethod;
   amount: string;
   reference: string;
   received_at: string;
@@ -25,7 +23,13 @@ export interface PaymentLine {
   follows_total: boolean;
 }
 
-export const NEEDS_REFERENCE: ReadonlySet<HirePaymentMethod> = new Set(['BANK', 'MOBILE_MONEY']);
+export const SALE_METHODS: readonly SalePaymentMethod[] = [
+  'CASH',
+  'BANK',
+  'MOBILE_MONEY',
+  'CREDIT',
+];
+export const NEEDS_REFERENCE: ReadonlySet<SalePaymentMethod> = new Set(['BANK', 'MOBILE_MONEY']);
 export const MAX_PAYMENT_LINES = 10;
 
 /** Record an hours purchase: customer (or a new walk-in), machine and hours, optional payment. */
@@ -40,16 +44,6 @@ export interface PurchaseValues {
   note: string;
   /** Opens with one Cash line that follows the total; empty = not paid yet. */
   payments: PaymentLine[];
-  /** Book the job with the sale (tenant.job.request): a field job request billed from these hours. */
-  book_job: boolean;
-  /** UTC ISO instants ('' = not set). The end is optional (open-ended booking). */
-  job_start: string;
-  job_end: string;
-  /** '' = the sale's site, then the contract's site. */
-  booking_site_id: string;
-  /** '' = the customer's contract (the server picks it). */
-  job_contract_id: string;
-  job_note: string;
   /** The live quote total ('' while unknown); only used to stop over-payment. Never sent. */
   quote_amount: string;
   quote_currency: string;
@@ -61,18 +55,7 @@ export const CUSTOMER_FIELDS = [
   'walk_in_name',
   'walk_in_phone',
 ] as const;
-export const HOURS_FIELDS = [
-  'machine_id',
-  'hours',
-  'job_site_id',
-  'note',
-  'book_job',
-  'job_start',
-  'job_end',
-  'booking_site_id',
-  'job_contract_id',
-  'job_note',
-] as const;
+export const HOURS_FIELDS = ['machine_id', 'hours', 'job_site_id', 'note'] as const;
 export const PAYMENT_FIELDS = ['payments'] as const;
 
 /** Every line's fields, so each row shows its errors before leaving the step. */
@@ -108,9 +91,22 @@ export function paymentsExceedTotal(v: Pick<PurchaseValues, 'payments' | 'quote_
 }
 
 export const OVER_TOTAL_TEXT = 'The payments add up to more than the total. Lower an amount.';
+export const ONE_CREDIT_TEXT = 'Only one credit line per sale.';
+export const WALK_IN_CREDIT_TEXT = 'Walk-in customers pay now; credit is for registered customers.';
+
+/** The credit part of the lines ('0' without a credit line). */
+export function creditPart(lines: readonly PaymentLine[]): string {
+  return sumDecimals([
+    '0',
+    ...lines
+      .filter((l) => l.method === 'CREDIT')
+      .map((l) => l.amount.trim())
+      .filter(isDecimalString),
+  ]);
+}
 
 export function emptyPaymentLine(
-  method: HirePaymentMethod,
+  method: SalePaymentMethod,
   amount: string,
   now: string,
   followsTotal = false,
@@ -148,12 +144,6 @@ export function emptyPurchaseValues(): PurchaseValues {
     job_site_id: '',
     note: '',
     payments: [emptyPaymentLine('CASH', '', new Date().toISOString(), true)],
-    book_job: false,
-    job_start: '',
-    job_end: '',
-    booking_site_id: '',
-    job_contract_id: '',
-    job_note: '',
     quote_amount: '',
     quote_currency: '',
   };
@@ -190,8 +180,8 @@ export const purchaseSchema: ObjectSchema<PurchaseValues> = object({
   payments: array(
     object({
       key: string().required(),
-      method: mixed<HirePaymentMethod>()
-        .oneOf([...PAYMENT_METHODS])
+      method: mixed<SalePaymentMethod>()
+        .oneOf([...SALE_METHODS])
         .required('Choose the method'),
       amount: positiveDecimalField('Amount'),
       reference: optionalText('Reference', 120).test(
@@ -203,8 +193,11 @@ export const purchaseSchema: ObjectSchema<PurchaseValues> = object({
         },
       ),
       received_at: string()
-        .required('Received at is required')
-        .test('instant', 'Enter a valid date and time', (v) => !Number.isNaN(Date.parse(v))),
+        .ensure()
+        .test('required', 'Received at is required', function (v) {
+          return (this.parent as PaymentLine).method === 'CREDIT' || v !== '';
+        })
+        .test('instant', 'Enter a valid date and time', (v) => v === '' || validInstant(v)),
       staff_member_id: string().ensure(),
       evidence: mixed<AttachmentDto>().nullable().defined(),
       follows_total: boolean().defined(),
@@ -217,25 +210,11 @@ export const purchaseSchema: ObjectSchema<PurchaseValues> = object({
         payments: v,
         quote_amount: parent(this).quote_amount,
       });
-    }),
-  book_job: boolean().defined(),
-  job_start: string()
-    .ensure()
-    .test('start', 'Enter when the job starts', function (v) {
-      return !parent(this).book_job || v !== '';
     })
-    .test('instant', 'Enter a valid date and time', (v) => v === '' || validInstant(v)),
-  job_end: string()
-    .ensure()
-    .test('instant', 'Enter a valid date and time', (v) => v === '' || validInstant(v))
-    .test('after', 'The end must be after the start', function (v) {
-      const { book_job, job_start } = parent(this);
-      if (!book_job || v === '' || !validInstant(v) || !validInstant(job_start)) return true;
-      return Date.parse(v) > Date.parse(job_start);
+    .test('one-credit', ONE_CREDIT_TEXT, (v) => v.filter((l) => l.method === 'CREDIT').length <= 1)
+    .test('walk-in-credit', WALK_IN_CREDIT_TEXT, function (v) {
+      return parent(this).customer_mode !== 'WALK_IN' || v.every((l) => l.method !== 'CREDIT');
     }),
-  booking_site_id: string().ensure(),
-  job_contract_id: string().ensure(),
-  job_note: optionalText('Job note', 1000),
   quote_amount: string().ensure(),
   quote_currency: string().ensure(),
 });
@@ -244,59 +223,20 @@ function validInstant(v: string): boolean {
   return !Number.isNaN(Date.parse(v));
 }
 
-/** The booking sent with the sale; null when no job is booked. */
-export function toSaleJob(v: PurchaseValues): SaleJobIn | null {
-  if (!v.book_job) return null;
-  return {
-    planned_start: v.job_start,
-    planned_end: orNull(v.job_end),
-    job_site_id: orNull(v.booking_site_id),
-    // A walk-in has no contracts to choose from: the server applies the company's rule.
-    contract_id: v.customer_mode === 'EXISTING' ? orNull(v.job_contract_id) : null,
-    note: orNull(v.job_note),
-  };
+/** "Credit invoice CI-… (TZS …, due …)" for the success message; null without a credit line. */
+export function creditInvoiceText(p: Pick<HoursPurchaseDto, 'credit_invoice'>): string | null {
+  const inv = p.credit_invoice;
+  if (inv == null) return null;
+  return `Credit invoice ${inv.invoice_number} created for ${inv.amount}, due ${inv.due_date}.`;
 }
 
-/** Booking error codes of a sale (a refused booking refuses the whole sale). */
-export const SALE_JOB_ERROR_HINTS: Readonly<Record<string, string>> = {
-  CONTRACT_REQUIRED:
-    'This customer has no contract yet; the office creates one. Record the sale without booking the job, or ask the office.',
-  CONTRACT_CHOICE_REQUIRED: 'This customer has several contracts; choose the contract for the job.',
-  CONTRACT_CUSTOMER_MISMATCH: 'That contract belongs to another customer; choose one of theirs.',
-  CONTRACT_NOT_ACTIVE: 'That contract is not active; choose an active contract.',
-  JOB_REQUEST_NOT_PERMITTED: 'You may not book jobs; record the sale without booking the job.',
-  NO_STAFF_RECORD:
-    'Your user is not linked to an active staff record; ask the office to link you before booking jobs.',
-};
-
-/** "Status" of a booked job in plain words. */
-export function bookedJobStatusLabel(job: Pick<BookedJobDto, 'status'>): string {
-  switch (job.status) {
-    case 'PENDING_APPROVAL':
-      return 'Waiting for approval';
-    case 'APPROVED':
-      return 'Approved';
-    case 'IN_PROGRESS':
-      return 'In progress';
-    case 'COMPLETED':
-      return 'Completed';
-    case 'CANCELLED':
-      return 'Cancelled';
-    case 'DRAFT':
-      return 'Draft';
-    default:
-      return job.status;
-  }
-}
-
-/** The success message after recording a sale (with the booked job, if any). */
-export function purchaseRecordedText(p: {
-  purchase_number: string;
-  job?: Pick<BookedJobDto, 'job_number' | 'status'> | null;
-}): string {
+/** The success message after recording a sale (with its credit invoice, if any). */
+export function purchaseRecordedText(
+  p: Pick<HoursPurchaseDto, 'purchase_number' | 'credit_invoice'>,
+): string {
   const sale = `Hours purchase ${p.purchase_number} recorded.`;
-  if (p.job == null) return sale;
-  return `${sale} Job ${p.job.job_number} booked (${bookedJobStatusLabel(p.job).toLowerCase()}).`;
+  const invoice = creditInvoiceText(p);
+  return invoice === null ? sale : `${sale} ${invoice}`;
 }
 
 /** recordHoursPurchase body. The server prices it from the rate card and approved discounts. */
@@ -316,39 +256,17 @@ export function toPurchasePayload(
     hours: v.hours.trim(),
     job_site_id: orNull(v.job_site_id),
     note: orNull(v.note),
-    payments: v.payments.map((l) => ({
-      method: l.method,
-      amount: l.amount.trim(),
-      reference: orNull(l.reference),
-      received_at: l.received_at,
-      staff_member_id: options.field ? null : orNull(l.staff_member_id),
-      evidence_attachment_ids: l.evidence === null ? [] : [l.evidence.id],
-    })),
-    job: toSaleJob(v),
+    payments: v.payments.map((l) =>
+      l.method === 'CREDIT'
+        ? { method: 'CREDIT' as const, amount: l.amount.trim(), evidence_attachment_ids: [] }
+        : {
+            method: l.method,
+            amount: l.amount.trim(),
+            reference: orNull(l.reference),
+            received_at: l.received_at,
+            staff_member_id: options.field ? null : orNull(l.staff_member_id),
+            evidence_attachment_ids: l.evidence === null ? [] : [l.evidence.id],
+          },
+    ),
   };
-}
-
-/** Review lines of the booking. */
-export function bookingReviewItems(
-  v: PurchaseValues,
-  timeZone: string,
-  contract: FieldContractDto | null,
-): { label: string; value: string }[] {
-  if (!v.book_job) return [{ label: 'Job', value: 'Not booked' }];
-  const contractText =
-    v.customer_mode !== 'EXISTING' || v.job_contract_id === ''
-      ? "The customer's contract"
-      : contract !== null && contract.id === v.job_contract_id
-        ? contract.contract_number
-        : v.job_contract_id;
-  return [
-    {
-      label: 'Job',
-      value: `${formatInstantIn(v.job_start, timeZone)} – ${
-        v.job_end === '' ? 'open-ended' : formatInstantIn(v.job_end, timeZone)
-      }`,
-    },
-    { label: 'Job contract', value: contractText },
-    ...(v.job_note.trim() === '' ? [] : [{ label: 'Job note', value: v.job_note.trim() }]),
-  ];
 }

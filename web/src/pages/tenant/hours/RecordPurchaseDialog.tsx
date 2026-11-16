@@ -15,7 +15,7 @@ import { PERMISSIONS } from '../../../access/permissionCodes';
 import type { HoursPurchaseDto, HoursQuoteDto } from '../../../api/hoursTypes';
 import { newIdempotencyKey, newUuid } from '../../../api/ids';
 import { hoursService } from '../../../api/services/hoursService';
-import type { CustomerDto, FieldContractDto, MachineDto } from '../../../api/types';
+import type { CustomerDto, MachineDto } from '../../../api/types';
 import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
 import { FormikDateTimeField } from '../../../components/forms/FormikDateTimeField';
 import { FormikSelectField } from '../../../components/forms/FormikSelectField';
@@ -26,7 +26,6 @@ import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
 import { useSession } from '../../../session/useSession';
 import { formatInstantIn } from '../../../utils/time';
 import { withErrorCode } from '../shared/errorHints';
-import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_OPTIONS } from '../shared/financeDisplay';
 import { customerOptionLabel, machineOptionLabel } from '../shared/financeLookups';
 import {
   FormikCustomerIdPicker,
@@ -34,8 +33,6 @@ import {
   FormikStaffIdPicker,
 } from '../shared/financePickers';
 import { FormikJobSitePicker } from '../shared/lookupPickers';
-import { BookJobSection } from './BookJobSection';
-import { HOURS_ERROR_HINTS } from './hoursDisplay';
 import { money, paidSummary, remainingBalance } from './hoursQuote';
 import { HoursQuoteLine } from './HoursQuoteLine';
 import {
@@ -50,16 +47,17 @@ import {
   paidSoFar,
   PAYMENT_FIELDS,
   paymentFieldsFor,
-  bookingReviewItems,
   purchaseSchema,
-  SALE_JOB_ERROR_HINTS,
   toPurchasePayload,
   type PurchaseValues,
 } from './purchaseForm';
+import {
+  SALE_ERROR_HINTS,
+  SALE_METHOD_CHOICES,
+  SALE_METHOD_LABELS,
+  saleMethodChoice,
+} from './saleMethods';
 
-const SALE_ERROR_HINTS = { ...HOURS_ERROR_HINTS, ...SALE_JOB_ERROR_HINTS };
-
-const CASH_ONLY_OPTIONS = PAYMENT_METHOD_OPTIONS.filter((o) => o.value === 'CASH');
 const decimal = { htmlInput: { inputMode: 'decimal' as const } };
 
 function CustomerStep({
@@ -152,11 +150,13 @@ function PaymentLineFields({
   field,
   timeZone,
   nonCashAllowed,
+  creditOffered,
 }: {
   index: number;
   field: boolean;
   timeZone: string;
   nonCashAllowed: boolean;
+  creditOffered: boolean;
 }) {
   const { values, setFieldValue } = useFormikContext<PurchaseValues>();
   const line = values.payments[index];
@@ -181,21 +181,22 @@ function PaymentLineFields({
           Remove
         </Button>
       </Stack>
-      {nonCashAllowed ? (
-        <FormikSelectField
-          name={at('method')}
-          label="Method"
-          options={PAYMENT_METHOD_OPTIONS}
-          required
-        />
-      ) : (
-        <FormikSelectField
-          name={at('method')}
-          label="Method"
-          options={CASH_ONLY_OPTIONS}
-          required
-        />
-      )}
+      <FormikSelectField
+        name={at('method')}
+        label="Method"
+        options={
+          SALE_METHOD_CHOICES[
+            saleMethodChoice(
+              nonCashAllowed,
+              // One credit line per sale, registered customers only.
+              creditOffered &&
+                values.customer_mode === 'EXISTING' &&
+                (line.method === 'CREDIT' || values.payments.every((l) => l.method !== 'CREDIT')),
+            )
+          ]
+        }
+        required
+      />
       <FormikTextField
         name={at('amount')}
         label="Amount"
@@ -206,6 +207,12 @@ function PaymentLineFields({
           if (line.follows_total) void setFieldValue(at('follows_total'), false, false);
         }}
       />
+      {line.method === 'CREDIT' && (
+        <Typography variant="body2" color="text.secondary">
+          The customer pays this part later. A credit invoice is created when you save; its hours
+          wait for approval by someone allowed to activate credit.
+        </Typography>
+      )}
       {NEEDS_REFERENCE.has(line.method) && (
         <FormikTextField
           name={at('reference')}
@@ -213,12 +220,14 @@ function PaymentLineFields({
           required
         />
       )}
-      <FormikDateTimeField
-        name={at('received_at')}
-        label="Received at"
-        timeZone={timeZone}
-        required
-      />
+      {line.method !== 'CREDIT' && (
+        <FormikDateTimeField
+          name={at('received_at')}
+          label="Received at"
+          timeZone={timeZone}
+          required
+        />
+      )}
       {!field && line.method === 'CASH' && (
         <FormikStaffIdPicker
           name={at('staff_member_id')}
@@ -226,17 +235,19 @@ function PaymentLineFields({
           helperText="The staff member who holds the money until it is handed over."
         />
       )}
-      <AttachmentUpload
-        label="Evidence photo (receipt or mobile-money screenshot)"
-        value={line.evidence}
-        onChange={(a) => {
-          void setFieldValue(at('evidence'), a);
-        }}
-        upload={(file) => hoursService.uploadEvidence(file, newIdempotencyKey())}
-        capture="environment"
-        preview
-        helperText="Kept as evidence only; the payment stays claimed until someone else verifies it."
-      />
+      {line.method !== 'CREDIT' && (
+        <AttachmentUpload
+          label="Evidence photo (receipt or mobile-money screenshot)"
+          value={line.evidence}
+          onChange={(a) => {
+            void setFieldValue(at('evidence'), a);
+          }}
+          upload={(file) => hoursService.uploadEvidence(file, newIdempotencyKey())}
+          capture="environment"
+          preview
+          helperText="Kept as evidence only; the payment stays claimed until someone else verifies it."
+        />
+      )}
     </Stack>
   );
 }
@@ -245,10 +256,12 @@ function PaymentStep({
   field,
   timeZone,
   nonCashAllowed,
+  creditOffered,
 }: {
   field: boolean;
   timeZone: string;
   nonCashAllowed: boolean;
+  creditOffered: boolean;
 }) {
   const { values, setFieldValue } = useFormikContext<PurchaseValues>();
   const onQuote = useQuoteSync();
@@ -275,6 +288,7 @@ function PaymentStep({
           field={field}
           timeZone={timeZone}
           nonCashAllowed={nonCashAllowed}
+          creditOffered={creditOffered}
         />
       ))}
       <PaidSummary values={values} />
@@ -332,6 +346,10 @@ interface RecordPurchaseDialogProps {
   walkInAllowed: boolean;
   /** CUSTOMER_HOURS field_noncash_payments: collection recorders may take bank and mobile money. */
   fieldNoncashPayments?: boolean;
+  /** CUSTOMER_HOURS field_credit_sales: field staff may record a credit line. */
+  fieldCreditSales?: boolean;
+  /** CUSTOMER_HOURS credit_allowed (null when unknown: the server decides). */
+  creditAllowed?: boolean | null;
   onClose: () => void;
   onRecorded: (purchase: HoursPurchaseDto) => void;
 }
@@ -342,6 +360,8 @@ export function RecordPurchaseDialog({
   field = false,
   walkInAllowed,
   fieldNoncashPayments = false,
+  fieldCreditSales = false,
+  creditAllowed = null,
   onClose,
   onRecorded,
 }: RecordPurchaseDialogProps) {
@@ -351,12 +371,14 @@ export function RecordPurchaseDialog({
   const [initial] = useState(emptyPurchaseValues);
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
   const [machine, setMachine] = useState<MachineDto | null>(null);
-  const [contract, setContract] = useState<FieldContractDto | null>(null);
-  const canBook = hasPermission(PERMISSIONS.tenantJobRequest);
   const siteVisible = hasPermission(PERMISSIONS.tenantGeofenceRead);
   const nonCashAllowed =
     hasPermission(PERMISSIONS.tenantFinancePayment) ||
     (fieldNoncashPayments && hasPermission(PERMISSIONS.tenantCollectionRecord));
+  // Credit: office holders of credit_activate always; field staff when the company allows it.
+  const creditOffered =
+    creditAllowed !== false &&
+    (fieldCreditSales || hasPermission(PERMISSIONS.tenantHoursCreditActivate));
   return (
     <StepperFormDialog<PurchaseValues>
       open
@@ -384,20 +406,11 @@ export function RecordPurchaseDialog({
               />
               <FormikTextField name="hours" label="Hours bought" required slotProps={decimal} />
               <HoursStepQuote />
-              {siteVisible && (
-                <FormikJobSitePicker name="job_site_id" label="Job site (optional)" />
-              )}
+              {siteVisible && <FormikJobSitePicker name="job_site_id" label="Site (optional)" />}
               <FormikTextField name="note" label="Note (optional)" multiline minRows={2} />
               <Typography variant="body2" color="text.secondary">
                 The price comes from your rate card and any approved discount for this customer.
               </Typography>
-              {canBook && (
-                <BookJobSection
-                  timeZone={timeZone}
-                  siteVisible={siteVisible}
-                  onContract={setContract}
-                />
-              )}
             </>
           ),
         },
@@ -406,7 +419,12 @@ export function RecordPurchaseDialog({
           fields: PAYMENT_FIELDS,
           fieldsFor: paymentFieldsFor,
           render: () => (
-            <PaymentStep field={field} timeZone={timeZone} nonCashAllowed={nonCashAllowed} />
+            <PaymentStep
+              field={field}
+              timeZone={timeZone}
+              nonCashAllowed={nonCashAllowed}
+              creditOffered={creditOffered}
+            />
           ),
         },
       ]}
@@ -434,18 +452,20 @@ export function RecordPurchaseDialog({
                 : v.payments.map((l, i) => ({
                     label: `Payment ${i + 1}`,
                     value: [
-                      PAYMENT_METHOD_LABELS[l.method],
+                      SALE_METHOD_LABELS[l.method],
                       v.quote_currency === ''
                         ? l.amount.trim()
                         : money(l.amount.trim(), v.quote_currency),
-                      l.reference.trim() === '' ? null : `ref ${l.reference.trim()}`,
-                      formatInstantIn(l.received_at, timeZone),
-                      l.evidence === null ? null : 'photo attached',
+                      l.method === 'CREDIT' ? 'paid later on a credit invoice' : null,
+                      l.method === 'CREDIT' || l.reference.trim() === ''
+                        ? null
+                        : `ref ${l.reference.trim()}`,
+                      l.method === 'CREDIT' ? null : formatInstantIn(l.received_at, timeZone),
+                      l.method === 'CREDIT' || l.evidence === null ? null : 'photo attached',
                     ]
                       .filter((x) => x !== null)
                       .join(' · '),
                   }))),
-              ...(canBook ? bookingReviewItems(v, timeZone, contract) : []),
             ]}
           />
           <HoursQuoteLine
@@ -455,14 +475,15 @@ export function RecordPurchaseDialog({
           />
           <PaidSummary values={v} />
           <Alert severity="info">
-            Hours activate only from verified money: someone other than you verifies the payment.
+            No job is created. Hours become usable when the money is verified by someone other than
+            you.
+            {v.payments.some((l) => l.method === 'CREDIT') &&
+              ' The credit part creates an invoice automatically; its hours wait for approval.'}
           </Alert>
         </>
       )}
       onSubmit={async (v) => {
-        const body = toPurchasePayload(canBook ? v : { ...v, book_job: false }, clientId, {
-          field,
-        });
+        const body = toPurchasePayload(v, clientId, { field });
         try {
           onRecorded(await hoursService.recordPurchase(body, keyFor(body)));
         } catch (err) {
