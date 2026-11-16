@@ -20,6 +20,8 @@ enum FieldRoute: Hashable {
     case pettyCash
     /// Customers (online) and one customer (add / edit its details).
     case customers, customer(UUID)
+    /// Customers' usable hours, offline (Dashboard).
+    case customerBalances
 }
 
 /// Forms presented as sheets (Cancel / Save), as before.
@@ -30,8 +32,8 @@ enum FieldSheet: Identifiable {
     case capture(CaptureTarget, MeterPolicySnapshot)
     /// A petty cash form (DEC-033).
     case pettyCash(PettyCashSheet)
-    /// A payment on an open credit invoice (ADR-008).
-    case invoicePayment(UUID)
+    /// A payment on an open credit invoice, chosen in the form (ADR-008).
+    case invoicePayment(UUID?)
     /// "Delete my account" (Settings).
     case deleteAccount
 
@@ -48,7 +50,7 @@ enum FieldSheet: Identifiable {
         case let .cashAck(id, _): "cash-ack-\(id)"
         case let .capture(target, _): "capture-\(target.title)-\(target.machineID?.uuidString ?? "")"
         case let .pettyCash(form): form.id
-        case let .invoicePayment(id): "invoice-payment-\(id)"
+        case let .invoicePayment(id): "invoice-payment-\(id?.uuidString ?? "")"
         case .deleteAccount: "delete-account"
         }
     }
@@ -184,9 +186,9 @@ public struct FieldRootView: View {
             InboxTabView(model: model, open: openNotification, attention: openAttention).navigationTitle(T.menuInbox)
                 .toolbar { syncToolbar }
         case .moneyRecords:
-            MoneyTabView(model: model, acknowledge: { sheet = .cashAck($0, isFloat: $1) }).navigationTitle(T.moneyRecords.capitalized)
+            MoneyTabView(model: model, acknowledge: { sheet = .cashAck($0, isFloat: $1) }).navigationTitle(T.dashMyCash)
                 .toolbar { moneyToolbar }
-        case .myReports: MyReportsView(model: model)
+        case .myReports: MyReportsView(model: model, open: open)
         case .mySales: MySalesView(model: model)
         case .fuelList:
             FuelTabView(model: model).navigationTitle(T.menuFuel)
@@ -195,7 +197,8 @@ public struct FieldRootView: View {
                         Button("Record fuel event", systemImage: "plus") { sheet = .fuel }.accessibilityIdentifier("fuel.add")
                     }
                 }
-        case .settings: SupervisorSettingsView(model: model, deleteAccount: { sheet = .deleteAccount })
+        case .settings:
+            SupervisorSettingsView(model: model, deleteAccount: { sheet = .deleteAccount }, signOut: { confirmSignOut = true })
         case let .reading(id): ReadingDetailView(model: model, id: id, requestReset: requestReset, capture: capture)
         case let .machine(id):
             MachineDetailView(model: model, machineID: id, requestReset: requestReset, capture: capture)
@@ -210,6 +213,7 @@ public struct FieldRootView: View {
         case .pettyCash: MyPettyCashView(model: model, sheet: pettyCashSheet)
         case .customers: CustomersListView(model: model)
         case let .customer(id): CustomerDetailView(model: model, customerID: id)
+        case .customerBalances: CustomerBalancesView(model: model)
         }
     }
 
@@ -381,17 +385,17 @@ struct SupervisorMenu: View {
                     }
                     if a.machineReport {
                         DrawerRow(T.tileReport, systemImage: "gauge.with.needle", selected: isReport,
-                                  badge: model.reportsDue > 0 ? "\(model.reportsDue)" : nil) { go(.report(nil)) }
+                                  badge: SupervisorFigures.badge(model.reportsDue)) { go(.report(nil)) }
                     }
                     DrawerRow(T.tileMoney, systemImage: "banknote", selected: current == .money) { go(.money) }
+                    // Fuel while FUEL is on and the user records expenses (never shown, then hidden).
+                    if a.fuelMenu {
+                        DrawerRow(T.menuFuel, systemImage: "fuelpump", selected: current == .fuelList) { go(.fuelList) }
+                    }
                     DrawerRow(T.tileDashboard, systemImage: "chart.bar", selected: current == .dashboard) { go(.dashboard) }
                     DrawerRow(T.menuInbox, systemImage: "envelope", selected: current == .inbox,
                               badge: badge > 0 ? (badge > 99 ? "99+" : "\(badge)") : nil, redBadge: true) { go(.inbox) }
                     DrawerRow(T.menuCustomers, systemImage: "person.badge.plus", selected: current == .customers) { go(.customers) }
-                    // FUEL switched off: no entry at all (never shown, then hidden).
-                    if a.fuelOn {
-                        DrawerRow(T.menuFuel, systemImage: "fuelpump", selected: current == .fuelList) { go(.fuelList) }
-                    }
                 }
                 .padding(.top, 14)
             }
@@ -418,20 +422,19 @@ struct SupervisorMenu: View {
     private var syncWaiting: Bool { unsynced > 0 }
     private var syncIcon: String { syncWaiting ? "arrow.triangle.2.circlepath" : "checkmark" }
     private var syncLine: String {
-        if syncWaiting { return T.menuSyncWaiting(unsynced) }
-        return T.menuSync(model.overview?.lastSuccessAt?.formatted(date: .omitted, time: .shortened) ?? "—")
+        syncWaiting ? T.menuSyncWaiting(unsynced) : SupervisorShellTexts.menuSyncAllSent
     }
 }
 
-/// Settings: password, notifications on this phone, and "Delete my account".
+/// Settings (as Android): notifications on this phone, change password, delete my account, sign out; the version below.
 struct SupervisorSettingsView: View {
     let model: FieldModel
     let deleteAccount: () -> Void
+    let signOut: () -> Void
     private let push = SupervisorPush.shared
 
     var body: some View {
         List {
-            Section { ChangePasswordButton(session: model.session, isOnline: model.isOnline, showsFooter: true) }
             if model.canReadNotifications {
                 Section(PushStatus.title) {
                     Text(push.status.text)
@@ -439,9 +442,12 @@ struct SupervisorSettingsView: View {
                 }
             }
             Section {
+                ChangePasswordButton(session: model.session, isOnline: model.isOnline, showsFooter: true)
                 Button(AccountDeletionText.action, role: .destructive, action: deleteAccount).accessibilityIdentifier("account.delete")
+                Button(T.menuSignOut, action: signOut).accessibilityIdentifier("settings.signOut")
+            } footer: {
+                Text(SupervisorShellTexts.version(FieldServices.appVersion)).padding(.top, 12)
             }
-            Section { LabeledContent("Version", value: FieldServices.appVersion) }
         }
         .navigationTitle(T.menuSettings)
     }
