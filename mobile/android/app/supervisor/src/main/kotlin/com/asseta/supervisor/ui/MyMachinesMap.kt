@@ -40,12 +40,12 @@ import com.asseta.supervisor.BuildConfig
 import com.asseta.supervisor.FieldGraph
 import com.asseta.core.ui.R as CoreR
 
-/** The Map / List switch over "My machines" (same look as the Owner app's Fleet screen). */
+/** The List / Map switch over "My machines" (design: List first; same look as the Owner app's Fleet screen). */
 @Composable
 fun MapListSwitch(showMap: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     SingleChoiceSegmentedButtonRow(modifier.fillMaxWidth()) {
-        SegmentedButton(showMap, { onChange(true) }, SegmentedButtonDefaults.itemShape(0, 2)) { Text(FleetMapRules.MAP) }
-        SegmentedButton(!showMap, { onChange(false) }, SegmentedButtonDefaults.itemShape(1, 2)) { Text(FleetMapRules.LIST) }
+        SegmentedButton(!showMap, { onChange(false) }, SegmentedButtonDefaults.itemShape(0, 2)) { Text(FleetMapRules.LIST) }
+        SegmentedButton(showMap, { onChange(true) }, SegmentedButtonDefaults.itemShape(1, 2)) { Text(FleetMapRules.MAP) }
     }
 }
 

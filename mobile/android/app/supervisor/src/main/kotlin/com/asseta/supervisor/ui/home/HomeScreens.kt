@@ -63,6 +63,7 @@ import com.asseta.core.ui.theme.palette
 import com.asseta.supervisor.FieldGraph
 import com.asseta.supervisor.ui.MapListSwitch
 import com.asseta.supervisor.ui.MyMachinesMap
+import com.asseta.core.map.FleetMapRules
 import com.asseta.supervisor.ui.Route
 import com.asseta.supervisor.ui.report.ReportTexts
 import com.asseta.supervisor.ui.rememberOnline
@@ -242,7 +243,7 @@ fun MoneyHomeScreen(data: ShellData, access: FieldAccess?, permissions: Set<Stri
 
 /** Dashboard (approved design Dashboard): hours sold / used, productive vs non-productive, my machines (list / map), reports. */
 @Composable
-fun DashboardScreen(field: FieldGraph, tenantId: String, data: ShellData, onRoute: (Route) -> Unit) {
+fun DashboardScreen(field: FieldGraph, tenantId: String, data: ShellData, permissions: Set<String>, onRoute: (Route) -> Unit) {
     var period by rememberSaveable { mutableStateOf(Period.WEEK) }
     var showMap by rememberSaveable { mutableStateOf(false) }
     val now = System.currentTimeMillis()
@@ -267,15 +268,17 @@ fun DashboardScreen(field: FieldGraph, tenantId: String, data: ShellData, onRout
             }
         }
         SectionLabel(H.MY_MACHINES)
-        Box(Modifier.padding(horizontal = 20.dp)) { MapListSwitch(showMap, { showMap = it }) }
-        if (showMap) {
+        // The Map / List switch only with the machine map permission (strings doc "Supervisor — map of my machines").
+        val canMap = FleetMapRules.canShowMap(permissions)
+        if (canMap) Box(Modifier.padding(horizontal = 20.dp)) { MapListSwitch(showMap, { showMap = it }) }
+        if (showMap && canMap) {
             MyMachinesMap(field, tenantId, rememberOnline(), 0, Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(320.dp).clip(RoundedCornerShape(18.dp)))
         } else {
             ShellCard(padding = false) {
                 if (data.machines.isEmpty()) Text(ReportTexts.NO_MACHINES, color = palette.secondaryText, modifier = Modifier.padding(16.dp))
                 data.machines.forEachIndexed { i, m ->
                     val at = (m.status.lastReportAt ?: m.status.previousAt)?.let { runCatching { IsoTime.parse(it).toEpochMilli() }.getOrNull() }
-                    CardRow(m.label, H.lastReading(m.previous?.let { MachineReportRules.formatReading(it, m.decimals) }, ShellModel.ago(at, now)), last = i == data.machines.lastIndex,
+                    CardRow(m.label, H.lastReading(m.previous?.let { MachineReportRules.formatHours(it) }, ShellModel.ago(at, now)), last = i == data.machines.lastIndex,
                         onClick = { onRoute(Route.MachineReport(m.id)) }) { StatusPill(ReportTexts.state(m.state), stateTone(m.state)) }
                 }
             }

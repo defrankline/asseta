@@ -622,7 +622,7 @@ private fun RouteContent(
         Route.Home -> Unit
         Route.Money -> MoneyHomeScreen(data, access, permissions, push, onRecordExpense)
         Route.MoneyRecords -> MoneyScreen(field, tenantId, snapshot, syncing, onRefresh, push, permissions, access)
-        Route.Dashboard -> DashboardScreen(field, tenantId, data, push)
+        Route.Dashboard -> DashboardScreen(field, tenantId, data, permissions, push)
         Route.MyReports -> MyReportsScreen(data, push)
         Route.MySales -> MySalesScreen(data)
         Route.CustomerBalances -> CustomerBalancesScreen(data)
