@@ -2721,8 +2721,11 @@ Rules (Android `ShellModel`, `MachineReportRules`, `FieldAccess`; iOS the same n
   than the customer's usable hours (the synced `machine_report_hours` less this phone's unsent reports); every
   non-productive line has a note; hours in steps of the meter's precision. New lines start with the hours still to
   account for.
-- **Offline:** a report queues as MACHINE_REPORT (operation id = report id; it waits for its meter photo, sent as
-  `photo_upload_id`); a credit-invoice payment as CREDIT_INVOICE_PAYMENT (operation id = payment client id), never above
+- **Offline:** a report queues as two operations: the new reading as a DAILY METER_CAPTURE (its meter photo uploads
+  first), then MACHINE_REPORT (operation id = report id) with `capture_id` = that reading, waiting for it. An opening
+  report is the same with `opening: true` and no lines; redoing a rejected report sends no new reading, only
+  MACHINE_REPORT with the old `capture_id` and `corrects_report_id` (the form starts from the rejected report's lines);
+  a credit-invoice payment as CREDIT_INVOICE_PAYMENT (operation id = payment client id), never above
   the invoice's balance on the phone (less what the phone already queued against it). Server refusals show as sync
   conflicts with the wording below.
 - **Money / Dashboard figures** come from the phone: sales and invoice payments recorded on this phone (by method; Credit
@@ -2973,11 +2976,15 @@ Rules (Android `OwnerFeatures`, `MachineReportApproval`; iOS the same):
   the meter's when the machine has a tracker.
 - **Credit sales:** orders with a credit part waiting for activation, for holders of `tenant.hours.credit_activate`
   with customer hours on, never for the person who recorded the sale. Approve credit activates the credit hours (credit
-  amount ÷ effective rate); Reject asks for the order's cancellation (`tenant.hours.cancel`).
+  amount ÷ effective rate) at once, reason `Credit approved in the Owner app`; Reject opens the order's detail, where the
+  order can be cancelled (no cancellation from the Approvals list).
 - **Record payment:** `tenant.hours.invoice_payment`; at most the invoice's balance; reference required for bank and
   mobile money; one idempotency key per form visit.
 - **Fuel:** while FUEL is off, no fuel choice in Field spend, no fuel card or fuel flag on a machine day.
-- **Overdue machines:** no report for 3 days (the policy default; the setting is not in `/me`) and none waiting.
+- **Overdue machines:** the Supervisor's "Report due" rule on the company's `CUSTOMER_HOURS.machine_report_reminder_days`,
+  read from `GET /policies/CUSTOMER_HOURS/effective` (3 when it cannot be read; null = reminders off): overdue = never
+  reported, first reading needed, last report rejected and not redone, or no report for that many days; never while a
+  report waits for approval.
 
 
 Exact wording as implemented in the Owner apps (Android `mobile/android/app/owner`; iOS copies it). Placeholders in
@@ -3017,7 +3024,7 @@ times `today 07:40`, `yesterday 18:10`, `{n} days ago` (2–6), then `12 Nov`.
 | tile | Money — Collections, cash, expenses |
 | section | NEEDS YOUR ATTENTION |
 | report row | {machine} report · {h} h non-productive (all productive: {machine} report · {h} h) / {supervisor} · {today 07:40} — pill Review |
-| overdue row | {machine} · no report for {n} days / Last approved reading {reading} h (or: No approved reading yet) — pill Overdue |
+| overdue row | {machine} · no report for {n} days (never reported or first reading needed: {machine} · no report yet; rejected: {machine} · report rejected, not yet redone) / Last approved reading {reading} h (or: No approved reading yet) — pill Overdue |
 | empty | Nothing needs your attention right now. |
 | bell (accessibility) | Notifications, {n} unread |
 
@@ -3030,10 +3037,9 @@ times `today 07:40`, `yesterday 18:10`, `{n} days ago` (2–6), then `12 Nov`.
 | credit row | CREDIT SALE · {time} / {customer} · {h} h on credit / Invoice {number} · {TZS 3,800,000} · limit left {6.2M} |
 | credit buttons | Reject · Approve credit |
 | credit own sale | You recorded this sale, so someone else must approve its credit. |
-| approve-credit dialog | Approve credit / {customer} · {h} h on credit / Reason (at least 3 characters) / default reason `Credit sale approved` / Approve credit · Cancel |
-| reject-credit dialog | Reject this credit sale? / This asks for the order to be cancelled. The customer's hours stay unusable meanwhile. / Reason (needed to reject) / Reject · Cancel |
+| approve credit | no dialog: activates at once with reason `Credit approved in the Owner app` |
+| reject | opens the order's detail (cancel it there) |
 | credit done | Credit approved. The customer can use these hours. |
-| credit turned down | Cancellation requested for this order. |
 | credit refusals | SEGREGATION_OF_DUTIES: You recorded this sale, so you can't approve its credit. Someone else must. · NO_CREDIT_ARRANGEMENT: This customer has no approved credit limit. Set one up on the web first. · CREDIT_LIMIT_EXCEEDED: This would take the customer over their credit limit. · EXCEEDS_UNACTIVATED_HOURS: Fewer hours are waiting than this; the list has been refreshed. · CREDIT_NOT_ALLOWED: Credit is switched off for this company. · PURCHASE_CANCELLED: This order was cancelled. · CANCELLATION_PENDING: A cancellation is already waiting for this order. |
 | expense row | EXPENSE · {time} / {description} · {TZS 185,000} / receipt photo · {supplier} · {request reason when different} |
 | empty | Nothing waiting / Nothing here needs your decision. |
@@ -3079,7 +3085,7 @@ times `today 07:40`, `yesterday 18:10`, `{n} days ago` (2–6), then `12 Nov`.
 | switch | Map · List |
 | section | THIS WEEK |
 | row | {code} · {model} — {supervisor} / {300} h · {220} productive · last reading {1,510} h (pending) |
-| overdue row | {code} · {model} — pill No report {n} days / Tracker: engine {on} · {moving} (no tracker: last reading {r} h, or Last approved reading … / No approved reading yet) |
+| overdue row | {code} · {model} — pill No report {n} days (never reported / first reading needed: No report yet; rejected: Rejected) / Tracker: engine {on} · {moving} (no tracker: last reading {r} h, or Last approved reading … / No approved reading yet) |
 | empty | No machines to show. · No machine has a known position. |
 | map (accessibility) | Map with {n} machines. Use the List for details. |
 
