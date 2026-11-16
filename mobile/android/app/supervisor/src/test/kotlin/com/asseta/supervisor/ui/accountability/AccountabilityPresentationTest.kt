@@ -154,6 +154,13 @@ class AccountabilityPresentationTest {
     }
 
     @Test
+    fun `a payment line's photo label changes once a photo is attached`() {
+        assertEquals("Photo of the slip or message (optional)", FieldAccountabilityTexts.linePhoto(0))
+        assertEquals("Photo of the message attached", FieldAccountabilityTexts.linePhoto(1))
+        assertEquals("Photo of the message attached (2)", FieldAccountabilityTexts.linePhoto(2))
+    }
+
+    @Test
     fun `hours sale on the sync screen lists its payments`() {
         fun title(json: String?) = com.asseta.supervisor.ui.FieldTexts.outboxTitle(
             AccountabilityOps.HOURS_PURCHASE, json?.let { kotlinx.serialization.json.Json.parseToJsonElement(it) as kotlinx.serialization.json.JsonObject },

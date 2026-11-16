@@ -143,7 +143,6 @@ data class HoursSaleForm(
     val payments: List<PaymentLine> = HoursPayments.opening(),
     val note: String = "",
     val holderId: String? = null,
-    val atMs: Long = 0,
     /** Photos per payment line, by line index (a line without photos may have no entry yet). */
     val photos: List<List<CapturedPhoto>> = emptyList(),
 ) {
@@ -165,7 +164,7 @@ data class HoursSaleForm(
 }
 
 class HoursSaleViewModel(field: FieldGraph, tenantId: String, permissions: Set<String>) : AccountabilityFormViewModel(field, tenantId, permissions) {
-    val form = MutableStateFlow(HoursSaleForm(atMs = field.clock.nowMs()))
+    val form = MutableStateFlow(HoursSaleForm())
     val customers: StateFlow<List<PickerOption>> = field.financeRepository.observeCustomers(tenantId)
         .map { list -> list.map { PickerOption(it.id, it.name, it.code, it.contactName) } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -212,7 +211,8 @@ class HoursSaleViewModel(field: FieldGraph, tenantId: String, permissions: Set<S
                 HoursSaleRequest(
                     tenantId, clientId, draft(f, a), walkInAllowed = a?.walkIn == true,
                     cashHolderId = f.holderId?.takeIf { a?.recordForOthers == true && it != me.value },
-                    receivedAtMs = f.atMs.coerceAtMost(field.clock.nowMs()),
+                    // No received date/time on the form (design SellHours): the lines are received now.
+                    receivedAtMs = field.clock.nowMs(),
                     paymentEvidence = f.payments.indices.map { i -> f.photosOf(i).map { it.jpeg } },
                     noncashAllowed = a?.noncashPayments == true,
                     creditAllowed = a?.creditSales == true,
@@ -241,7 +241,6 @@ fun HoursSaleScreen(vm: HoursSaleViewModel, onDone: () -> Unit) {
     val a = access ?: return
     val draft = vm.draft(form, a)
     val editable = !save.saving && !save.saved
-    val now = System.currentTimeMillis()
     val price = HoursPricing.price(prices, form.machineId, form.customerId, form.walkIn, form.hours)
     val methods = a.saleMethods(form.walkIn)
     LaunchedEffect(save.saved) { if (save.saved) onDone() }
@@ -277,11 +276,10 @@ fun HoursSaleScreen(vm: HoursSaleViewModel, onDone: () -> Unit) {
         form.payments.forEachIndexed { index, line ->
             ShellCard {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (methods.size > 1) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            methods.forEach { m ->
-                                ChoiceChip(T.methodChip(m), line.method == m, editable, Modifier.weight(1f)) { vm.edit { it.line(index) { l -> l.copy(method = m) } } }
-                            }
+                    // The method chips are always shown, even with a single method (design SellHours).
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        methods.forEach { m ->
+                            ChoiceChip(T.methodChip(m), line.method == m, editable, Modifier.weight(1f)) { vm.edit { it.line(index) { l -> l.copy(method = m) } } }
                         }
                     }
                     DecimalField(T.amountLabel(line.method), line.amountText, { v -> vm.edit { it.line(index) { l -> l.typed(v) } } }, editable)
@@ -291,7 +289,7 @@ fun HoursSaleScreen(vm: HoursSaleViewModel, onDone: () -> Unit) {
                         // The line's own photos (the bank slip, the mobile-money message), sent with that payment.
                         EvidencePhotos(form.photosOf(index), { p -> vm.edit { it.photos(index) { l -> l + p } } },
                             { i -> vm.edit { it.photos(index) { l -> l.filterIndexed { j, _ -> j != i } } } }, vm::onPhotoError, editable,
-                            title = T.LINE_PHOTO, inline = true)
+                            title = T.linePhoto(form.photosOf(index).size), inline = true)
                     }
                     if (line.method == PaymentMethod.CREDIT) Text(T.CREDIT_LINE_NOTE, style = MaterialTheme.typography.bodySmall, color = palette.secondaryText)
                     if (editable) TextButton(onClick = { vm.removePayment(index) }) { Text(T.REMOVE_PAYMENT, color = palette.offline) }
@@ -305,13 +303,10 @@ fun HoursSaleScreen(vm: HoursSaleViewModel, onDone: () -> Unit) {
             Spacer(Modifier.weight(1f))
             Text(T.paymentStatus(HoursPayments.summary(form.payments, price)), style = MaterialTheme.typography.bodyMedium, color = palette.secondaryText)
         }
-        if (form.payments.any { it.method != PaymentMethod.CREDIT }) {
+        if (form.payments.any { it.method == PaymentMethod.CASH } && a.recordForOthers) {
             Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                DateTimeField(T.RECEIVED, form.atMs, { v -> vm.edit { it.copy(atMs = v) } }, editable, notAfter = now)
-                if (form.payments.any { it.method == PaymentMethod.CASH } && a.recordForOthers) {
-                    SearchablePickerField(T.CASH_HOLDER, custodianOptions(cache.custodians, me), form.holderId ?: me, { id -> vm.edit { it.copy(holderId = id) } },
-                        emptyText = T.CUSTODIANS_EMPTY, enabled = editable)
-                }
+                SearchablePickerField(T.CASH_HOLDER, custodianOptions(cache.custodians, me), form.holderId ?: me, { id -> vm.edit { it.copy(holderId = id) } },
+                    emptyText = T.CUSTODIANS_EMPTY, enabled = editable)
             }
         }
         // Why Save is off, in one line (Save is disabled, so no save attempt would show it).

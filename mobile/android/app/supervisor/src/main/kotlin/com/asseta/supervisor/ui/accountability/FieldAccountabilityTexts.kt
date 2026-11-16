@@ -115,8 +115,14 @@ object FieldAccountabilityTexts {
     const val REMOVE_PAYMENT = "Remove payment"
     const val METHOD = "Method"
     const val NONCASH_BY_OFFICE = "Bank and mobile-money payments are recorded by the office."
-    /** A payment line's photos when the sale has two or more lines (one line keeps [EVIDENCE]). */
+    /** A payment line's photos: before one is taken, then once attached (same as iOS). */
     const val LINE_PHOTO = "Photo of the slip or message (optional)"
+    const val LINE_PHOTO_ATTACHED = "Photo of the message attached"
+    fun linePhoto(count: Int) = when {
+        count > 1 -> "$LINE_PHOTO_ATTACHED ($count)"
+        count == 1 -> LINE_PHOTO_ATTACHED
+        else -> LINE_PHOTO
+    }
     const val FULLY_PAID = "Fully paid"
     fun paymentNumber(n: Int) = "Payment $n"
     fun partPaid(balance: String) = "Part paid (balance $balance)"
