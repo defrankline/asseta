@@ -46,6 +46,8 @@ struct ShellPicker: View {
 struct MachineReportFlow: View {
     let model: FieldModel
     let close: () -> Void
+    /// Opens the machine's readings and meter reset requests (the existing reset flow).
+    var openMachine: (UUID) -> Void = { _ in }
     @State private var machineID: UUID?
     @State private var step = 1
     @State private var capture: MeterCaptureModel?
@@ -60,9 +62,10 @@ struct MachineReportFlow: View {
     @State private var redo: MachineReportDTO?
     @Environment(\.openURL) private var openURL
 
-    init(model: FieldModel, machineID: UUID?, close: @escaping () -> Void) {
+    init(model: FieldModel, machineID: UUID?, close: @escaping () -> Void, openMachine: @escaping (UUID) -> Void = { _ in }) {
         self.model = model
         self.close = close
+        self.openMachine = openMachine
         _machineID = State(initialValue: machineID)
     }
 
@@ -179,6 +182,12 @@ struct MachineReportFlow: View {
                         rejectedCard(reportID)
                     default:
                         lastReadingCard(entry.state)
+                        if model.inbox.machines[entry.state.machineID] != nil {
+                            Button(T.readingsAndReset) { openMachine(entry.state.machineID) }
+                                .font(.system(size: 13, weight: .semibold)).foregroundStyle(Shell.accent)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                                .accessibilityIdentifier("report.readings")
+                        }
                         if case .blocked(let reason) = model.gate(machineID: entry.state.machineID) {
                             ShellCard { Text(reason.message).foregroundStyle(Shell.warnText) }
                         } else {

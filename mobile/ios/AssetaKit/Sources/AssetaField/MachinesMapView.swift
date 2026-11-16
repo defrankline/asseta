@@ -53,8 +53,15 @@ struct MachinesMapView: View {
             }
             .sheet(item: $selected) { machine in
                 if case let .loaded(_, fetchedAt) = state {
-                    MachineStatusCard(status: FleetMapRules.status(machine, fetchedAt: fetchedAt))
-                        .presentationDetents([.height(170)])
+                    // ADR-008: the machine's report status under its tracker status.
+                    let standing = model.machineStandings.first { $0.state.machineID == machine.machineID }?.standing
+                    VStack(alignment: .leading, spacing: 0) {
+                        MachineStatusCard(status: FleetMapRules.status(machine, fetchedAt: fetchedAt))
+                        if let standing {
+                            ShellPill(standing.label, tone: standingTone(standing)).padding(.horizontal).padding(.bottom, 12)
+                        }
+                    }
+                    .presentationDetents([.height(standing == nil ? 170 : 210)])
                 }
             }
     }

@@ -72,6 +72,7 @@ public enum MachineReportTexts {
     public static let openingExplain = "This machine has no starting reading yet. Take the meter photo: this first report only records the reading; the next one accounts for the hours."
     public static let photoLine = "Meter photo · read by the phone"
     public static let readingPhoto = "Reading the meter on this phone…"
+    public static let readingsAndReset = "Readings and meter reset"
     public static func photoGps(_ accuracy: Int) -> String { "Meter photo · read by the phone · GPS ±\(accuracy) m" }
     public static let photoNoGps = "Meter photo · read by the phone · no GPS fix"
     public static let takePhoto = "Take meter photo"

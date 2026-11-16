@@ -178,7 +178,8 @@ public struct FieldRootView: View {
         case .sellHours: SellHoursView(model: model, close: pop)
         case let .report(machineID):
             if model.access.machineReport {
-                MachineReportFlow(model: model, machineID: machineID ?? defaultReportMachine, close: pop)
+                MachineReportFlow(model: model, machineID: machineID ?? defaultReportMachine, close: pop,
+                                  openMachine: { open(.machine($0)) })
             } else {
                 ContentUnavailableView(T.title, systemImage: "gauge", description: Text(FieldAccountabilityTexts.serverTooOld))
             }
