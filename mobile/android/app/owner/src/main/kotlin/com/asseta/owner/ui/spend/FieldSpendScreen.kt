@@ -46,6 +46,9 @@ enum class SpendSegment { EXPENSES, FUEL }
 object SpendText {
     val SEGMENTS: List<Pair<SpendSegment, String>> = listOf(SpendSegment.EXPENSES to "Expenses", SpendSegment.FUEL to "Fuel")
 
+    /** The choices shown: Fuel only while the company uses fuel (ADR-008 fuel switch). */
+    fun segments(fuel: Boolean): List<Pair<SpendSegment, String>> = SEGMENTS.filter { fuel || it.first != SpendSegment.FUEL }
+
     /** The server's waiting-for-decision expense status (`ExpenseStatus.PENDING_APPROVAL`). */
     const val PENDING = "PENDING_APPROVAL"
 
@@ -90,19 +93,23 @@ class FieldSpendViewModel private constructor(
     private val selectedSegment: MutableStateFlow<SpendSegment>,
     private val selectedStatus: MutableStateFlow<String?>,
     refreshOn: Flow<Unit>,
+    private val fuel: Boolean,
 ) : SnapshotViewModel<SpendList>({
     when (val segment = selectedSegment.value) {
         SpendSegment.EXPENSES -> data.expenses(selectedStatus.value).map { SpendList(segment, expenses = it.items) }
-        SpendSegment.FUEL -> data.fuel().map { SpendList(segment, fuel = it.items) }
+        // Never read fuel while the company has it switched off (ADR-008).
+        SpendSegment.FUEL -> if (fuel) data.fuel().map { SpendList(segment, fuel = it.items) } else data.expenses(selectedStatus.value).map { SpendList(SpendSegment.EXPENSES, expenses = it.items) }
     }
 }, refreshOn) {
-    constructor(data: OwnerData, refreshOn: Flow<Unit>) :
-        this(data, MutableStateFlow(SpendSegment.EXPENSES), MutableStateFlow(SpendText.DEFAULT_EXPENSE_FILTER), refreshOn)
+    /** [fuel]: the company uses fuel (`/me` does not list FUEL as switched off). */
+    constructor(data: OwnerData, refreshOn: Flow<Unit>, fuel: Boolean = true) :
+        this(data, MutableStateFlow(SpendSegment.EXPENSES), MutableStateFlow(SpendText.DEFAULT_EXPENSE_FILTER), refreshOn, fuel)
 
     val segment: StateFlow<SpendSegment> get() = selectedSegment
     val status: StateFlow<String?> get() = selectedStatus
 
     fun select(segment: SpendSegment) {
+        if (segment == SpendSegment.FUEL && !fuel) return
         selectedSegment.value = segment
         refresh()
     }
@@ -113,27 +120,29 @@ class FieldSpendViewModel private constructor(
     }
 }
 
-/** Read-only expenses and fuel recorded in the field; a row linked to a job opens it. */
+/**
+ * Read-only expenses (and fuel while the company uses it) recorded in the field. ADR-008: with FUEL switched off in
+ * `/me` the Fuel choice is never shown and fuel is never read.
+ */
 @Composable
-fun FieldSpendScreen(vm: FieldSpendViewModel, features: OwnerFeatures, onOpen: (OwnerDestination) -> Unit) {
+fun FieldSpendScreen(vm: FieldSpendViewModel, features: OwnerFeatures, @Suppress("UNUSED_PARAMETER") onOpen: (OwnerDestination) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val segment by vm.segment.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize()) {
-        FilterChipRow(SpendText.SEGMENTS, segment, vm::select)
+        SpendText.segments(features.fuel).takeIf { it.size > 1 }?.let { FilterChipRow(it, segment, vm::select) }
         if (segment == SpendSegment.EXPENSES) FilterChipRow(SpendText.EXPENSE_FILTERS, status, vm::filter)
         SnapshotScaffold(state, vm::refresh) { list ->
             val zone = ZoneId.systemDefault()
-            val openJob = { jobId: Any? -> jobId?.takeIf { features.jobs }?.let { id -> { onOpen(OwnerDestination.Job(id.toString())) } } }
             val rows = buildList {
                 when (list.segment) {
                     SpendSegment.EXPENSES -> {
                         if (list.expenses.isEmpty()) add(GroupedItem("empty") { EmptyState(SpendText.NO_EXPENSES, icon = R.drawable.ic_receipt) })
-                        list.expenses.forEach { e -> add(GroupedItem(e.id.toString(), onClick = openJob(e.jobId)) { ExpenseRow(e, zone) }) }
+                        list.expenses.forEach { e -> add(GroupedItem(e.id.toString()) { ExpenseRow(e, zone) }) }
                     }
-                    SpendSegment.FUEL -> {
+                    SpendSegment.FUEL -> if (features.fuel) {
                         if (list.fuel.isEmpty()) add(GroupedItem("empty") { EmptyState(SpendText.NO_FUEL, icon = R.drawable.ic_receipt) })
-                        list.fuel.forEach { f -> add(GroupedItem(f.id.toString(), onClick = openJob(f.jobId)) { FuelRow(f, zone) }) }
+                        list.fuel.forEach { f -> add(GroupedItem(f.id.toString()) { FuelRow(f, zone) }) }
                     }
                 }
             }

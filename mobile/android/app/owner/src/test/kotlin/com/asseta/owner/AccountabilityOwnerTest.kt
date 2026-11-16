@@ -18,7 +18,7 @@ import com.asseta.owner.ui.accountability.DashboardPresentation
 import com.asseta.owner.ui.accountability.DecisionKind
 import com.asseta.owner.ui.accountability.DecisionMapper
 import com.asseta.owner.ui.cash.HandoverText
-import com.asseta.owner.ui.moreEntries
+import com.asseta.owner.ui.OwnerMenu
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -102,8 +102,8 @@ class AccountabilityOwnerTest {
         assertTrue(blocked is MutationCheck.Blocked)
         val approver = session.copy(permissions = setOf("tenant.hours.read", "tenant.hours.discount_approve"))
         assertEquals(MutationCheck.Allowed, approver.can(OwnerAction.DECIDE_DISCOUNT, online = true, DataSource.LIVE))
-        assertTrue(moreEntries(OwnerFeatures(setOf("tenant.accountability.read"))).any { it.second == OwnerDestination.Accountability })
-        assertFalse(moreEntries(OwnerFeatures(emptySet())).any { it.second == OwnerDestination.Accountability })
+        assertTrue(OwnerMenu.entries(OwnerFeatures(setOf("tenant.accountability.read"))).any { it.second == OwnerDestination.Accountability })
+        assertFalse(OwnerMenu.entries(OwnerFeatures(emptySet())).any { it.second == OwnerDestination.Accountability })
         assertEquals("Meter baseline", OwnerNavigation.title(OwnerDestination.Decision(DecisionKinds.BASELINE, ID1)))
         assertEquals("Accountability", OwnerNavigation.title(OwnerDestination.Accountability))
     }

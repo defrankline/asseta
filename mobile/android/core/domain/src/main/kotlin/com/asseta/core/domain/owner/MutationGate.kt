@@ -7,8 +7,17 @@ enum class OwnerAction(val permission: String) {
     DECIDE_APPROVAL("tenant.approval.expense"),
     DECIDE_METER_RESET("tenant.meter.approve"),
 
-    /** Approve (pricing a field request without a rate card) or decline a job waiting for approval. */
-    DECIDE_JOB("tenant.job.approve"),
+    /** ADR-008: approve or reject a machine report (never one's own; the server re-checks). */
+    DECIDE_MACHINE_REPORT("tenant.machine_report.approve"),
+
+    /** ADR-008: make a credit sale's hours usable within the customer's credit arrangement (never the recorder). */
+    ACTIVATE_CREDIT("tenant.hours.credit_activate"),
+
+    /** ADR-008: turn down a credit sale by asking for its order to be cancelled (a second person may approve). */
+    REQUEST_HOURS_CANCELLATION("tenant.hours.cancel"),
+
+    /** ADR-008: record a payment (full or part) of a credit invoice. */
+    RECORD_INVOICE_PAYMENT("tenant.hours.invoice_payment"),
 
     /** Confirm (verify) or dispute (reject) a cash handover a supervisor claimed. */
     DECIDE_HANDOVER("tenant.finance.verify"),
@@ -24,9 +33,6 @@ enum class OwnerAction(val permission: String) {
 
     /** Issue a cash float into a supervisor's custody. */
     ISSUE_FLOAT("tenant.finance.cash"),
-
-    /** Create a job and send it for approval (approving it right away also needs [DECIDE_JOB]'s permission). */
-    CREATE_JOB("tenant.job.write"),
 
     // Accountability decisions: whoever holds the permission; never the proposer (server-enforced).
     DECIDE_DISCOUNT("tenant.hours.discount_approve"),

@@ -19,7 +19,6 @@ import com.asseta.core.domain.owner.OwnerDestination
 import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.model.owner.AlertDto
 import com.asseta.core.model.owner.HistoryDto
-import com.asseta.core.model.owner.JobDto
 import com.asseta.core.model.owner.MachineDto
 import com.asseta.core.model.owner.MeterCaptureDto
 import com.asseta.core.model.owner.PageDto
@@ -44,7 +43,6 @@ import com.asseta.owner.ui.common.StaleBanner
 import com.asseta.owner.ui.common.StatusPill
 import com.asseta.owner.ui.fleet.FleetRow
 import com.asseta.owner.ui.fleet.FleetRows
-import com.asseta.owner.ui.jobs.JobRow
 import com.asseta.core.map.MapMarker
 import com.asseta.core.map.MachineMap
 import kotlinx.coroutines.flow.Flow
@@ -58,10 +56,9 @@ class MachineViewModel(val data: OwnerData, val machineId: String, refreshOn: Fl
     val info = Section(viewModelScope) { data.machineInfo(machineId) }
     val alerts = Section(viewModelScope) { data.machineAlerts(machineId) }
     val readings = Section(viewModelScope) { data.machineReadings(machineId) }
-    val jobs = Section(viewModelScope) { data.machineJobs(machineId) }
     val track = Section(viewModelScope) { data.machineTrack(machineId) }
     // TRACKING off: alerts and track positions are not read (their cards are hidden).
-    private val all = listOfNotNull(status, info, alerts.takeIf { tracking }, readings, jobs, track.takeIf { tracking })
+    private val all = listOfNotNull(status, info, alerts.takeIf { tracking }, readings, track.takeIf { tracking })
 
     init {
         refresh()
@@ -111,7 +108,6 @@ fun MachineScreen(vm: MachineViewModel, features: OwnerFeatures, online: Boolean
     val info by vm.info.state.collectAsStateWithLifecycle()
     val alerts by vm.alerts.state.collectAsStateWithLifecycle()
     val readings by vm.readings.state.collectAsStateWithLifecycle()
-    val jobs by vm.jobs.state.collectAsStateWithLifecycle()
     val track by vm.track.state.collectAsStateWithLifecycle()
     val zone = ZoneId.systemDefault()
     SnapshotScaffold(status, vm::refresh) { m ->
@@ -120,7 +116,6 @@ fun MachineScreen(vm: MachineViewModel, features: OwnerFeatures, online: Boolean
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)) {
             item { StatusCard(row, info.data, zone, features.tracking) }
             if (features.tracking) item { Track(row, track, zone) }
-            if (features.jobs) item { CurrentJob(jobs, zone, onOpen) }
             if (features.alerts) item { RecentAlerts(alerts, zone, onOpen) }
             if (features.meterEvidence) item { Readings(vm.data, readings, online, zone) }
             // The machine's days: the daily sheet with money (DEC-031 R2) or, with revenue checks off, the allocations (DEC-032).
@@ -140,20 +135,6 @@ private fun StatusCard(row: FleetRow, info: MachineDto?, zone: ZoneId, tracking:
     SectionCard("Status", footer = MachineText.STATUS_FOOTER.takeIf { tracking }) {
         if (tracking) LabeledValue("Connectivity") { StatusPill(row.connectivity.label, OwnerColors.connectivity(row.connectivity)) }
         MachineText.statusRows(row, info, zone, tracking).forEach { (k, v) -> KeyValue(k, v) }
-    }
-}
-
-@Composable
-private fun CurrentJob(state: ScreenState<PageDto<JobDto>>, zone: ZoneId, onOpen: (OwnerDestination) -> Unit) {
-    SectionCard("Current job") {
-        StaleBanner(state.snapshot)
-        val job = state.data?.items?.firstOrNull()
-        when {
-            job != null -> LinkRow({ onOpen(OwnerDestination.Job(job.id.toString())) }) { JobRow(job, zone) }
-            state.loading -> SecondaryText("Loading…")
-            state.error != null -> Text(state.error!!.message, color = MaterialTheme.colorScheme.error)
-            else -> SecondaryText("No job in progress.")
-        }
     }
 }
 

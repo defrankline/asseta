@@ -35,6 +35,8 @@ data class OwnerSession(
     val setup: com.asseta.owner.ui.setup.SetupProgress? = null,
     /** Why the company's access is limited (`/me` `access_state_reason`, e.g. a requested closure): the home banner. */
     val companyNotice: String? = null,
+    /** The signed-in user's name (`/me` `display_name`): the home greeting and the side menu. */
+    val displayName: String? = null,
 ) {
     val features: OwnerFeatures get() = OwnerFeatures(permissions, disabledCapabilities)
 
@@ -49,15 +51,45 @@ data class OwnerSession(
 data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String> = emptySet()) {
     val fleet get() = "tenant.fleet.read" in permissions
     val manageAlerts get() = "tenant.fleet.alert_manage" in permissions
-    val jobs get() = "tenant.job.read" in permissions
     val finance get() = "tenant.finance.read" in permissions
     val expenses get() = "tenant.expense.read" in permissions
-    val overview get() = fleet || jobs || finance
+
+    /** The previous overview figures (now "Dashboard" under More): fleet or money. */
+    val overview get() = fleet || finance
     val approvals get() = "tenant.approval.read" in permissions
     val decideApprovals get() = "tenant.approval.expense" in permissions
-    val approveJobs get() = "tenant.job.approve" in permissions
-    val createJobs get() = "tenant.job.write" in permissions
-    val jobSites get() = "tenant.geofence.read" in permissions
+
+    // --- ADR-008 ---------------------------------------------------------------------------------------------------
+
+    /** Fuel is in use (`/me` does not list FUEL as switched off): fuel lists and figures are shown only then. */
+    val fuel get() = com.asseta.core.domain.accountability.FuelSwitch.on(disabled)
+
+    /** Machine reports can be read (tenant.machine_report.read): the approval queue, report detail, weekly hours. */
+    val machineReports get() = "tenant.machine_report.read" in permissions
+
+    /** May approve / reject machine reports (never their own; the server checks it too). */
+    val approveMachineReports get() = com.asseta.core.domain.reports.MachineReportApproval.APPROVE in permissions
+
+    /** Credit sales waiting to be made usable: listed for holders of tenant.hours.credit_activate (hours on). */
+    val creditSales get() = customerHours && "tenant.hours.credit_activate" in permissions
+
+    /** May turn a credit sale down (asks for the order's cancellation). */
+    val cancelOrders get() = "tenant.hours.cancel" in permissions
+
+    /** May record credit-invoice payments (hours on). */
+    val recordInvoicePayments get() = customerHours && "tenant.hours.invoice_payment" in permissions
+
+    /** Customers & hours (hours bought, used, left and credit invoices). */
+    val customers get() = customerHours
+
+    /** Machines: the fleet map and/or this week's machine-report hours. */
+    val machines get() = fleet || machineReports
+
+    /** Money: sales by method and credit invoices (hours on), cash with supervisors (finance). */
+    val money get() = finance || customerHours
+
+    /** Reports: machine hours (machine reports), hours sold (hours), money (finance). */
+    val reports get() = machineReports || customerHours || finance
     val cases get() = "tenant.case.read" in permissions && TenantAccess.INVESTIGATIONS !in disabled
 
     /** Live tracking is in use (TRACKING not switched off): trackers, alerts, geofences and connectivity figures. */
@@ -116,8 +148,6 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
     /** Oversight lists (unbilled work, idle machines, office check-ins). */
     val oversightRead get() = "tenant.oversight.read" in permissions
 
-    /** Unbilled work list (DEC-031 M2): UNBILLED_WORK on and tenant.oversight.read. */
-    val unbilledWork get() = oversightRead && TenantAccess.UNBILLED_WORK !in disabled
 
     /** Idle machines list (DEC-031 M2): IDLE_MACHINES on and tenant.oversight.read. */
     val idleMachines get() = oversightRead && TenantAccess.IDLE_MACHINES !in disabled
@@ -129,7 +159,8 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
     val adjustmentPropose get() = "tenant.adjustment.propose" in permissions
 
     /** Approvals opens for expense approvers and for adjustment holders, who may hold no tenant.approval.* at all. */
-    val approvalsScreen get() = approvals || DecisionKind.visible(this).isNotEmpty() || revenueRead || confirmPayments || pettyCashApprove
+    val approvalsScreen get() =
+        approvals || DecisionKind.visible(this).isNotEmpty() || revenueRead || confirmPayments || pettyCashApprove || machineReports || creditSales
 
     /** One customer payment can be read (to mark a reversed one). */
     val paymentDetails get() = finance || adjustmentRead
@@ -156,17 +187,27 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
         is OwnerDestination.CashRecord, is OwnerDestination.RemittanceOverdue -> if (cashCustody) d else OwnerDestination.Cash
         is OwnerDestination.DailySheet -> if (machineDays) d else OwnerDestination.Machine(d.machineId)
         is OwnerDestination.SheetDay -> if (machineDays) d else OwnerDestination.Machine(d.machineId)
+        // ADR-008: jobs (and job-based unbilled work) are gone; their old links open Home. The More tab is the side menu.
+        OwnerDestination.Jobs, is OwnerDestination.Job, OwnerDestination.UnbilledWork, OwnerDestination.More -> OwnerDestination.Home
+        // The purchase list is now Customers & hours.
+        OwnerDestination.CustomerHours -> if (customers) OwnerDestination.Customers else OwnerDestination.Home
+        OwnerDestination.Customers -> if (customers) d else OwnerDestination.Home
+        OwnerDestination.Machines -> if (machines) d else OwnerDestination.Home
+        OwnerDestination.Money -> if (money) d else OwnerDestination.Home
+        OwnerDestination.Reports, OwnerDestination.HoursByReason -> if (reports) d else OwnerDestination.Home
+        OwnerDestination.Dashboard -> if (overview) d else OwnerDestination.Home
+        is OwnerDestination.MachineReport -> if (machineReports) d else OwnerDestination.Notifications()
+        is OwnerDestination.RecordPayment -> if (recordInvoicePayments) d else OwnerDestination.Money
         // Customer hours (DEC-031 P4): switched off or not readable -> the dashboard, as before these screens existed.
-        OwnerDestination.CustomerHours, is OwnerDestination.HoursPurchase, is OwnerDestination.HoursStatement ->
+        is OwnerDestination.HoursPurchase, is OwnerDestination.HoursStatement ->
             if (customerHours) d else OwnerDestination.Accountability
         // Oversight (DEC-031 Phase 5): switched off or not readable -> the dashboard.
         OwnerDestination.Scorecard, is OwnerDestination.ScorecardPerson -> if (scorecard) d else OwnerDestination.Accountability
-        OwnerDestination.UnbilledWork -> if (unbilledWork) d else OwnerDestination.Accountability
         OwnerDestination.IdleMachines -> if (idleMachines) d else OwnerDestination.Accountability
-        OwnerDestination.SetupChecklist -> if (setupRead) d else OwnerDestination.More
+        OwnerDestination.SetupChecklist -> if (setupRead) d else OwnerDestination.Home
         OwnerDestination.CompanyClosure -> if (closeCompany) d else OwnerDestination.Home
         is OwnerDestination.EmployeeAccountability -> if (employeeAccountability) d else OwnerDestination.Accountability
-        OwnerDestination.Lookup -> if (lookup) d else OwnerDestination.More
+        OwnerDestination.Lookup -> if (lookup) d else OwnerDestination.Home
         // DEC-032 switches: a link to a hidden module opens the overview instead.
         OwnerDestination.Cases, is OwnerDestination.Case -> if (cases) d else OwnerDestination.Home
         is OwnerDestination.Alerts -> if (alerts) d else OwnerDestination.Home

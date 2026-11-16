@@ -18,8 +18,7 @@ import com.asseta.owner.ui.cash.CashText
 import com.asseta.owner.ui.exceptions.ExceptionText
 import com.asseta.owner.ui.home.KpiTone
 import com.asseta.owner.ui.home.OverviewPresentation
-import com.asseta.owner.ui.jobs.JobDetailText
-import com.asseta.owner.ui.moreEntries
+import com.asseta.owner.ui.OwnerMenu
 import com.asseta.owner.ui.spend.SpendText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -64,28 +63,6 @@ class DepthPresentationTest {
     )
 
     @Test
-    fun `job work log lines`() {
-        val now = java.time.Instant.parse("2026-10-21T08:15:59Z").toEpochMilli()
-        assertEquals(
-            "21 Oct 2026, 06:00 – 21 Oct 2026, 10:30 · 4.5 h",
-            JobDetailText.workLogDetail(activity("2026-10-21T06:00:00Z", "2026-10-21T10:30:00Z"), utc, now),
-        )
-        assertEquals(
-            "21 Oct 2026, 22:00 – 22 Oct 2026, 01:20 · 3.33 h",
-            JobDetailText.workLogDetail(activity("2026-10-21T22:00:00Z", "2026-10-22T01:20:00Z"), utc, now),
-        )
-        // Ongoing: whole minutes elapsed so far.
-        assertEquals("21 Oct 2026, 06:00 – ongoing · 2.25 h", JobDetailText.workLogDetail(activity("2026-10-21T06:00:00Z", null), utc, now))
-        assertEquals(KpiTone.GOOD, JobDetailText.billableTone(true))
-        assertEquals(KpiTone.MUTED, JobDetailText.billableTone(false))
-        assertEquals("Billable", JobDetailText.BILLABLE)
-        assertEquals("Not billable", JobDetailText.NOT_BILLABLE)
-        assertEquals("No work logged yet.", JobDetailText.NO_WORK)
-        assertEquals("2 open exception(s) need review.", JobDetailText.exceptions(2))
-        assertNull(JobDetailText.exceptions(0))
-    }
-
-    @Test
     fun `expense and fuel rows`() {
         assertEquals("Tyre shop · 21 Oct 2026", SpendText.expenseDetail(expense(), utc))
         assertEquals("21 Oct 2026", SpendText.expenseDetail(expense(supplier = null), utc))
@@ -117,6 +94,9 @@ class DepthPresentationTest {
     @Test
     fun `field spend filters`() {
         assertEquals(listOf("Expenses", "Fuel"), SpendText.SEGMENTS.map { it.second })
+        // ADR-008 fuel switch: no Fuel choice while the company has fuel switched off.
+        assertEquals(listOf("Expenses", "Fuel"), SpendText.segments(fuel = true).map { it.second })
+        assertEquals(listOf("Expenses"), SpendText.segments(fuel = false).map { it.second })
         assertEquals(listOf("Pending", "All"), SpendText.EXPENSE_FILTERS.map { it.second })
         assertEquals("PENDING_APPROVAL", SpendText.EXPENSE_FILTERS.first().first)
         assertNull(SpendText.DEFAULT_EXPENSE_FILTER)
@@ -187,22 +167,27 @@ class DepthPresentationTest {
                 "tenant.notification.read",
             ),
         )
+        // ADR-008 side menu: the business screens, then the "More" group, then Settings.
         assertEquals(
-            listOf("Approvals", "Meter exceptions", "Field spend", "Cash with supervisors", "Investigations", "Notifications", "Settings"),
-            moreEntries(all).map { it.first },
+            listOf(
+                "Home", "Approvals", "Money", "Reports", "Notifications",
+                "Dashboard", "Meter exceptions", "Field spend", "Cash with supervisors", "Investigations", "Settings",
+            ),
+            OwnerMenu.entries(all).map { it.first },
         )
         assertEquals(
             listOf(OwnerDestination.Exceptions(), OwnerDestination.FieldSpend, OwnerDestination.Cash),
-            moreEntries(all).map { it.second }.subList(1, 4),
+            OwnerMenu.entries(all).map { it.second }.subList(6, 9),
         )
-        assertEquals(listOf("Field spend", "Settings"), moreEntries(OwnerFeatures(setOf("tenant.expense.read"))).map { it.first })
+        assertEquals(listOf("Home", "Field spend", "Settings"), OwnerMenu.entries(OwnerFeatures(setOf("tenant.expense.read"))).map { it.first })
         assertTrue(OwnerFeatures(setOf("tenant.meter.approve")).meterApprove)
         assertFalse(OwnerFeatures(setOf("tenant.meter.read")).meterApprove)
         assertEquals("Meter exceptions", OwnerNavigation.title(OwnerDestination.Exceptions(ID1)))
         assertEquals("Field spend", OwnerNavigation.title(OwnerDestination.FieldSpend))
         assertEquals("Cash with supervisors", OwnerNavigation.title(OwnerDestination.Cash))
         assertEquals("Meter reset", OwnerNavigation.title(OwnerDestination.MeterReset(ID1)))
-        assertNull(OwnerNavigation.tabOf(OwnerDestination.Exceptions()))
+        assertTrue(OwnerNavigation.isMenuRoot(OwnerDestination.Exceptions()))
+        assertFalse(OwnerNavigation.isMenuRoot(OwnerDestination.Exceptions(ID1)))
     }
 
     @Test

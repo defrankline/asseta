@@ -938,4 +938,46 @@ interface TenantApi {
     /** activateHoursOnCredit (tenant.hours.credit_activate; never by the order's recorder). */
     @POST("api/v1/tenant/hours-purchases/{id}/credit-activations")
     suspend fun activateHoursOnCredit(@Path("id") id: String, @Body body: com.asseta.core.model.sync.CreditActivationIn): kotlinx.serialization.json.JsonObject
+
+    // --- ADR-008 Owner app: orders of a period / queue, credit limit, order cancellation, keyed money calls ----------
+
+    /** listHoursPurchases with the ADR-008 fields: [queue] AWAITING_ACTIVATION (credit sales to approve) or a period. */
+    @GET("api/v1/tenant/hours-purchases")
+    suspend fun ownerOrders(
+        @Query("queue") queue: String? = null,
+        @Query("date_from") dateFrom: String? = null,
+        @Query("date_to") dateTo: String? = null,
+        @Query("customer_id") customerId: String? = null,
+        @Query("cancelled") cancelled: Boolean? = false,
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 100,
+    ): PageDto<com.asseta.core.model.owner.OwnerHoursPurchaseDto>
+
+    /** getCustomerCreditExposure (tenant.hours.read): the credit limit and what is left of it. */
+    @GET("api/v1/tenant/customers/{customer_id}/credit-exposure")
+    suspend fun customerCreditExposure(@Path("customer_id") customerId: String): com.asseta.core.model.owner.CreditExposureDto
+
+    /** requestHoursPurchaseCancellation (tenant.hours.cancel): turns a credit sale down; a second person may approve it. */
+    @POST("api/v1/tenant/hours-purchases/{id}/cancellation")
+    suspend fun requestOrderCancellation(@Path("id") id: String, @Body body: com.asseta.core.model.owner.PurchaseCancellationIn): kotlinx.serialization.json.JsonObject
+
+    /** activateHoursOnCredit with an Idempotency-Key (one per approval attempt, so a retry never activates twice). */
+    @POST("api/v1/tenant/hours-purchases/{id}/credit-activations")
+    suspend fun activateHoursOnCreditKeyed(
+        @Path("id") id: String,
+        @Body body: com.asseta.core.model.sync.CreditActivationIn,
+        @Header("Idempotency-Key") idempotencyKey: String,
+    ): com.asseta.core.model.owner.OwnerHoursPurchaseDto
+
+    /** recordCreditInvoicePayment with an Idempotency-Key (the form visit's key, also sent as `client_id`). */
+    @POST("api/v1/tenant/credit-invoices/{id}/payments")
+    suspend fun recordCreditInvoicePaymentKeyed(
+        @Path("id") id: String,
+        @Body body: com.asseta.core.model.sync.CreditInvoicePaymentIn,
+        @Header("Idempotency-Key") idempotencyKey: String,
+    ): com.asseta.core.model.sync.CreditInvoiceDto
+
+    /** getMeterCapture (tenant.meter.read): a report's reading with its OCR value and GPS fix. */
+    @GET("api/v1/tenant/meter-captures/{id}")
+    suspend fun meterCapture(@Path("id") id: String): MeterCaptureDto
 }

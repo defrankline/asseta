@@ -97,16 +97,29 @@ class MutationGateTest {
     }
 
     @Test
-    fun `creating a job needs tenant job write, online live data and a writable company`() {
-        assertEquals("tenant.job.write", OwnerAction.CREATE_JOB.permission)
-        val write = setOf("tenant.job.write")
-        assertEquals(MutationCheck.Allowed, MutationGate.check(OwnerAction.CREATE_JOB, true, DataSource.LIVE, write, false))
-        assertEquals(MutationCheck.Blocked(MutationGate.NOT_PERMITTED), MutationGate.check(OwnerAction.CREATE_JOB, true, DataSource.LIVE, setOf("tenant.job.approve"), false))
-        assertEquals(MutationCheck.Blocked(MutationGate.OFFLINE), MutationGate.check(OwnerAction.CREATE_JOB, false, DataSource.LIVE, write, false))
-        assertEquals(MutationCheck.Blocked(MutationGate.SHOWING_SAVED_DATA), MutationGate.check(OwnerAction.CREATE_JOB, true, DataSource.CACHE, write, false))
-        assertEquals(MutationCheck.Blocked(MutationGate.READ_ONLY_TENANT), MutationGate.check(OwnerAction.CREATE_JOB, true, DataSource.LIVE, write, true))
-        assertEquals("No rate card applies to this machine; choose Negotiated rate and enter a price.", OwnerErrors.message("NO_RATE", "x"))
-        assertEquals("That job number is already used.", OwnerErrors.message("DUPLICATE_JOB", "x"))
+    fun `ADR-008 owner actions need their permission, online live data and a writable company`() {
+        assertEquals("tenant.machine_report.approve", OwnerAction.DECIDE_MACHINE_REPORT.permission)
+        assertEquals("tenant.hours.credit_activate", OwnerAction.ACTIVATE_CREDIT.permission)
+        assertEquals("tenant.hours.cancel", OwnerAction.REQUEST_HOURS_CANCELLATION.permission)
+        assertEquals("tenant.hours.invoice_payment", OwnerAction.RECORD_INVOICE_PAYMENT.permission)
+        val approve = setOf("tenant.machine_report.approve")
+        val a = OwnerAction.DECIDE_MACHINE_REPORT
+        assertEquals(MutationCheck.Allowed, MutationGate.check(a, true, DataSource.LIVE, approve, false))
+        assertEquals(MutationCheck.Blocked(MutationGate.NOT_PERMITTED), MutationGate.check(a, true, DataSource.LIVE, setOf("tenant.machine_report.read"), false))
+        assertEquals(MutationCheck.Blocked(MutationGate.OFFLINE), MutationGate.check(a, false, DataSource.LIVE, approve, false))
+        assertEquals(MutationCheck.Blocked(MutationGate.SHOWING_SAVED_DATA), MutationGate.check(a, true, DataSource.CACHE, approve, false))
+        assertEquals(MutationCheck.Blocked(MutationGate.READ_ONLY_TENANT), MutationGate.check(a, true, DataSource.LIVE, approve, true))
+    }
+
+    @Test
+    fun `job links and machine report links resolve`() {
+        val id = "11111111-1111-4111-8111-111111111111"
+        assertEquals(OwnerDestination.MachineReport(id), DeepLinkRouter.fromTarget("machine_report", id, null))
+        assertEquals(OwnerDestination.Approvals(), DeepLinkRouter.fromTarget("machine_report", null, null))
+        assertEquals(OwnerDestination.MachineReport(id), DeepLinkRouter.fromPath("/tenant/machine-reports/$id"))
+        assertEquals(OwnerDestination.MachineReport(id), DeepLinkRouter.fromPush(mapOf("kind" to "MACHINE_REPORT", "record_id" to id))!!.destination)
+        assertEquals(OwnerDestination.Money, DeepLinkRouter.fromPush(mapOf("kind" to "CREDIT_INVOICE", "record_id" to id))!!.destination)
+        assertEquals(OwnerDestination.Money, DeepLinkRouter.fromPath("/tenant/hours/credit-invoices"))
     }
 }
 

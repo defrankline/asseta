@@ -23,6 +23,14 @@ data class OwnerHoursPurchaseDto(
     val machines: List<MachineHoursDto> = emptyList(),
     val currency: String? = null,
     val allocations: List<PurchaseAllocationDto> = emptyList(),
+    // ADR-008: the order's amount, its payment parts and its CREDIT part with the credit invoice it created.
+    val amount: String? = null,
+    @SerialName("effective_rate") val effectiveRate: String? = null,
+    @SerialName("created_by") val createdBy: String? = null,
+    @SerialName("created_by_name") val createdByName: String? = null,
+    val payments: List<PurchasePaymentDto> = emptyList(),
+    @SerialName("credit_amount") val creditAmount: String? = null,
+    @SerialName("credit_invoice") val creditInvoice: com.asseta.core.model.sync.CreditInvoiceSummaryDto? = null,
 )
 
 /** `PurchaseAllocationDto`: money of one customer payment counted towards a purchase ([releasedAt]: no longer counted). */

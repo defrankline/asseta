@@ -6,63 +6,57 @@ import com.asseta.core.domain.owner.RecordKinds
 import com.asseta.owner.ui.accountability.DecisionKind
 import com.asseta.owner.ui.accountability.OwnerAccountabilityTexts
 
-/** Bottom-bar tabs; opening a tab resets the back stack, any other destination is pushed. */
-enum class OwnerTab(val label: String, val root: OwnerDestination) {
-    HOME("Overview", OwnerDestination.Home),
-    FLEET("Fleet", OwnerDestination.Fleet),
-    JOBS("Jobs", OwnerDestination.Jobs),
-    ALERTS("Alerts", OwnerDestination.Alerts()),
-    MORE("More", OwnerDestination.More),
-}
-
+/**
+ * ADR-008 navigation (designs OwnerHome / OwnerSideNav): Home is the root; a side-menu destination resets the back stack
+ * to Home + it (so back returns Home), any other destination is pushed; system back pops.
+ */
 object OwnerNavigation {
-    /** Tabs the role can use (same gating as iOS): Overview needs fleet, jobs or finance; Alerts needs fleet. */
-    fun tabs(features: OwnerFeatures): List<OwnerTab> = OwnerTab.entries.filter {
-        when (it) {
-            OwnerTab.HOME -> features.overview
-            OwnerTab.FLEET -> features.fleet
-            OwnerTab.ALERTS -> features.alerts
-            OwnerTab.JOBS -> features.jobs
-            OwnerTab.MORE -> true
-        }
-    }
+    /** First screen after entering a company. */
+    fun start(@Suppress("UNUSED_PARAMETER") features: OwnerFeatures): OwnerDestination = OwnerDestination.Home
 
-    /** First screen after entering a company: Overview, else Fleet, else More. */
-    fun start(features: OwnerFeatures): OwnerDestination = tabs(features).first().root
-
-    fun tabOf(d: OwnerDestination): OwnerTab? = when (d) {
-        OwnerDestination.Home -> OwnerTab.HOME
-        OwnerDestination.Fleet -> OwnerTab.FLEET
-        OwnerDestination.Jobs -> OwnerTab.JOBS
-        is OwnerDestination.Alerts -> if (d.alertId == null) OwnerTab.ALERTS else null
-        OwnerDestination.More -> OwnerTab.MORE
-        else -> null
+    /** Opened from the side menu (or Home's tiles): they reset the stack. */
+    fun isMenuRoot(d: OwnerDestination): Boolean = when (d) {
+        OwnerDestination.Home, OwnerDestination.Customers, OwnerDestination.Machines, OwnerDestination.Money, OwnerDestination.Reports,
+        OwnerDestination.Dashboard, OwnerDestination.Fleet, OwnerDestination.Accountability, OwnerDestination.Lookup,
+        OwnerDestination.Scorecard, OwnerDestination.FieldSpend, OwnerDestination.Cash, OwnerDestination.Cases, OwnerDestination.Settings,
+        OwnerDestination.SetupChecklist, OwnerDestination.IdleMachines,
+        -> true
+        is OwnerDestination.Approvals -> d.approvalId == null
+        is OwnerDestination.Notifications -> d.notificationId == null
+        is OwnerDestination.Alerts -> d.alertId == null
+        is OwnerDestination.Exceptions -> d.jobId == null
+        else -> false
     }
 
     fun navigate(stack: List<OwnerDestination>, to: OwnerDestination): List<OwnerDestination> = when {
-        tabOf(to) != null -> listOf(to)
+        to == OwnerDestination.Home -> listOf(OwnerDestination.Home)
+        isMenuRoot(to) -> listOf(OwnerDestination.Home, to)
         stack.lastOrNull() == to -> stack
         else -> stack + to
     }
 
     fun back(stack: List<OwnerDestination>): List<OwnerDestination> = if (stack.size > 1) stack.dropLast(1) else stack
 
-    /** The tab highlighted for the current stack (its root). */
-    fun currentTab(stack: List<OwnerDestination>): OwnerTab = stack.firstNotNullOfOrNull { tabOf(it) } ?: OwnerTab.MORE
+    /** The side-menu destination the stack sits under (highlighted in the menu). */
+    fun menuRoot(stack: List<OwnerDestination>): OwnerDestination = stack.getOrNull(1)?.takeIf(::isMenuRoot) ?: OwnerDestination.Home
 
-    /**
-     * Large (iOS) title only on a tab's first screen; the Fleet tab keeps an inline title to leave room for its map,
-     * as on iOS. Pushed screens always use the inline title.
-     */
-    fun largeTitle(stack: List<OwnerDestination>): Boolean = stack.size == 1 && stack.first() != OwnerDestination.Fleet
+    /** Home draws its own top row (menu, bell); every other screen has the top bar with a back button. */
+    fun hasTopBar(stack: List<OwnerDestination>): Boolean = stack.last() != OwnerDestination.Home
 
-    /** Screen titles, worded as on iOS; the Overview is titled with the company name. */
-    fun title(d: OwnerDestination, tenantName: String = "Overview"): String = when (d) {
-        OwnerDestination.Home -> tenantName
-        OwnerDestination.Fleet -> "Fleet"
+    /** Screen titles (designs; the rest as on iOS). */
+    fun title(d: OwnerDestination, tenantName: String = "Home"): String = when (d) {
+        OwnerDestination.Home -> "Home"
+        OwnerDestination.Dashboard -> tenantName
+        OwnerDestination.Customers -> "Customers & hours"
+        OwnerDestination.Machines -> "Machines"
+        OwnerDestination.Money -> "Money"
+        OwnerDestination.Reports -> "Reports"
+        OwnerDestination.HoursByReason -> com.asseta.owner.ui.reports.OwnerReportsTexts.BY_REASON
+        is OwnerDestination.MachineReport -> "Machine report"
+        is OwnerDestination.RecordPayment -> com.asseta.owner.ui.money.PaymentTexts.TITLE
+        OwnerDestination.Fleet -> "Fleet map"
         is OwnerDestination.Machine -> "Machine"
-        OwnerDestination.Jobs -> "Jobs"
-        is OwnerDestination.Job -> "Job"
+        OwnerDestination.Jobs, is OwnerDestination.Job, OwnerDestination.More, OwnerDestination.UnbilledWork -> "Home"
         is OwnerDestination.Alerts -> if (d.alertId == null) "Alerts" else "Alert"
         is OwnerDestination.Approvals -> if (d.approvalId == null) "Approvals" else "Approval"
         is OwnerDestination.MeterReset -> "Meter reset"
@@ -78,7 +72,6 @@ object OwnerNavigation {
         is OwnerDestination.Case -> "Investigation"
         is OwnerDestination.Notifications -> if (d.notificationId == null) "Notifications" else "Notification"
         OwnerDestination.Settings -> "Settings"
-        OwnerDestination.More -> "More"
         // A variance is titled by its status once loaded (DecisionMapper.varianceTitle).
         is OwnerDestination.Decision -> if (d.kind == DecisionKinds.WRITE_OFF) OwnerAccountabilityTexts.VARIANCE_TITLE else DecisionKind.of(d.kind)?.title ?: "Approval"
         OwnerDestination.Accountability -> OwnerAccountabilityTexts.DASH_TITLE
@@ -88,12 +81,11 @@ object OwnerNavigation {
             if (d.id == null) OwnerAccountabilityTexts.OVERDUE_TITLE else OwnerAccountabilityTexts.OVERDUE_DETAIL_TITLE
         is OwnerDestination.DailySheet -> OwnerAccountabilityTexts.SHEET_TITLE
         is OwnerDestination.SheetDay -> com.asseta.owner.ui.accountability.RevenuePresentation.day(d.day)
-        OwnerDestination.CustomerHours -> OwnerAccountabilityTexts.HOURS_LIST_TITLE
+        OwnerDestination.CustomerHours -> "Customers & hours"
         is OwnerDestination.HoursPurchase -> OwnerAccountabilityTexts.HOURS_PURCHASE_TITLE
         is OwnerDestination.HoursStatement -> OwnerAccountabilityTexts.STMT_TITLE
         OwnerDestination.Scorecard -> com.asseta.owner.ui.accountability.OversightTexts.SCORE_TITLE
         is OwnerDestination.ScorecardPerson -> d.name ?: com.asseta.owner.ui.accountability.OversightTexts.SCORE_TITLE
-        OwnerDestination.UnbilledWork -> com.asseta.owner.ui.accountability.OversightTexts.UNBILLED_TITLE
         OwnerDestination.IdleMachines -> com.asseta.owner.ui.accountability.OversightTexts.IDLE_TITLE
         OwnerDestination.SetupChecklist -> com.asseta.owner.ui.setup.SetupTexts.TITLE
         OwnerDestination.CompanyClosure -> com.asseta.owner.ui.settings.ClosureTexts.TITLE

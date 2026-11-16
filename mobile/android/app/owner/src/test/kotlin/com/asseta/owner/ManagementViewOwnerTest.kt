@@ -17,7 +17,7 @@ import com.asseta.owner.ui.accountability.LookupPresentation
 import com.asseta.owner.ui.accountability.ManagementLinks
 import com.asseta.owner.ui.accountability.ManagementPresentation
 import com.asseta.owner.ui.accountability.ManagementTexts
-import com.asseta.owner.ui.moreEntries
+import com.asseta.owner.ui.OwnerMenu
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -48,14 +48,15 @@ class ManagementViewOwnerTest {
         assertEquals(OwnerDestination.HoursPurchase(id), app("/tenant/hours/purchases/$id"))
         assertEquals(OwnerDestination.Handover(id), app("/tenant/finance/cash/remittances/$id"))
         assertEquals(OwnerDestination.CashRecord(RecordKinds.CASH_TRANSFER, id), app("/tenant/finance/cash/transfers/$id"))
-        assertEquals(OwnerDestination.Job(id), app("/tenant/jobs/$id"))
+        // ADR-008: a job record has no app screen any more.
+        assertNull(app("/tenant/jobs/$id"))
         assertEquals(OwnerDestination.Decision(DecisionKinds.ADJUSTMENT_REQUEST, id), app("/tenant/finance/adjustments/requests/$id"))
         assertEquals(OwnerDestination.EmployeeAccountability(id), app("/tenant/staff/$id/accountability"))
     }
 
     @Test
     fun `lists that the app shows open their screen`() {
-        assertEquals(OwnerDestination.CustomerHours, app("/tenant/hours/balances"))
+        assertEquals(OwnerDestination.Customers, app("/tenant/hours/balances"))
         assertEquals(OwnerDestination.HoursStatement(id), app("/tenant/hours/balances?customer_id=$id"))
         assertEquals(OwnerDestination.Cash, app("/tenant/finance/cash"))
         assertEquals(OwnerDestination.RemittanceOverdue(), app("/tenant/finance/cash/remittance-overdue?local_day=2026-11-09"))
@@ -67,7 +68,7 @@ class ManagementViewOwnerTest {
         assertEquals(OwnerDestination.Approvals(), app("/tenant/finance/cash/remittances?partial_reason_pending=true"))
         assertEquals(OwnerDestination.Approvals(), app("/tenant/finance/cash/variances?status=CLOSURE_PROPOSED"))
         assertEquals(OwnerDestination.Approvals(), app("/tenant/daily-reports?status=SUBMITTED"))
-        assertEquals(OwnerDestination.Approvals(), app("/tenant/jobs?status=PENDING_APPROVAL"))
+        assertNull(app("/tenant/jobs?status=PENDING_APPROVAL"))
     }
 
     @Test
@@ -189,7 +190,8 @@ class ManagementViewOwnerTest {
     @Test
     fun `changeover rows and approval kinds open their records`() {
         val s = summary(exceptionsSection)
-        assertEquals(FigureTarget.App(OwnerDestination.Job(id)), row("exceptions_section", "changeover-$id", s).target)
+        // ADR-008: a changeover job opens on the web (no job screen in the app).
+        assertTrue(row("exceptions_section", "changeover-$id", s).target is FigureTarget.Web)
         assertEquals("Oldest 5 days", row("exceptions_section", "changeover", s).caption)
         val kind = row("exceptions_section", "approval-hours_transfers", s)
         assertEquals("Hours transfers", kind.label)
@@ -291,10 +293,10 @@ class ManagementViewOwnerTest {
 
     @Test
     fun `find a reference and employee links follow their permissions`() {
-        val entries = moreEntries(all).map { it.second }
+        val entries = OwnerMenu.entries(all).map { it.second }
         assertTrue(OwnerDestination.Lookup in entries)
-        assertFalse(OwnerDestination.Lookup in moreEntries(OwnerFeatures(setOf("tenant.accountability.read"))).map { it.second })
-        assertEquals(OwnerDestination.More, OwnerFeatures(emptySet()).route(OwnerDestination.Lookup))
+        assertFalse(OwnerDestination.Lookup in OwnerMenu.entries(OwnerFeatures(setOf("tenant.accountability.read"))).map { it.second })
+        assertEquals(OwnerDestination.Home, OwnerFeatures(emptySet()).route(OwnerDestination.Lookup))
         assertEquals(OwnerDestination.Accountability, OwnerFeatures(emptySet()).route(OwnerDestination.EmployeeAccountability(id)))
         assertEquals(ManagementTexts.LOOKUP_TITLE, OwnerNavigation.title(OwnerDestination.Lookup))
         assertEquals("Asha", OwnerNavigation.title(OwnerDestination.EmployeeAccountability(id, "Asha")))

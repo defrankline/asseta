@@ -176,8 +176,7 @@ object DashboardPresentation {
         if (features.revenueRead) {
             RevenuePresentation.tile(s.revenueDifferences)?.let(::add)
         }
-        // DEC-031 M2: unbilled work and idle machines (their lists need tenant.oversight.read).
-        s.unbilledWork?.let { OversightPresentation.unbilledTile(it, features) }?.let(::add)
+        // DEC-031 M2: idle machines (the list needs tenant.oversight.read). Unbilled work was job-based (ADR-008: gone).
         s.idleMachines?.let { OversightPresentation.idleTile(it, features) }?.let(::add)
     }
 }

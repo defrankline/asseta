@@ -194,9 +194,6 @@ fun ExceptionDetailScreen(vm: ExceptionDetailViewModel, session: OwnerSession, o
                     KeyValue("Recorded", OwnerFormat.dateTime(e.createdAt, zone))
                     e.reviewedAt?.let { KeyValue("Reviewed", OwnerFormat.dateTime(it, zone)) }
                     e.reviewNote?.takeIf { it.isNotBlank() }?.let { KeyValue(ExceptionReviewText.NOTE, it) }
-                    e.jobId?.takeIf { session.features.jobs }?.let { id ->
-                        ButtonRow(ExceptionReviewText.OPEN_JOB) { onOpen(OwnerDestination.Job(id.toString())) }
-                    }
                 }
             }
             if (e.evidence.isNotEmpty()) item {

@@ -25,7 +25,6 @@ import com.asseta.core.model.owner.IdleMachineDto
 import com.asseta.core.model.owner.ScorecardDetailDto
 import com.asseta.core.model.owner.ScorecardRecordDto
 import com.asseta.core.model.owner.ScorecardRowDto
-import com.asseta.core.model.owner.UnbilledJobDto
 import com.asseta.core.ui.components.FilterChipRow
 import com.asseta.core.ui.components.GroupedItem
 import com.asseta.core.ui.components.groupedSection
@@ -248,18 +247,6 @@ object OversightPresentation {
 
     // --- unbilled work, idle machines ---------------------------------------------------------------------------
 
-    fun unbilled(list: List<UnbilledJobDto>, f: OwnerFeatures, zone: ZoneId): List<OversightRow> = list.sortedByDescending { it.daysUnbilled }.map { j ->
-        val machine = RevenuePresentation.machine(j.machineCode, j.machineName, j.machineId)
-        OversightRow(
-            j.jobId,
-            T.unbilledRow(j.jobNumber ?: "—", DisplayNames.or(j.customerName, j.customerId)),
-            listOfNotNull(machine, j.jobSiteName).joinToString(" · "),
-            T.unbilledCompleted(OwnerFormat.date(j.completedAt, zone), j.daysUnbilled) + if (j.draftInvoiceId != null) " · " + T.UNBILLED_DRAFT else "",
-            j.total?.let { money(it, j.currency) },
-            OwnerDestination.Job(j.jobId).takeIf { f.jobs },
-        )
-    }
-
     fun idle(list: List<IdleMachineDto>, f: OwnerFeatures, zone: ZoneId): List<OversightRow> = list.sortedByDescending { it.idleDays }.map { m ->
         OversightRow(
             m.machineId,
@@ -277,21 +264,6 @@ object OversightPresentation {
     // --- dashboard tiles ------------------------------------------------------------------------------------------
 
     private fun JsonObject.int(key: String): Int? = (this[key] as? JsonPrimitive)?.intOrNull
-
-    fun unbilledTile(t: JsonObject, f: OwnerFeatures): DashboardTile? {
-        if (TenantAccess.UNBILLED_WORK in f.disabled) return null
-        val amounts = (t["amounts"] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }.map { money(it.text("amount"), it.text("currency")) }
-        return DashboardTile(
-            "unbilled_work", T.DASH_UNBILLED,
-            listOfNotNull(
-                T.DASH_UNBILLED_JOBS to "${t.int("count") ?: 0}",
-                T.DASH_UNBILLED_VALUE to (amounts.joinToString(", ").ifEmpty { T.DASH_NONE }),
-                t.int("oldest_days")?.let { T.DASH_OLDEST to T.days(it) },
-            ),
-            OwnerDestination.UnbilledWork.takeIf { f.unbilledWork },
-            footer = t.int("after_days")?.let(T::unbilledFooter),
-        )
-    }
 
     fun idleTile(t: JsonObject, f: OwnerFeatures): DashboardTile? {
         if (TenantAccess.IDLE_MACHINES in f.disabled) return null
@@ -331,8 +303,6 @@ class ScorecardViewModel private constructor(
 
 class ScorecardPersonViewModel(data: OwnerData, staffId: String, from: LocalDate, to: LocalDate, refreshOn: Flow<Unit>) :
     SnapshotViewModel<ScorecardDetailDto>({ data.scorecardPerson(staffId, from, to) }, refreshOn)
-
-class UnbilledWorkViewModel(data: OwnerData, refreshOn: Flow<Unit>) : SnapshotViewModel<List<UnbilledJobDto>>({ data.unbilledWork() }, refreshOn)
 
 class IdleMachinesViewModel(data: OwnerData, refreshOn: Flow<Unit>) : SnapshotViewModel<List<IdleMachineDto>>({ data.idleMachines() }, refreshOn)
 
@@ -394,21 +364,6 @@ fun ScorecardPersonScreen(vm: ScorecardPersonViewModel, features: OwnerFeatures,
             } else {
                 groupedSection(keyPrefix = "records", header = OversightTexts.SCORE_RECORDS, items = items(records, onOpen))
             }
-        }
-    }
-}
-
-@Composable
-fun UnbilledWorkScreen(vm: UnbilledWorkViewModel, features: OwnerFeatures, onOpen: (OwnerDestination) -> Unit) {
-    val state by vm.state.collectAsStateWithLifecycle()
-    SnapshotScaffold(state, vm::refresh) { list ->
-        val rows = OversightPresentation.unbilled(list, features, ZoneId.systemDefault())
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
-            if (rows.isEmpty()) {
-                item { EmptyState(OversightTexts.UNBILLED_EMPTY) }
-                return@LazyColumn
-            }
-            groupedSection(keyPrefix = "unbilled", header = null, footer = OversightTexts.UNBILLED_FOOTER, items = items(rows, onOpen))
         }
     }
 }

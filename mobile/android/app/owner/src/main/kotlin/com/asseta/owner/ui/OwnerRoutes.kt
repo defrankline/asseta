@@ -20,8 +20,6 @@ import com.asseta.owner.ui.accountability.DecisionScreen
 import com.asseta.owner.ui.accountability.DecisionViewModel
 import com.asseta.owner.ui.accountability.OwnerAccountabilityTexts
 import com.asseta.owner.ui.accountability.DailySheetScreen
-import com.asseta.owner.ui.accountability.CustomerHoursScreen
-import com.asseta.owner.ui.accountability.CustomerHoursViewModel
 import com.asseta.owner.ui.accountability.HoursPurchaseScreen
 import com.asseta.owner.ui.accountability.HoursPurchaseViewModel
 import com.asseta.owner.ui.accountability.HoursStatementScreen
@@ -59,10 +57,10 @@ import com.asseta.owner.ui.fleet.FleetScreen
 import com.asseta.owner.ui.fleet.FleetViewModel
 import com.asseta.owner.ui.home.HomeScreen
 import com.asseta.owner.ui.home.HomeViewModel
-import com.asseta.owner.ui.jobs.JobDetailScreen
-import com.asseta.owner.ui.jobs.JobDetailViewModel
-import com.asseta.owner.ui.jobs.JobsScreen
-import com.asseta.owner.ui.jobs.JobsViewModel
+import com.asseta.owner.ui.home.OwnerHomeScreen
+import com.asseta.owner.ui.home.OwnerHomeViewModel
+import com.asseta.owner.ui.reports.ReportApprovalScreen
+import com.asseta.owner.ui.reports.ReportApprovalViewModel
 import com.asseta.owner.ui.machine.MachineScreen
 import com.asseta.owner.ui.machine.MachineViewModel
 import com.asseta.owner.ui.notifications.NotificationDetailScreen
@@ -83,7 +81,31 @@ private val ACCOUNTABILITY_ENTITIES = arrayOf(
 )
 
 /** Live-update entities of the customer hours screens. */
-private val HOURS_ENTITIES = arrayOf("hours_purchase", "hours_transfer", "hours_cancellation", "job", "adjustment_request")
+private val HOURS_ENTITIES = arrayOf("hours_purchase", "hours_transfer", "hours_cancellation", "adjustment_request", "machine_report", "credit_invoice")
+
+/** Live-update entities of machine reports and the credit sales waiting next to them (ADR-008). */
+private val REPORT_ENTITIES = arrayOf("machine_report", "meter_capture", "hours_purchase", "credit_invoice")
+
+/**
+ * The company's approvals list: every kind the role may decide (ADR-008: machine reports, credit sales, expenses, then
+ * the rest). One instance per company, shared by the side menu badge, Home and the Approvals screen.
+ */
+fun approvalsViewModel(graph: OwnerGraph, data: OwnerData, features: OwnerFeatures): ApprovalsViewModel = ApprovalsViewModel(
+    data,
+    graph.refreshTriggers(
+        "approval", "expense", "meter_reset", "cash_handover", "customer_payment", "meter_exception", "exception", "petty_cash_movement",
+        "petty_cash_adjustment", *REPORT_ENTITIES, *ACCOUNTABILITY_ENTITIES,
+    ),
+    meterResets = features.meterEvidence, handovers = features.finance, exceptions = features.meterEvidence,
+    payments = features.confirmPayments,
+    decisions = DecisionKind.visible(features),
+    revenueOpen = features.revenueExplain || features.revenueDecide,
+    expenseRequests = features.approvals,
+    pettyCash = features.pettyCashApprove,
+    machineReports = features.machineReports,
+    creditSales = features.creditSales,
+    expenseDetails = features.expenses,
+)
 
 /** Live-update entities behind the people scorecard. */
 private val OVERSIGHT_ENTITIES = arrayOf("job_exception", "alert", "cash_remittance_overdue", "cash_variance", "revenue_difference", "site_checkin", "case")
@@ -98,6 +120,10 @@ fun OwnerRoutes(
     online: Boolean,
     unread: Int?,
     open: (OwnerDestination) -> Unit,
+    /** The company's approvals list (shared with the side menu badge and Home); null without any approval kind. */
+    approvals: ApprovalsViewModel? = null,
+    /** Opens the side menu (Home's menu button). */
+    onMenu: () -> Unit = {},
     setTitle: (OwnerDestination, String) -> Unit = { _, _ -> },
 ) {
     val t = session.tenantId
@@ -105,7 +131,9 @@ fun OwnerRoutes(
     val now = { System.currentTimeMillis() }
     when (route) {
         OwnerDestination.Home -> {
-            val vm: HomeViewModel = viewModel(key = "home-$t") { HomeViewModel(data, graph.refreshTriggers("alert", "approval", "job", "case", "fleet.position", debounceMs = 10_000)) }
+            val vm: OwnerHomeViewModel = viewModel(key = "home-$t") { OwnerHomeViewModel(data, features, graph.refreshTriggers(*REPORT_ENTITIES, "hours_purchase", "cash_handover", debounceMs = 5_000)) }
+            val pendingReports = approvals?.reports?.state?.collectAsStateWithLifecycle()?.value?.data
+            val counts = approvals?.counts?.collectAsStateWithLifecycle()?.value
             val setup by data.setupProgress.collectAsStateWithLifecycle()
             val banner = setup?.takeIf { features.setupRead && it.showBanner }
             val notice = session.companyNotice
@@ -124,7 +152,7 @@ fun OwnerRoutes(
                     }
                 }
             }
-            HomeScreen(vm, features, now, open, header = header)
+            OwnerHomeScreen(vm, features, session.displayName, session.tenantName, counts, pendingReports, unread, now, onMenu, open, header = header)
         }
         OwnerDestination.Fleet -> {
             val vm: FleetViewModel = viewModel(key = "fleet-$t") { FleetViewModel(data, graph.refreshTriggers("fleet.position", "alert", debounceMs = 10_000)) }
@@ -136,15 +164,23 @@ fun OwnerRoutes(
             }
             MachineScreen(vm, features, online, now, open)
         }
-        OwnerDestination.Jobs -> {
-            val vm: JobsViewModel = viewModel(key = "jobs-$t") { JobsViewModel(data, graph.refreshTriggers("job")) }
-            JobsScreen(vm, session, online) { open(OwnerDestination.Job(it)) }
-        }
-        is OwnerDestination.Job -> {
-            val vm: JobDetailViewModel = viewModel(key = "job-$t-${route.jobId}") {
-                JobDetailViewModel(data, route.jobId, features.expenses, graph.refreshTriggers("job", "meter_capture", "exception", "expense", "fuel_event"))
+        // ADR-008: job links, the old More tab and job-based unbilled work are routed to Home before they get here.
+        OwnerDestination.Jobs, is OwnerDestination.Job, OwnerDestination.More, OwnerDestination.UnbilledWork -> Unit
+        is OwnerDestination.MachineReport -> {
+            val vm: ReportApprovalViewModel = viewModel(key = "machine-report-$t-${route.reportId}") {
+                ReportApprovalViewModel(data, route.reportId, features.meterEvidence, graph.refreshTriggers(*REPORT_ENTITIES))
             }
-            JobDetailScreen(vm, session, online, open)
+            ReportApprovalScreen(vm, session, online, now)
+        }
+        OwnerDestination.Customers -> Unit
+        OwnerDestination.Machines -> Unit
+        OwnerDestination.Money -> Unit
+        OwnerDestination.Reports -> Unit
+        OwnerDestination.HoursByReason -> Unit
+        is OwnerDestination.RecordPayment -> Unit
+        OwnerDestination.Dashboard -> {
+            val vm: HomeViewModel = viewModel(key = "dashboard-$t") { HomeViewModel(data, graph.refreshTriggers("alert", "approval", "case", "fleet.position", debounceMs = 10_000)) }
+            HomeScreen(vm, features, now, open)
         }
         is OwnerDestination.Alerts -> {
             val id = route.alertId
@@ -159,19 +195,11 @@ fun OwnerRoutes(
         is OwnerDestination.Approvals -> {
             val id = route.approvalId
             if (id == null) {
-                val vm: ApprovalsViewModel = viewModel(key = "approvals-$t") {
-                    ApprovalsViewModel(
-                        data,
-                        graph.refreshTriggers("approval", "expense", "meter_reset", "job", "cash_handover", "customer_payment", "meter_exception", "exception", "petty_cash_movement", "petty_cash_adjustment", *ACCOUNTABILITY_ENTITIES),
-                        meterResets = features.meterEvidence, jobs = features.jobs, handovers = features.finance, exceptions = features.meterEvidence,
-                        payments = features.confirmPayments,
-                        decisions = DecisionKind.visible(features),
-                        revenueOpen = features.revenueExplain || features.revenueDecide,
-                        expenseRequests = features.approvals,
-                        pettyCash = features.pettyCashApprove,
-                    )
+                if (approvals == null) {
+                    com.asseta.owner.ui.common.EmptyState(com.asseta.owner.ui.approvals.ApprovalsTexts.EMPTY_TITLE, com.asseta.owner.ui.approvals.ApprovalsTexts.EMPTY_MESSAGE)
+                } else {
+                    ApprovalsScreen(approvals, session, online, now, open)
                 }
-                ApprovalsScreen(vm, open)
             } else {
                 val vm: ApprovalDetailViewModel = viewModel(key = "approval-$t-$id") { ApprovalDetailViewModel(data, id, graph.refreshTriggers("approval", "expense")) }
                 ApprovalDetailScreen(vm, session, online)
@@ -214,7 +242,7 @@ fun OwnerRoutes(
             HandoverScreen(vm, session, online, open)
         }
         OwnerDestination.FieldSpend -> {
-            val vm: FieldSpendViewModel = viewModel(key = "spend-$t") { FieldSpendViewModel(data, graph.refreshTriggers("expense", "fuel_event")) }
+            val vm: FieldSpendViewModel = viewModel(key = "spend-$t-${features.fuel}") { FieldSpendViewModel(data, graph.refreshTriggers("expense", "fuel_event"), fuel = features.fuel) }
             FieldSpendScreen(vm, features, open)
         }
         OwnerDestination.Cash -> {
@@ -252,7 +280,6 @@ fun OwnerRoutes(
             }
             SettingsScreen(vm, session, online)
         }
-        OwnerDestination.More -> MoreScreen(session, unread, open)
         is OwnerDestination.Decision -> {
             val kind = DecisionKind.of(route.kind)
             if (kind == DecisionKind.REVENUE_DIFFERENCE) {
@@ -316,10 +343,8 @@ fun OwnerRoutes(
             }
             SheetDayScreen(vm, features, open)
         }
-        OwnerDestination.CustomerHours -> {
-            val vm: CustomerHoursViewModel = viewModel(key = "customer-hours-$t") { CustomerHoursViewModel(data, graph.refreshTriggers(*HOURS_ENTITIES)) }
-            CustomerHoursScreen(vm, open)
-        }
+        // The purchase list is replaced by Customers & hours (OwnerFeatures.route sends it there).
+        OwnerDestination.CustomerHours -> Unit
         is OwnerDestination.HoursPurchase -> {
             val vm: HoursPurchaseViewModel = viewModel(key = "hours-purchase-$t-${route.purchaseId}") {
                 HoursPurchaseViewModel(data, route.purchaseId, graph.refreshTriggers(*HOURS_ENTITIES), features.paymentDetails)
@@ -348,12 +373,6 @@ fun OwnerRoutes(
             }
             val employee = OwnerDestination.EmployeeAccountability(route.staffId, route.name, from.toString(), to.toString()).takeIf { features.employeeAccountability }
             com.asseta.owner.ui.accountability.ScorecardPersonScreen(vm, features, employee, open)
-        }
-        OwnerDestination.UnbilledWork -> {
-            val vm: com.asseta.owner.ui.accountability.UnbilledWorkViewModel = viewModel(key = "unbilled-$t") {
-                com.asseta.owner.ui.accountability.UnbilledWorkViewModel(data, graph.refreshTriggers("job", "invoice"))
-            }
-            com.asseta.owner.ui.accountability.UnbilledWorkScreen(vm, features, open)
         }
         OwnerDestination.IdleMachines -> {
             val vm: com.asseta.owner.ui.accountability.IdleMachinesViewModel = viewModel(key = "idle-$t") {

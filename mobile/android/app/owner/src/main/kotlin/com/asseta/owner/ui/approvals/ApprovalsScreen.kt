@@ -1,186 +1,131 @@
 package com.asseta.owner.ui.approvals
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.asseta.core.domain.owner.DataSource
 import com.asseta.core.domain.owner.MutationCheck
 import com.asseta.core.domain.owner.OwnerAction
 import com.asseta.core.domain.owner.OwnerDestination
-import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.model.owner.ApprovalRequestDto
 import com.asseta.core.model.owner.CustomerPaymentDto
 import com.asseta.core.model.owner.ExpenseDto
-import com.asseta.core.model.owner.JobDto
 import com.asseta.core.model.owner.MeterResetDto
 import com.asseta.core.model.owner.PageDto
-import com.asseta.core.ui.components.ButtonRow
-import com.asseta.core.ui.components.FilterChipRow
+import com.asseta.core.model.sync.MachineReportDto
 import com.asseta.core.ui.components.GroupedItem
-import com.asseta.core.ui.components.GroupedSection
 import com.asseta.core.ui.components.groupedSection
-import com.asseta.core.ui.session.UiError
-import com.asseta.core.ui.theme.AssetaType
 import com.asseta.core.ui.theme.palette
 import com.asseta.owner.R
 import com.asseta.owner.data.ActionResult
-import com.asseta.owner.ui.accountability.AdjustmentTexts
+import com.asseta.owner.data.CreditSale
+import com.asseta.owner.data.ExceptionList
+import com.asseta.owner.data.HandoverList
+import com.asseta.owner.data.OwnerData
+import com.asseta.owner.data.map
+import com.asseta.owner.ui.OwnerSession
 import com.asseta.owner.ui.accountability.DecisionItem
 import com.asseta.owner.ui.accountability.DecisionKind
 import com.asseta.owner.ui.accountability.DecisionRow
-import com.asseta.owner.data.ExceptionList
-import com.asseta.owner.data.HandoverList
-import com.asseta.owner.data.Load
-import com.asseta.owner.data.OwnerData
-import com.asseta.owner.data.Snapshot
-import com.asseta.owner.data.map
-import com.asseta.owner.ui.OwnerSession
-import com.asseta.owner.ui.common.BlockedNote
-import com.asseta.owner.ui.common.EmptyState
-import com.asseta.owner.ui.common.EvidencePhoto
-import com.asseta.owner.ui.common.FootNote
-import com.asseta.owner.ui.common.KeyValue
-import com.asseta.owner.ui.common.OwnerColors
 import com.asseta.owner.ui.cash.HandoverRow
 import com.asseta.owner.ui.cash.HandoverText
+import com.asseta.owner.ui.common.CardButtons
+import com.asseta.owner.ui.common.CardDetail
+import com.asseta.owner.ui.common.CardGap
+import com.asseta.owner.ui.common.CardTitle
+import com.asseta.owner.ui.common.ChipRow
+import com.asseta.owner.ui.common.EmptyState
+import com.asseta.owner.ui.common.Figures
+import com.asseta.owner.ui.common.FootNote
+import com.asseta.owner.ui.common.ItemCard
+import com.asseta.owner.ui.common.KindLine
 import com.asseta.owner.ui.common.ScreenState
 import com.asseta.owner.ui.common.Section
 import com.asseta.owner.ui.exceptions.ExceptionApprovalRow
 import com.asseta.owner.ui.exceptions.ExceptionReviewText
-import com.asseta.owner.ui.common.SectionCard
-import com.asseta.owner.ui.common.SnapshotScaffold
-import com.asseta.owner.ui.common.SnapshotViewModel
-import com.asseta.owner.ui.common.StatusPill
+import com.asseta.owner.ui.reports.ReportPresentation
+import com.asseta.owner.ui.reports.ReportTexts
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 import java.time.ZoneId
-import com.asseta.core.ui.R as CoreR
+import java.util.UUID
 
-/** A refused decision, kept next to the request it belongs to ([code] e.g. SEGREGATION_OF_DUTIES). */
-data class DecisionError(val approvalId: String, val error: UiError, val code: String?) {
-    val segregationOfDuties: Boolean get() = code == "SEGREGATION_OF_DUTIES"
+/** Expense requests waiting with their expenses by id (what was bought, from whom, receipt photos). */
+@Serializable
+data class ExpenseQueue(val requests: List<ApprovalRequestDto>, val expenses: Map<String, ExpenseDto> = emptyMap()) {
+    fun expense(a: ApprovalRequestDto): ExpenseDto? = if (a.subjectType == "EXPENSE") expenses[a.subjectId.toString()] else null
 }
 
-/** Approval wording and rules shared with iOS (`ApprovalsView` / `ApprovalDetailView`). */
-object ApprovalText {
-    val FILTERS: List<Pair<String, String>> = listOf("PENDING" to "Pending", "APPROVED" to "Approved", "REJECTED" to "Rejected")
-    const val DEFAULT_FILTER = "PENDING"
-    const val EMPTY_TITLE = "Nothing here"
-    const val EMPTY_MESSAGE = "No requests with this status."
-    const val NOT_FOUND_TITLE = "Request not found"
-    const val NOT_FOUND_MESSAGE = "It may be older than the latest 200 requests."
-    const val NOTE_LABEL = "Note (optional to approve, required to reject)"
-    const val SOD_FOOTER = "The person who submitted a request can't decide it (segregation of duties)."
-    const val SOD_TITLE = "Not allowed: segregation of duties"
-    const val CONFIRM_REJECT = "Reject this request?"
+/** A credit sale decision in progress or refused ([purchaseId] the order it belongs to). */
+data class CreditError(val purchaseId: String, val message: String)
 
-    /** A rejection must say why; an approval note is optional. */
-    fun canDecide(approve: Boolean, note: String): Boolean = approve || note.isNotBlank()
-
-    @Composable
-    fun statusColor(status: String) = when (status) {
-        "APPROVED" -> OwnerColors.Live
-        "REJECTED" -> OwnerColors.Critical
-        else -> OwnerColors.Warning
-    }
-
-    fun summary(a: ApprovalRequestDto): String = "${OwnerFormat.humanize(a.subjectType)} · ${a.reason}"
-}
-
-/** An empty list for a role that may not read expense requests (its other sections still load). */
-private fun noExpenseRequests(): Load<PageDto<ApprovalRequestDto>> =
-    Load.Ok(Snapshot(PageDto(emptyList(), 0, 1, 0), System.currentTimeMillis(), DataSource.LIVE))
-
-class ApprovalsViewModel private constructor(
-    data: OwnerData,
-    private val selected: MutableStateFlow<String?>,
+/**
+ * Everything waiting for a decision (design OwnerApprovals): machine reports, credit sales and expense requests (the
+ * three chips), then every other kind the role may decide under All. Each list loads on its own; [counts] feeds the
+ * chips, the side menu badge and the Home tile. The shell and the Approvals screen share one instance per company.
+ */
+class ApprovalsViewModel(
+    private val data: OwnerData,
     refreshOn: Flow<Unit>,
-    meterResets: Boolean,
-    jobs: Boolean,
-    handovers: Boolean,
-    payments: Boolean,
-    exceptions: Boolean,
-    decisions: List<DecisionKind>,
-    revenueOpen: Boolean,
+    meterResets: Boolean = false,
+    handovers: Boolean = false,
+    payments: Boolean = false,
+    exceptions: Boolean = false,
+    decisions: List<DecisionKind> = emptyList(),
+    /** Also list revenue differences still to explain (explain or decide holders); otherwise only proposed ones. */
+    revenueOpen: Boolean = true,
     /** The role may read expense requests (`tenant.approval.read`); otherwise they are neither asked for nor shown. */
-    val expenseRequests: Boolean,
-    pettyCash: Boolean,
-) : SnapshotViewModel<PageDto<ApprovalRequestDto>>({ if (expenseRequests) data.approvals(selected.value) else noExpenseRequests() }, refreshOn) {
-    /**
-     * [meterResets]: also list pending meter reset requests (`tenant.meter.read`); [jobs]: also list jobs waiting for
-     * approval, e.g. requested from the field by a supervisor (`tenant.job.read`); [handovers]: cash handovers waiting
-     * to be confirmed (`tenant.finance.read`); [exceptions]: open meter exceptions (`tenant.meter.read`), named by their
-     * job number when [jobs] is allowed; [payments]: customer payments waiting to be confirmed (read and verify).
-     */
-    constructor(
-        data: OwnerData,
-        refreshOn: Flow<Unit>,
-        meterResets: Boolean = false,
-        jobs: Boolean = false,
-        handovers: Boolean = false,
-        payments: Boolean = false,
-        exceptions: Boolean = false,
-        decisions: List<DecisionKind> = emptyList(),
-        /** Also list revenue differences still to explain (explain or decide holders); otherwise only proposed ones. */
-        revenueOpen: Boolean = true,
-        expenseRequests: Boolean = true,
-        /** Petty cash fundings, top-ups and fund adjustments waiting for approval (read and approve, DEC-033). */
-        pettyCash: Boolean = false,
-    ) : this(data, MutableStateFlow(ApprovalText.DEFAULT_FILTER), refreshOn, meterResets, jobs, handovers, payments, exceptions, decisions, revenueOpen, expenseRequests, pettyCash)
+    val expenseRequests: Boolean = true,
+    /** Petty cash fundings, top-ups and fund adjustments waiting for approval (read and approve, DEC-033). */
+    pettyCash: Boolean = false,
+    /** ADR-008: machine reports waiting (tenant.machine_report.read). */
+    machineReports: Boolean = false,
+    /** ADR-008: credit sales waiting to be made usable (tenant.hours.credit_activate, hours on). */
+    creditSales: Boolean = false,
+    /** Read the expenses behind the requests (tenant.expense.read) for their description and supplier. */
+    expenseDetails: Boolean = false,
+) : ViewModel() {
+    private val selected = MutableStateFlow(ApprovalFilter.ALL)
+    val filter: StateFlow<ApprovalFilter> = selected.asStateFlow()
 
-    val status: StateFlow<String?> get() = selected
-
-    /** Pending meter resets, loaded independently of the expense requests (null when the role cannot see them). */
+    val expenses: Section<ExpenseQueue>? = if (expenseRequests) Section(viewModelScope) { data.expenseApprovals(expenseDetails) } else null
+    val reports: Section<List<MachineReportDto>>? = if (machineReports) Section(viewModelScope) { data.pendingMachineReports() } else null
+    val credit: Section<List<CreditSale>>? = if (creditSales) Section(viewModelScope) { data.creditSalesToApprove() } else null
     val resets: Section<List<MeterResetDto>>? = if (meterResets) Section(viewModelScope) { data.meterResets("PENDING") } else null
-
-    /** Jobs waiting for approval, loaded independently (null when the role cannot read jobs). */
-    val pendingJobs: Section<PageDto<JobDto>>? = if (jobs) Section(viewModelScope) { data.jobs(JobApprovalText.PENDING_STATUS) } else null
-
-    /** Cash handovers waiting to be confirmed, loaded independently (null when the role cannot read finance). */
     val claimedHandovers: Section<HandoverList>? = if (handovers) Section(viewModelScope) { data.handovers(HandoverText.CLAIMED) } else null
-
-    /** Customer payments waiting to be confirmed, loaded independently (null when the role cannot decide them). */
     val claimedPayments: Section<PageDto<CustomerPaymentDto>>? = if (payments) Section(viewModelScope) { data.paymentsToConfirm() } else null
-
-    /** Petty cash requests waiting for approval, loaded independently (null when the role cannot approve them). */
     val pettyCashQueue: Section<PettyCashQueue>? = if (pettyCash) Section(viewModelScope) { data.pettyCashToApprove() } else null
-
-    /** Open meter exceptions, loaded independently (null when the role cannot read meter evidence). */
-    val openExceptions: Section<ExceptionList>? = if (exceptions) Section(viewModelScope) { data.openExceptions(jobNumbers = jobs) } else null
+    val openExceptions: Section<ExceptionList>? = if (exceptions) Section(viewModelScope) { data.openExceptions() } else null
 
     /** Accountability requests waiting for a decision, one independently loaded section per kind the role may see. */
     val decisionSections: List<Pair<DecisionKind, Section<List<DecisionItem>>>> = decisions.map { k ->
@@ -189,140 +134,179 @@ class ApprovalsViewModel private constructor(
         }
     }
 
-    private val sections get() = listOfNotNull(resets, pendingJobs, claimedHandovers, claimedPayments, pettyCashQueue, openExceptions) + decisionSections.map { it.second }
+    private val sections: List<Section<*>> =
+        listOfNotNull(expenses, reports, credit, resets, claimedHandovers, claimedPayments, pettyCashQueue, openExceptions) + decisionSections.map { it.second }
+
+    /** Waiting items per chip (an unloaded list counts 0). */
+    val counts: StateFlow<ApprovalCounts> =
+        (if (sections.isEmpty()) flowOf(Unit) else combine(sections.map { it.state }) { }).map { currentCounts() }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, ApprovalCounts())
+
+    private val _creditBusy = MutableStateFlow<String?>(null)
+    val creditBusy: StateFlow<String?> = _creditBusy.asStateFlow()
+    private val _creditError = MutableStateFlow<CreditError?>(null)
+    val creditError: StateFlow<CreditError?> = _creditError.asStateFlow()
+    private val _message = MutableStateFlow<String?>(null)
+    val message: StateFlow<String?> = _message.asStateFlow()
 
     init {
         sections.forEach { it.refresh() }
-        viewModelScope.launch { refreshOn.collect { sections.forEach { it.refresh() } } }
+        viewModelScope.launch { refreshOn.collect { refreshAll() } }
     }
 
-    fun filter(status: String?) {
-        selected.value = status
-        refresh()
+    fun select(f: ApprovalFilter) {
+        selected.value = f
     }
 
-    fun refreshAll() {
-        refresh()
-        sections.forEach { it.refresh() }
+    fun refreshAll() = sections.forEach { it.refresh() }
+
+    fun currentCounts(): ApprovalCounts {
+        val creditDecisions = decisionSections.filter { it.first == DecisionKind.CREDIT }.sumOf { (_, s) -> s.state.value.data.orEmpty().count { it.pending } }
+        val otherDecisions = decisionSections.filter { it.first != DecisionKind.CREDIT }.sumOf { (_, s) -> s.state.value.data.orEmpty().count { it.pending } }
+        return ApprovalCounts(
+            reports = reports?.state?.value?.data?.size ?: 0,
+            credit = (credit?.state?.value?.data?.size ?: 0) + creditDecisions,
+            expenses = expenses?.state?.value?.data?.requests?.size ?: 0,
+            other = otherDecisions +
+                (resets?.state?.value?.data?.size ?: 0) +
+                (claimedHandovers?.state?.value?.data?.items?.size ?: 0) +
+                (claimedPayments?.state?.value?.data?.items?.size ?: 0) +
+                (pettyCashQueue?.state?.value?.data?.let { it.movements.size + it.adjustments.size } ?: 0) +
+                (openExceptions?.state?.value?.data?.items?.size ?: 0),
+        )
     }
-}
 
-/** One request (found in the latest 200; there is no single-request endpoint) with approve / reject. */
-class ApprovalDetailViewModel(val data: OwnerData, val approvalId: String, refreshOn: Flow<Unit>) :
-    SnapshotViewModel<PageDto<ApprovalRequestDto>>({ data.recentApprovals() }, refreshOn) {
-    private val _error = MutableStateFlow<DecisionError?>(null)
-    val error: StateFlow<DecisionError?> = _error.asStateFlow()
-    private val _message = MutableStateFlow<String?>(null)
-    val message: StateFlow<String?> = _message.asStateFlow()
-    private val _busy = MutableStateFlow(false)
-    val busy: StateFlow<Boolean> = _busy.asStateFlow()
-
-    fun request(page: PageDto<ApprovalRequestDto>): ApprovalRequestDto? = page.items.firstOrNull { it.id.toString() == approvalId }
-
-    fun decide(approve: Boolean, note: String?) {
-        if (_busy.value || !ApprovalText.canDecide(approve, note.orEmpty())) return
-        _busy.value = true
-        _error.value = null
+    /** Make the credit part usable (hours from [CreditSales.creditHours]); one Idempotency-Key per attempt. */
+    fun approveCredit(sale: CreditSale, reason: String) {
+        val p = sale.purchase
+        if (_creditBusy.value != null || !CreditSales.reasonValid(reason)) return
+        _creditBusy.value = p.id
+        _creditError.value = null
         viewModelScope.launch {
-            when (val r = data.decideApproval(approvalId, approve, note)) {
+            val hours = CreditSales.creditHours(p).toPlainString()
+            when (val r = data.approveCredit(p.id, hours, reason, UUID.randomUUID().toString())) {
                 is ActionResult.Done -> {
-                    replaceData { page -> page.copy(items = page.items.map { if (it.id == r.value.id) r.value else it }) }
-                    _message.value = if (approve) "Approved." else "Rejected."
+                    _message.value = ApprovalsTexts.CREDIT_APPROVED
+                    credit?.refresh()
                 }
                 is ActionResult.Refused -> {
-                    _error.value = DecisionError(approvalId, r.error, r.code)
-                    if (r.reload) refresh()
+                    _creditError.value = CreditError(p.id, ApprovalsTexts.creditRefusal(r.code, r.error.message))
+                    if (r.reload || r.code == "EXCEEDS_UNACTIVATED_HOURS" || r.code == "PURCHASE_CANCELLED") credit?.refresh()
                 }
             }
-            _busy.value = false
+            _creditBusy.value = null
+        }
+    }
+
+    /** Turn the credit sale down: ask for the order's cancellation with [reason]. */
+    fun turnDownCredit(sale: CreditSale, reason: String) {
+        val p = sale.purchase
+        if (_creditBusy.value != null || !CreditSales.reasonValid(reason)) return
+        _creditBusy.value = p.id
+        _creditError.value = null
+        viewModelScope.launch {
+            when (val r = data.turnDownCredit(p.id, reason)) {
+                is ActionResult.Done -> {
+                    _message.value = ApprovalsTexts.CREDIT_TURNED_DOWN
+                    credit?.refresh()
+                }
+                is ActionResult.Refused -> _creditError.value = CreditError(p.id, ApprovalsTexts.creditRefusal(r.code, r.error.message))
+            }
+            _creditBusy.value = null
         }
     }
 }
 
+/** Chips the role sees: All, and each kind it can have waiting. */
+fun approvalChips(vm: ApprovalsViewModel): List<ApprovalFilter> = listOfNotNull(
+    ApprovalFilter.ALL,
+    ApprovalFilter.MACHINE_REPORTS.takeIf { vm.reports != null },
+    ApprovalFilter.CREDIT.takeIf { vm.credit != null || vm.decisionSections.any { it.first == DecisionKind.CREDIT } },
+    ApprovalFilter.EXPENSES.takeIf { vm.expenses != null },
+)
+
 @Composable
-fun ApprovalsScreen(vm: ApprovalsViewModel, onOpen: (OwnerDestination) -> Unit) {
-    val state by vm.state.collectAsStateWithLifecycle()
-    val status by vm.status.collectAsStateWithLifecycle()
+fun ApprovalsScreen(vm: ApprovalsViewModel, session: OwnerSession, online: Boolean, nowMs: () -> Long, onOpen: (OwnerDestination) -> Unit) {
+    val filter by vm.filter.collectAsStateWithLifecycle()
+    val counts by vm.counts.collectAsStateWithLifecycle()
+    val reports = vm.reports?.state?.collectAsStateWithLifecycle()?.value
+    val credit = vm.credit?.state?.collectAsStateWithLifecycle()?.value
+    val expenses = vm.expenses?.state?.collectAsStateWithLifecycle()?.value
     val resets = vm.resets?.state?.collectAsStateWithLifecycle()?.value
-    val jobs = vm.pendingJobs?.state?.collectAsStateWithLifecycle()?.value
     val handovers = vm.claimedHandovers?.state?.collectAsStateWithLifecycle()?.value
     val payments = vm.claimedPayments?.state?.collectAsStateWithLifecycle()?.value
     val exceptions = vm.openExceptions?.state?.collectAsStateWithLifecycle()?.value
     val petty = vm.pettyCashQueue?.state?.collectAsStateWithLifecycle()?.value
     val decisions = vm.decisionSections.map { (kind, section) -> kind to section.state.collectAsStateWithLifecycle().value }
+    val busy by vm.creditBusy.collectAsStateWithLifecycle()
+    val creditError by vm.creditError.collectAsStateWithLifecycle()
+    val message by vm.message.collectAsStateWithLifecycle()
+    var approving by remember { mutableStateOf<CreditSale?>(null) }
+    var turningDown by remember { mutableStateOf<CreditSale?>(null) }
+    val zone = ZoneId.systemDefault()
+    val now = nowMs()
     Column(Modifier.fillMaxSize()) {
-        if (vm.expenseRequests) FilterChipRow(ApprovalText.FILTERS.map { (s, l) -> s as String? to l }, status, vm::filter)
-        SnapshotScaffold(state, vm::refreshAll) { page ->
-            val zone = ZoneId.systemDefault()
-            val rows = buildList {
-                if (page.items.isEmpty() && vm.expenseRequests) add(GroupedItem("empty") { EmptyState(ApprovalText.EMPTY_TITLE, ApprovalText.EMPTY_MESSAGE, R.drawable.ic_approval) })
-                if (!vm.expenseRequests && listOf(resets, jobs, handovers, payments, exceptions).all { it == null } && petty?.data.isNullOrEmptyQueue() && decisions.all { (_, st) -> st.data.orEmpty().none { it.pending } }) {
-                    add(GroupedItem("empty") { EmptyState(ApprovalText.EMPTY_TITLE, AdjustmentTexts.EMPTY, R.drawable.ic_approval) })
-                }
-                page.items.forEach { a ->
-                    add(GroupedItem(a.id.toString(), onClick = { onOpen(OwnerDestination.Approvals(a.id.toString())) }) { ApprovalRow(a, zone) })
+        ChipRow(approvalChips(vm).map { it to counts.chip(it) }, filter, vm::select)
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
+            message?.let { m ->
+                item(key = "message") {
+                    Text(m, color = palette.accent, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp).semantics { liveRegion = LiveRegionMode.Polite })
                 }
             }
-            // Meter resets below the (unchanged) expense requests, as their own section with its own state.
-            val resetRows = resets?.let { r ->
-                buildList {
-                    val list = r.data
-                    when {
-                        list == null && r.loading -> Unit
-                        list == null -> add(GroupedItem("error") { FootNote(r.error?.message.orEmpty()) })
-                        list.isEmpty() -> add(GroupedItem("empty") { FootNote(MeterResetText.EMPTY) })
-                        else -> list.forEach { m ->
-                            add(GroupedItem(m.id.toString(), onClick = { onOpen(OwnerDestination.MeterReset(m.id.toString())) }) { MeterResetRow(m, zone) })
+            if (filter.shows(ApprovalKind.MACHINE_REPORT)) reports?.let { st ->
+                cards("reports", st) { list ->
+                    list.forEach { r ->
+                        item(key = "mr-${r.id}") {
+                            ItemCard(onClick = { onOpen(OwnerDestination.MachineReport(r.id)) }) {
+                                KindLine(ReportTexts.KIND, Figures.relative(r.submittedAt, now, zone))
+                                CardTitle(ReportPresentation.rowTitle(r))
+                                CardDetail(ReportPresentation.split(r), accent = true)
+                            }
+                            CardGap()
                         }
                     }
                 }
             }
-            // Jobs waiting for approval (office-created or requested from the field), as their own section.
-            val jobRows = jobs?.let { j ->
-                buildList {
-                    val list = j.data?.items
-                    when {
-                        list == null && j.loading -> Unit
-                        list == null -> add(GroupedItem("error") { FootNote(j.error?.message.orEmpty()) })
-                        list.isEmpty() -> add(GroupedItem("empty") { FootNote(JobApprovalText.EMPTY) })
-                        else -> list.forEach { job ->
-                            add(GroupedItem(job.id.toString(), onClick = { onOpen(OwnerDestination.Job(job.id.toString())) }) { JobApprovalRow(job, zone) })
+            if (filter.shows(ApprovalKind.CREDIT)) {
+                credit?.let { st ->
+                    cards("credit", st) { list ->
+                        list.forEach { sale ->
+                            item(key = "cs-${sale.purchase.id}") {
+                                CreditSaleCard(sale, session, online, st, busy, creditError, now, zone, { approving = sale }, { turningDown = sale })
+                                CardGap()
+                            }
+                        }
+                    }
+                }
+                decisions.filter { it.first == DecisionKind.CREDIT }.forEach { (kind, st) -> decisionGroup(kind, st, onOpen) }
+            }
+            if (filter.shows(ApprovalKind.EXPENSE)) expenses?.let { st ->
+                cards("expenses", st) { q ->
+                    q.requests.forEach { a ->
+                        item(key = "ex-${a.id}") {
+                            val e = q.expense(a)
+                            ItemCard(onClick = { onOpen(OwnerDestination.Approvals(a.id.toString())) }) {
+                                KindLine(ApprovalsTexts.EXPENSE_KIND, Figures.relative(a.requestedAt, now, zone))
+                                CardTitle(ExpenseApprovals.title(a, e))
+                                ExpenseApprovals.detail(a, e).takeIf { it.isNotBlank() }?.let { CardDetail(it) }
+                            }
+                            CardGap()
                         }
                     }
                 }
             }
-            // Cash handovers a supervisor claimed, waiting to be confirmed received or disputed.
-            val handoverRows = handovers?.let { h ->
-                sectionRows(h, HandoverText.EMPTY) { list ->
-                    list.items.map { item ->
-                        GroupedItem(item.id.toString(), onClick = { onOpen(OwnerDestination.Handover(item.id.toString())) }) { HandoverRow(item, list.name(item), zone) }
-                    }
+            if (filter == ApprovalFilter.ALL) {
+                // Every other kind, as before ADR-008, in its own titled group.
+                handovers?.let { h ->
+                    sectionRows(h) { list ->
+                        list.items.map { item -> GroupedItem(item.id.toString(), onClick = { onOpen(OwnerDestination.Handover(item.id.toString())) }) { HandoverRow(item, list.name(item), zone) } }
+                    }?.let { groupedSection("handovers", it, header = HandoverText.SECTION) }
                 }
-            }
-            // Customer payments someone recorded, waiting to be confirmed or rejected.
-            val paymentRows = payments?.let { p ->
-                sectionRows(p, PaymentReviewText.EMPTY) { page ->
-                    page.items.map { item ->
-                        GroupedItem(item.id.toString(), onClick = { onOpen(OwnerDestination.CustomerPayment(item.id.toString())) }) { PaymentRow(item, zone) }
-                    }
+                payments?.let { p ->
+                    sectionRows(p) { page ->
+                        page.items.map { item -> GroupedItem(item.id.toString(), onClick = { onOpen(OwnerDestination.CustomerPayment(item.id.toString())) }) { PaymentRow(item, zone) } }
+                    }?.let { groupedSection("payments", it, header = PaymentReviewText.SECTION) }
                 }
-            }
-            // Open meter exceptions, each opening its review.
-            val exceptionRows = exceptions?.let { x ->
-                sectionRows(x, ExceptionReviewText.EMPTY) { list ->
-                    list.items.map { e ->
-                        GroupedItem(e.id.toString(), onClick = { onOpen(OwnerDestination.MeterException(e.id.toString())) }) {
-                            ExceptionApprovalRow(e, list.jobNumber(e), zone)
-                        }
-                    }
-                }
-            }
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
-                groupedSection("approvals", rows)
-                jobRows?.let { groupedSection("jobs", it, header = JobApprovalText.SECTION) }
-                handoverRows?.let { groupedSection("handovers", it, header = HandoverText.SECTION) }
-                paymentRows?.let { groupedSection("payments", it, header = PaymentReviewText.SECTION) }
-                // Petty cash requests appear only when something waits (DEC-033).
                 petty?.data?.takeIf { it.isNotEmpty() }?.let { q ->
                     groupedSection(
                         "petty-cash",
@@ -331,154 +315,135 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, onOpen: (OwnerDestination) -> Unit) 
                         header = PettyCashReviewText.SECTION,
                     )
                 }
-                exceptionRows?.let { groupedSection("exceptions", it, header = ExceptionReviewText.SECTION) }
-                resetRows?.let { groupedSection("resets", it, header = MeterResetText.SECTION) }
-                // Accountability sections appear only when something waits (a capability the company does not use
-                // never adds an empty section): today's Approvals screen is unchanged for it.
-                decisions.forEach { (kind, st) ->
-                    val items = st.data.orEmpty().filter { it.pending }
-                    if (items.isNotEmpty()) {
-                        groupedSection(
-                            "decision-${kind.code}",
-                            items.map { d -> GroupedItem(d.id, onClick = { onOpen(OwnerDestination.Decision(kind.code, d.id)) }) { DecisionRow(d, zone) } },
-                            header = kind.header,
-                        )
-                    }
+                exceptions?.let { x ->
+                    sectionRows(x) { list ->
+                        list.items.map { e -> GroupedItem(e.id.toString(), onClick = { onOpen(OwnerDestination.MeterException(e.id.toString())) }) { ExceptionApprovalRow(e, null, zone) } }
+                    }?.let { groupedSection("exceptions", it, header = ExceptionReviewText.SECTION) }
                 }
+                resets?.let { r ->
+                    sectionRows(r) { list ->
+                        list.map { m -> GroupedItem(m.id.toString(), onClick = { onOpen(OwnerDestination.MeterReset(m.id.toString())) }) { MeterResetRow(m, zone) } }
+                    }?.let { groupedSection("resets", it, header = MeterResetText.SECTION) }
+                }
+                decisions.filter { it.first != DecisionKind.CREDIT }.forEach { (kind, st) -> decisionGroup(kind, st, onOpen) }
             }
+            if (counts.of(filter) == 0 && listOfNotNull(reports, credit, expenses, resets, handovers, payments, exceptions, petty).none { it.loading }) {
+                item(key = "empty") { EmptyState(ApprovalsTexts.EMPTY_TITLE, ApprovalsTexts.EMPTY_MESSAGE, R.drawable.ic_approval) }
+            }
+        }
+    }
+    approving?.let { sale ->
+        ReasonDialog(
+            title = ApprovalsTexts.CREDIT_REASON_TITLE, text = CreditSales.title(sale.purchase), label = ApprovalsTexts.CREDIT_REASON_LABEL,
+            initial = ApprovalsTexts.CREDIT_REASON_DEFAULT, confirm = ApprovalsTexts.APPROVE_CREDIT, valid = CreditSales::reasonValid,
+            onDismiss = { approving = null },
+        ) { reason -> approving = null; vm.approveCredit(sale, reason) }
+    }
+    turningDown?.let { sale ->
+        ReasonDialog(
+            title = ApprovalsTexts.TURN_DOWN_TITLE, text = ApprovalsTexts.TURN_DOWN_TEXT, label = ApprovalsTexts.TURN_DOWN_LABEL,
+            initial = "", confirm = ApprovalsTexts.REJECT, valid = CreditSales::reasonValid, destructive = true,
+            onDismiss = { turningDown = null },
+        ) { reason -> turningDown = null; vm.turnDownCredit(sale, reason) }
+    }
+}
+
+@Composable
+private fun CreditSaleCard(
+    sale: CreditSale,
+    session: OwnerSession,
+    online: Boolean,
+    state: ScreenState<List<CreditSale>>,
+    busy: String?,
+    error: CreditError?,
+    nowMs: Long,
+    zone: ZoneId,
+    onApprove: () -> Unit,
+    onTurnDown: () -> Unit,
+) {
+    val p = sale.purchase
+    ItemCard {
+        KindLine(ApprovalsTexts.CREDIT_KIND, Figures.relative(p.createdAt, nowMs, zone))
+        CardTitle(CreditSales.title(p))
+        CardDetail(CreditSales.detail(sale))
+        val approve = session.can(OwnerAction.ACTIVATE_CREDIT, online, state.snapshot?.source)
+        val turnDown = session.can(OwnerAction.REQUEST_HOURS_CANCELLATION, online, state.snapshot?.source)
+        when {
+            CreditSales.recordedBy(p, session.userId) -> FootNote(ApprovalsTexts.OWN_SALE)
+            approve is MutationCheck.Blocked -> FootNote(approve.reason)
+            else -> CardButtons(
+                left = ApprovalsTexts.REJECT.takeIf { turnDown is MutationCheck.Allowed },
+                right = ApprovalsTexts.APPROVE_CREDIT,
+                enabled = busy == null,
+                onLeft = onTurnDown, onRight = onApprove,
+            )
+        }
+        error?.takeIf { it.purchaseId == p.id }?.let {
+            Text(it.message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive })
         }
     }
 }
 
-/** Rows of an independently loaded section: nothing while first loading, the error, the empty line, or the items. */
-private fun <T> sectionRows(state: ScreenState<T>, empty: String, items: (T) -> List<GroupedItem>): List<GroupedItem> {
+/** A dialog asking for a reason (3–1000 characters) before a decision. */
+@Composable
+fun ReasonDialog(
+    title: String,
+    text: String?,
+    label: String,
+    initial: String,
+    confirm: String,
+    valid: (String) -> Boolean,
+    destructive: Boolean = false,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var reason by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column {
+                text?.let { Text(it, modifier = Modifier.padding(bottom = 8.dp)) }
+                OutlinedTextField(reason, { reason = it.take(1000) }, Modifier.fillMaxWidth(), label = { Text(label) }, minLines = 2)
+            }
+        },
+        confirmButton = {
+            TextButton({ onConfirm(reason.trim()) }, enabled = valid(reason)) {
+                Text(confirm, color = if (destructive) MaterialTheme.colorScheme.error else androidx.compose.ui.graphics.Color.Unspecified)
+            }
+        },
+        dismissButton = { TextButton(onDismiss) { Text(ApprovalsTexts.CANCEL) } },
+    )
+}
+
+/** Cards of one independently loaded list: nothing while first loading, its error, or the items. */
+private fun <T> LazyListScope.cards(key: String, state: ScreenState<T>, items: LazyListScope.(T) -> Unit) {
+    val data = state.data
+    when {
+        data == null && state.loading -> Unit
+        data == null -> item(key = "$key-error") { FootNote(state.error?.message.orEmpty()) }
+        else -> items(data)
+    }
+}
+
+/** Rows of an independently loaded group: none while loading or when empty (the group is then hidden), else the error or items. */
+private fun <T> sectionRows(state: ScreenState<T>, items: (T) -> List<GroupedItem>): List<GroupedItem>? {
     val data = state.data
     return when {
-        data == null && state.loading -> emptyList()
+        data == null && state.loading -> null
         data == null -> listOf(GroupedItem("error") { FootNote(state.error?.message.orEmpty()) })
-        else -> items(data).ifEmpty { listOf(GroupedItem("empty") { FootNote(empty) }) }
+        else -> items(data).ifEmpty { null }
     }
 }
 
-@Composable
-private fun ApprovalRow(a: ApprovalRequestDto, zone: ZoneId) {
-    Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(OwnerFormat.money(a.amount.value, a.currency), style = AssetaType.headline, modifier = Modifier.weight(1f))
-            StatusPill(OwnerFormat.humanize(a.status), ApprovalText.statusColor(a.status))
-        }
-        Text(ApprovalText.summary(a), style = AssetaType.subheadline, color = palette.secondaryText)
-        Text("Requested ${OwnerFormat.dateTime(a.requestedAt, zone)}", style = AssetaType.caption, color = palette.secondaryText)
-    }
-}
-
-@Composable
-fun ApprovalDetailScreen(vm: ApprovalDetailViewModel, session: OwnerSession, online: Boolean) {
-    val state by vm.state.collectAsStateWithLifecycle()
-    val error by vm.error.collectAsStateWithLifecycle()
-    val message by vm.message.collectAsStateWithLifecycle()
-    val busy by vm.busy.collectAsStateWithLifecycle()
-    var note by rememberSaveable { mutableStateOf("") }
-    var confirmReject by rememberSaveable { mutableStateOf(false) }
-    SnapshotScaffold(state, vm::refresh) { page ->
-        val a = vm.request(page)
+private fun LazyListScope.decisionGroup(kind: DecisionKind, st: ScreenState<List<DecisionItem>>, onOpen: (OwnerDestination) -> Unit) {
+    val items = st.data.orEmpty().filter { it.pending }
+    if (items.isNotEmpty()) {
         val zone = ZoneId.systemDefault()
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)) {
-            if (a == null) {
-                item { EmptyState(ApprovalText.NOT_FOUND_TITLE, ApprovalText.NOT_FOUND_MESSAGE, CoreR.drawable.ic_help) }
-                return@LazyColumn
-            }
-            item {
-                SectionCard("Request") {
-                    KeyValue("Amount", OwnerFormat.money(a.amount.value, a.currency))
-                    KeyValue("Type", OwnerFormat.humanize(a.subjectType))
-                    KeyValue("Reason", a.reason)
-                    KeyValue("Requested", OwnerFormat.dateTime(a.requestedAt, zone))
-                    KeyValue("Status", OwnerFormat.humanize(a.status))
-                    a.decidedAt?.let { KeyValue("Decided", OwnerFormat.dateTime(it, zone)) }
-                    a.decisionNote?.let { KeyValue("Decision note", it) }
-                    KeyValue("Policy", a.policyVersion)
-                }
-            }
-            if (a.subjectType == "EXPENSE") item { ExpenseCard(vm.data, a.subjectId.toString(), online && !state.stale, zone) }
-            if (a.status == "PENDING") item {
-                SectionCard("Decision", footer = ApprovalText.SOD_FOOTER) {
-                    val gate = session.can(OwnerAction.DECIDE_APPROVAL, online, state.snapshot?.source)
-                    if (gate is MutationCheck.Blocked) {
-                        BlockedNote(gate.reason)
-                    } else {
-                        OutlinedTextField(note, { note = it.take(1000) }, Modifier.fillMaxWidth(), label = { Text(ApprovalText.NOTE_LABEL) }, minLines = 2)
-                        // Same as iOS: a green prominent "Approve" and a bordered red "Reject" on one row.
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Button(
-                                { vm.decide(true, note) }, enabled = !busy, modifier = Modifier.testTag("approve-${a.id}"),
-                                colors = ButtonDefaults.buttonColors(containerColor = OwnerColors.Live, contentColor = Color.White),
-                                shape = RoundedCornerShape(8.dp),
-                            ) { Text("Approve") }
-                            Spacer(Modifier.weight(1f))
-                            Button(
-                                { confirmReject = true }, enabled = !busy && ApprovalText.canDecide(false, note), modifier = Modifier.testTag("reject-${a.id}"),
-                                colors = ButtonDefaults.buttonColors(containerColor = OwnerColors.Critical.copy(alpha = 0.15f), contentColor = OwnerColors.Critical),
-                                shape = RoundedCornerShape(8.dp),
-                            ) { Text("Reject") }
-                        }
-                        error?.let { SegregationNotice(it) }
-                    }
-                }
-            }
-            message?.let { item { GroupedSection { Text(it, color = palette.accent, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) } } }
-        }
-    }
-    if (confirmReject) {
-        AlertDialog(
-            onDismissRequest = { confirmReject = false },
-            title = { Text(ApprovalText.CONFIRM_REJECT) },
-            confirmButton = { TextButton({ confirmReject = false; vm.decide(false, note) }) { Text("Reject", color = MaterialTheme.colorScheme.error) } },
-            dismissButton = { TextButton({ confirmReject = false }) { Text("Cancel") } },
+        groupedSection(
+            "decision-${kind.code}",
+            items.map { d -> GroupedItem(d.id, onClick = { onOpen(OwnerDestination.Decision(kind.code, d.id)) }) { DecisionRow(d, zone) } },
+            header = kind.header,
         )
-    }
-    LaunchedEffect(message) { if (message != null) note = "" }
-}
-
-/** Expense behind an approval: fetched on demand (online only, never cached), with receipt photos. */
-@Composable
-private fun ExpenseCard(data: OwnerData, expenseId: String, online: Boolean, zone: ZoneId) {
-    val scope = rememberCoroutineScope()
-    var expense by remember { mutableStateOf<ExpenseDto?>(null) }
-    var detailError by remember { mutableStateOf<String?>(null) }
-    SectionCard("Expense") {
-        val e = expense
-        if (e == null) {
-            ButtonRow(if (online) "Expense details" else "Expense details (online only)", enabled = online) {
-                scope.launch {
-                    when (val r = data.expense(expenseId)) {
-                        is ActionResult.Done -> expense = r.value
-                        is ActionResult.Refused -> detailError = r.error.message
-                    }
-                }
-            }
-        } else {
-            KeyValue("Description", e.description)
-            e.supplier?.let { KeyValue("Supplier", it) }
-            KeyValue("Paid from", if (e.paidFrom == "PETTY_CASH") com.asseta.core.domain.finance.ExpenseFlags.PAID_FROM_PETTY_CASH else OwnerFormat.humanize(e.paidFrom))
-            KeyValue("Incurred", OwnerFormat.dateTime(e.incurredAt, zone))
-            com.asseta.core.domain.finance.ExpenseFlags.labels(e.controlFlags).takeIf { it.isNotEmpty() }?.let { flags ->
-                KeyValue(com.asseta.core.domain.finance.ExpenseFlags.TITLE, flags.joinToString("; "))
-            }
-            e.receiptAttachmentIds.forEach { rid -> EvidencePhoto("receipt", online) { data.receiptUrl(e.id.toString(), rid.toString()) } }
-        }
-        detailError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-    }
-}
-
-/** Segregation-of-duties and other refusals, shown on the request itself (not as a transient toast). */
-@Composable
-fun SegregationNotice(error: DecisionError) {
-    // Red text in the decision section, as on iOS.
-    val red = MaterialTheme.colorScheme.error
-    Column(Modifier.fillMaxWidth().testTag("decision-error").semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Assertive }) {
-        if (error.segregationOfDuties) Text(ApprovalText.SOD_TITLE, style = MaterialTheme.typography.titleSmall, color = red)
-        Text(error.error.message, style = MaterialTheme.typography.bodySmall, color = red)
-        error.error.reference?.let { Text("Reference: $it", style = MaterialTheme.typography.bodySmall, color = red) }
     }
 }

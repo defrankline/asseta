@@ -16,7 +16,7 @@ import com.asseta.owner.ui.accountability.HoursPresentation
 import com.asseta.owner.ui.accountability.OversightPresentation
 import com.asseta.owner.ui.accountability.OwnerAccountabilityTexts
 import com.asseta.owner.ui.accountability.ScorecardPeriod
-import com.asseta.owner.ui.moreEntries
+import com.asseta.owner.ui.OwnerMenu
 import kotlinx.serialization.builtins.ListSerializer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -108,21 +108,7 @@ class OversightOwnerTest {
     }
 
     @Test
-    fun `unbilled work and idle machines lists`() {
-        val jobs = json.decodeFromString(
-            ListSerializer(UnbilledJobDto.serializer()),
-            """[{"job_id":"$s1","job_number":"J-7","machine_id":"$s2","machine_code":"EX-01","customer_id":"$case1","customer_name":"Acme",
-               "job_site_id":null,"supervisor_staff_id":null,"completed_at":"2026-10-10T10:00:00Z","days_unbilled":16,"billable_hours":"8.00",
-               "currency":"TZS","total":"400000.0000","draft_invoice_id":"$case1"}]""",
-        )
-        val u = OversightPresentation.unbilled(jobs, all, zone).single()
-        assertEquals("J-7 · Acme", u.title)
-        assertEquals("EX-01", u.subtitle)
-        assertEquals("Completed 10 Oct 2026 · 16 days unbilled · On a draft invoice", u.caption)
-        assertEquals("TZS 400,000.00", u.value)
-        assertEquals(OwnerDestination.Job(s1), u.open)
-        assertNull(OversightPresentation.unbilled(jobs, OwnerFeatures(emptySet()), zone).single().open)
-
+    fun `idle machines list`() {
         val idle = json.decodeFromString(
             ListSerializer(IdleMachineDto.serializer()),
             """[{"machine_id":"$s2","machine_code":"EX-01","category_id":null,"idle_since":"2026-10-01T00:00:00Z","idle_days":25,"last_job_id":"$s1",
@@ -143,33 +129,30 @@ class OversightOwnerTest {
               "oldest_days":16,"items":[]},"idle_machines":{"count":2,"after_days":14,"longest_idle_days":25,"items":[]}}""",
         )
         val tiles = DashboardPresentation.tiles(summary, all).associateBy { it.key }
-        val unbilled = tiles.getValue("unbilled_work")
-        assertEquals(listOf("Jobs" to "3", "Value" to "TZS 900,000.00", "Oldest" to "16 days"), unbilled.rows)
-        assertEquals("Completed jobs not on an issued invoice after 7 days.", unbilled.footer)
-        assertEquals(OwnerDestination.UnbilledWork, unbilled.link)
+        // ADR-008: unbilled work was job-based; its tile is gone even when the server still sends it.
+        assertFalse("unbilled_work" in tiles)
         val idle = tiles.getValue("idle_machines")
         assertEquals(listOf("Machines" to "2", "Longest idle" to "25 days"), idle.rows)
         assertEquals(OwnerDestination.IdleMachines, idle.link)
 
         val noList = DashboardPresentation.tiles(summary, OwnerFeatures(emptySet())).associateBy { it.key }
-        assertNull(noList.getValue("unbilled_work").link)
+        assertNull(noList.getValue("idle_machines").link)
         val off = DashboardPresentation.tiles(summary, OwnerFeatures(all.permissions, setOf(TenantAccess.UNBILLED_WORK, TenantAccess.IDLE_MACHINES)))
         assertTrue(off.none { it.key == "unbilled_work" || it.key == "idle_machines" })
     }
 
     @Test
     fun `more entry, titles and fallbacks follow the gates`() {
-        assertTrue(moreEntries(all).any { it.second == OwnerDestination.Scorecard })
+        assertTrue(OwnerMenu.entries(all).any { it.second == OwnerDestination.Scorecard })
         val off = OwnerFeatures(all.permissions, setOf(TenantAccess.SCORECARD, TenantAccess.UNBILLED_WORK, TenantAccess.IDLE_MACHINES))
-        assertFalse(moreEntries(off).any { it.second == OwnerDestination.Scorecard })
+        assertFalse(OwnerMenu.entries(off).any { it.second == OwnerDestination.Scorecard })
         assertEquals(OwnerDestination.Accountability, off.route(OwnerDestination.Scorecard))
         assertEquals(OwnerDestination.Accountability, off.route(OwnerDestination.ScorecardPerson(s1)))
-        assertEquals(OwnerDestination.Accountability, off.route(OwnerDestination.UnbilledWork))
+        assertEquals(OwnerDestination.Home, off.route(OwnerDestination.UnbilledWork))
         assertEquals(OwnerDestination.Accountability, off.route(OwnerDestination.IdleMachines))
-        assertEquals(OwnerDestination.UnbilledWork, all.route(OwnerDestination.UnbilledWork))
+        assertEquals(OwnerDestination.Home, all.route(OwnerDestination.UnbilledWork))
         assertEquals("People scorecard", OwnerNavigation.title(OwnerDestination.Scorecard))
         assertEquals("Baraka", OwnerNavigation.title(OwnerDestination.ScorecardPerson(s1, "Baraka")))
-        assertEquals("Unbilled work", OwnerNavigation.title(OwnerDestination.UnbilledWork))
         assertEquals("Idle machines", OwnerNavigation.title(OwnerDestination.IdleMachines))
         assertEquals("Repeated items to look at for one person", OwnerAccountabilityTexts.signalName("REPEATED_PATTERN"))
     }

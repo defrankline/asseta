@@ -5,46 +5,44 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.Icon
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.asseta.core.domain.owner.DeepLinkRouter
 import com.asseta.core.domain.owner.OwnerDestination
 import com.asseta.core.ui.components.AssetaTopBar
-import com.asseta.core.ui.components.BarIconButton
 import com.asseta.core.ui.components.NavigationChrome
 import com.asseta.core.ui.session.LocalSessionActions
-import com.asseta.core.ui.theme.palette
 import com.asseta.owner.OwnerGraph
-import com.asseta.owner.R
 import com.asseta.owner.SessionSignal
 import com.asseta.owner.data.ActionResult
+import com.asseta.owner.ui.approvals.ApprovalsViewModel
 import com.asseta.owner.ui.common.LocalOnline
+import com.asseta.owner.ui.settings.SettingsText
+import kotlinx.coroutines.launch
 
 /**
- * Owner app shell for the selected tenant: bottom tabs, a back stack, live updates while started, deep links from
+ * Owner app shell for the selected tenant (ADR-008, designs OwnerHome / OwnerSideNav): a sliding side menu instead of
+ * bottom tabs, Home with its own top row, a back stack (side-menu destinations reset it to Home + the destination;
+ * pushed screens get the top bar with back; system back pops), live updates while started, deep links from
  * notification taps and session signals (tenant revoked / session ended) raised by data loads.
  */
 @Composable
@@ -52,16 +50,22 @@ fun OwnerHome(graph: OwnerGraph, session: OwnerSession, modifier: Modifier = Mod
     val tenantId = session.tenantId
     val data = remember(tenantId) { graph.data(tenantId).also { it.seedSetupProgress(session.setup) } }
     val features = session.features
-    val tabs = remember(session.permissions) { OwnerNavigation.tabs(features) }
     var stack by remember(tenantId) { mutableStateOf(listOf(OwnerNavigation.start(features))) }
     var accessLost by remember(tenantId) { mutableStateOf(false) }
-    // A destination of a capability the tenant switched off falls back to its list (follow-up F1).
+    var confirmSignOut by remember { mutableStateOf(false) }
+    val drawer = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    // A destination of a capability the tenant switched off (or a job link) falls back (follow-up F1, ADR-008).
     val open: (OwnerDestination) -> Unit = { stack = OwnerNavigation.navigate(stack, features.route(it)) }
     val online by graph.network.online.collectAsStateWithLifecycle()
     val unread by graph.liveUpdates.unread.collectAsStateWithLifecycle()
     val actions = LocalSessionActions.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    BackHandler(enabled = stack.size > 1) { stack = OwnerNavigation.back(stack) }
+    // One approvals list per company, shared by the side menu badge, Home and the Approvals screen.
+    val approvals: ApprovalsViewModel? = if (features.approvalsScreen) viewModel(key = "approvals-$tenantId") { approvalsViewModel(graph, data, features) } else null
+    val counts = approvals?.counts?.collectAsStateWithLifecycle()?.value
+    BackHandler(enabled = drawer.isOpen) { scope.launch { drawer.close() } }
+    BackHandler(enabled = !drawer.isOpen && stack.size > 1) { stack = OwnerNavigation.back(stack) }
 
     LaunchedEffect(tenantId) { lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { graph.liveUpdates.run(tenantId) } }
     LaunchedEffect(tenantId) {
@@ -98,57 +102,62 @@ fun OwnerHome(graph: OwnerGraph, session: OwnerSession, modifier: Modifier = Mod
     // Titles only a loaded record can give (a variance by its status).
     var titles by remember(tenantId) { mutableStateOf(emptyMap<OwnerDestination, String>()) }
     val route = stack.last()
-    val tab = OwnerNavigation.currentTab(stack)
-    val badge = NavigationChrome.badge(unread?.takeIf { features.notifications })
-    val p = palette
-    Scaffold(
-        modifier = modifier,
-        // iOS navigation bar: the tab's first screen has a large title (the Overview is titled with the company name)
-        // and the bell; pushed screens get "‹ <previous title>" back and a centred title. Sign-out lives in Settings.
-        topBar = {
-            val previous = stack.getOrNull(stack.size - 2)
-            AssetaTopBar(
-                title = titles[route] ?: OwnerNavigation.title(route, session.tenantName),
-                large = OwnerNavigation.largeTitle(stack),
-                onBack = if (stack.size > 1) ({ stack = OwnerNavigation.back(stack) }) else null,
-                backLabel = NavigationChrome.backLabel(previous?.let { titles[it] ?: OwnerNavigation.title(it, session.tenantName) }),
-                actions = {
-                    if (features.notifications && stack.size == 1) {
-                        BarIconButton(
-                            R.drawable.ic_bell,
-                            "Notifications" + (unread?.takeIf { it > 0 }?.let { ", $it unread" } ?: ""),
-                            badge,
-                        ) { open(OwnerDestination.Notifications()) }
-                    }
-                },
-            )
-        },
-        bottomBar = {
-            NavigationBar(containerColor = p.chrome, tonalElevation = 0.dp) {
-                tabs.forEach { t ->
-                    NavigationBarItem(
-                        selected = t == tab,
-                        onClick = { open(t.root) },
-                        icon = {
-                            // The More tab carries the unread count, as on iOS.
-                            val tabBadge = badge?.takeIf { t == OwnerTab.MORE }
-                            BadgedBox(badge = { tabBadge?.let { Badge { Text(it) } } }) {
-                                Icon(painterResource(t.icon()), contentDescription = null)
-                            }
-                        },
-                        label = { Text(t.label, style = MaterialTheme.typography.labelSmall) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = p.accent, selectedTextColor = p.accent, indicatorColor = Color.Transparent,
-                            unselectedIconColor = p.secondaryText, unselectedTextColor = p.secondaryText,
-                        ),
-                    )
+    val groups = OwnerMenu.groups(features, counts?.all, unread)
+    val name = session.displayName?.takeIf { it.isNotBlank() } ?: session.userEmail
+    ModalNavigationDrawer(
+        drawerState = drawer,
+        // Swiping the menu open only from Home (maps and lists keep their own gestures elsewhere).
+        gesturesEnabled = drawer.isOpen || route == OwnerDestination.Home,
+        drawerContent = {
+            OwnerDrawerSheet(
+                name = name,
+                subtitle = session.tenantName,
+                groups = groups,
+                footer = OwnerMenu.footer(session.canSwitchTenant),
+                selected = OwnerMenu.selectedKey(OwnerNavigation.menuRoot(stack), groups),
+                caption = MenuTexts.READ_ONLY.takeIf { session.readOnly },
+            ) { e ->
+                scope.launch { drawer.close() }
+                when (e.key) {
+                    MenuTexts.KEY_SWITCH -> actions.switchTenant()
+                    MenuTexts.KEY_SIGN_OUT -> confirmSignOut = true
+                    else -> e.destination?.let(open)
                 }
             }
         },
-    ) { inner ->
-        Column(Modifier.padding(inner).fillMaxSize()) {
-            CompositionLocalProvider(LocalOnline provides online) { OwnerRoutes(graph, data, session, route, online, unread, open) { d, title -> titles = titles + (d to title) } }
+        modifier = modifier,
+    ) {
+        Scaffold(
+            topBar = {
+                if (OwnerNavigation.hasTopBar(stack)) {
+                    val previous = stack.getOrNull(stack.size - 2)
+                    AssetaTopBar(
+                        title = titles[route] ?: OwnerNavigation.title(route, session.tenantName),
+                        large = false,
+                        onBack = { stack = OwnerNavigation.back(stack) },
+                        backLabel = NavigationChrome.backLabel(previous?.let { titles[it] ?: OwnerNavigation.title(it, session.tenantName) }),
+                    )
+                }
+            },
+        ) { inner ->
+            Column(Modifier.padding(inner).fillMaxSize()) {
+                CompositionLocalProvider(LocalOnline provides online) {
+                    OwnerRoutes(
+                        graph, data, session, route, online, unread, open,
+                        approvals = approvals,
+                        onMenu = { scope.launch { drawer.open() } },
+                    ) { d, title -> titles = titles + (d to title) }
+                }
+            }
         }
+    }
+    if (confirmSignOut) {
+        AlertDialog(
+            onDismissRequest = { confirmSignOut = false },
+            title = { Text(SettingsText.SIGN_OUT_CONFIRM) },
+            confirmButton = { TextButton({ confirmSignOut = false; actions.signOut() }) { Text(SettingsText.SIGN_OUT_ACTION, color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton({ confirmSignOut = false }) { Text("Cancel") } },
+        )
     }
     if (accessLost) {
         AlertDialog(
@@ -158,12 +167,4 @@ fun OwnerHome(graph: OwnerGraph, session: OwnerSession, modifier: Modifier = Mod
             confirmButton = { TextButton(onClick = { accessLost = false; actions.refreshProfile() }) { Text("OK") } },
         )
     }
-}
-
-private fun OwnerTab.icon(): Int = when (this) {
-    OwnerTab.HOME -> R.drawable.ic_nav_home
-    OwnerTab.FLEET -> R.drawable.ic_nav_fleet
-    OwnerTab.JOBS -> R.drawable.ic_nav_jobs
-    OwnerTab.ALERTS -> R.drawable.ic_nav_alerts
-    OwnerTab.MORE -> R.drawable.ic_nav_more
 }

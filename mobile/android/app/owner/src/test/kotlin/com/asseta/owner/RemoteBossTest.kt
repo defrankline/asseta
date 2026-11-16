@@ -178,11 +178,12 @@ class RemoteBossTest {
     }
 
     @Test
-    fun `open exceptions are listed with their job number and reviewed with outcome and note`() {
-        val approvals = ApprovalsViewModel(h.data, emptyFlow(), jobs = true, exceptions = true)
+    fun `open exceptions are listed (no job lookups after ADR-008) and reviewed with outcome and note`() {
+        val approvals = ApprovalsViewModel(h.data, emptyFlow(), exceptions = true)
         val list = approvals.openExceptions!!.state.settled().data!!
         val e = list.items.single()
-        assertEquals("Meter decrease on J-1001", ExceptionReviewText.headline(e, list.jobNumber(e)))
+        assertNull(list.jobNumber(e))
+        assertEquals("Meter decrease on J-1001", ExceptionReviewText.headline(e, "J-1001"))
         assertEquals("Meter decrease", ExceptionReviewText.headline(e, null))
         assertEquals("Review · Meter decrease", ExceptionReviewText.dialogTitle(e))
 

@@ -13,13 +13,12 @@ import com.asseta.core.model.owner.VarianceEventDto
 import com.asseta.core.network.NetworkFactory
 import com.asseta.owner.ui.OwnerFeatures
 import com.asseta.owner.ui.OwnerNavigation
-import com.asseta.owner.ui.OwnerTab
 import com.asseta.owner.ui.accountability.AdjustmentPresentation
 import com.asseta.owner.ui.accountability.DecisionKind
 import com.asseta.owner.ui.accountability.DecisionMapper
 import com.asseta.owner.ui.cash.HandoverText
 import com.asseta.owner.ui.home.OverviewPresentation
-import com.asseta.owner.ui.moreEntries
+import com.asseta.owner.ui.OwnerMenu
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -61,8 +60,8 @@ class PhaseThreeOwnerTest {
         val off = OwnerFeatures(all, setOf(TenantAccess.TRACKING))
         assertTrue(on.alerts)
         assertFalse(off.alerts)
-        assertTrue(OwnerTab.ALERTS in OwnerNavigation.tabs(on))
-        assertFalse(OwnerTab.ALERTS in OwnerNavigation.tabs(off))
+        assertTrue(OwnerMenu.entries(on).any { it.second == OwnerDestination.Alerts() })
+        assertFalse(OwnerMenu.entries(off).any { it.second == OwnerDestination.Alerts() })
         assertEquals(OwnerDestination.Home, off.route(OwnerDestination.Alerts("a1")))
         val rows = OverviewPresentation.sections(overview, cached = false, nowMs = 0, tracking = false).first().groups.single().rows.map { it.label }
         assertEquals(listOf("Machines", "Reported working"), rows)
@@ -79,9 +78,9 @@ class PhaseThreeOwnerTest {
     @Test
     fun `switched-off investigations hide cases`() {
         val off = OwnerFeatures(all, setOf(TenantAccess.INVESTIGATIONS))
-        assertTrue(moreEntries(on).any { it.second == OwnerDestination.Cases })
+        assertTrue(OwnerMenu.entries(on).any { it.second == OwnerDestination.Cases })
         assertFalse(off.cases)
-        assertFalse(moreEntries(off).any { it.second == OwnerDestination.Cases })
+        assertFalse(OwnerMenu.entries(off).any { it.second == OwnerDestination.Cases })
         assertEquals(OwnerDestination.Home, off.route(OwnerDestination.Case("c1")))
         assertEquals(OwnerDestination.Case("c1"), on.route(OwnerDestination.Case("c1")))
     }

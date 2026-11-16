@@ -92,65 +92,6 @@ class OwnerRepositoryTest {
     }
 
     @Test
-    fun `job detail is one snapshot of summary readings and acknowledgements`() = runBlocking {
-        h.ok("""{"job":{"id":"$ID1","job_number":"J-1001","status":"COMPLETED","machine_id":"$ID2","contract_id":"$ID2","currency":"TZS",
-            "hourly_rate":"95000.0000","minimum_hours":"0.0000","mobilization_fee":"0.0000","discount_percent":"0.0000","tax_rate_percent":"15.0000",
-            "rate_source":"CONTRACT","standby_treatment":"EXCLUDED","planned_start":"2026-10-21T06:00:00Z","version":3,"standby_rate":null,
-            "planned_end":null,"started_at":null,"completed_at":null,"approved_at":null,"job_site_id":null,"supervisor_id":null},
-            "opening_reading":"1200.00","closing_reading":"1210.00","meter_hours":"10.0000","billable_hours":"10.0000","nonbillable_hours":"0.0000",
-            "billing_ready":true,"open_exceptions":0,"blocking_exceptions":0,"policy_version":"p"}""")
-        h.ok("[]")
-        h.ok("""[{"id":"$ID1","method":"SIGNATURE","signer_name":"Site manager","captured_at":"2026-10-21T18:00:00Z","acknowledged_hours":"10.0000",
-            "signer_phone":null,"signature_attachment_id":null}]""")
-        h.ok("[]")
-        val ok = h.data.job(ID1) as Load.Ok
-        assertEquals("Site manager", ok.snapshot.data.acknowledgements.single().signerName)
-        assertEquals(0, java.math.BigDecimal("10").compareTo(ok.snapshot.data.summary.billableHours!!.value))
-        assertTrue(h.store.rows.containsKey(TENANT to "job:$ID1"))
-        // Without the expense permission the spend parts are not fetched (and stay hidden).
-        assertEquals(null, ok.snapshot.data.expenses)
-        assertEquals(4, h.server.requestCount)
-    }
-
-    @Test
-    fun `job detail with spend adds work log, expenses and fuel of that job`() = runBlocking {
-        h.ok(Samples.JOB_SUMMARY)
-        h.ok("[]")
-        h.ok("[]")
-        h.ok("""[{"id":"$ID1","client_id":"$ID2","activity_type":"WORKING","started_at":"2026-10-21T06:00:00Z","ended_at":"2026-10-21T10:30:00Z",
-            "billable":true,"note":null}]""")
-        h.ok(Samples.page(Samples.expense(ID1, "APPROVED")))
-        h.ok(Samples.page(Samples.fuel(ID2)))
-        val d = (h.data.job(ID1, spend = true) as Load.Ok).snapshot.data
-        assertEquals("WORKING", d.activities.single().activityType)
-        assertEquals("Tyre repair", d.expenses!!.single().description)
-        assertEquals("PURCHASE", d.fuel!!.single().eventType)
-        repeat(4) { h.server.takeRequest() }
-        val expenses = h.server.takeRequest().url
-        assertEquals("/api/v1/tenant/expenses", expenses.encodedPath)
-        assertEquals(ID1, expenses.queryParameter("job_id"))
-        assertEquals("100", expenses.queryParameter("page_size"))
-        assertEquals(ID1, h.server.takeRequest().url.queryParameter("job_id"))
-    }
-
-    @Test
-    fun `job snapshots saved before the work log still decode`() = runBlocking {
-        h.ok(Samples.JOB_SUMMARY)
-        h.ok("[]")
-        h.ok("[]")
-        h.ok("[]")
-        h.data.job(ID1)
-        val key = TENANT to "job:$ID1"
-        val old = h.store.rows.getValue(key)
-        h.store.rows[key] = old.copy(payloadJson = old.payloadJson.replace(Regex(",\"activities\":\\[\\]"), ""))
-        assertTrue(!h.store.rows.getValue(key).payloadJson.contains("activities"))
-        h.goOffline()
-        val cached = h.data.job(ID1) as Load.Ok
-        assertTrue(cached.snapshot.stale)
-        assertTrue(cached.snapshot.data.activities.isEmpty())
-    }
-
-    @Test
     fun `exceptions, field spend and cash are cached per filter`() = runBlocking {
         h.ok(Samples.page())
         h.data.exceptions("OPEN", ID1)

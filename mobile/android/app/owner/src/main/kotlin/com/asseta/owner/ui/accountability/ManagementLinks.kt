@@ -58,7 +58,7 @@ object ManagementLinks {
     private fun list(key: String, q: Map<String, String>, f: OwnerFeatures): OwnerDestination? {
         val status = q["status"]
         return when {
-            key == "hours/balances" -> q["customer_id"]?.takeIf(UUID::matches)?.let { OwnerDestination.HoursStatement(it) } ?: OwnerDestination.CustomerHours
+            key == "hours/balances" -> q["customer_id"]?.takeIf(UUID::matches)?.let { OwnerDestination.HoursStatement(it) } ?: OwnerDestination.Customers
             key == "finance/cash" -> OwnerDestination.Cash.takeIf { q.isEmpty() }
             key == "finance/cash/remittance-overdue" -> OwnerDestination.RemittanceOverdue()
             key == "exceptions" -> OwnerDestination.Exceptions()
@@ -66,7 +66,6 @@ object ManagementLinks {
             key == "accountability/pending-adjustments" -> OwnerDestination.Approvals()
             key == "revenue-differences" -> OwnerDestination.Approvals().takeIf { status == null || status == "EXPLANATION_PROPOSED" }
             key == "daily-reports" -> OwnerDestination.Approvals().takeIf { status == "SUBMITTED" }
-            key == "jobs" -> OwnerDestination.Approvals().takeIf { status == "PENDING_APPROVAL" }
             key == "finance/cash/variances" -> OwnerDestination.Approvals().takeIf { status in WAITING_VARIANCES }
             key == "customer-payments" -> OwnerDestination.Approvals().takeIf { status == "CLAIMED" && f.confirmPayments }
             key == "finance/cash/remittances" -> OwnerDestination.Approvals().takeIf { status == "CLAIMED" || q["partial_reason_pending"] == "true" }
@@ -80,11 +79,12 @@ object ManagementLinks {
         is OwnerDestination.Decision -> DecisionKind.of(d.kind)?.visibleTo(f) == true
         is OwnerDestination.Handover, is OwnerDestination.CashRecord, OwnerDestination.Cash, is OwnerDestination.CustomerPayment -> f.finance
         is OwnerDestination.RemittanceOverdue -> f.finance && f.cashCustody
-        OwnerDestination.CustomerHours, is OwnerDestination.HoursPurchase, is OwnerDestination.HoursStatement -> f.customerHours
+        OwnerDestination.CustomerHours, OwnerDestination.Customers, is OwnerDestination.HoursPurchase, is OwnerDestination.HoursStatement -> f.customerHours
         is OwnerDestination.Exceptions, is OwnerDestination.MeterException, is OwnerDestination.MeterReset -> f.meterEvidence
         OwnerDestination.Cases, is OwnerDestination.Case -> f.cases
         is OwnerDestination.EmployeeAccountability -> f.employeeAccountability
-        is OwnerDestination.Job, OwnerDestination.Jobs -> f.jobs
+        // ADR-008: jobs are gone; a job route never opens a screen.
+        is OwnerDestination.Job, OwnerDestination.Jobs, OwnerDestination.UnbilledWork -> false
         is OwnerDestination.Machine, OwnerDestination.Fleet -> f.fleet
         is OwnerDestination.Alerts -> f.alerts
         is OwnerDestination.Notifications -> f.notifications

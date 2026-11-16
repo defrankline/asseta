@@ -1,7 +1,5 @@
 package com.asseta.owner.data
 
-import com.asseta.core.model.owner.AcknowledgementDto
-import com.asseta.core.model.owner.ActivityDto
 import com.asseta.core.model.owner.AlertActionIn
 import com.asseta.core.model.owner.AlertDto
 import com.asseta.core.model.owner.AnomalyCaseDetailDto
@@ -15,10 +13,6 @@ import com.asseta.core.model.owner.ExceptionDto
 import com.asseta.core.model.owner.ExpenseDto
 import com.asseta.core.model.owner.FuelEventDto
 import com.asseta.core.model.owner.HistoryDto
-import com.asseta.core.model.owner.JobDto
-import com.asseta.core.model.owner.JobIn
-import com.asseta.core.model.owner.JobSummaryDto
-import com.asseta.core.model.owner.JobTransitionIn
 import com.asseta.core.model.owner.MachineDto
 import com.asseta.core.model.owner.MachineMapDto
 import com.asseta.core.model.owner.MeterCaptureDto
@@ -46,24 +40,19 @@ import com.asseta.owner.ui.accountability.CashRecords
 import com.asseta.owner.ui.accountability.DecisionItem
 import com.asseta.owner.ui.accountability.DecisionKind
 import com.asseta.owner.ui.accountability.DecisionMapper
+import com.asseta.core.model.sync.CreditActivationIn
+import com.asseta.core.model.sync.CreditInvoiceDto
+import com.asseta.core.model.sync.CreditInvoicePaymentIn
+import com.asseta.core.model.sync.CustomerHoursSummaryDto
+import com.asseta.core.model.sync.MachineReportDecisionIn
+import com.asseta.core.model.sync.MachineReportDto
+import com.asseta.core.model.sync.MachineReportRejectIn
+import com.asseta.core.model.sync.MachineReportStatusDto
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import java.time.Instant
+import java.time.LocalDate
 import java.time.temporal.ChronoUnit
-
-/**
- * Job detail composed from the summary, its readings, the customer acknowledgements, the work log and (when the role
- * may read expenses) its expenses and fuel. The newer parts have defaults so snapshots saved before them still decode.
- */
-@Serializable
-data class JobDetail(
-    val summary: JobSummaryDto,
-    val captures: List<MeterCaptureDto>,
-    val acknowledgements: List<AcknowledgementDto>,
-    val activities: List<ActivityDto> = emptyList(),
-    val expenses: List<ExpenseDto>? = null,
-    val fuel: List<FuelEventDto>? = null,
-)
 
 /**
  * Cash handovers with the custodians' names ([names] staff member id -> name, from the supervisor cash summary; a
@@ -88,11 +77,23 @@ data class HoursPurchaseDetail(
     val reversedPayments: Map<String, String> = emptyMap(),
 )
 
-/** Open meter exceptions with their jobs' numbers ([jobNumbers] job id -> number, when the role may read jobs). */
+/** Open meter exceptions ([jobNumbers]: kept so snapshots saved before ADR-008 still decode; no longer filled). */
 @Serializable
 data class ExceptionList(val items: List<ExceptionDto>, val jobNumbers: Map<String, String> = emptyMap()) {
     fun jobNumber(e: ExceptionDto): String? = e.jobId?.let { jobNumbers[it.toString()] }
 }
+
+/** ADR-008: a machine report with its meter reading when the role may read it ([capture] null otherwise). */
+@Serializable
+data class MachineReportDetail(val report: com.asseta.core.model.sync.MachineReportDto, val capture: MeterCaptureDto? = null)
+
+/** ADR-008: a credit sale waiting for its credit part to be made usable, with what is left of the customer's limit. */
+@Serializable
+data class CreditSale(
+    val purchase: com.asseta.core.model.owner.OwnerHoursPurchaseDto,
+    /** `available` of the customer's credit exposure (null: no arrangement or not readable). */
+    val limitLeft: String? = null,
+)
 
 /**
  * Typed owner reads for one tenant, each with a stable snapshot key (the offline cache), plus the few allowed
@@ -113,27 +114,11 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
     suspend fun machineReadings(id: String): Load<PageDto<MeterCaptureDto>> =
         repo.load(tenantId, "machine_readings:$id", PageDto.serializer(MeterCaptureDto.serializer())) { meterCaptures(machineId = id, pageSize = 5) }
 
-    suspend fun machineJobs(id: String): Load<PageDto<JobDto>> =
-        repo.load(tenantId, "machine_jobs:$id", PageDto.serializer(JobDto.serializer())) { jobs(machineId = id, status = "IN_PROGRESS", pageSize = 5) }
-
     /** Last 24 h track (bounded; a payload above the cache limit is simply not cached). */
     suspend fun machineTrack(id: String): Load<HistoryDto> {
         val to = Instant.ofEpochMilli(clock()).truncatedTo(ChronoUnit.SECONDS)
         val from = to.minus(24, ChronoUnit.HOURS)
         return repo.load(tenantId, "machine_track:$id", HistoryDto.serializer()) { machineHistory(id, from.toString(), to.toString()) }
-    }
-
-    /** Jobs list; only the unfiltered first page per status filter is cached. */
-    suspend fun jobs(status: String?): Load<PageDto<JobDto>> =
-        repo.load(tenantId, "jobs:${status ?: "ALL"}", PageDto.serializer(JobDto.serializer())) { jobs(status = status, pageSize = LIST_PAGE) }
-
-    /** [spend]: also fetch the job's expenses and fuel (`tenant.expense.read`); otherwise they stay null (hidden). */
-    suspend fun job(id: String, spend: Boolean = false): Load<JobDetail> = repo.load(tenantId, "job:$id", JobDetail.serializer()) {
-        JobDetail(
-            jobSummary(id), jobCaptures(id), jobAcknowledgements(id), jobActivities(id),
-            expenses = if (spend) expenses(jobId = id, pageSize = LIST_PAGE).items else null,
-            fuel = if (spend) fuelEvents(jobId = id, pageSize = LIST_PAGE).items else null,
-        )
     }
 
     /** Meter exceptions, [status] OPEN or null (all), optionally of one job. */
@@ -225,19 +210,9 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
             PaymentReview(payment, evidence.getOrDefault(emptyList()), evidence.isFailure, invoices)
         }
 
-    /** Open exceptions for the Approvals section; [jobNumbers]: also look up their jobs' numbers (`tenant.job.read`). */
-    suspend fun openExceptions(jobNumbers: Boolean): Load<ExceptionList> =
-        repo.load(tenantId, "exceptions_open", ExceptionList.serializer()) {
-            val items = exceptions(status = "OPEN", pageSize = LIST_PAGE).items
-            val numbers = if (!jobNumbers) {
-                emptyMap()
-            } else {
-                items.mapNotNull { it.jobId?.toString() }.distinct().take(MAX_JOB_LOOKUPS).mapNotNull { id ->
-                    runCatching { id to jobSummary(id).job.jobNumber }.getOrNull()
-                }.toMap()
-            }
-            ExceptionList(items, numbers)
-        }
+    /** Open exceptions for the Approvals section. */
+    suspend fun openExceptions(): Load<ExceptionList> =
+        repo.load(tenantId, "exceptions_open", ExceptionList.serializer()) { ExceptionList(exceptions(status = "OPEN", pageSize = LIST_PAGE).items) }
 
     suspend fun alerts(status: String?): Load<PageDto<AlertDto>> =
         repo.load(tenantId, "alerts:${status ?: "ALL"}", PageDto.serializer(AlertDto.serializer())) { alerts(status = status, pageSize = LIST_PAGE) }
@@ -479,9 +454,6 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
             scorecardDetail(staffId, from.toString(), to.toString())
         }
 
-    suspend fun unbilledWork(): Load<List<com.asseta.core.model.owner.UnbilledJobDto>> =
-        repo.load(tenantId, "unbilled_work", ListSerializer(com.asseta.core.model.owner.UnbilledJobDto.serializer())) { unbilledWork(pageSize = LIST_PAGE).items }
-
     suspend fun idleMachines(): Load<List<com.asseta.core.model.owner.IdleMachineDto>> =
         repo.load(tenantId, "idle_machines", ListSerializer(com.asseta.core.model.owner.IdleMachineDto.serializer())) { idleMachines(pageSize = LIST_PAGE).items }
 
@@ -550,13 +522,6 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
         decideMeterReset(id, MeterResetDecisionIn(if (approve) MeterResetDecisionIn.APPROVE else MeterResetDecisionIn.REJECT, note.trim()))
     }
 
-    /** Approve a job waiting for approval; [hourlyRate] prices a field request without a rate card (PENDING_PRICE). */
-    suspend fun approveJob(id: String, hourlyRate: String?) =
-        repo.act { transitionJob(id, JobTransitionIn(JobTransitionIn.APPROVE, hourlyRate = hourlyRate?.trim()?.takeIf { it.isNotEmpty() })) }
-
-    /** Decline a job waiting for approval (CANCEL with the reason the supervisor is told). */
-    suspend fun declineJob(id: String, reason: String) = repo.act { transitionJob(id, JobTransitionIn(JobTransitionIn.CANCEL, reason = reason.trim())) }
-
     /**
      * Confirm ([verified]) or dispute a claimed cash handover (remittance); a dispute carries the reason. Confirming
      * records the [amountReceived] actually counted (null = the declared amount); a difference opens a cash variance.
@@ -579,21 +544,116 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
         issueCashFloat(CashFloatIn(staffMemberId, amount.trim(), currency, note?.trim()?.takeIf { it.isNotEmpty() }))
     }
 
-    /** Create a DRAFT job; [key] is the form visit's Idempotency-Key so a retry never creates a second job. */
-    suspend fun createJob(body: JobIn, key: String) = repo.act { createJob(body, key) }
+    // --- ADR-008: machine reports, credit sales, orders, customer hours, credit invoices -------------------------------
+    /**
+     * Expense requests waiting for a decision with their expenses ([details]: `tenant.expense.read`, best effort) so a
+     * row can say what was bought and from whom.
+     */
+    suspend fun expenseApprovals(details: Boolean): Load<com.asseta.owner.ui.approvals.ExpenseQueue> =
+        repo.load(tenantId, "expense_approvals", com.asseta.owner.ui.approvals.ExpenseQueue.serializer()) {
+            val requests = approvals(status = "PENDING", pageSize = LIST_PAGE).items
+            val expenses = if (details && requests.isNotEmpty()) {
+                runCatching { expenses(status = "PENDING_APPROVAL", pageSize = LIST_PAGE).items }
+                    .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(emptyList())
+            } else emptyList()
+            com.asseta.owner.ui.approvals.ExpenseQueue(requests, expenses.associateBy { it.id.toString() })
+        }
 
-    /** SUBMIT a DRAFT job for approval ([key]: stable per form visit). */
-    suspend fun submitJob(id: String, key: String) = repo.act { transitionJob(id, JobTransitionIn(JobTransitionIn.SUBMIT), key) }
+    /** Machine reports waiting for a decision (the approval queue), oldest first. */
+    suspend fun pendingMachineReports(): Load<List<MachineReportDto>> =
+        repo.load(tenantId, "machine_reports:pending", ListSerializer(MachineReportDto.serializer())) {
+            pages { p -> machineReports(queue = "PENDING", page = p, pageSize = BIG_PAGE) }.sortedBy { it.submittedAt }
+        }
 
-    /** APPROVE a job just created at its own price ([key]: stable per form visit); the supervisor is notified. */
-    suspend fun approveNewJob(id: String, key: String) = repo.act { transitionJob(id, JobTransitionIn(JobTransitionIn.APPROVE), key) }
+    /** Reports submitted on the local days [from]..[to] (any status; rejected ones are left out by the screens). */
+    suspend fun machineReportsBetween(from: LocalDate, to: LocalDate): Load<List<MachineReportDto>> =
+        repo.load(tenantId, "machine_reports:$from:$to", ListSerializer(MachineReportDto.serializer())) {
+            pages { p -> machineReports(dateFrom = from.toString(), dateTo = to.toString(), page = p, pageSize = BIG_PAGE) }
+        }
 
-    // --- "New job" lookups (online only, never cached; same endpoints as the web form) --------------------------
-    /** Contracts matching [q] (CLOSED ones are hidden by the server, as in the web picker). */
-    suspend fun searchContracts(q: String) = repo.act { contracts(q = q.trim().ifEmpty { null }).items }
-    suspend fun searchMachines(q: String) = repo.act { machines(q = q.trim().ifEmpty { null }).items }
-    suspend fun searchSupervisors(q: String) = repo.act { staff(q = q.trim().ifEmpty { null }, kind = "SUPERVISOR").items }
-    suspend fun searchJobSites(q: String) = repo.act { jobSites(q = q.trim().ifEmpty { null }) }
+    /**
+     * One report with its lines, findings and the tracker cross-check; [reading]: also its meter reading (OCR value,
+     * GPS fix; `tenant.meter.read`, best effort: never fails the report).
+     */
+    suspend fun machineReport(id: String, reading: Boolean = false): Load<MachineReportDetail> =
+        repo.load(tenantId, "machine_report:$id", MachineReportDetail.serializer()) {
+            val report = machineReport(id)
+            val capture = if (reading) {
+                runCatching { meterCapture(report.captureId) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()
+            } else null
+            MachineReportDetail(report, capture)
+        }
+
+    /** Where each machine stands for its next report (days since the last one, a report waiting). */
+    suspend fun machineReportStatus(): Load<List<MachineReportStatusDto>> =
+        repo.load(tenantId, "machine_report_status", ListSerializer(MachineReportStatusDto.serializer())) { machineReportStatus() }
+
+    suspend fun approveMachineReport(id: String, note: String?) =
+        repo.act { approveMachineReport(id, MachineReportDecisionIn(note?.trim()?.takeIf { it.isNotEmpty() })) }
+
+    suspend fun rejectMachineReport(id: String, reason: String) = repo.act { rejectMachineReport(id, MachineReportRejectIn(reason.trim())) }
+
+    /**
+     * Orders with a credit part still waiting to be made usable (queue AWAITING_ACTIVATION with a credit amount), with
+     * what is left of each customer's credit limit (best effort, bounded).
+     */
+    suspend fun creditSalesToApprove(): Load<List<CreditSale>> =
+        repo.load(tenantId, "credit_sales:waiting", ListSerializer(CreditSale.serializer())) {
+            val waiting = ownerOrders(queue = "AWAITING_ACTIVATION", pageSize = LIST_PAGE).items
+                .filter { com.asseta.owner.ui.approvals.CreditSales.waiting(it) }
+            val left = waiting.map { it.customerId }.distinct().take(MAX_EXPOSURE_LOOKUPS).mapNotNull { customer ->
+                runCatching { customerCreditExposure(customer) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                    .getOrNull()?.let { customer to it.available }
+            }.toMap()
+            waiting.map { CreditSale(it, left[it.customerId]) }
+        }
+
+    /** Make [hours] of a credit sale usable ([key]: one per approval attempt, so a retry never activates twice). */
+    suspend fun approveCredit(purchaseId: String, hours: String, reason: String, key: String) =
+        repo.act { activateHoursOnCreditKeyed(purchaseId, CreditActivationIn(hours, reason.trim()), key) }
+
+    /** Turn a credit sale down: ask for its order to be cancelled, with the reason. */
+    suspend fun turnDownCredit(purchaseId: String, reason: String) =
+        repo.act { requestOrderCancellation(purchaseId, com.asseta.core.model.owner.PurchaseCancellationIn(reason.trim())) }
+
+    /** Orders recorded on the local days [from]..[to] (not cancelled): sold hours and money by method. */
+    suspend fun ordersBetween(from: LocalDate, to: LocalDate): Load<List<com.asseta.core.model.owner.OwnerHoursPurchaseDto>> =
+        repo.load(tenantId, "orders:$from:$to", ListSerializer(com.asseta.core.model.owner.OwnerHoursPurchaseDto.serializer())) {
+            pages { p -> ownerOrders(dateFrom = from.toString(), dateTo = to.toString(), page = p, pageSize = BIG_PAGE) }
+        }
+
+    /** Hours bought / used / left and credit owed per customer. */
+    suspend fun customerHoursSummary(): Load<List<CustomerHoursSummaryDto>> =
+        repo.load(tenantId, "customer_hours_summary", ListSerializer(CustomerHoursSummaryDto.serializer())) { customerHours() }
+
+    /** Credit invoices, newest first (all statuses, bounded). */
+    suspend fun creditInvoices(): Load<List<CreditInvoiceDto>> =
+        repo.load(tenantId, "credit_invoices", ListSerializer(CreditInvoiceDto.serializer())) {
+            pages { p -> creditInvoices(page = p, pageSize = BIG_PAGE) }.sortedByDescending { it.issuedAt }
+        }
+
+    /** One customer's credit invoices (the Customers row). */
+    suspend fun creditInvoicesOf(customerId: String): Load<List<CreditInvoiceDto>> =
+        repo.load(tenantId, "credit_invoices:$customerId", ListSerializer(CreditInvoiceDto.serializer())) {
+            creditInvoices(customerId = customerId, pageSize = BIG_PAGE).items.sortedByDescending { it.issuedAt }
+        }
+
+    /** Record a payment of a credit invoice ([key]: the form visit's Idempotency-Key, also its `client_id`). */
+    suspend fun recordInvoicePayment(invoiceId: String, body: CreditInvoicePaymentIn, key: String) =
+        repo.act { recordCreditInvoicePaymentKeyed(invoiceId, body, key) }
+
+    /** Every page of a list (bounded): the screens sum a period, so a first page alone would undercount. */
+    private suspend fun <T> pages(fetch: suspend (Int) -> PageDto<T>): List<T> {
+        val all = mutableListOf<T>()
+        var page = 1
+        while (page <= MAX_PAGES) {
+            val p = fetch(page)
+            all += p.items
+            if (p.items.size < p.pageSize || all.size >= p.total) break
+            page++
+        }
+        return all
+    }
 
     // --- online-only helpers (never cached) -------------------------------------------------------------------
     suspend fun attachmentUrl(attachmentId: String) = repo.act { attachmentUrl(attachmentId) }
@@ -618,8 +678,12 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
         const val LIST_PAGE = 100
         const val DETAIL_PAGE = 200
 
-        /** Distinct jobs whose numbers are looked up for the open exceptions (bounded network work). */
-        const val MAX_JOB_LOOKUPS = 25
+        /** Page size of the ADR-008 lists (the contract's maximum) and how many pages a period may span. */
+        const val BIG_PAGE = 200
+        const val MAX_PAGES = 10
+
+        /** Distinct customers whose credit limit is looked up for the credit sales waiting. */
+        const val MAX_EXPOSURE_LOOKUPS = 25
 
         /** Released payments looked up on one purchase. */
         const val MAX_PAYMENT_LOOKUPS = 25

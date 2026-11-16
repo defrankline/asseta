@@ -5,8 +5,39 @@ sealed interface OwnerDestination {
     data object Home : OwnerDestination
     data object Fleet : OwnerDestination
     data class Machine(val machineId: String) : OwnerDestination
+
+    /**
+     * ADR-008: jobs are gone. Old job links (notifications, console paths) still resolve to these two so saved links
+     * keep parsing; the Owner app opens Home for them.
+     */
     data object Jobs : OwnerDestination
     data class Job(val jobId: String) : OwnerDestination
+
+    // --- ADR-008 (machine reports replace jobs) ------------------------------------------------------------------
+
+    /** The previous overview figures (fleet, approvals, money, risk), kept under More. */
+    data object Dashboard : OwnerDestination
+
+    /** Customers and their hours bought, used and left, with their credit invoices. */
+    data object Customers : OwnerDestination
+
+    /** Machines: map or list with this week's hours, productive hours and report status. */
+    data object Machines : OwnerDestination
+
+    /** Money: sold by method, cash with supervisors, credit invoices. */
+    data object Money : OwnerDestination
+
+    /** Reports: machine hours by customer and reason, hours sold and used, the report list. */
+    data object Reports : OwnerDestination
+
+    /** Non-productive hours by reason for the period the Reports screen shows. */
+    data object HoursByReason : OwnerDestination
+
+    /** One machine report, with approve / reject while it waits (MACHINE_REPORT_SUBMITTED). */
+    data class MachineReport(val reportId: String) : OwnerDestination
+
+    /** Record a payment of a credit invoice ([invoiceId] preselected when known). */
+    data class RecordPayment(val invoiceId: String? = null) : OwnerDestination
     /** Alerts list, scrolled to / highlighting [alertId] when known. */
     data class Alerts(val alertId: String? = null) : OwnerDestination
     data class Approvals(val approvalId: String? = null) : OwnerDestination
@@ -116,6 +147,12 @@ object RecordKinds {
     /** A job (UNBILLED_WORK: completed and not invoiced yet). */
     const val JOB = "JOB"
 
+    /** ADR-008: a machine report (submitted / approved / rejected). */
+    const val MACHINE_REPORT = "MACHINE_REPORT"
+
+    /** ADR-008: a credit invoice (CREDIT_INVOICE_OVERDUE): Money, where credit invoices are listed. */
+    const val CREDIT_INVOICE = "CREDIT_INVOICE"
+
     /** Record kind -> the decision kind whose screen shows it (and decides it while it waits). */
     val DECISIONS = mapOf(
         CASH_VARIANCE to DecisionKinds.WRITE_OFF,
@@ -154,6 +191,8 @@ object RecordKinds {
             REMITTANCE_OVERDUE -> OwnerDestination.RemittanceOverdue(id)
             HOURS_PURCHASE -> OwnerDestination.HoursPurchase(id)
             JOB -> OwnerDestination.Job(id)
+            MACHINE_REPORT -> OwnerDestination.MachineReport(id)
+            CREDIT_INVOICE -> OwnerDestination.Money
             else -> null
         }
     }
@@ -255,6 +294,8 @@ object DeepLinkRouter {
             "supervisor_cash_custody" -> target?.let { OwnerDestination.CashRecord(RecordKinds.CASH_FLOAT, it) } ?: OwnerDestination.Cash
             "cash_remittance_overdue" -> OwnerDestination.RemittanceOverdue(target)
             "hours_purchase" -> target?.let { OwnerDestination.HoursPurchase(it) } ?: OwnerDestination.CustomerHours
+            "machine_report" -> target?.let { OwnerDestination.MachineReport(it) } ?: OwnerDestination.Approvals()
+            "credit_invoice" -> OwnerDestination.Money
             else -> fromPath(path) ?: OwnerDestination.Notifications(id(notificationId))
         }
     }
@@ -276,9 +317,12 @@ object DeepLinkRouter {
             "machines" -> second?.let { OwnerDestination.Machine(it) } ?: OwnerDestination.Fleet
             "fleet" -> id(rest.getOrNull(2))?.let { OwnerDestination.Machine(it) } ?: OwnerDestination.Fleet
             "notifications" -> OwnerDestination.Notifications(second)
+            // ADR-008: machine reports (the report, else Approvals where they wait).
+            "machine-reports" -> second?.let { OwnerDestination.MachineReport(it) } ?: OwnerDestination.Approvals()
             // Accountability (customer hours, engine hours, cash custody chain).
             "hours" -> when (val segment = rest.getOrNull(1)) {
                 "purchases" -> id(rest.getOrNull(2))?.let { OwnerDestination.HoursPurchase(it) } ?: OwnerDestination.CustomerHours
+                "credit-invoices" -> OwnerDestination.Money
                 else -> RecordKinds.destination(RecordKinds.HOURS_SEGMENTS[segment], id(rest.getOrNull(2))) ?: OwnerDestination.Approvals()
             }
             "meter-baselines" -> RecordKinds.destination(RecordKinds.METER_BASELINE, second) ?: OwnerDestination.Approvals()

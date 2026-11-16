@@ -75,9 +75,9 @@ object OverviewPresentation {
                 f.reportedWorkState.toSortedMap().map { (k, v) -> OverviewRow("Reported ${OwnerFormat.humanize(k).lowercase()}", "$v") } + alertRows
             OverviewSection("Fleet", freshnessLine(f.latestSourceAt, nowMs), listOf(OverviewGroup(null, rows)), listOf(OverviewAction("Open fleet map", OwnerDestination.Fleet)))
         },
+        // ADR-008: jobs are gone, so no job counts; the approvals and readings figures stay.
         o.work?.let { w ->
-            val statuses = w.jobsByStatus.keys.sortedWith(compareBy({ JOB_STATUS_ORDER.indexOf(it).let { i -> if (i < 0) Int.MAX_VALUE else i } }, { it }))
-            val rows = statuses.map { OverviewRow(OwnerFormat.humanize(it), "${w.jobsByStatus.getValue(it)}") } + listOfNotNull(
+            val rows = listOfNotNull(
                 w.pendingApprovals?.let {
                     OverviewRow("Pending approvals", "$it", tone = if (it > 0) KpiTone.WARNING else KpiTone.NORMAL, target = OwnerDestination.Approvals())
                 },
@@ -86,7 +86,8 @@ object OverviewPresentation {
                     OverviewRow("Open meter exceptions", "$it", tone = if (it > 0) KpiTone.WARNING else KpiTone.NORMAL, target = OwnerDestination.Exceptions())
                 },
             )
-            OverviewSection("Jobs and work", freshnessLine(w.latestSourceAt, nowMs), listOf(OverviewGroup(null, rows)), listOf(OverviewAction("Open jobs", OwnerDestination.Jobs)))
+            OverviewSection("Approvals and readings", freshnessLine(w.latestSourceAt, nowMs), listOf(OverviewGroup(null, rows)))
+                .takeIf { rows.isNotEmpty() }
         },
         o.money?.let { m ->
             val groups = m.currencies.map { c ->

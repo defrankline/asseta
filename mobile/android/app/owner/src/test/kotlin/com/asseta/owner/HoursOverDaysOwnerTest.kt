@@ -13,7 +13,7 @@ import com.asseta.owner.ui.accountability.HoursPresentation
 import com.asseta.owner.ui.accountability.OwnerAccountabilityTexts
 import com.asseta.owner.ui.accountability.RevenuePresentation
 import com.asseta.owner.ui.accountability.StatementPeriod
-import com.asseta.owner.ui.moreEntries
+import com.asseta.owner.ui.OwnerMenu
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -142,9 +142,12 @@ class HoursOverDaysOwnerTest {
         assertEquals(OwnerDestination.HoursPurchase(p1), on.route(OwnerDestination.HoursPurchase(p1)))
         assertEquals(OwnerDestination.Accountability, off.route(OwnerDestination.HoursPurchase(p1)))
         assertEquals(OwnerDestination.Accountability, OwnerFeatures(emptySet()).route(OwnerDestination.HoursStatement("c1")))
-        assertTrue(moreEntries(on).any { it.second == OwnerDestination.CustomerHours })
-        assertFalse(moreEntries(off).any { it.second == OwnerDestination.CustomerHours })
-        assertEquals("Customer hours", OwnerNavigation.title(OwnerDestination.CustomerHours))
+        // ADR-008: the purchase list became Customers & hours.
+        assertTrue(OwnerMenu.entries(on).any { it.second == OwnerDestination.Customers })
+        assertFalse(OwnerMenu.entries(off).any { it.second == OwnerDestination.Customers })
+        assertEquals(OwnerDestination.Customers, on.route(OwnerDestination.CustomerHours))
+        assertEquals(OwnerDestination.Home, off.route(OwnerDestination.CustomerHours))
+        assertEquals("Customers & hours", OwnerNavigation.title(OwnerDestination.Customers))
         assertEquals("Hours statement", OwnerNavigation.title(OwnerDestination.HoursStatement("c1")))
     }
 }

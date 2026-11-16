@@ -159,9 +159,8 @@ object SetupLinks {
         val hasQuery = '?' in link
         return when (path) {
             "/tenant/machines" -> OwnerDestination.Fleet.takeIf { !hasQuery && f.fleet }
-            "/tenant/jobs" -> OwnerDestination.Jobs.takeIf { f.jobs }
             "/tenant/approvals", "/tenant/meter-baselines" -> OwnerDestination.Approvals().takeIf { f.approvals }
-            "/tenant/hours", "/tenant/hours/purchases" -> OwnerDestination.CustomerHours.takeIf { f.customerHours }
+            "/tenant/hours", "/tenant/hours/purchases" -> OwnerDestination.Customers.takeIf { f.customerHours }
             "/tenant/finance/cash" -> OwnerDestination.Cash.takeIf { !hasQuery && f.finance }
             else -> null
         }

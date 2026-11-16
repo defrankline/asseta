@@ -10,7 +10,7 @@ import com.asseta.core.network.NetworkFactory
 import com.asseta.owner.data.ActionResult
 import com.asseta.owner.data.Load
 import com.asseta.owner.ui.OwnerFeatures
-import com.asseta.owner.ui.moreEntries
+import com.asseta.owner.ui.OwnerMenu
 import com.asseta.owner.ui.setup.SetupLinks
 import com.asseta.owner.ui.setup.SetupPresentation
 import com.asseta.owner.ui.setup.SetupProgress
@@ -70,15 +70,16 @@ class SetupChecklistOwnerTest {
     fun `links open the matching app screen, otherwise the web`() {
         assertEquals(OwnerDestination.Fleet, SetupLinks.appScreen("/tenant/machines", owner))
         assertNull(SetupLinks.appScreen("/tenant/machines?missing=tracker", owner))
-        assertEquals(OwnerDestination.Jobs, SetupLinks.appScreen("/tenant/jobs", owner))
+        // ADR-008: jobs are gone from the app; a job step opens on the web.
+        assertNull(SetupLinks.appScreen("/tenant/jobs", owner))
         assertEquals(OwnerDestination.Approvals(), SetupLinks.appScreen("/tenant/meter-baselines?missing=true", owner))
         assertEquals(OwnerDestination.Cash, SetupLinks.appScreen("/tenant/finance/cash", owner))
         assertNull(SetupLinks.appScreen("/tenant/finance/cash?tab=reasons", owner))
         assertNull(SetupLinks.appScreen("/tenant/hours/reasons", owner))
         assertNull(SetupLinks.appScreen("/tenant/policies", owner))
         // Without the read permission the app screen is not offered.
-        assertNull(SetupLinks.appScreen("/tenant/jobs", OwnerFeatures(setOf("tenant.setup.read"))))
-        assertEquals(SetupTarget.App(OwnerDestination.Jobs, "Open Jobs"), SetupLinks.target("/tenant/jobs", owner, web))
+        assertNull(SetupLinks.appScreen("/tenant/machines", OwnerFeatures(setOf("tenant.setup.read"))))
+        assertEquals(SetupTarget.Web("https://asseta.co.tz/tenant/jobs"), SetupLinks.target("/tenant/jobs", owner, web))
         val webTarget = SetupLinks.target("/tenant/geofences?tab=sites", owner, web)
         assertEquals(SetupTarget.Web("https://asseta.co.tz/tenant/geofences?tab=sites"), webTarget)
         assertEquals("Open on the web", webTarget!!.label)
@@ -135,12 +136,14 @@ class SetupChecklistOwnerTest {
 
     @Test
     fun `entry points follow tenant setup read`() {
-        assertEquals(OwnerDestination.SetupChecklist, moreEntries(owner).first().second)
-        assertEquals("Go-live checklist", moreEntries(owner).first().first)
+        // First in the side menu's "More" group.
+        val more = com.asseta.owner.ui.OwnerMenu.more(owner)
+        assertEquals(OwnerDestination.SetupChecklist, more.first().destination)
+        assertEquals("Go-live checklist", more.first().label)
         val none = OwnerFeatures(setOf("tenant.fleet.read"))
-        assertTrue(moreEntries(none).none { it.second == OwnerDestination.SetupChecklist })
+        assertTrue(OwnerMenu.entries(none).none { it.second == OwnerDestination.SetupChecklist })
         assertEquals(OwnerDestination.SetupChecklist, owner.route(OwnerDestination.SetupChecklist))
-        assertEquals(OwnerDestination.More, none.route(OwnerDestination.SetupChecklist))
+        assertEquals(OwnerDestination.Home, none.route(OwnerDestination.SetupChecklist))
         assertEquals(OwnerDestination.SetupChecklist, DeepLinkRouter.fromPath("/tenant/setup"))
     }
 

@@ -10,14 +10,12 @@ import com.asseta.core.model.owner.TenantOverviewDto
 import com.asseta.core.network.NetworkFactory
 import com.asseta.owner.ui.OwnerFeatures
 import com.asseta.owner.ui.OwnerNavigation
-import com.asseta.owner.ui.OwnerTab
 import com.asseta.owner.ui.alerts.AlertText
 import com.asseta.owner.ui.approvals.ApprovalText
 import com.asseta.owner.ui.fleet.FleetRows
 import com.asseta.owner.ui.home.KpiTone
 import com.asseta.owner.ui.home.OverviewPresentation
-import com.asseta.owner.ui.jobs.JobsPresentation
-import com.asseta.owner.ui.moreEntries
+import com.asseta.owner.ui.OwnerMenu
 import com.asseta.owner.ui.settings.SettingsText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -53,7 +51,7 @@ class ParityPresentationTest {
     @Test
     fun `overview sections, labels and links`() {
         val sections = OverviewPresentation.sections(overview, cached = false, nowMs = now)
-        assertEquals(listOf("Fleet", "Jobs and work", "Money (month from 2026-10-01)", "Investigations and signals"), sections.map { it.title })
+        assertEquals(listOf("Fleet", "Approvals and readings", "Money (month from 2026-10-01)", "Investigations and signals"), sections.map { it.title })
         val fleet = sections[0].groups.single().rows
         assertEquals(
             listOf("Machines", "Live now", "Recent", "Stale", "Offline", "Never reported", "No tracker", "Engine on (tracker verified)", "Reported working", "Open alerts"),
@@ -65,7 +63,9 @@ class ParityPresentationTest {
         assertEquals(KpiTone.CRITICAL, alerts.tone)
         assertEquals(OwnerDestination.Alerts(), alerts.target)
         assertEquals("Source data updated 5 min ago", sections[0].freshness)
-        assertEquals(listOf("In progress", "Approved", "Pending approvals", "Readings needing review", "Open meter exceptions"), sections[1].groups.single().rows.map { it.label })
+        // ADR-008: no job counts; the approvals and readings figures stay, with no "Open jobs" link.
+        assertEquals(listOf("Pending approvals", "Readings needing review", "Open meter exceptions"), sections[1].groups.single().rows.map { it.label })
+        assertTrue(sections[1].actions.isEmpty())
         assertEquals("No financial activity this month.", sections[2].emptyText)
         assertEquals(listOf("Open investigations", "Signals (last 7 days)"), sections[3].groups.single().rows.map { it.label })
         assertEquals("No source data yet", sections[3].freshness)
@@ -101,32 +101,30 @@ class ParityPresentationTest {
     }
 
     @Test
-    fun `tabs, start screen and More follow the role`() {
+    fun `side menu, start screen and titles follow the role`() {
         val fleetOnly = OwnerFeatures(setOf("tenant.fleet.read"))
-        assertEquals(listOf(OwnerTab.HOME, OwnerTab.FLEET, OwnerTab.ALERTS, OwnerTab.MORE), OwnerNavigation.tabs(fleetOnly))
+        assertEquals(
+            listOf("Home", "Machines", "Dashboard", "Fleet map", "Alerts", "Settings"),
+            OwnerMenu.entries(fleetOnly).map { it.first },
+        )
         val inboxOnly = OwnerFeatures(setOf("tenant.notification.read"))
-        assertEquals(listOf(OwnerTab.MORE), OwnerNavigation.tabs(inboxOnly))
-        assertEquals(OwnerDestination.More, OwnerNavigation.start(inboxOnly))
-        assertEquals(listOf("Notifications", "Settings"), moreEntries(inboxOnly).map { it.first })
-        assertEquals("Overview", OwnerTab.HOME.label)
-        assertEquals("Acme", OwnerNavigation.title(OwnerDestination.Home, "Acme"))
+        assertEquals(OwnerDestination.Home, OwnerNavigation.start(inboxOnly))
+        assertEquals(listOf("Home", "Notifications", "Settings"), OwnerMenu.entries(inboxOnly).map { it.first })
+        assertEquals("Acme", OwnerNavigation.title(OwnerDestination.Dashboard, "Acme"))
         assertEquals("Alert", OwnerNavigation.title(OwnerDestination.Alerts(ID1)))
         assertEquals("Approval", OwnerNavigation.title(OwnerDestination.Approvals(ID1)))
         assertEquals("Notification", OwnerNavigation.title(OwnerDestination.Notifications(ID1)))
     }
 
     @Test
-    fun `large titles only on tab roots, Fleet inline as on iOS`() {
-        assertEquals(true, OwnerNavigation.largeTitle(listOf(OwnerDestination.Home)))
-        assertEquals(true, OwnerNavigation.largeTitle(listOf(OwnerDestination.More)))
-        assertEquals(false, OwnerNavigation.largeTitle(listOf(OwnerDestination.Fleet)))
-        assertEquals(false, OwnerNavigation.largeTitle(listOf(OwnerDestination.Jobs, OwnerDestination.Job(ID1))))
+    fun `only Home draws its own top row`() {
+        assertEquals(false, OwnerNavigation.hasTopBar(listOf(OwnerDestination.Home)))
+        assertEquals(true, OwnerNavigation.hasTopBar(listOf(OwnerDestination.Home, OwnerDestination.Fleet)))
+        assertEquals(true, OwnerNavigation.hasTopBar(listOf(OwnerDestination.Home, OwnerDestination.Approvals(), OwnerDestination.MachineReport(ID1))))
     }
 
     @Test
     fun `list filters, ordering and decision rules`() {
-        assertEquals(listOf("In progress", "Approved", "Pending approval", "Completed", "Cancelled", "All"), JobsPresentation.FILTERS.map { it.second })
-        assertEquals("IN_PROGRESS", JobsPresentation.DEFAULT_FILTER)
         assertEquals(listOf("Open", "Acknowledged", "Resolved", "All"), AlertText.FILTERS.map { it.second })
         val info = json.decodeFromString(AlertDto.serializer(), Samples.alert(ID1).replace("\"WARNING\"", "\"INFO\""))
         val critical = json.decodeFromString(AlertDto.serializer(), Samples.alert(ID2).replace("\"WARNING\"", "\"CRITICAL\""))

@@ -130,7 +130,6 @@ fun CaseDetailScreen(vm: CaseDetailViewModel, features: OwnerFeatures, onOpen: (
                     KeyValue("Opened", OwnerFormat.dateTime(c.openedAt, zone))
                     KeyValue("Assigned to", c.assigneeName ?: "Unassigned")
                     if (features.fleet) c.machineId?.let { id -> NavigationRow("Open machine") { onOpen(OwnerDestination.Machine(id.toString())) } }
-                    if (features.jobs) c.jobId?.let { id -> NavigationRow("Open job") { onOpen(OwnerDestination.Job(id.toString())) } }
                 }
             }
             item {

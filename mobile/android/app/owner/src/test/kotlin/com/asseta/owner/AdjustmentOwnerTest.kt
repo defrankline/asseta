@@ -13,7 +13,7 @@ import com.asseta.core.model.sync.PurchaseTotalsDto
 import com.asseta.core.network.NetworkFactory
 import com.asseta.owner.ui.OwnerFeatures
 import com.asseta.owner.ui.OwnerSession
-import com.asseta.owner.ui.moreEntries
+import com.asseta.owner.ui.OwnerMenu
 import com.asseta.owner.ui.approvals.ApprovalsViewModel
 import com.asseta.owner.ui.accountability.AdjustmentPresentation
 import com.asseta.owner.ui.accountability.AdjustmentTexts
@@ -165,14 +165,13 @@ class AdjustmentOwnerTest {
     @Test
     fun `an adjustment holder without expense approvals still gets Approvals`() {
         val holder = OwnerFeatures(setOf("tenant.finance.read", "tenant.adjustment.read", "tenant.adjustment.decide"))
-        assertTrue(moreEntries(holder).any { it.second == OwnerDestination.Approvals() })
+        assertTrue(OwnerMenu.entries(holder).any { it.second == OwnerDestination.Approvals() })
         // A role with a decision to see gets Approvals (finance.read sees write-offs); one with nothing does not.
-        assertTrue(moreEntries(OwnerFeatures(setOf("tenant.finance.read", "tenant.finance.writeoff"))).any { it.second == OwnerDestination.Approvals() })
-        assertFalse(moreEntries(OwnerFeatures(setOf("tenant.expense.read"))).any { it.second == OwnerDestination.Approvals() })
+        assertTrue(OwnerMenu.entries(OwnerFeatures(setOf("tenant.finance.read", "tenant.finance.writeoff"))).any { it.second == OwnerDestination.Approvals() })
+        assertFalse(OwnerMenu.entries(OwnerFeatures(setOf("tenant.expense.read"))).any { it.second == OwnerDestination.Approvals() })
         h.route("/adjustment-requests" to Samples.page(body()))
         val vm = ApprovalsViewModel(h.data, emptyFlow(), decisions = DecisionKind.visible(OwnerFeatures(setOf("tenant.adjustment.read"))), expenseRequests = holder.approvals)
-        assertEquals(0, vm.state.settled().data!!.items.size)
-        assertNull(vm.state.value.error)
+        assertNull(vm.expenses)
         val section = vm.decisionSections.single().second.state.settled().data!!
         assertEquals("Hours correction", section.single().headline)
         assertEquals(1, h.server.requestCount)
