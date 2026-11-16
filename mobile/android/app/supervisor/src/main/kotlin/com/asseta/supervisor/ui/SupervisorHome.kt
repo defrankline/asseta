@@ -642,7 +642,7 @@ private fun RouteContent(
             val visit = remember(route) { System.nanoTime() }
             InvoicePaymentScreen(viewModel(key = "invoice-payment-$visit") { InvoicePaymentViewModel(field, tenantId, permissions, route.invoiceId) }, onDone = pop)
         }
-        Route.Settings -> SupervisorSettingsScreen(field.push, NOTIFICATION_READ in permissions)
+        Route.Settings -> SupervisorSettingsScreen(field.push, NOTIFICATION_READ in permissions, BuildConfig.VERSION_NAME)
         Route.Inbox -> {
             AskNotificationsOnce(field.push, NOTIFICATION_READ in permissions)
             val notifications by inbox.notifications.collectAsStateWithLifecycle()

@@ -79,6 +79,7 @@ class ShellModelTest {
         assertEquals("950,000", ShellModel.compact(BigDecimal("950000")))
         assertEquals("2.0M", ShellModel.compact(BigDecimal("2000000")))
         assertEquals("1,200", ShellModel.compact(BigDecimal("1200")))
+        assertEquals("Asseta Supervisor 0.5.7", HomeTexts.settingsVersion("0.5.7"))
         // My machines rows: the last reading without trailing zeros (design "1,510 h", "3,182.8 h").
         assertEquals("Last reading 1,510 h · today 07:40", HomeTexts.lastReading(MachineReportRules.formatHours(BigDecimal("1510.00")), "today 07:40"))
         assertEquals("Last reading 3,182.8 h · 2 days ago", HomeTexts.lastReading(MachineReportRules.formatHours(BigDecimal("3182.80")), "2 days ago"))

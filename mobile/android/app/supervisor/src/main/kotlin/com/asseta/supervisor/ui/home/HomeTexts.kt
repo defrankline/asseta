@@ -21,6 +21,9 @@ object HomeTexts {
     // Side menu (design SideNav)
     fun role(company: String) = "Supervisor · $company"
     fun caption(version: String) = "Asseta Supervisor $version · Delete my account in Settings"
+
+    /** Settings' caption at the bottom, under the rows. */
+    fun settingsVersion(version: String) = "Asseta Supervisor $version"
     fun syncRow(waiting: Int, lastSentAt: String?) = when {
         waiting > 0 -> "Sync · $waiting waiting"
         lastSentAt != null -> "Sync · all sent $lastSentAt"

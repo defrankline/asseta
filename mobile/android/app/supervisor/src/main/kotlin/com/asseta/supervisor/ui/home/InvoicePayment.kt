@@ -158,11 +158,11 @@ fun InvoicePaymentScreen(vm: InvoicePaymentViewModel, onDone: () -> Unit) {
 }
 
 /**
- * Settings (the side menu's footer): notifications on this phone, change password, delete my account (online only) and
- * sign out — what the account menu offered before.
+ * Settings (the side menu's footer), rows in this order on both platforms: notifications on this phone, change password,
+ * delete my account (online only), sign out; the app version as a caption at the bottom.
  */
 @Composable
-fun SupervisorSettingsScreen(push: SupervisorPush, canReadNotifications: Boolean) {
+fun SupervisorSettingsScreen(push: SupervisorPush, canReadNotifications: Boolean, version: String) {
     val actions = LocalSessionActions.current
     val online = rememberOnline()
     val coroutines = rememberCoroutineScope()
@@ -190,5 +190,7 @@ fun SupervisorSettingsScreen(push: SupervisorPush, canReadNotifications: Boolean
                 onClick = if (online) actions.deleteAccount else null)
             CardRow(MenuFooter.SIGN_OUT.label, last = true, onClick = actions.signOut)
         }
+        Text(HomeTexts.settingsVersion(version), style = MaterialTheme.typography.bodySmall, color = palette.secondaryText,
+            modifier = Modifier.padding(horizontal = 20.dp))
     }
 }
