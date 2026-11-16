@@ -172,12 +172,37 @@ fun OwnerRoutes(
             }
             ReportApprovalScreen(vm, session, online, now)
         }
-        OwnerDestination.Customers -> Unit
-        OwnerDestination.Machines -> Unit
-        OwnerDestination.Money -> Unit
-        OwnerDestination.Reports -> Unit
-        OwnerDestination.HoursByReason -> Unit
-        is OwnerDestination.RecordPayment -> Unit
+        OwnerDestination.Customers -> {
+            val vm: com.asseta.owner.ui.customers.CustomersViewModel = viewModel(key = "customers-$t") {
+                com.asseta.owner.ui.customers.CustomersViewModel(data, graph.refreshTriggers(*HOURS_ENTITIES))
+            }
+            com.asseta.owner.ui.customers.CustomersScreen(vm, open)
+        }
+        OwnerDestination.Machines -> {
+            val vm: com.asseta.owner.ui.machines.MachinesViewModel = viewModel(key = "machines-$t") {
+                com.asseta.owner.ui.machines.MachinesViewModel(data, features, graph.refreshTriggers(*REPORT_ENTITIES, "fleet.position", debounceMs = 10_000))
+            }
+            com.asseta.owner.ui.machines.MachinesScreen(vm, features, now, open)
+        }
+        OwnerDestination.Money -> {
+            val vm: com.asseta.owner.ui.money.MoneyViewModel = viewModel(key = "money-$t") {
+                com.asseta.owner.ui.money.MoneyViewModel(data, features, graph.refreshTriggers("hours_purchase", "customer_payment", "credit_invoice", "cash_handover", "cash", "expense"))
+            }
+            com.asseta.owner.ui.money.MoneyScreen(vm, features, open)
+        }
+        OwnerDestination.Reports, OwnerDestination.HoursByReason -> {
+            // One instance for Reports and the reason breakdown, so the chosen period carries over.
+            val vm: com.asseta.owner.ui.reports.OwnerReportsViewModel = viewModel(key = "reports-$t") {
+                com.asseta.owner.ui.reports.OwnerReportsViewModel(data, features, graph.refreshTriggers(*REPORT_ENTITIES))
+            }
+            if (route == OwnerDestination.Reports) com.asseta.owner.ui.reports.OwnerReportsScreen(vm, features, open) else com.asseta.owner.ui.reports.HoursByReasonScreen(vm)
+        }
+        is OwnerDestination.RecordPayment -> {
+            val vm: com.asseta.owner.ui.money.PaymentViewModel = viewModel(key = "payment-form-$t-${route.invoiceId}") {
+                com.asseta.owner.ui.money.PaymentViewModel(data, route.invoiceId)
+            }
+            com.asseta.owner.ui.money.PaymentScreen(vm, session, online)
+        }
         OwnerDestination.Dashboard -> {
             val vm: HomeViewModel = viewModel(key = "dashboard-$t") { HomeViewModel(data, graph.refreshTriggers("alert", "approval", "case", "fleet.position", debounceMs = 10_000)) }
             HomeScreen(vm, features, now, open)

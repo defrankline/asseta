@@ -262,6 +262,7 @@ class MachineReportOwnerTest {
             vm.decide(approve = true, reason = "")
             assertEquals(ReportTexts.refusal("SEGREGATION_OF_DUTIES", "x"), vm.error.await { it != null })
             assertEquals("/api/v1/tenant/machine-reports/$ID1/approve", posts[0].first)
+            vm.busy.await { !it }
             refusal.set(null)
             vm.decide(approve = false, reason = "Idle hours too high, explain")
             assertEquals(ReportTexts.REJECTED, vm.message.await { it != null })
