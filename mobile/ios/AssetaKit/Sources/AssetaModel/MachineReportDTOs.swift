@@ -357,9 +357,11 @@ public struct CreditInvoiceDTO: Codable, Hashable, Sendable, Identifiable {
         public let paymentStatus: String?
         public let receivedAt: Date?
         public let recordedByName: String?
+        /// Whether this payment still counts towards the invoice (not rejected or reversed).
+        public let counts: Bool?
 
         enum CodingKeys: String, CodingKey {
-            case id, amount, method, reference
+            case id, amount, method, reference, counts
             case paymentStatus = "payment_status", receivedAt = "received_at", recordedByName = "recorded_by_name"
         }
     }

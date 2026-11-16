@@ -192,9 +192,9 @@ public struct SoldByMethod: Sendable, Equatable {
         for order in orders where order.cancelledAt == nil {
             s.hours += order.hours.value
             s.credit += order.creditAmount?.value ?? 0
-            for payment in order.payments ?? [] where payment.method != "CREDIT" {
+            for payment in order.payments ?? [] where payment.method != "CREDIT" && payment.status != "REJECTED" {
                 switch payment.method {
-                case "BANK": s.bank += payment.amount.value
+                case "BANK", "BANK_TRANSFER": s.bank += payment.amount.value
                 case "MOBILE_MONEY": s.mobileMoney += payment.amount.value
                 default: s.cash += payment.amount.value
                 }
