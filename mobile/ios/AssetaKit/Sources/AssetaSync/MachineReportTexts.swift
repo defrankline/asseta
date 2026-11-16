@@ -6,12 +6,13 @@ public enum MachineReportTexts {
     // Home
     public static func greeting(_ name: String, hour: Int) -> String {
         let part = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
-        let first = name.split(separator: " ").first.map(String.init) ?? name
-        return first.isEmpty ? part : "\(part), \(first)"
+        // The first word of the name; never an e-mail address (a name made of the login).
+        let first = name.split(whereSeparator: \.isWhitespace).first.map(String.init) ?? ""
+        return first.isEmpty || first.contains("@") ? part : "\(part), \(first)"
     }
     public static let cashInHand = "Cash in hand"
     public static let hoursToReport = "Hours to report"
-    public static func machinesCount(_ n: Int) -> String { n == 1 ? "1 machine" : "\(n) machines" }
+    public static func machinesCount(_ n: Int) -> String { n == 0 ? "None" : n == 1 ? "1 machine" : "\(n) machines" }
     public static let awaitingApproval = "Awaiting approval"
     public static let whatToDo = "WHAT DO YOU WANT TO DO?"
     public static let tileSellHours = "Sell hours"
@@ -27,21 +28,15 @@ public enum MachineReportTexts {
     public static let recentEmpty = "Your sales and machine reports appear here."
     public static let allSynced = "All synced"
     public static func notSynced(_ n: Int) -> String { "\(n) not synced" }
-    public static let syncing = "Syncing…"
     public static func recentReport(_ code: String, _ hours: String) -> String { "\(code) report · \(hours) h" }
-    public static func recentOpening(_ code: String) -> String { "\(code) opening reading" }
     public static func recentSale(_ hours: String, _ customer: String) -> String { "Sold \(hours) h · \(customer)" }
     public static let pillPaid = "Paid"
-    public static let pillPartPaid = "Part paid"
-    public static let pillCredit = "On credit"
-    public static let pillSent = "Sent"
     public static let pillApproved = "Approved"
 
     // Side menu
     public static let menuHome = "Home"
     public static let menuInbox = "Inbox"
     public static let menuCustomers = "Customers"
-    public static func menuSync(_ time: String) -> String { "Sync · all sent \(time)" }
     public static func menuSyncWaiting(_ n: Int) -> String { "Sync · \(n) waiting" }
     public static let menuSwitchCompany = "Switch company"
     public static let menuSignOut = "Sign out"
@@ -157,7 +152,10 @@ public enum MachineReportTexts {
     public static let saleMachine = "Machine"
     public static let saleHours = "Hours"
     public static let saleTotal = "Total"
-    public static func saleRate(_ hours: String, _ rate: String) -> String { "\(hours) h × \(rate)\nrate card" }
+    /// "20 h × 95,000 · rate card", with " less 10%" when the customer has an approved discount.
+    public static func saleRate(_ hours: String, _ rate: String, discount: String? = nil) -> String {
+        "\(hours) h × \(rate) · rate card" + (discount.map { " less \($0)%" } ?? "")
+    }
     public static let salePayment = "PAYMENT"
     public static let saleAddPayment = "+ Add payment"
     public static let saleSave = "Save sale"
@@ -176,22 +174,24 @@ public enum MachineReportTexts {
     }
     public static func saleLineTitle(_ wire: String) -> String {
         switch wire {
-        case "BANK": "Bank transfer"
-        case "MOBILE_MONEY": "Mobile money"
+        case "BANK": "Paid by bank"
+        case "MOBILE_MONEY": "Paid by mobile money"
         case "CREDIT": "On credit"
         default: "Cash received"
         }
     }
-    public static let saleReference = "Reference"
+    public static let saleReference = "Reference (required for bank and mobile money)"
+    public static let salePhoto = "Photo of the slip or message (optional)"
     public static let salePhotoAttached = "Photo of the message attached"
-    public static let saleCreditNote = "The customer pays later on the credit invoice."
+    public static let saleCreditNote = "Amount only. An invoice is created for it; its hours wait for office approval."
     public static func saleFullyPaid() -> String { "Fully paid · balance 0" }
-    public static func saleBalance(_ money: String) -> String { "Balance \(money)" }
+    public static func saleBalance(_ amount: String) -> String { "Part paid · balance \(amount)" }
+    public static func salePaid(_ amount: String) -> String { "Paid \(amount)" }
     public static let saleNotPaid = "Not paid yet"
-    public static let saleErrCreditOff = "Credit sales are not allowed for you."
-    public static let saleErrCreditWalkIn = "Walk-in customers cannot buy on credit."
-    public static let saleErrCreditTwice = "Only one credit part per sale."
-    public static let saleTodoNoCredit = "remove the credit part"
+    public static let saleSaving = "Saving…"
+    public static let saleErrCreditOff = "Credit sales are recorded by the office."
+    public static let saleErrCreditWalkIn = "A walk-in customer cannot buy on credit."
+    public static let saleErrCreditTwice = "A sale can have only one credit part."
     public static let saleTodoOneCredit = "keep one credit part"
 
     // Money (design Money)
@@ -207,11 +207,10 @@ public enum MachineReportTexts {
     public static let moneyBank = "Bank"
     public static let moneyMobile = "Mobile money"
     public static let moneyCredit = "Credit"
-    public static let moneyCreditAwaiting = "· awaiting approval"
+    public static let moneyCreditAwaiting = " · awaiting approval"
     public static let moneyTotalSold = "Total sold"
     public static let moneyHandedOver = "Handed over to HQ"
     public static let moneyAwaitingCheck = "Awaiting office check"
-    public static let moneyAllChecked = "Checked by the office"
     public static let moneyExpenses = "Expenses"
     public static func moneyReceipts(_ n: Int, pending: Int) -> String {
         "\(n) \(n == 1 ? "receipt" : "receipts")" + (pending > 0 ? " · \(pending) pending" : "")
@@ -219,7 +218,6 @@ public enum MachineReportTexts {
     public static let moneyHandOver = "Hand over"
     public static let moneyExpense = "Expense"
     public static let moneyPettyCash = "Petty cash"
-    public static let moneyRecords = "RECORDS"
     public static let moneyCollect = "Record cash collection"
 
     // Dashboard (design Dashboard)
@@ -227,12 +225,10 @@ public enum MachineReportTexts {
     public static let dashHoursUsed = "Hours used by customers"
     public static let dashFromBought = "from bought hours"
     public static func dashMachineHours(_ period: String) -> String { "Machine hours \(period)" }
-    public static func dashProductive(_ hours: String, _ percent: Int) -> String { "Productive \(hours) h (\(percent)%)" }
     public static func dashNonProductive(_ hours: String) -> String { "Non-productive \(hours) h" }
     public static let dashMyMachines = "MY MACHINES"
     public static let dashList = "List"
     public static let dashMap = "Map"
-    public static func dashLastReading(_ reading: String, _ when: String) -> String { "Last reading \(reading) h · \(when)" }
     public static let dashNoReading = "No reading yet"
     public static let dashReports = "REPORTS"
     public static let dashCustomerBalances = "Customer balances"
@@ -242,34 +238,15 @@ public enum MachineReportTexts {
     public static let dashPeriodToday = "today"
     public static let dashPeriodWeek = "this week"
     public static let dashPeriodMonth = "this month"
-    public static let dashNoReports = "No machine reports in this period."
-    public static let dashNoSales = "No sales recorded on this phone in this period."
+    public static let dashNoReports = "Your machine reports of the last 30 days appear here."
+    public static let dashNoSales = "Hours you sell on this phone appear here."
 
     // Credit invoice payment
-    public static let payTitle = "Record payment"
+    public static let payTitle = "Credit invoice payment"
     public static let payInvoice = "Invoice"
     public static let payAmount = "Amount received"
     public static let paySave = "Save payment"
-    public static func payBalance(_ money: String) -> String { "Balance \(money)" }
-    public static let payErrAmount = "Enter the amount received."
-    public static let payErrOverBalance = "The amount is more than the invoice balance."
-    public static let payErrPaid = "Nothing is left to pay on this invoice."
+    public static let payErrAmount = "Enter the amount received (more than 0)."
+    public static func payErrOverBalance(_ balance: String) -> String { "The invoice still owes only \(balance)." }
     public static let payFooter = "Cash goes into your cash in hand. Bank and mobile money wait for the office to verify them."
-    public static let creditInvoices = "CREDIT INVOICES"
-    public static func invoiceLine(_ amount: String, _ paid: String, _ due: String?) -> String {
-        [amount, "paid \(paid)", due.map { "due \($0)" }].compactMap { $0 }.joined(separator: " · ")
-    }
-    public static let statusUnpaid = "Unpaid"
-    public static let statusPartPaid = "Part paid"
-    public static let statusPaid = "Paid"
-    public static let statusOverdue = "Overdue"
-    public static func invoiceStatus(_ status: String, overdue: Bool) -> String {
-        if overdue { return statusOverdue }
-        switch status {
-        case "PART_PAID": return statusPartPaid
-        case "PAID": return statusPaid
-        case "CANCELLED": return "Cancelled"
-        default: return statusUnpaid
-        }
-    }
 }

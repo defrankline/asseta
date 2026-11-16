@@ -296,9 +296,13 @@ public enum AccountabilityRules {
             let noncash = numbers { $0.method != "CASH" && $0.method != "CREDIT" }
             if !noncash.isEmpty { todo.append(T.hoursTodoCash(noncash)) }
         }
-        let credit = d.payments.filter { $0.method == "CREDIT" }.count
-        if credit > 0 && (!creditAllowed || d.walkIn) { todo.append(MachineReportTexts.saleTodoNoCredit) }
-        if credit > 1 { todo.append(MachineReportTexts.saleTodoOneCredit) }
+        // A credit part that may not be sold turns into "change payment n to cash" (as Android).
+        let credit = numbers { $0.method == "CREDIT" }
+        if !creditAllowed || d.walkIn {
+            if !credit.isEmpty { todo.append(T.hoursTodoCash(credit)) }
+        } else if credit.count > 1 {
+            todo.append(MachineReportTexts.saleTodoOneCredit)
+        }
         let noReference = numbers(referenceMissing)
         if !noReference.isEmpty { todo.append(T.hoursTodoReference(noReference)) }
         if let quote = price.quote, HoursPayments.paid(d.payments) > quote.amount {

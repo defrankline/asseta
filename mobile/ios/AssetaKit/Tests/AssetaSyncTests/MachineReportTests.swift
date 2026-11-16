@@ -385,7 +385,7 @@ struct MachineReportTests {
                                                                  reference: "", noncashAllowed: true) else {
             Issue.record("overpayment accepted"); return
         }
-        #expect(over.messages == [MachineReportTexts.payErrOverBalance])
+        #expect(over.messages == [MachineReportTexts.payErrOverBalance("2000000")])
         guard case let .failure(bank) = CreditPaymentRules.check(amountText: "10", balance: 100, method: "BANK", reference: " ",
                                                                  noncashAllowed: false) else {
             Issue.record("bank accepted"); return
@@ -429,7 +429,7 @@ struct MachineReportTests {
         #expect(figures.cash == 100 && figures.total == 100)
         #expect(FieldActivity.salesByMethod(ops, since: h.clock.wallNow.addingTimeInterval(60)).total == 0)
         #expect(FieldActivity.productivePercent(customers: 220, nonProductive: 80) == 73)
-        #expect(FieldActivity.productivePercent(customers: 0, nonProductive: 0) == 0)
+        #expect(FieldActivity.productivePercent(customers: 0, nonProductive: 0) == nil)
         let report = MachineReportDTO(id: UUID(), reportNumber: "MR-1", machineID: UUID(), machineCode: "EX-01", startReading: 1210,
                                       startAt: Date(), endReading: 1510, endAt: Date(), status: .submitted, submittedAt: Date(),
                                       lines: [.init(lineNo: 1, kind: .customer, customerID: Self.pwani, hours: 220)])

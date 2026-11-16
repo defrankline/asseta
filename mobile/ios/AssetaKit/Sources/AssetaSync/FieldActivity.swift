@@ -26,11 +26,13 @@ public enum ActivityPeriod: String, CaseIterable, Sendable, Hashable {
         }
     }
 
-    /// The period's first instant (local calendar).
+    /// The period's first instant (local day, the week from Monday, the month).
     public func start(now: Date = Date(), calendar: Calendar = .current) -> Date {
-        switch self {
+        var monday = calendar
+        monday.firstWeekday = 2
+        return switch self {
         case .today: calendar.startOfDay(for: now)
-        case .week: calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? calendar.startOfDay(for: now)
+        case .week: monday.dateInterval(of: .weekOfYear, for: now)?.start ?? calendar.startOfDay(for: now)
         case .month: calendar.dateInterval(of: .month, for: now)?.start ?? calendar.startOfDay(for: now)
         }
     }
@@ -69,11 +71,13 @@ public struct RecentActivity: Sendable, Equatable, Identifiable {
     public let tone: Pill
     /// The machine a report row is about (opens its report).
     public let machineID: UUID?
+    /// A second line (my machine reports: the readings, a rejection note or why the server refused it).
+    public var extra: String? = nil
 }
 
 public enum FieldActivity {
     /// Sales and credit-invoice payments this phone recorded since `since` (refused ones left out), by method. Sales
-    /// count their payment lines (CREDIT included); invoice payments add money received.
+    /// count their payment lines (CREDIT included); invoice payments add money received (as Android `ShellModel.money`).
     public static func salesByMethod(_ operations: [ClientOperation], since: Date) -> SalesByMethod {
         var result = SalesByMethod()
         for op in operations where op.createdAtDevice >= since && op.status != .failed {
@@ -86,8 +90,6 @@ public enum FieldActivity {
                 }
             case OperationType.creditInvoicePayment.rawValue:
                 if let amount = decimal(payload["amount"]) { result.add(method: payload["method"]?.stringValue ?? "CASH", amount: amount) }
-            case OperationType.cashCollection.rawValue:
-                if let amount = decimal(payload["amount"]) { result.add(method: "CASH", amount: amount) }
             default: break
             }
         }
@@ -119,72 +121,18 @@ public enum FieldActivity {
         return (customers, other)
     }
 
-    /// Productive share in whole percent (0 when nothing was reported).
-    public static func productivePercent(customers: Decimal, nonProductive: Decimal) -> Int {
+    /// Productive share in whole percent; nil when nothing was reported.
+    public static func productivePercent(customers: Decimal, nonProductive: Decimal) -> Int? {
         let total = customers + nonProductive
-        guard total > 0 else { return 0 }
+        guard total > 0 else { return nil }
         return Int((NSDecimalNumber(decimal: customers / total * 100).doubleValue).rounded())
     }
 
-    /// Home "Recent": my reports (synced and unsent) and my sales, newest first.
+    /// Home "Recent": my reports (the server's and those still on this phone) and my sales, newest first; at most four.
     public static func recent(reports: [MachineReportDTO], operations: [ClientOperation], machineCode: (UUID) -> String,
-                              customerName: (UUID) -> String?, money: (Decimal) -> String, limit: Int = 6) -> [RecentActivity] {
-        typealias T = MachineReportTexts
-        var rows: [RecentActivity] = []
-        let syncedIDs = Set(reports.map(\.id))
-        for report in reports {
-            let (pill, tone): (String, RecentActivity.Pill) = switch report.state {
-            case .approved: (T.pillApproved, .good)
-            case .rejected: (T.pillRejected, .bad)
-            default: (T.pillAwaiting, .waiting)
-            }
-            rows.append(RecentActivity(id: report.id,
-                                       title: T.recentReport(report.machineCode ?? machineCode(report.machineID),
-                                                             MachineReportRules.hoursText(report.hours.value)),
-                                       at: report.submittedAt, detail: nil, pill: pill, tone: tone, machineID: report.machineID))
-        }
-        for op in operations where op.status != .failed && !syncedIDs.contains(op.id) {
-            guard let payload = try? JSONValue.parse(op.payloadJSON) else { continue }
-            let unsent = op.status != .acked
-            switch op.opType {
-            case OperationType.machineReport.rawValue where unsent:
-                guard let report = try? AssetaJSON.decoder().decode(MachineReportPayload.self, from: Data(op.payloadJSON.utf8))
-                else { continue }
-                let hours = report.lines.reduce(Decimal(0)) { $0 + $1.hours.value }
-                let code = machineCode(report.machineID)
-                rows.append(RecentActivity(id: op.id,
-                                           title: report.opening == true ? T.recentOpening(code)
-                                               : T.recentReport(code, MachineReportRules.hoursText(hours)),
-                                           at: op.createdAtDevice, detail: nil, pill: T.pillNotSent, tone: .neutral,
-                                           machineID: report.machineID))
-            case OperationType.hoursPurchase.rawValue:
-                let hours = decimal(payload["hours"]) ?? 0
-                let customer = payload["customer_id"]?.stringValue.flatMap(UUID.init(uuidString:)).flatMap(customerName)
-                    ?? payload["walk_in"]?["name"]?.stringValue ?? ""
-                let lines = parts(payload)
-                let paid = lines.filter { $0["method"]?.stringValue != "CREDIT" }.compactMap { decimal($0["amount"]) }
-                    .reduce(Decimal(0), +)
-                let credit = lines.contains { $0["method"]?.stringValue == "CREDIT" }
-                let (pill, tone): (String, RecentActivity.Pill)
-                if unsent {
-                    (pill, tone) = (T.pillNotSent, .neutral)
-                } else if credit {
-                    (pill, tone) = (T.pillCredit, .waiting)
-                } else if let amount = decimal(op.serverResultJSON.flatMap { try? JSONValue.parse($0) }?["entity"]?["amount"]),
-                          paid < amount {
-                    (pill, tone) = (T.pillPartPaid, .waiting)
-                } else if paid > 0 {
-                    (pill, tone) = (T.pillPaid, .good)
-                } else {
-                    (pill, tone) = (T.pillSent, .neutral)
-                }
-                let total = lines.compactMap { decimal($0["amount"]) }.reduce(Decimal(0), +)
-                rows.append(RecentActivity(id: op.id, title: T.recentSale(MachineReportRules.hoursText(hours), customer),
-                                           at: op.createdAtDevice, detail: total > 0 ? money(total) : nil, pill: pill, tone: tone,
-                                           machineID: nil))
-            default: continue
-            }
-        }
+                              customerName: (UUID) -> String?, money: (Decimal) -> String, limit: Int = 4) -> [RecentActivity] {
+        let rows = reportRows(reports: reports, operations: operations, machineCode: machineCode)
+            + saleRows(operations, customerName: customerName, money: money)
         return Array(rows.sorted { $0.at > $1.at }.prefix(limit))
     }
 }

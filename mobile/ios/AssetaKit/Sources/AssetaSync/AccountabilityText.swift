@@ -382,7 +382,8 @@ public enum FieldAccountabilityTexts {
 
     /// Conflicts and refusals of the accountability ops in plain words (`field.conflict.*`); nil = show the code.
     public static func conflictText(_ code: String?) -> String? {
-        switch code {
+        if let text = SupervisorShellTexts.conflict(code) { return text }
+        return switch code {
         case "RETENTION_NOT_ALLOWED": "Your company does not allow keeping cash, so this request was not accepted."
         case "DUPLICATE_RETENTION": "This request to keep cash was already sent."
         case "ENGINE_HOURS_DISABLED": "Your company has switched off engine-hour controls, so this was not accepted."

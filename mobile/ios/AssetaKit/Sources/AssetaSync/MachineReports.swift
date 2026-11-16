@@ -361,8 +361,7 @@ public enum CreditPaymentRules {
         var m: [String] = []
         let amount = AccountabilityRules.value(amountText, decimals: AccountabilityRules.moneyDecimals)
         if amount == nil { m.append(T.payErrAmount) }
-        if let amount, amount > balance { m.append(T.payErrOverBalance) }
-        if balance <= 0 { m.append(T.payErrPaid) }
+        if let amount, amount > balance { m.append(T.payErrOverBalance(AccountabilityRules.plain(balance))) }
         let ref = AccountabilityRules.trimmed(reference, max: AccountabilityRules.maxReference)
         if method != "CASH" {
             if !noncashAllowed { m.append(FieldAccountabilityTexts.hoursErrNoncashOff) }
