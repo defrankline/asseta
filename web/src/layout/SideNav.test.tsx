@@ -91,7 +91,7 @@ describe('SideNav', () => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ 'tenant.finance': false }));
     renderNav('/tenant/finance?tab=payments');
     expect(header('Finance')).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('link', { name: 'Hire finance' })).toHaveClass('active');
+    expect(screen.getByRole('link', { name: 'Customer payments' })).toHaveClass('active');
   });
 
   it('works without storage', () => {

@@ -43,7 +43,7 @@ describe('buildNav', () => {
     const me = makeGroupedTenantMe([...finance, orphan]);
     const groups = buildNav(TENANT, tenantOf(me), me);
     expect(groups.map((g) => [g.key, g.items.map((i) => i.label)])).toEqual([
-      ['tenant.finance', ['Hire finance']],
+      ['tenant.finance', ['Customer payments']],
       ['tenant.admin', ['My access']],
     ]);
   });

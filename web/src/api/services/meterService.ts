@@ -120,7 +120,7 @@ export const meterService = {
       signal,
     );
   },
-  /** GET /tenant/exceptions/{id} (getJobException). */
+  /** GET /tenant/exceptions/{id} (getMeterException). */
   getException(exceptionId: string, signal?: AbortSignal): Promise<ExceptionDto> {
     return tenantGet(
       `/tenant/exceptions/${seg(exceptionId)}`,
@@ -133,11 +133,11 @@ export const meterService = {
   getReset(resetId: string, signal?: AbortSignal): Promise<ResetDto> {
     return tenantGet(`/tenant/meter-resets/${seg(resetId)}`, resetSchema, 'meter reset', signal);
   },
-  /** GET /tenant/exceptions (listJobExceptions). Filters: `status`, `exception_type`, `meter_capture_id`. */
+  /** GET /tenant/exceptions (listMeterExceptions). Filters: `status`, `exception_type`, `meter_capture_id`. */
   listExceptions(query: TenantListQuery, signal?: AbortSignal): Promise<Page<ExceptionDto>> {
     return tenantPage('/tenant/exceptions', exceptionPageSchema, query, 'exception page', signal);
   },
-  /** POST /tenant/exceptions/{id}/review (reviewJobException). */
+  /** POST /tenant/exceptions/{id}/review (reviewMeterException). */
   reviewException(
     exceptionId: string,
     body: ReviewIn,

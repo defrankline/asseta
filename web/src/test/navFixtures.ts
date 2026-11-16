@@ -48,7 +48,7 @@ export const TENANT_MENUS: MenuDto[] = [
   },
   {
     key: 'tenant.finance',
-    label: 'Hire finance',
+    label: 'Customer payments',
     path: '/tenant/finance',
     order: 66,
     group: 'tenant.finance',

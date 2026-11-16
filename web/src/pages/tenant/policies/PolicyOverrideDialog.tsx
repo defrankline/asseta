@@ -150,7 +150,7 @@ function ScopeStep({
       {values.scope === 'SITE' && (
         <FormikJobSitePicker
           name="site_id"
-          label="Job site"
+          label="Site"
           required
           resolveOption={resolveSite}
           onOptionChange={onSiteChange}

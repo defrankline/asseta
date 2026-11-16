@@ -20,8 +20,8 @@ export function FinancePage() {
   return (
     <>
       <PageHeader
-        title="Hire finance"
-        subtitle="Customer payments. Separate from your Asseta subscription invoices."
+        title="Customer payments"
+        subtitle="Payments customers made for their hours and credit invoices. Separate from your Asseta subscription invoices."
         actions={
           hasPermission(PERMISSIONS.tenantFinanceRead) ? (
             <Button component={RouterLink} to={ROUTES.tenantCashCustody} variant="outlined">
