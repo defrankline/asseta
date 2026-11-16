@@ -7,9 +7,31 @@ import AssetaOwnerKit
 import SwiftUI
 
 private typealias T = MachineReportOwnerTexts
+private typealias Fig = OwnerFiguresB
 
 private func percent(_ part: Decimal, of total: Decimal) -> Double {
     total > 0 ? min(1, NSDecimalNumber(decimal: part / total).doubleValue) : 0
+}
+
+extension OwnerPillTone {
+    var shell: ShellPill.Tone {
+        switch self {
+        case .waiting: .waiting
+        case .good: .good
+        case .bad: .bad
+        case .neutral: .neutral
+        }
+    }
+}
+
+/// A grey line in place of a list (empty state, a read that failed).
+private struct ShellNote: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        Text(text).font(.system(size: 14)).foregroundStyle(Shell.muted).frame(maxWidth: .infinity, alignment: .leading)
+    }
 }
 
 // MARK: - Customers & hours
@@ -26,8 +48,8 @@ struct OwnerCustomersView: View {
 
     var body: some View {
         let all = hours.value ?? []
-        let rows = all.filter { search.isEmpty || ($0.customerName ?? "").localizedCaseInsensitiveContains(search) }
-        let open = (invoices.value?.items ?? []).filter { $0.balance.value > 0 && $0.status != "CANCELLED" }
+        let rows = OwnerCustomersParity.filter(all, query: search)
+        let allInvoices = invoices.value?.items ?? []
         VStack(spacing: 0) {
             ShellHeader(T.customersTitle, action: back)
             ScrollView {
@@ -35,17 +57,25 @@ struct OwnerCustomersView: View {
                     HStack {
                         Image(systemName: "magnifyingglass").foregroundStyle(Shell.muted)
                         TextField(T.searchCustomers, text: $search).foregroundStyle(Shell.text)
+                            .onChange(of: search) { _, value in if value.count > 100 { search = String(value.prefix(100)) } }
                     }
                     .padding(.horizontal, 14).frame(height: 46)
                     .background(Shell.card, in: RoundedRectangle(cornerRadius: 14))
-                    HStack(spacing: 8) {
-                        stat(T.bought, "\(T.h(all.reduce(0) { $0 + $1.bought.value })) h")
-                        stat(T.used, "\(T.h(all.reduce(0) { $0 + $1.used.value })) h")
-                        stat(T.creditOwed, T.short(all.reduce(0) { $0 + $1.creditOwed.value }), warn: true)
+                    if hours.value != nil {
+                        let owed = all.reduce(Decimal(0)) { $0 + $1.creditOwed.value }
+                        HStack(spacing: 8) {
+                            stat(T.bought, Fig.hours(all.reduce(Decimal(0)) { $0 + $1.bought.value }))
+                            stat(T.used, Fig.hours(all.reduce(Decimal(0)) { $0 + $1.used.value }))
+                            stat(T.creditOwed, Fig.compact(owed), warn: owed > 0)
+                        }
+                        .padding(16).background(Shell.card, in: RoundedRectangle(cornerRadius: 18))
+                        if rows.isEmpty {
+                            ShellNote(all.isEmpty ? OwnerCustomersParity.empty : OwnerCustomersParity.noMatch).padding(.vertical, 8)
+                        }
                     }
-                    .padding(16).background(Shell.card, in: RoundedRectangle(cornerRadius: 18))
                     if let error = hours.error, hours.value == nil { LoadFailure(message: error) { await reload() } }
-                    ForEach(rows) { row in card(row, invoices: open.filter { $0.customerID == row.customerID }) }
+                    ForEach(rows) { row in card(row, invoices: OwnerCustomersParity.openInvoices(row.customerID, allInvoices)) }
+                    if let error = invoices.error, invoices.value == nil { ShellNote(error) }
                 }
                 .padding(.horizontal, 16).padding(.bottom, 16)
             }
@@ -65,30 +95,25 @@ struct OwnerCustomersView: View {
     }
 
     private func card(_ row: CustomerHoursSummaryDTO, invoices: [CreditInvoiceDTO]) -> some View {
-        let awaiting = row.awaitingActivation.value
-        let detail = T.boughtUsed(T.h(row.bought.value), T.h(row.used.value))
-            + (row.creditOwed.value == 0 && awaiting == 0 ? " · \(T.allPaid)" : "")
-            + (awaiting > 0 ? " · " + T.awaitingCredit("\(T.h(awaiting)) h") : "")
-        return Button { push(OwnerRoute.hoursStatement(customer: row.customerID, name: row.customerName)) } label: {
+        Button { push(OwnerRoute.hoursStatement(customer: row.customerID, name: row.customerName)) } label: {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text(row.customerName ?? "").font(.system(size: 16, weight: .semibold))
+                    Text(row.customerName ?? row.customerID.uuidString).font(.system(size: 16, weight: .semibold))
                     Spacer()
-                    Text(T.hoursLeft(T.h(row.left.value))).font(.system(size: 15, weight: .bold))
+                    Text(T.hoursLeft(Fig.formatHours(row.left.value))).font(.system(size: 15, weight: .bold))
                         .foregroundStyle(row.left.value > 0 ? Shell.accent : Shell.muted)
                 }
                 .foregroundStyle(Shell.text)
                 SplitBar([(percent(row.used.value, of: row.bought.value), Shell.accent)], height: 8)
-                Text(detail).font(.system(size: 13)).foregroundStyle(Shell.muted)
+                Text(OwnerCustomersParity.detail(row)).font(.system(size: 13)).foregroundStyle(Shell.muted)
                 ForEach(invoices) { invoice in
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(T.invoiceRow(invoice.invoiceNumber)).font(.system(size: 14, weight: .semibold)).foregroundStyle(Shell.text)
-                            Text(T.invoiceLine(T.short(invoice.amount.value), T.short(invoice.paid.value), OwnerPeriod.short(invoice.dueDate)))
-                                .font(.system(size: 12)).foregroundStyle(Shell.muted)
+                            Text(OwnerCustomersParity.invoiceLine(invoice)).font(.system(size: 12)).foregroundStyle(Shell.muted)
                         }
                         Spacer()
-                        ShellPill(T.owed(T.short(invoice.balance.value)), tone: invoice.overdue ? .bad : .waiting)
+                        ShellPill(T.owed(Fig.compact(invoice.balance.value)), tone: invoice.overdue ? .bad : .waiting)
                     }
                     .padding(10).background(Shell.raised, in: RoundedRectangle(cornerRadius: 12))
                 }
@@ -107,8 +132,8 @@ struct OwnerCustomersView: View {
 
 // MARK: - Machines
 
-/// Machines (design OwnerMachines): the map (or list) and this week's productive vs non-productive hours per machine;
-/// machines with no report for days.
+/// Machines (design OwnerMachines): the map (or list) and this week's hours of every machine with a report status or a
+/// report this week; overdue machines first.
 struct OwnerMachinesView: View {
     let model: OwnerModel
     let back: () -> Void
@@ -120,67 +145,46 @@ struct OwnerMachinesView: View {
     @State private var policy = Loader<EffectivePolicyDTO<CustomerHoursPolicyValues>>()
 
     var body: some View {
-        let summary = MachineHoursSummary.of(reports.value?.items ?? [])
-        let reported = Set(summary.machines.map(\.id))
-        let overdue = OverdueMachine.list(states.value ?? [], reminderDays: policy.reminderDays)
-        let overdueByMachine = Dictionary(overdue.map { ($0.state.machineID, $0.overdue) }, uniquingKeysWith: { a, _ in a })
-        let silent = overdue.filter { !reported.contains($0.state.machineID) }
+        let f = model.features
+        let machines = fleet.value ?? []
+        let rows = OwnerMachinesParity.rows(statuses: states.value ?? [], reports: reports.value?.items ?? [], fleet: machines,
+                                            fleetOn: f.fleet, tracking: f.tracking, machineReports: f.machineReports,
+                                            reminderDays: policy.reminderDays)
         VStack(spacing: 0) {
             ShellHeader(T.machinesTitle, action: back) {
-                if model.features.fleet {
+                if f.fleet {
                     ShellSegments([(true, T.map), (false, T.list)], selection: $showMap, compact: true).fixedSize()
                 }
             }
             ScrollView {
                 VStack(spacing: 0) {
-                    if showMap && model.features.fleet {
-                        FleetMapView(machines: fleet.value ?? [], dataIsCached: fleet.isFromCache) { push(OwnerRoute.machine($0)) }
+                    if showMap && f.fleet {
+                        let placed = machines.filter(\.hasPosition).count
+                        FleetMapView(machines: machines, dataIsCached: fleet.isFromCache) { push(OwnerRoute.machine($0)) }
                             .frame(height: 300).clipShape(RoundedRectangle(cornerRadius: 18))
+                            .accessibilityElement(children: .contain)
+                            .accessibilityLabel(OwnerMachinesParity.mapAccessibility(placed))
+                        if fleet.value != nil && placed == 0 { ShellNote(OwnerMachinesParity.mapEmpty).padding(.top, 8) }
+                        if let error = fleet.error, fleet.value == nil { ShellNote(error).padding(.top, 8) }
                     }
-                    SectionLabel(T.thisWeek).padding(.top, 16).padding(.bottom, 8)
-                    VStack(spacing: 0) {
-                        ForEach(Array(summary.machines.enumerated()), id: \.element.id) { index, m in
-                            Button { if model.features.fleet { push(OwnerRoute.machine(m.id)) } } label: {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    HStack {
-                                        Text([m.code, m.name].filter { !$0.isEmpty }.joined(separator: " · ")).font(.system(size: 15, weight: .semibold))
-                                        Spacer()
-                                        if let late = overdueByMachine[m.id] {
-                                            ShellPill(late.pill, tone: .bad)
-                                        } else {
-                                            Text(m.submittedBy?.split(separator: " ").first.map(String.init) ?? "")
-                                                .font(.system(size: 13)).foregroundStyle(Shell.muted)
-                                        }
-                                    }
-                                    .foregroundStyle(Shell.text)
-                                    SplitBar([(percent(m.productive, of: m.total), Shell.accent),
-                                              (percent(m.nonProductive, of: m.total), Shell.nonProductive)], height: 8)
-                                    Text(T.machineWeek(T.h(m.total), T.h(m.productive), m.lastReading.map { T.h($0) }, pending: m.lastPending))
-                                        .font(.system(size: 13)).foregroundStyle(Shell.muted)
-                                }
-                                .padding(.horizontal, 16).padding(.vertical, 12)
-                            }
-                            .buttonStyle(.plain)
-                            if index < summary.machines.count - 1 || !silent.isEmpty { Divider().overlay(Shell.border) }
+                    if f.machineReports {
+                        SectionLabel(T.thisWeek).padding(.top, 16).padding(.bottom, 8)
+                        if let error = states.error ?? reports.error, states.value == nil || reports.value == nil {
+                            ShellNote(error).padding(.bottom, 8)
                         }
-                        ForEach(Array(silent.enumerated()), id: \.element.state.machineID) { index, row in
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack {
-                                    Text([row.state.machineCode, row.state.machineName].compactMap { $0 }.joined(separator: " · "))
-                                        .font(.system(size: 15, weight: .semibold)).foregroundStyle(Shell.text)
-                                    Spacer()
-                                    ShellPill(row.overdue.pill, tone: .bad)
+                        if rows.isEmpty && states.value != nil && !states.isLoading {
+                            ShellNote(OwnerMachinesParity.noMachines).padding(.bottom, 8)
+                        }
+                        if !rows.isEmpty {
+                            VStack(spacing: 0) {
+                                ForEach(Array(rows.enumerated()), id: \.element.id) { index, m in
+                                    row(m)
+                                    if index < rows.count - 1 { Divider().overlay(Shell.border) }
                                 }
                             }
-                            .padding(.horizontal, 16).padding(.vertical, 12)
-                            if index < silent.count - 1 { Divider().overlay(Shell.border) }
-                        }
-                        if summary.machines.isEmpty && silent.isEmpty {
-                            Text(T.noReports).font(.system(size: 14)).foregroundStyle(Shell.muted).padding(16)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Shell.card, in: RoundedRectangle(cornerRadius: 18))
                         }
                     }
-                    .background(Shell.card, in: RoundedRectangle(cornerRadius: 18))
                 }
                 .padding(.horizontal, 16).padding(.bottom, 16)
             }
@@ -189,6 +193,38 @@ struct OwnerMachinesView: View {
         .background(Shell.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .task(id: model.changeTick) { await reload() }
+    }
+
+    private func row(_ m: OwnerMachineWeek) -> some View {
+        Button {
+            switch m.open {
+            case let .machine(id): push(OwnerRoute.machine(id))
+            case let .report(id): push(OwnerRoute.machineReport(id))
+            case nil: break
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(m.title).font(.system(size: 15, weight: .semibold))
+                    Spacer()
+                    if let late = m.overdue {
+                        ShellPill(late.pill, tone: .bad)
+                    } else if let supervisor = m.supervisor {
+                        Text(supervisor).font(.system(size: 13)).foregroundStyle(Shell.muted)
+                    }
+                }
+                .foregroundStyle(Shell.text)
+                if m.hours > 0 {
+                    SplitBar([(percent(m.productive, of: m.hours), Shell.accent),
+                              (percent(m.nonProductive, of: m.hours), Shell.nonProductive)], height: 8)
+                }
+                Text(m.detail).font(.system(size: 13)).foregroundStyle(Shell.muted)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(m.open == nil)
     }
 
     private func reload() async {
@@ -204,6 +240,9 @@ struct OwnerMachinesView: View {
 
 // MARK: - Money
 
+/// Opens Record payment, for one invoice or to choose one.
+struct PaymentTarget: Hashable { let invoiceID: UUID? }
+
 /// Money (design OwnerMoney): sold by method, cash with each supervisor, credit invoices; Expenses and Record payment.
 struct OwnerMoneyView: View {
     let model: OwnerModel
@@ -212,80 +251,35 @@ struct OwnerMoneyView: View {
     @State private var period: OwnerPeriod = .week
     @State private var orders = Loader<Page<HoursPurchaseDTO>>()
     @State private var cash = Loader<[CashSupervisorSummaryDTO]>()
+    @State private var overdue = Loader<Page<RemittanceOverdueDTO>>()
     @State private var invoices = Loader<Page<CreditInvoiceDTO>>()
     @State private var expenses = Loader<Page<ExpenseDTO>>()
-    @State private var paying: CreditInvoiceDTO?
-    @State private var choosing = false
+    @State private var paying: PaymentTarget?
 
     var body: some View {
-        let sold = SoldByMethod.of(orders.value?.items ?? [])
-        let open = (invoices.value?.items ?? []).filter { $0.balance.value > 0 && $0.status != "CANCELLED" }
-        let currency = orders.value?.items.first?.currency ?? open.first?.currency ?? ""
+        let f = model.features
+        let liveOrders = orders.value?.items ?? []
+        let sold = SoldByMethod.of(liveOrders)
+        let currency = liveOrders.first?.currency ?? invoices.value?.items.first?.currency ?? ""
         VStack(spacing: 0) {
             ShellHeader(T.tileMoney, action: back) {
                 ShellSegments(OwnerPeriod.allCases.map { ($0, $0.label) }, selection: $period)
             }
             ScrollView {
                 VStack(spacing: 0) {
-                    if model.features.hoursRead {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(T.soldIn(period.phrase)).font(.system(size: 13, weight: .semibold)).opacity(0.8)
-                            Text(OwnerFormat.money(sold.total, currency: currency)).font(.system(size: 30, weight: .bold))
-                                .minimumScaleFactor(0.6).lineLimit(1)
-                            Text(T.soldLine(cash: T.short(sold.cash), bank: T.short(sold.bank), mobile: T.short(sold.mobileMoney),
-                                            credit: T.short(sold.credit))).font(.system(size: 13))
-                        }
-                        .foregroundStyle(Shell.onAccent).padding(18).frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Shell.accent, in: RoundedRectangle(cornerRadius: 20)).padding(.top, 4)
-                    }
-                    if model.features.finance {
-                        SectionLabel(T.cashSupervisors).padding(.top, 18).padding(.bottom, 8)
-                        let rows = (cash.value ?? []).sorted { $0.closingOutstanding.value > $1.closingOutstanding.value }
-                        VStack(spacing: 0) {
-                            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                                Button { push(OwnerRoute.cash) } label: {
-                                    CardRow(row.staffName,
-                                            subtitle: row.claimedUnverifiedHandovers.value > 0
-                                                ? T.handedAwaiting(T.short(row.claimedUnverifiedHandovers.value)) : nil,
-                                            last: index == rows.count - 1) {
-                                        Text(T.short(row.closingOutstanding.value)).font(.system(size: 16, weight: .bold))
-                                            .foregroundStyle(Shell.text)
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .background(Shell.card, in: RoundedRectangle(cornerRadius: 18))
-                    }
-                    if model.features.hoursRead {
-                        SectionLabel(T.creditInvoices).padding(.top, 18).padding(.bottom, 8)
-                        VStack(spacing: 0) {
-                            if open.isEmpty { Text(T.noInvoices).font(.system(size: 14)).foregroundStyle(Shell.muted).padding(16) }
-                            ForEach(Array(open.enumerated()), id: \.element.id) { index, invoice in
-                                Button { if model.features.invoicePayment { paying = invoice } } label: {
-                                    CardRow("\(invoice.invoiceNumber) · \(invoice.customerName ?? "")",
-                                            subtitle: T.invoiceLine(T.short(invoice.amount.value), T.short(invoice.paid.value),
-                                                                    OwnerPeriod.short(invoice.dueDate)),
-                                            last: index == open.count - 1) {
-                                        ShellPill(MachineReportOwnerTexts.invoiceStatus(invoice), tone: invoice.overdue ? .bad : .waiting)
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Shell.card, in: RoundedRectangle(cornerRadius: 18))
-                    }
+                    if f.hoursRead { soldCard(sold, currency: currency) }
+                    if f.finance { cashSection() }
+                    if f.hoursRead { invoiceSection() }
                 }
                 .padding(.horizontal, 16).padding(.bottom, 16)
             }
             .refreshable { await reload() }
             HStack(spacing: 10) {
-                if model.features.expenses {
-                    OutlineButton(T.expenses(expenses.value?.items.count ?? 0), height: 54) { push(OwnerRoute.fieldSpend) }
+                if f.expenses {
+                    OutlineButton(OwnerMoneyParity.expenses(expenses.value?.total), height: 54) { push(OwnerRoute.fieldSpend) }
                 }
-                if model.features.invoicePayment {
-                    PrimaryButton(T.recordPayment, enabled: !open.isEmpty, identifier: "money.recordPayment") { choosing = true }
+                if f.invoicePayment {
+                    PrimaryButton(T.recordPayment, identifier: "money.recordPayment") { paying = PaymentTarget(invoiceID: nil) }
                 }
             }
             .padding(.horizontal, 16).padding(.vertical, 12)
@@ -293,13 +287,84 @@ struct OwnerMoneyView: View {
         .background(Shell.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .task(id: "\(model.changeTick)-\(period.rawValue)") { await reload() }
-        .confirmationDialog(T.recordPayment, isPresented: $choosing, titleVisibility: .visible) {
-            ForEach(open) { invoice in
-                Button("\(invoice.invoiceNumber) · \(invoice.customerName ?? "") · \(T.short(invoice.balance.value))") { paying = invoice }
+        .navigationDestination(item: $paying) { target in
+            OwnerRecordPaymentView(model: model, preselected: target.invoiceID)
+        }
+    }
+
+    @ViewBuilder private func soldCard(_ sold: SoldByMethod, currency: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(T.soldIn(period.phrase)).font(.system(size: 13, weight: .semibold)).opacity(0.8)
+            if let items = orders.value?.items {
+                if OwnerMoneyParity.hasSales(items) {
+                    Text(Fig.money(sold.total, currency: currency)).font(.system(size: 30, weight: .bold))
+                        .minimumScaleFactor(0.6).lineLimit(1)
+                    let methods = OwnerMoneyParity.methods(sold)
+                    if !methods.isEmpty { Text(methods).font(.system(size: 13)) }
+                } else {
+                    Text(OwnerMoneyParity.noSales).font(.system(size: 14))
+                }
+            } else if let error = orders.error {
+                Text(error).font(.system(size: 13))
             }
         }
-        .sheet(item: $paying) { invoice in
-            OwnerInvoicePaymentSheet(model: model, invoice: invoice) { Task { await reload() } }
+        .foregroundStyle(Shell.onAccent).padding(18).frame(maxWidth: .infinity, alignment: .leading)
+        .background(Shell.accent, in: RoundedRectangle(cornerRadius: 20)).padding(.top, 4)
+    }
+
+    @ViewBuilder private func cashSection() -> some View {
+        SectionLabel(T.cashSupervisors).padding(.top, 18).padding(.bottom, 8)
+        if let all = cash.value {
+            let rows = OwnerMoneyParity.cashRows(all)
+            let flags = overdue.value?.items ?? []
+            if rows.isEmpty {
+                ShellNote(OwnerMoneyParity.noCash)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                        let flag = flags.first { $0.staffMemberID == row.staffMemberID }
+                        Button { push(OwnerRoute.cash) } label: {
+                            CardRow(row.staffName, subtitle: OwnerMoneyParity.cashDetail(row, overdue: flag), last: index == rows.count - 1) {
+                                Text(Fig.compact(row.closingOutstanding.value)).font(.system(size: 16, weight: .bold))
+                                    .foregroundStyle(Shell.text)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .background(Shell.card, in: RoundedRectangle(cornerRadius: 18))
+            }
+        } else if let error = cash.error {
+            ShellNote(error)
+        }
+    }
+
+    @ViewBuilder private func invoiceSection() -> some View {
+        SectionLabel(T.creditInvoices).padding(.top, 18).padding(.bottom, 8)
+        if let all = invoices.value?.items {
+            let list = OwnerMoneyParity.invoices(all)
+            if list.isEmpty {
+                ShellNote(OwnerMoneyParity.noInvoices)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(list.enumerated()), id: \.element.id) { index, invoice in
+                        let pill = OwnerMoneyParity.pill(invoice)
+                        let payable = model.features.invoicePayment && OwnerMoneyParity.payable(invoice)
+                        Button { if payable { paying = PaymentTarget(invoiceID: invoice.id) } } label: {
+                            CardRow(OwnerMoneyParity.invoiceTitle(invoice), subtitle: OwnerMoneyParity.invoiceDetail(invoice),
+                                    last: index == list.count - 1) {
+                                ShellPill(pill.label, tone: pill.tone.shell)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!payable)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Shell.card, in: RoundedRectangle(cornerRadius: 18))
+            }
+        } else if let error = invoices.error {
+            ShellNote(error)
         }
     }
 
@@ -313,151 +378,86 @@ struct OwnerMoneyView: View {
         if f.finance {
             await cash.load(model, SnapshotKey("cash.supervisors.\(range.from).\(range.to)"),
                             OwnerAPI.cashSupervisorSummary(from: range.from, to: range.to))
+            if f.cashCustody {
+                let today = OwnerPeriod.day(Date())
+                await overdue.load(model, .overdueRemittances(day: today), OwnerAPI.remittanceOverdue(day: today))
+            }
         }
         if f.expenses { await expenses.load(model, .expenses(pendingOnly: true), OwnerAPI.expenses(status: "PENDING_APPROVAL")) }
     }
 }
 
-extension MachineReportOwnerTexts {
-    /// "Unpaid", "Part paid", "Paid", "Overdue".
-    static func invoiceStatus(_ invoice: CreditInvoiceDTO) -> String {
-        if invoice.overdue { return overdue }
-        switch invoice.status {
-        case "PART_PAID": return "Part paid"
-        case "PAID": return "Paid"
-        default: return "Unpaid"
-        }
-    }
-}
-
-/// Record a payment (part or full) of a credit invoice from the office (online, `recordCreditInvoicePayment`).
-struct OwnerInvoicePaymentSheet: View {
-    let model: OwnerModel
-    let invoice: CreditInvoiceDTO
-    let saved: () -> Void
-    @Environment(\.dismiss) private var dismiss
-    @State private var clientID = UUID()
-    @State private var amount = ""
-    @State private var method = "CASH"
-    @State private var reference = ""
-    @State private var note = ""
-    @State private var receivedAt = Date()
-    @State private var busy = false
-    @State private var error: String?
-
-    var body: some View {
-        let value = Decimal(string: amount.replacingOccurrences(of: ",", with: "."), locale: Locale(identifier: "en_US_POSIX"))
-        let valid = (value ?? 0) > 0 && (value ?? 0) <= invoice.balance.value
-            && (method == "CASH" || !reference.trimmingCharacters(in: .whitespaces).isEmpty)
-        let blocked = model.mutationBlock(permitted: model.features.invoicePayment, showingCachedData: false)
-        NavigationStack {
-            Form {
-                Section {
-                    LabeledContent("Invoice", value: invoice.invoiceNumber)
-                    LabeledContent("Customer", value: invoice.customerName ?? "")
-                    LabeledContent("Balance", value: OwnerFormat.money(invoice.balance, currency: invoice.currency))
-                }
-                Section {
-                    Picker("Method", selection: $method) {
-                        Text("Cash").tag("CASH")
-                        Text("Bank").tag("BANK")
-                        Text("M-money").tag("MOBILE_MONEY")
-                    }
-                    .pickerStyle(.segmented)
-                    TextField("Amount received", text: $amount).keyboardType(.decimalPad).accessibilityIdentifier("pay.amount")
-                    if method != "CASH" { TextField("Reference", text: $reference) }
-                    DatePicker("Received", selection: $receivedAt, in: ...Date())
-                    TextField("Note (optional)", text: $note, axis: .vertical)
-                }
-                if let blocked { Section { Text(blocked.message).foregroundStyle(.secondary) } }
-                if let error { Section { Text(error).foregroundStyle(.red) } }
-            }
-            .navigationTitle(T.recordPayment)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { Task { await save(value ?? 0) } }.disabled(!valid || busy || blocked != nil)
-                }
-            }
-        }
-    }
-
-    private func save(_ value: Decimal) async {
-        guard let repository = model.repository else { return }
-        busy = true
-        defer { busy = false }
-        do {
-            let ref = reference.trimmingCharacters(in: .whitespaces)
-            let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
-            _ = try await repository.send(OwnerAPI.recordCreditInvoicePayment(invoice.id, CreditInvoicePaymentIn(
-                clientID: clientID, amount: value, method: method, reference: method == "CASH" || ref.isEmpty ? nil : ref,
-                receivedAt: min(receivedAt, Date()), note: trimmedNote.isEmpty ? nil : trimmedNote)))
-            saved()
-            dismiss()
-        } catch {
-            self.error = DecisionErrorText.message(for: error)
-            model.handle(error)
-        }
-    }
-}
-
 // MARK: - Reports
 
-/// Reports (design OwnerReports): machine hours by reason, hours sold and used, and the report exports.
+/// Reports (design OwnerReports): machine hours by customers and reasons, hours sold and used, and the REPORTS rows,
+/// each opening its screen.
 struct OwnerReportsView: View {
     let model: OwnerModel
     let back: () -> Void
+    let push: (AnyHashable) -> Void
     @State private var period: OwnerPeriod = .month
     @State private var reports = Loader<Page<MachineReportDTO>>()
     @State private var orders = Loader<Page<HoursPurchaseDTO>>()
-    @State private var hours = Loader<[CustomerHoursSummaryDTO]>()
-    @State private var pdfURL: URL?
-    @State private var busy: String?
-    @State private var error: String?
+    @State private var byReason = false
 
     var body: some View {
-        let summary = MachineHoursSummary.of(reports.value?.items ?? [])
-        let sold = SoldByMethod.of(orders.value?.items ?? [])
-        let left = (hours.value ?? []).reduce(Decimal(0)) { $0 + $1.left.value }
-        let currency = orders.value?.items.first?.currency ?? ""
+        let f = model.features
+        let split = reports.value.map { OwnerReportsPresentation.split($0.items) }
+        let sold = orders.value.map { OwnerReportsPresentation.sold($0.items) }
+        let links = OwnerReportsPresentation.links(f)
         VStack(spacing: 0) {
             ShellHeader(T.reportsTitle, action: back) {
                 ShellSegments([(OwnerPeriod.week, OwnerPeriod.week.label), (.month, OwnerPeriod.month.label)], selection: $period)
             }
             ScrollView {
                 VStack(spacing: 0) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(T.machineHoursIn(period.phrase)).font(.system(size: 13)).foregroundStyle(Shell.muted)
-                        Text("\(T.h(summary.total)) h").font(.system(size: 26, weight: .bold)).foregroundStyle(Shell.text)
-                        SplitBar(summary.byReason.enumerated().map { i, r in
-                            (percent(r.hours, of: summary.total), Shell.series[min(i, Shell.series.count - 1)])
-                        }, height: 12)
-                        FlowLegend(items: summary.byReason.enumerated().map { i, r in
-                            (Shell.series[min(i, Shell.series.count - 1)], "\(r.name) \(T.h(r.hours)) h")
-                        })
-                    }
-                    .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Shell.card, in: RoundedRectangle(cornerRadius: 18)).padding(.top, 4)
-                    HStack(spacing: 12) {
-                        figure(T.hoursSold, "\(T.h(sold.hours)) h", OwnerFormat.money(sold.total, currency: currency))
-                        figure(T.hoursUsed, "\(T.h(summary.productive)) h", T.stillWithCustomers(T.h(left)))
-                    }
-                    .padding(.top, 12)
-                    SectionLabel(T.reportsHeader).padding(.top, 18).padding(.bottom, 8)
-                    VStack(spacing: 0) {
-                        ForEach(Array(T.reportCodes.enumerated()), id: \.offset) { index, item in
-                            Button { Task { await open(item.code) } } label: {
-                                CardRow(item.title, last: index == T.reportCodes.count - 1) {
-                                    if busy == item.code { ProgressView() } else { Text("›").foregroundStyle(Shell.muted) }
+                    if f.machineReports {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(OwnerReportsTexts.title(month: period == .month)).font(.system(size: 13)).foregroundStyle(Shell.muted)
+                            if let split {
+                                if split.total == 0 {
+                                    ShellNote(OwnerReportsTexts.noHours)
+                                } else {
+                                    Text(Fig.hours(split.total)).font(.system(size: 26, weight: .bold)).foregroundStyle(Shell.text)
+                                    HoursSplitBar(split: split)
+                                    HoursLegend(split: split)
                                 }
+                            } else if let error = reports.error {
+                                ShellNote(error)
                             }
-                            .buttonStyle(.plain)
-                            .disabled(!model.isOnline || busy != nil)
                         }
+                        .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Shell.card, in: RoundedRectangle(cornerRadius: 18)).padding(.top, 4)
                     }
-                    .background(Shell.card, in: RoundedRectangle(cornerRadius: 18))
-                    if let error { Text(error).font(.system(size: 13)).foregroundStyle(Shell.badText).padding(.top, 8) }
+                    if f.hoursRead || f.machineReports {
+                        HStack(spacing: 12) {
+                            if f.hoursRead {
+                                figure(OwnerReportsTexts.hoursSold, sold.map { Fig.hours($0.hours) } ?? "—", sold?.amount)
+                            }
+                            if f.machineReports {
+                                let used = split?.customers
+                                let left = sold.flatMap { s in used.map { max(0, s.hours - $0) } }
+                                figure(OwnerReportsTexts.hoursUsed, used.map { Fig.hours($0) } ?? "—",
+                                       left.map { OwnerReportsTexts.stillWithCustomers($0) })
+                            }
+                        }
+                        .padding(.top, 12)
+                    }
+                    if !links.isEmpty {
+                        SectionLabel(OwnerReportsTexts.reports).padding(.top, 18).padding(.bottom, 8)
+                        VStack(spacing: 0) {
+                            ForEach(Array(links.enumerated()), id: \.offset) { index, link in
+                                Button { open(link.open) } label: {
+                                    CardRow(link.label, last: index == links.count - 1) {
+                                        Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold))
+                                            .foregroundStyle(Shell.muted)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .background(Shell.card, in: RoundedRectangle(cornerRadius: 18))
+                    }
                 }
                 .padding(.horizontal, 16).padding(.bottom, 16)
             }
@@ -466,14 +466,24 @@ struct OwnerReportsView: View {
         .background(Shell.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .task(id: "\(model.changeTick)-\(period.rawValue)") { await reload() }
-        .quickLookPreview($pdfURL)
+        .navigationDestination(isPresented: $byReason) { OwnerHoursByReasonView(model: model, period: $period) }
     }
 
-    private func figure(_ title: String, _ value: String, _ detail: String) -> some View {
+    private func open(_ link: OwnerReportLink) {
+        switch link {
+        case .customers: push(OwnerScreen.customers)
+        case .machines: push(OwnerScreen.machines)
+        case .hoursByReason: byReason = true
+        case .money: push(OwnerScreen.money)
+        case .cash: push(OwnerRoute.cash)
+        }
+    }
+
+    private func figure(_ title: String, _ value: String, _ detail: String?) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title).font(.system(size: 13)).foregroundStyle(Shell.muted)
             Text(value).font(.system(size: 22, weight: .bold)).foregroundStyle(Shell.text).padding(.top, 2)
-            Text(detail).font(.system(size: 12)).foregroundStyle(Shell.muted)
+            if let detail { Text(detail).font(.system(size: 12)).foregroundStyle(Shell.muted) }
         }
         .padding(14).frame(maxWidth: .infinity, alignment: .leading)
         .background(Shell.card, in: RoundedRectangle(cornerRadius: 18))
@@ -486,41 +496,99 @@ struct OwnerReportsView: View {
         }
         if model.features.hoursRead {
             await orders.load(model, .hoursPurchases(from: range.from, to: range.to), OwnerAPI.hoursPurchases(from: range.from, to: range.to))
-            await hours.load(model, .customerHoursSummary, OwnerAPI.customerHoursSummary())
-        }
-    }
-
-    /// Downloads the report's PDF for the period and previews it.
-    private func open(_ code: String) async {
-        guard let repository = model.repository else { return }
-        busy = code
-        defer { busy = nil }
-        let range = period.range
-        let dated = ["machine_hours", "sales_collections", "credit_invoice_payments", "cash"].contains(code)
-        do {
-            let raw = try await repository.send(OwnerAPI.reportPDF(code, from: dated ? range.from : nil, to: dated ? range.to : nil))
-            let dir = FileManager.default.temporaryDirectory.appendingPathComponent("reports", isDirectory: true)
-            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            let file = dir.appendingPathComponent("\(code).pdf")
-            try raw.data.write(to: file, options: [.atomic, .completeFileProtection])
-            error = nil
-            pdfURL = file
-        } catch {
-            self.error = DecisionErrorText.message(for: error)
-            model.handle(error)
         }
     }
 }
 
-/// Legend entries that wrap onto several lines.
-private struct FlowLegend: View {
-    let items: [(Color, String)]
+/// Non-productive hours by reason for the period chosen on Reports (with each reason's share of the machine hours).
+struct OwnerHoursByReasonView: View {
+    let model: OwnerModel
+    @Binding var period: OwnerPeriod
+    @Environment(\.dismiss) private var dismiss
+    @State private var reports = Loader<Page<MachineReportDTO>>()
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), alignment: .leading)], alignment: .leading, spacing: 6) {
-            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                (Text("■ ").foregroundColor(item.0) + Text(item.1).foregroundColor(Shell.text)).font(.system(size: 13))
+        let split = reports.value.map { OwnerReportsPresentation.split($0.items) }
+        VStack(spacing: 0) {
+            ShellHeader(OwnerReportsTexts.byReason, action: { dismiss() }) {
+                ShellSegments([(OwnerPeriod.week, OwnerPeriod.week.label), (.month, OwnerPeriod.month.label)], selection: $period)
             }
+            ScrollView {
+                VStack(spacing: 0) {
+                    if let split {
+                        if split.reasons.isEmpty {
+                            ShellNote(OwnerReportsTexts.noHours).padding(.top, 8)
+                        } else {
+                            SectionLabel(OwnerReportsTexts.nonProductiveHeader(split.nonProductive)).padding(.top, 8).padding(.bottom, 8)
+                            VStack(spacing: 0) {
+                                ForEach(Array(split.reasons.enumerated()), id: \.offset) { index, reason in
+                                    CardRow(reason.name, subtitle: OwnerReportsTexts.share(reason.hours, of: split.total),
+                                            last: index == split.reasons.count - 1) {
+                                        Text(Fig.hours(reason.hours)).font(.system(size: 15, weight: .bold)).foregroundStyle(Shell.text)
+                                    }
+                                }
+                            }
+                            .background(Shell.card, in: RoundedRectangle(cornerRadius: 18))
+                            ShellNote(OwnerReportsTexts.counted).font(.system(size: 13)).padding(.top, 12)
+                        }
+                    } else if let error = reports.error {
+                        ShellNote(error).padding(.top, 8)
+                    }
+                }
+                .padding(.horizontal, 16).padding(.bottom, 16)
+            }
+            .refreshable { await reload() }
+        }
+        .background(Shell.background.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
+        .staleBanner(reports, model: model)
+        .task(id: "\(model.changeTick)-\(period.rawValue)") { await reload() }
+    }
+
+    private func reload() async {
+        guard model.features.machineReports else { return }
+        let range = period.range
+        await reports.load(model, .machineReports(from: range.from, to: range.to), OwnerAPI.machineReports(from: range.from, to: range.to))
+    }
+}
+
+/// Bar colours: amber for customers, then one colour per reason (repeating), as Android `REASON_COLORS`.
+private let reasonColors: [Color] = [
+    Color(red: 0xE5 / 255, green: 0x67 / 255, blue: 0x5C / 255), Color(red: 0x4F / 255, green: 0xA3 / 255, blue: 0xE0 / 255),
+    Color(red: 0x9B / 255, green: 0x7B / 255, blue: 0xE0 / 255), Color(red: 0x5C / 255, green: 0xC8 / 255, blue: 0xA8 / 255),
+    Color(red: 0xB7 / 255, green: 0xC4 / 255, blue: 0xD1 / 255), Color(red: 0x7B / 255, green: 0xA0 / 255, blue: 0x5C / 255),
+]
+
+private func reasonColor(_ index: Int) -> Color { reasonColors[index % reasonColors.count] }
+
+/// Customers and each reason as one bar.
+private struct HoursSplitBar: View {
+    let split: OwnerHoursSplit
+
+    var body: some View {
+        let customers: (Double, Color) = (percent(split.customers, of: split.total), Shell.accent)
+        let reasons: [(Double, Color)] = split.reasons.enumerated().map { i, r in (percent(r.hours, of: split.total), reasonColor(i)) }
+        return SplitBar([customers] + reasons, height: 14)
+            .accessibilityElement()
+            .accessibilityLabel(OwnerReportsTexts.barAccessibility)
+    }
+}
+
+/// "■ Customers 880 h", "■ Breakdown 40 h", ...
+private struct HoursLegend: View {
+    let split: OwnerHoursSplit
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            entry(Shell.accent, "\(OwnerReportsTexts.customers) \(Fig.hours(split.customers))")
+            ForEach(Array(split.reasons.enumerated()), id: \.offset) { i, r in entry(reasonColor(i), "\(r.name) \(Fig.hours(r.hours))") }
+        }
+    }
+
+    private func entry(_ color: Color, _ text: String) -> some View {
+        HStack(spacing: 8) {
+            RoundedRectangle(cornerRadius: 3).fill(color).frame(width: 10, height: 10)
+            Text(text).font(.system(size: 14)).foregroundStyle(Shell.text)
         }
     }
 }

@@ -69,7 +69,7 @@ public struct OwnerRootView: View {
         case .customers: OwnerCustomersView(model: model, back: pop, push: append)
         case .machines: OwnerMachinesView(model: model, back: pop, push: append)
         case .money: OwnerMoneyView(model: model, back: pop, push: append)
-        case .reports: OwnerReportsView(model: model, back: pop)
+        case .reports: OwnerReportsView(model: model, back: pop, push: append)
         case .more: MoreView(model: model).navigationBarTitleDisplayMode(.inline)
         case .settings: SettingsView(model: model).navigationBarTitleDisplayMode(.inline)
         }
