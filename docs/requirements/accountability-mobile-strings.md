@@ -2959,3 +2959,180 @@ Rules (Android `ShellModel`, `MachineReportRules`, `FieldAccess`; iOS the same n
 | field.dashboard.report.approved | Approved |
 | field.dashboard.report.rejected | Rejected |
 | field.settings.title | Settings |
+
+### Owner
+
+Rules (Android `OwnerFeatures`, `MachineReportApproval`; iOS the same):
+- **Side menu:** Home, Approvals (amber badge = waiting), Customers & hours, Machines, Money, Reports, Notifications (red
+  badge = unread); a "MORE" group keeps the existing screens with their old gating (go-live checklist, dashboard,
+  accountability, find a reference, people scorecard, fleet map, alerts, meter exceptions, field spend, cash with
+  supervisors, investigations); footer Switch company (several companies), Settings (delete my account, company
+  closure), Sign out. A menu entry opens on top of Home. Jobs, job approvals, job creation and Unbilled work are gone.
+- **Machine report decisions:** by `tenant.machine_report.approve`, never on your own report (a sentence explains why
+  instead of the buttons); Reject needs a reason. The detail shows the tracker engine hours of the same period next to
+  the meter's when the machine has a tracker.
+- **Credit sales:** orders with a credit part waiting for activation, for holders of `tenant.hours.credit_activate`
+  with customer hours on, never for the person who recorded the sale. Approve credit activates the credit hours (credit
+  amount ÷ effective rate); Reject asks for the order's cancellation (`tenant.hours.cancel`).
+- **Record payment:** `tenant.hours.invoice_payment`; at most the invoice's balance; reference required for bank and
+  mobile money; one idempotency key per form visit.
+- **Fuel:** while FUEL is off, no fuel choice in Field spend, no fuel card or fuel flag on a machine day.
+- **Overdue machines:** no report for 3 days (the policy default; the setting is not in `/me`) and none waiting.
+
+
+Exact wording as implemented in the Owner apps (Android `mobile/android/app/owner`; iOS copies it). Placeholders in
+`{braces}`. Figures follow the designs: compact money `5.2M` / `3.85M` / `2.0M` (two decimals at most, one at least;
+below a million the grouped amount `850,000`; from a billion `1.2B`), whole money `TZS 3,800,000`, hours `300 h`,
+times `today 07:40`, `yesterday 18:10`, `{n} days ago` (2–6), then `12 Nov`.
+
+#### Side menu (OwnerSideNav) — `ui/OwnerMenu.kt` `MenuTexts`
+
+| Key | Text |
+|---|---|
+| Header | `{display name}` over `{company name}` (initials in the amber circle) |
+| home | Home |
+| approvals | Approvals (amber badge = waiting count, `99+` above 99) |
+| customers | Customers & hours |
+| machines | Machines |
+| money | Money |
+| reports | Reports |
+| notifications | Notifications (red badge = unread) |
+| group header | MORE |
+| more entries | Go-live checklist · Dashboard · Accountability (existing text) · Find a reference (existing) · People scorecard (existing) · Fleet map · Alerts · Meter exceptions · Field spend · Cash with supervisors · Investigations |
+| footer | Switch company · Settings · Sign out |
+| caption (read-only company) | This company is read-only. Viewing only. |
+| sign-out dialog | Sign out? / Sign out and erase saved data / Cancel (existing Settings wording) |
+
+#### Home (OwnerHome) — `ui/home/OwnerHomeScreen.kt` `HomeTexts`
+
+| Key | Text |
+|---|---|
+| greeting | Good morning, {first name} / Good afternoon, {first name} / Good evening, {first name} (core ShellText) |
+| strip | Cash with supervisors · Hours sold this week · Productive |
+| strip value missing | — |
+| section | YOUR BUSINESS |
+| tile | Approvals — Reports, credit, expenses (badge `{n} waiting`) |
+| tile | Customers — Hours bought, used, left |
+| tile | Machines — Map, readings, hours |
+| tile | Money — Collections, cash, expenses |
+| section | NEEDS YOUR ATTENTION |
+| report row | {machine} report · {h} h non-productive (all productive: {machine} report · {h} h) / {supervisor} · {today 07:40} — pill Review |
+| overdue row | {machine} · no report for {n} days / Last approved reading {reading} h (or: No approved reading yet) — pill Overdue |
+| empty | Nothing needs your attention right now. |
+| bell (accessibility) | Notifications, {n} unread |
+
+#### Approvals (OwnerApprovals) — `ui/approvals/ApprovalFilters.kt` `ApprovalsTexts`, `ui/reports/ReportPresentation.kt`
+
+| Key | Text |
+|---|---|
+| chips | All {n} · Machine reports {n} · Credit {n} · Expenses {n} |
+| machine report row | MACHINE REPORT · {time} / {machine} · {h} h · {supervisor} / {h} h to {n} customers · {h} h non-productive (one customer: `{h} h {customer}`; one reason: `{h} h {reason in words, e.g. transit}`; no lines: `{h} h to customers`) |
+| credit row | CREDIT SALE · {time} / {customer} · {h} h on credit / Invoice {number} · {TZS 3,800,000} · limit left {6.2M} |
+| credit buttons | Reject · Approve credit |
+| credit own sale | You recorded this sale, so someone else must approve its credit. |
+| approve-credit dialog | Approve credit / {customer} · {h} h on credit / Reason (at least 3 characters) / default reason `Credit sale approved` / Approve credit · Cancel |
+| reject-credit dialog | Reject this credit sale? / This asks for the order to be cancelled. The customer's hours stay unusable meanwhile. / Reason (needed to reject) / Reject · Cancel |
+| credit done | Credit approved. The customer can use these hours. |
+| credit turned down | Cancellation requested for this order. |
+| credit refusals | SEGREGATION_OF_DUTIES: You recorded this sale, so you can't approve its credit. Someone else must. · NO_CREDIT_ARRANGEMENT: This customer has no approved credit limit. Set one up on the web first. · CREDIT_LIMIT_EXCEEDED: This would take the customer over their credit limit. · EXCEEDS_UNACTIVATED_HOURS: Fewer hours are waiting than this; the list has been refreshed. · CREDIT_NOT_ALLOWED: Credit is switched off for this company. · PURCHASE_CANCELLED: This order was cancelled. · CANCELLATION_PENDING: A cancellation is already waiting for this order. |
+| expense row | EXPENSE · {time} / {description} · {TZS 185,000} / receipt photo · {supplier} · {request reason when different} |
+| empty | Nothing waiting / Nothing here needs your decision. |
+
+#### Machine report approval (OwnerReportApproval) — `ui/reports/ReportPresentation.kt` `ReportTexts`
+
+| Key | Text |
+|---|---|
+| screen title | Machine report |
+| header | {machine} machine report / {supervisor} · {time} |
+| status pill (decided) | Approved · Rejected (waiting: Awaiting approval) |
+| photo | View meter photo / Meter photo (online only) (existing EvidencePhoto pattern) |
+| readings | {1,210} → {1,510} h |
+| read line | {300} h · read by phone {1510.0} ✓ (OCR differs: `· typed {1,500}`; manual: `typed by hand`) |
+| GPS | GPS: ±{6} m · GPS: position recorded · GPS: {status in words, e.g. no fix} |
+| customers | CUSTOMERS · {220} h — rows: {customer} / · {140} → {20} h left — {120} h |
+| non-productive | NON-PRODUCTIVE · {80} h — rows: {reason name} / “{note}” — {40} h |
+| tracker | Tracker engine hours for the same period: {296} h (meter {300} h). / No tracker data for this period. |
+| supervisor note | Supervisor's note |
+| reason field | Reason (needed to reject) / placeholder: e.g. Idle hours too high, explain |
+| buttons | Reject · Approve |
+| reject dialog | Reject this report? / The supervisor is told your reason and corrects the split on the same reading. / Reject · Cancel |
+| done | Report approved. The customers' hours are used. · Report rejected. The supervisor will correct it. |
+| why no buttons | You submitted this report, so someone else must approve or reject it. · Only people allowed to approve machine reports can decide it. |
+| refusals | SEGREGATION_OF_DUTIES: You submitted this report, so you can't decide it. Someone else with approval rights must. · REPORT_NOT_PENDING: This report was already decided by someone else. It has been refreshed. · REPORT_READINGS_CHANGED: The machine's previous reading changed after this report was sent (a baseline or meter reset). Reject it so the supervisor can send it again. · HOURS_NOT_AVAILABLE: A customer no longer has these hours (cancelled or expired). Reject the report so the supervisor can correct it. · REPORT_NOT_FOUND: This report no longer exists. |
+| not found | Report not found / It may have been removed, or you can no longer see it. (defined, for parity) |
+
+#### Customers & hours (OwnerCustomers) — `ui/customers/CustomersScreen.kt` `CustomerTexts`
+
+| Key | Text |
+|---|---|
+| title | Customers & hours |
+| search | Search customers |
+| totals | Bought · Used · Credit owed |
+| row | {customer} — {20} h left / Bought {160} h · used {140} h · all paid (owed and awaiting: `· {3.6M} on credit, awaiting approval`) |
+| invoice | Invoice {number} · credit / {3,800,000} · paid {1,800,000} ({bank}) · due {30 Nov} — pill {2.0M} owed |
+| empty | No customers with hours yet. · No customer matches this search. |
+
+#### Machines (OwnerMachines) — `ui/machines/MachinesScreen.kt` `MachinesTexts`
+
+| Key | Text |
+|---|---|
+| switch | Map · List |
+| section | THIS WEEK |
+| row | {code} · {model} — {supervisor} / {300} h · {220} productive · last reading {1,510} h (pending) |
+| overdue row | {code} · {model} — pill No report {n} days / Tracker: engine {on} · {moving} (no tracker: last reading {r} h, or Last approved reading … / No approved reading yet) |
+| empty | No machines to show. · No machine has a known position. |
+| map (accessibility) | Map with {n} machines. Use the List for details. |
+
+#### Money (OwnerMoney) — `ui/money/MoneyScreen.kt` `MoneyTexts`
+
+| Key | Text |
+|---|---|
+| tabs | Today · Week · Month |
+| sold | SOLD TODAY / SOLD THIS WEEK / SOLD THIS MONTH — {TZS 12,600,000} / Cash {5.4M} · Bank {2.0M} · Mobile {1.4M} · Credit {3.8M} |
+| cash | CASH WITH SUPERVISORS — {name} / Handed over {1.2M} · awaiting your check · Overdue to hand over · {n} days — {3.85M} |
+| invoices | CREDIT INVOICES — {INV-0042} · {customer} / {3.8M} · paid {1.8M} by {bank} · due {30 Nov} — pills Part paid · Unpaid · Paid · Overdue · Cancelled |
+| buttons | Expenses ({n}) · Record payment |
+| empty | No sales in this period. · No supervisor holds cash. · No open credit invoices. |
+
+#### Record payment — `ui/money/PaymentForm.kt` `PaymentTexts`
+
+| Key | Text |
+|---|---|
+| title / button | Record payment |
+| sections | INVOICE · METHOD · RECEIVED |
+| invoice row | {INV-0042} · {customer} / {TZS 2,000,000} left · due {30 Nov} |
+| amount | Amount ({TZS}) |
+| methods | Cash · Bank · Mobile money |
+| reference | Reference / Bank or mobile money transaction reference |
+| received | Today · Yesterday |
+| note | Note (optional) |
+| hints | Cash goes into your cash with you until you hand it over. · Bank and mobile money stay unconfirmed until the office checks them. |
+| checks | Choose the invoice being paid. · Enter the amount received (more than 0). · At most the balance, {2,000,000}. · Enter the transaction reference for a bank or mobile money payment. |
+| done | Payment recorded. {INV-0042}: {TZS 1,830,000} left. |
+| none | No open credit invoices. |
+| refusals | INVOICE_OVERPAYMENT: That is more than the invoice still owes. The invoice has been refreshed. · INVOICE_PAID: This invoice is already paid in full. · INVOICE_CANCELLED: This invoice was cancelled with its order. · INVOICE_NOT_FOUND: This invoice no longer exists. · PAYMENT_NOT_PERMITTED: You may not record bank or mobile money payments here. Record cash, or ask the office. · STAFF_NOT_LINKED: Your login is not linked to a staff record, so cash can't be put in your custody. Ask the office. · NOT_CUSTODIAN: Only office cash staff may record cash for someone else. |
+
+#### Reports (OwnerReports) — `ui/reports/OwnerReportsScreen.kt` `OwnerReportsTexts`
+
+| Key | Text |
+|---|---|
+| tabs | Week · Month |
+| headline | Machine hours, {November} / Machine hours, this week — {1,240} h |
+| legend | Customers {880} h · Breakdown · Transit · Idle · Servicing · Waiting for customer · Weather · {tenant reason name} · Non-productive (hours without lines) |
+| tiles | Hours sold — {960} h — {TZS 91.2M} · Hours used — {880} h — {80} h still with customers |
+| section | REPORTS |
+| rows | Customer hours: bought, used, left · Productive vs non-productive by machine · Non-productive hours by reason · Sales and collections by method · Credit invoices and payments · Cash per supervisor |
+| empty | No machine hours reported in this period. |
+| by reason screen | title Non-productive hours by reason; NON-PRODUCTIVE · {h} h; rows {reason} / {n}% of machine hours — {h} h; footer Approved and waiting reports; rejected ones are left out. |
+| bar (accessibility) | Machine hours by customers and reasons |
+
+#### Changed existing wording
+
+| Where | Before | After |
+|---|---|---|
+| Dashboard (old Overview, now under More) section | Jobs and work (job counts, "Open jobs") | Approvals and readings (pending approvals, readings needing review, open meter exceptions) |
+| Screen titles | Fleet | Fleet map |
+| Screen titles | Customer hours (purchase list) | Customers & hours (the list now opens Customers & hours) |
+| Removed | Jobs tab, Job screens, "Jobs waiting for approval", "New job", Unbilled work, "Open job" links | — |
+| Field spend | Expenses / Fuel choice | Fuel choice (and fuel lists) only while FUEL is not switched off |
+| Daily sheet day | Fuel card, "Fuel above norm" flag | hidden while FUEL is switched off |
