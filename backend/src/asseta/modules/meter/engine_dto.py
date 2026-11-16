@@ -115,10 +115,9 @@ class ReconciliationStatus(StrEnum):
 
 class LedgerPointDto(BaseModel):
     ref: uuid.UUID
-    source: str = Field(description="BASELINE or the reading kind (OPENING / CLOSING / DAILY)")
+    source: str = Field(description="BASELINE or the reading kind (DAILY)")
     at: datetime
     reading: Decimal
-    job_id: uuid.UUID | None
 
 
 class ClassificationRefDto(BaseModel):
@@ -132,13 +131,10 @@ class SegmentDto(BaseModel):
     kind: SegmentKind
     hours: Decimal
     classification: SegmentClassification
-    job_id: uuid.UUID | None
-    job_number: str | None
+    report_id: uuid.UUID | None = Field(default=None, description="REPORTED: the machine report accounting for it")
+    report_number: str | None = None
     approved: ClassificationRefDto | None
     proposal: ClassificationRefDto | None
-    activity_type: str | None = Field(
-        default=None, description="NON_REVENUE segments: the work-log type (e.g. MOBILIZATION) — DEC-031 R1"
-    )
 
 
 class IntervalDto(BaseModel):
@@ -155,29 +151,18 @@ class IntervalDto(BaseModel):
     review: ReadingReview
     opened_at: datetime
     age_days: int
-    overlapping_job_ids: list[uuid.UUID]
     segments: list[SegmentDto]
 
 
 class TotalsDto(BaseModel):
     total_hours: Decimal
-    customer_work_hours: Decimal
-    non_revenue_hours: Decimal = Field(
-        default=Decimal(0),
-        description="Non-revenue work-log time inside job windows (revenue-hour basis on; else 0) — DEC-031 R1",
-    )
+    reported_hours: Decimal = Field(description="Inside submitted or approved machine reports")
     unallocated_hours: Decimal
     approved_non_customer_hours: Decimal
     identified_variance_hours: Decimal
     unexplained_hours: Decimal
     proposed_hours: Decimal
     pending_review_hours: Decimal
-
-
-class JobOverlapDto(BaseModel):
-    first_job_id: uuid.UUID
-    second_job_id: uuid.UUID
-    basis: str
 
 
 class MachineEngineHoursDto(BaseModel):
@@ -190,7 +175,6 @@ class MachineEngineHoursDto(BaseModel):
     policy_version: str
     totals: TotalsDto
     intervals: list[IntervalDto]
-    overlaps: list[JobOverlapDto]
 
 
 class MachineEngineHoursSummaryDto(BaseModel):
@@ -264,7 +248,7 @@ class ClassificationDto(Dto):
 class CorrectionIn(BaseModel):
     superseded_capture_id: uuid.UUID
     reason: Annotated[str, StringConstraints(min_length=10, max_length=2000, strip_whitespace=True)]
-    replacement: MeterCaptureIn = Field(description="The corrected reading with its own evidence (same kind/job)")
+    replacement: MeterCaptureIn = Field(description="The corrected reading with its own evidence (same machine)")
 
 
 class CorrectionDto(Dto):
@@ -272,8 +256,6 @@ class CorrectionDto(Dto):
     machine_id: uuid.UUID
     machine_code: str | None = None
     machine_name: str | None = None
-    job_id: uuid.UUID | None
-    job_number: str | None = None
     superseded_capture_id: uuid.UUID
     replacement_capture_id: uuid.UUID
     old_reading: Decimal

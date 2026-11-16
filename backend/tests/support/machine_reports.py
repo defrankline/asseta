@@ -10,7 +10,7 @@ from typing import Any
 from tests.support.api import Actor, Api
 from tests.support.finance import FinCtx, setup_finance
 from tests.support.hours import RATE, hours_policy, purchase, verify
-from tests.support.jobs import fix
+from tests.support.meter import fix
 
 T = "/api/v1/tenant"
 BASELINE = "1000"
@@ -130,3 +130,15 @@ def later(api: Api, hours: float) -> datetime:
 
 def field_credit(f: FinCtx, on: bool = True) -> None:
     hours_policy(f, field_credit_sales=on, field_noncash_payments=True)
+
+
+def opening_body(machine_id: str, value: str, at: datetime, **extra: Any) -> dict[str, Any]:
+    """An opening report: the machine's first reading, no lines (the machine has no starting reading yet)."""
+    return {
+        "id": str(uuid.uuid4()),
+        "machine_id": machine_id,
+        "opening": True,
+        "lines": [],
+        "capture": reading(machine_id, value, at),
+        **extra,
+    }

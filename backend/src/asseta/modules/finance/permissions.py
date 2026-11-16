@@ -6,13 +6,12 @@ from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.dependencies import requires, requires_any
 
 FINANCE_READ = requires(
-    "tenant.finance.read", S.TENANT, "View hire invoices, customer payments, balances, statements and cash custody"
+    "tenant.finance.read", S.TENANT, "View customer payments, balances, statements and cash custody"
 )
-INVOICE_WRITE = requires("tenant.finance.invoice", S.TENANT, "Draft, issue and void customer hire invoices")
-PAYMENT_WRITE = requires("tenant.finance.payment", S.TENANT, "Record customer payments and allocate them to invoices")
+PAYMENT_WRITE = requires("tenant.finance.payment", S.TENANT, "Record customer payments")
 VERIFY = requires("tenant.finance.verify", S.TENANT, "Verify or reject customer payments and cash handovers")
 CASH_OFFICE = requires("tenant.finance.cash", S.TENANT, "Issue cash floats and record custody for any supervisor")
-REPORT = requires("tenant.finance.report", S.TENANT, "View machine/job/customer profitability")
+REPORT = requires("tenant.finance.report", S.TENANT, "View machine and customer profitability")
 COLLECT = requires(
     "tenant.collection.record",
     S.TENANT,
@@ -39,7 +38,13 @@ PAYMENT_DETAIL_READ = requires_any(("tenant.finance.read", "tenant.adjustment.re
 
 for menu in (
     MenuDef(
-        "tenant.finance", S.TENANT, "Hire finance", "/tenant/finance", 66, "tenant.finance.read", group="tenant.finance"
+        "tenant.finance",
+        S.TENANT,
+        "Customer payments",
+        "/tenant/finance",
+        66,
+        "tenant.finance.read",
+        group="tenant.finance",
     ),
     MenuDef(
         "tenant.cash_custody",

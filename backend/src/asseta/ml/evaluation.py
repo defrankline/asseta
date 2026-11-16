@@ -32,7 +32,7 @@ BoolArray = npt.NDArray[np.bool_]
 
 
 class Perturbation(StrEnum):
-    FUEL_DOUBLED = "FUEL_DOUBLED"  # fuel_litres and litres_per_meter_hour x2 (fuel logged but not burned on the job)
+    FUEL_DOUBLED = "FUEL_DOUBLED"  # fuel_litres and litres_per_meter_hour x2 (fuel logged, not burned by the machine)
     ENGINE_WITHOUT_METER = "ENGINE_WITHOUT_METER"  # engine ran, meter hours not captured (gap = engine hours)
     EXPENSE_SPIKE = "EXPENSE_SPIKE"  # expense_total x3 plus three fleet medians
     OFF_SITE_ACTIVITY = "OFF_SITE_ACTIVITY"  # +10h outside geofence, x3 distance, +2 sites

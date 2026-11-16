@@ -11,25 +11,17 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 import structlog
-from sqlalchemy import Exists, func, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from asseta.core.db import DbScope, apply_scope
+from asseta.modules.customers.models import Customer
 from asseta.modules.expenses.models import ApprovalRequest, ApprovalStatus
 from asseta.modules.finance.cash_service import CashCustodyService
-from asseta.modules.finance.models import (
-    CustomerPayment,
-    HireInvoiceStatus,
-    HirePaymentAllocation,
-    SettlementStatus,
-    TenantHireInvoice,
-)
 from asseta.modules.fleet.models import AssignmentRole, MachineAssignment, StaffKind, StaffMember
 from asseta.modules.geospatial.models import AlertStatus, AlertType, TrackingAlert
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.models import Customer, Job, JobStatus
 from asseta.modules.meter.engine_hours import missing_daily_reports
-from asseta.modules.meter.models import CaptureState, MeterCapture, ReadingKind
 from asseta.modules.notification.engine import NotificationEngine
 from asseta.modules.notification.realtime import RealtimePublisher
 from asseta.modules.notification.rules import Intent, perm, platform, staff
@@ -67,13 +59,10 @@ class TenantReminders:
         out: list[Intent] = []
         for fn in (
             self._platform_invoices,
-            self._hire_overdue,
             self._cash,
             self._approvals,
             self._trackers,
-            self._jobs,
             self._daily_reports,
-            self._unbilled_work,
             self._credit_invoices_overdue,
             self._machine_reports_missing,
         ):
@@ -168,40 +157,6 @@ class TenantReminders:
                 )
         return out
 
-    def _hire_overdue(self) -> list[Intent]:
-        paid = (
-            select(func.coalesce(func.sum(HirePaymentAllocation.amount), 0))
-            .join(CustomerPayment, CustomerPayment.id == HirePaymentAllocation.payment_id)
-            .where(
-                HirePaymentAllocation.invoice_id == TenantHireInvoice.id,
-                HirePaymentAllocation.released_at.is_(None),
-                CustomerPayment.status == SettlementStatus.VERIFIED,
-            )
-            .scalar_subquery()
-        )
-        count = self._s.execute(
-            select(func.count()).where(
-                TenantHireInvoice.status == HireInvoiceStatus.ISSUED,
-                TenantHireInvoice.due_date < self.day,
-                TenantHireInvoice.total > paid,
-            )
-        ).scalar_one()
-        if not count:
-            return []
-        return [
-            Intent(
-                "HIRE_INVOICE_OVERDUE",
-                (perm("tenant.finance.payment"),),
-                "Customer invoices overdue",
-                f"{count} customer invoice(s) are past their due date.",
-                self._k("hire-overdue", self._tid),
-                "/tenant/hire-invoices",
-                "hire_invoice",
-                None,
-                data={"count": count},
-            )
-        ]
-
     def _cash(self) -> list[Intent]:
         if self._local.hour < self._cfg.cash_handover_cutoff_hour:
             return []
@@ -272,76 +227,6 @@ class TenantReminders:
                 data={"count": count},
             )
         ]
-
-    def _jobs(self) -> list[Intent]:
-        stale = self._now - timedelta(hours=self._cfg.job_missing_reading_hours)
-        live = (CaptureState.ACCEPTED, CaptureState.PROVISIONAL)
-
-        def has(kind: ReadingKind) -> Exists:
-            return (
-                select(MeterCapture.id)
-                .where(MeterCapture.job_id == Job.id, MeterCapture.kind == kind, MeterCapture.state.in_(live))
-                .exists()
-            )
-
-        opening = select(Job).where(
-            Job.status == JobStatus.APPROVED, Job.planned_start < stale, ~has(ReadingKind.OPENING)
-        )
-        closing = select(Job).where(
-            Job.status == JobStatus.IN_PROGRESS,
-            Job.planned_end.is_not(None),
-            Job.planned_end < stale,
-            ~has(ReadingKind.CLOSING),
-        )
-        out = []
-        for which, stmt in (("opening", opening), ("closing", closing)):
-            for job in self._s.execute(stmt).scalars():
-                audiences = (perm("tenant.job.approve"),) + ((staff(job.supervisor_id),) if job.supervisor_id else ())
-                out.append(
-                    Intent(
-                        "JOB_MISSING_READINGS",
-                        audiences,
-                        f"Job {job.job_number}: {which} reading missing",
-                        f"No {which} meter reading after {self._cfg.job_missing_reading_hours} hours.",
-                        self._k(f"job-{which}", job.id),
-                        f"/tenant/jobs/{job.id}",
-                        "job",
-                        str(job.id),
-                    )
-                )
-        return out
-
-    def _unbilled_work(self) -> list[Intent]:
-        """DEC-031 M2: once per job, completed billing-ready work still not on an issued invoice after the tenant's
-        OVERSIGHT.unbilled_after_days (off while null)."""
-        from asseta.modules.oversight.unbilled import unbilled_jobs  # the oversight module reads many modules
-
-        out = []
-        for job in unbilled_jobs(self._s, self._tid, self._now):
-            customer = self._s.execute(select(Customer.name).where(Customer.id == job.customer_id)).scalar()
-            worth = f" worth {job.currency} {job.total}" if job.total is not None else ""
-            number = self._s.execute(select(Job.job_number).where(Job.id == job.job_id)).scalar()
-            out.append(
-                Intent(
-                    "UNBILLED_WORK",
-                    (perm("tenant.finance.invoice"),),
-                    f"Work not yet invoiced: job {number}",
-                    f"Job {number} for {customer or 'a customer'} was completed {job.days_unbilled} days ago and is "
-                    f"ready to bill{worth}, but it is not on an issued invoice yet.",
-                    f"unbilled:{job.job_id}",
-                    f"/tenant/jobs/{job.job_id}",
-                    "job",
-                    str(job.job_id),
-                    data={
-                        "kind": "JOB",
-                        "record_id": str(job.job_id),
-                        "days_unbilled": job.days_unbilled,
-                        "currency": job.currency,
-                        "total": str(job.total) if job.total is not None else None,
-                    },
-                )
-            )
-        return out
 
     def _daily_reports(self) -> list[Intent]:
         """Working machines without a reading by the tenant's daily-report cut-off (engine-hour policy)."""

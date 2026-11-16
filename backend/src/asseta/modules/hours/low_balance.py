@@ -6,32 +6,39 @@ left on that machine (a newer purchase still covering the work is not a reason t
 the alert re-arms when the purchase is back above the threshold. When `low_balance_notify_customer` is on, the
 customer's contact phone also gets one SMS per crossing through the tenant's SMS channel (and its SMS credits).
 
-Crossings are detected right after hours leave the balance (completion, daily drawdown, expiry) and by the scheduler
+Crossings are detected right after hours leave the balance (an approved machine report, expiry) and by the scheduler
 sweep (threshold changes, re-arming). A purchase already used up before the tenant set a threshold is never warned
 about retroactively: the sweep only considers purchases that still have hours left."""
 
 import uuid
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
+import structlog
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from asseta.core.audit import AuditActor, AuditService
+from asseta.core.db import DbScope, apply_scope
 from asseta.core.outbox import OutboxWriter
 from asseta.core.sms.msisdn import normalize_msisdn
+from asseta.core.sms.settings import get_sms_settings
+from asseta.modules.customers.models import Customer
 from asseta.modules.fleet.models import Machine
 from asseta.modules.hours.ledger import ZERO, purchase_totals
 from asseta.modules.hours.models import HoursLowBalanceAlert, HoursPurchase
-from asseta.modules.jobs.models import Customer
 from asseta.modules.notification.models import DeliveryStatus, SmsDelivery
 from asseta.modules.notification.segments import sms_segments
+from asseta.modules.notification.settings import get_notification_settings
 from asseta.modules.notification.types import Severity
 from asseta.modules.policy.schemas import CustomerHoursPolicy
 from asseta.modules.policy.service import EffectivePolicy
-from asseta.modules.tenancy.models import Tenant
+from asseta.modules.tenancy.models import Tenant, TenantStatus
 
 TOPIC = "asseta.hours"
+log = structlog.get_logger()
 SWEEP = AuditActor(None, [], "scheduler")
 SMS_NOT_REQUESTED, SMS_PENDING, SMS_QUEUED, SMS_NO_PHONE = "NOT_REQUESTED", "PENDING", "QUEUED", "NO_PHONE"
 
@@ -210,3 +217,37 @@ def queue_customer_sms(
         queued += 1
     s.flush()
     return queued
+
+
+@dataclass
+class LowBalanceSummary:
+    tenants: int = 0
+    low_balance_alerts: int = 0
+    customer_sms: int = 0
+    failures: int = 0
+
+
+def run_low_balance(session_factory: Callable[[], Session], now: datetime) -> LowBalanceSummary:
+    """The scheduler's low-balance pass over every non-closed tenant (threshold changes, re-arming) and the customers'
+    queued SMS; one tenant's failure never blocks the others."""
+    from asseta.modules.hours.engine import hours_policy  # lazy: the engine imports this module's monitor
+
+    summary = LowBalanceSummary()
+    sms, cfg = get_sms_settings(), get_notification_settings()
+    with session_factory() as s, s.begin():
+        apply_scope(s, DbScope.SYSTEM, None, None)
+        tenants = list(s.execute(select(Tenant.id).where(Tenant.status != TenantStatus.CLOSED)).scalars())
+    for tid in tenants:
+        summary.tenants += 1
+        try:
+            with session_factory() as s, s.begin():
+                apply_scope(s, DbScope.TENANT, tid, None)
+                eff = hours_policy(s, tid, now)
+                summary.low_balance_alerts += LowBalanceMonitor(s, tid, now, eff).sweep()
+                apply_scope(s, DbScope.SYSTEM, None, None)
+                summary.customer_sms += queue_customer_sms(s, tid, now, sms.sms_default_country_code, cfg.sms_max_chars)
+        except Exception:
+            log.exception("low_balance_tenant_failed", tenant_id=str(tid))
+            summary.failures += 1
+    log.info("low_balance_completed", **summary.__dict__)
+    return summary

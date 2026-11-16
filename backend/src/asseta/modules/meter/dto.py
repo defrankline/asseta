@@ -37,11 +37,10 @@ class GpsIn(BaseModel):
 
 class MeterCaptureIn(BaseModel):
     id: uuid.UUID = Field(description="Device-generated UUID (idempotency key for offline sync)")
-    job_id: uuid.UUID | None = Field(default=None, description="Required for OPENING/CLOSING; optional for DAILY")
     machine_id: uuid.UUID | None = Field(
-        default=None, description="DAILY reading outside a job: the machine read (must match the job's when both)"
+        default=None, description="The machine read (required; a machine report fills it from the report)"
     )
-    kind: ReadingKind
+    kind: ReadingKind = ReadingKind.DAILY
     capture_mode: CaptureMode
     reading: Reading
     ocr_raw_text: str | None = Field(default=None, max_length=500)
@@ -56,23 +55,6 @@ class MeterCaptureIn(BaseModel):
         default_factory=list, description="METER_CAPTURE snapshot the device enforced offline"
     )
     supersedes_id: uuid.UUID | None = Field(default=None, description="Approved correction of a prior capture")
-    changeover_to_customer_id: uuid.UUID | None = Field(
-        default=None,
-        description="DEC-032 A3: a DAILY reading on the running job at which the machine moved to this customer",
-    )
-    changeover_to_job_id: uuid.UUID | None = Field(
-        default=None,
-        description="The job the machine moves on to, awaiting approval on this machine for that customer. Required "
-        "while the tenant splits billing at changeovers (the hours after it bill to this job)",
-    )
-
-    @model_validator(mode="after")
-    def _target(self) -> "MeterCaptureIn":
-        if self.kind is not ReadingKind.DAILY and self.job_id is None:
-            raise ValueError("job_id is required for OPENING and CLOSING readings")
-        if self.job_id is None and self.machine_id is None:
-            raise ValueError("a DAILY reading names its machine (machine_id) or its job (job_id)")
-        return self
 
 
 class FindingDto(BaseModel):
@@ -84,7 +66,6 @@ class FindingDto(BaseModel):
 
 class MeterCaptureDto(Dto):
     id: uuid.UUID
-    job_id: uuid.UUID | None
     machine_id: uuid.UUID
     kind: ReadingKind
     capture_mode: str
@@ -145,7 +126,6 @@ class ResetDto(Dto):
 
 class ExceptionDto(Dto):
     id: uuid.UUID
-    job_id: uuid.UUID | None
     machine_id: uuid.UUID
     meter_capture_id: uuid.UUID | None
     exception_type: ExceptionType

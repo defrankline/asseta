@@ -1,4 +1,4 @@
-"""Recomputation of cash per custodian, customer receivables and invoice totals (see balance_checks)."""
+"""Recomputation of cash per custodian, customer receivables and credit invoices (see balance_checks)."""
 
 import uuid
 from datetime import datetime
@@ -8,31 +8,16 @@ from typing import Any, cast
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session
 
-from asseta.modules.adjustments.models import (
-    AdjustmentEntryStatus,
-    AdjustmentLedgerEntry,
-    AdjustmentType,
-    AdjustmentUnit,
-)
+from asseta.modules.adjustments.models import AdjustmentEntryStatus, AdjustmentLedgerEntry, AdjustmentUnit
+from asseta.modules.customers.models import Customer
 from asseta.modules.dataprotection.balance_report import ZERO, CheckKind, Finding, Report, differs, system_ctx
 from asseta.modules.expenses.models import Expense
 from asseta.modules.finance.cash_service import CashCustodyService
 from asseta.modules.finance.custody_models import CashTransfer, CustodyAdjustment
-from asseta.modules.finance.models import (
-    CREDIT_KINDS,
-    DEBIT_KINDS,
-    CashHandover,
-    CustomerPayment,
-    FinancialAdjustment,
-    HireInvoiceLine,
-    HireInvoiceStatus,
-    SettlementStatus,
-    SupervisorCashCustody,
-    TenantHireInvoice,
-)
+from asseta.modules.finance.models import CashHandover, CustomerPayment, SettlementStatus, SupervisorCashCustody
 from asseta.modules.finance.receivables import ReceivablesService
 from asseta.modules.fleet.models import StaffMember
-from asseta.modules.jobs.models import Customer
+from asseta.modules.hours.models import CreditInvoice, CreditInvoicePayment, HoursPurchase
 
 # --- cash per custodian --------------------------------------------------------------------------------------------
 CUSTODIANS = """
@@ -116,127 +101,77 @@ def check_cash(s: Session, r: Report, now: datetime) -> None:
 
 # --- customer receivables ------------------------------------------------------------------------------------------
 def _recompute_receivable(s: Session, customer_id: uuid.UUID, currency: str) -> Decimal:
-    inv = (TenantHireInvoice.customer_id == customer_id, TenantHireInvoice.currency == currency)
-    pay = (CustomerPayment.customer_id == customer_id, CustomerPayment.currency == currency)
-    adj = (FinancialAdjustment.customer_id == customer_id, FinancialAdjustment.currency == currency)
-
-    def total(column: Any, *conds: Any) -> Decimal:
-        return Decimal(s.execute(select(func.coalesce(func.sum(column), 0)).where(*conds)).scalar_one())
-
-    invoiced = total(TenantHireInvoice.total, *inv, TenantHireInvoice.issued_at.is_not(None))
-    credits_ = total(FinancialAdjustment.amount, *adj, FinancialAdjustment.kind.in_(CREDIT_KINDS))
-    debits = total(FinancialAdjustment.amount, *adj, FinancialAdjustment.kind.in_(DEBIT_KINDS))
-    verified = total(CustomerPayment.amount, *pay, CustomerPayment.status == SettlementStatus.VERIFIED)
-    return invoiced - credits_ - verified + debits
-
-
-def _later_receivable_activity(s: Session, customer_id: uuid.UUID, currency: str, after: datetime) -> bool:
-    stamps: list[Any] = [
-        select(
-            func.max(
-                func.greatest(TenantHireInvoice.created_at, TenantHireInvoice.issued_at, TenantHireInvoice.voided_at)
+    """Credit invoices of orders not cancelled, less their verified (not reversed) payments, straight from the rows."""
+    invoiced = Decimal(
+        s.execute(
+            select(func.coalesce(func.sum(CreditInvoice.amount), 0))
+            .join(HoursPurchase, HoursPurchase.id == CreditInvoice.purchase_id)
+            .where(
+                CreditInvoice.customer_id == customer_id,
+                CreditInvoice.currency == currency,
+                HoursPurchase.cancelled_at.is_(None),
             )
-        ).where(TenantHireInvoice.customer_id == customer_id, TenantHireInvoice.currency == currency),
-        select(
-            func.max(
-                func.greatest(CustomerPayment.recorded_at, CustomerPayment.verified_at, CustomerPayment.reversed_at)
+        ).scalar_one()
+    )
+    paid = Decimal(
+        s.execute(
+            select(func.coalesce(func.sum(CreditInvoicePayment.amount), 0))
+            .join(CreditInvoice, CreditInvoice.id == CreditInvoicePayment.invoice_id)
+            .join(HoursPurchase, HoursPurchase.id == CreditInvoice.purchase_id)
+            .join(CustomerPayment, CustomerPayment.id == CreditInvoicePayment.payment_id)
+            .where(
+                CreditInvoice.customer_id == customer_id,
+                CreditInvoice.currency == currency,
+                HoursPurchase.cancelled_at.is_(None),
+                CustomerPayment.status == SettlementStatus.VERIFIED,
+                CustomerPayment.reversed_at.is_(None),
             )
-        ).where(CustomerPayment.customer_id == customer_id, CustomerPayment.currency == currency),
-        select(func.max(FinancialAdjustment.created_at)).where(
-            FinancialAdjustment.customer_id == customer_id, FinancialAdjustment.currency == currency
-        ),
-    ]
-    return any((latest := s.execute(q).scalar()) is not None and latest > after for q in stamps)
+        ).scalar_one()
+    )
+    return invoiced - paid
 
 
 def check_receivables(s: Session, r: Report) -> None:
     service = ReceivablesService(s, r.tenant_id)
     customers = s.execute(select(Customer)).scalars().all()
     names = {c.id: c.name for c in customers}
-    latest_snapshot: dict[tuple[uuid.UUID, str], AdjustmentLedgerEntry] = {}
-    for e in s.execute(
-        select(AdjustmentLedgerEntry)
-        .where(
-            AdjustmentLedgerEntry.adjustment_type == AdjustmentType.INVOICE_VOID,
-            AdjustmentLedgerEntry.customer_id.is_not(None),
-            AdjustmentLedgerEntry.resulting_balance.is_not(None),
-            AdjustmentLedgerEntry.status == AdjustmentEntryStatus.APPROVED,
-        )
-        .order_by(AdjustmentLedgerEntry.posted_at)
-    ).scalars():
-        assert e.customer_id is not None and e.currency is not None
-        latest_snapshot[(e.customer_id, e.currency)] = e
     for customer in customers:
         for balance in service.balances(customer.id):
             r.checked[CheckKind.CUSTOMER_RECEIVABLE] += 1
             recomputed = _recompute_receivable(s, customer.id, balance.currency)
             if differs(recomputed, balance.balance):
                 r.findings.append(
-                    _receivable_finding(
-                        customer.id, names, balance.currency, recomputed, balance.balance, "displayed balance"
-                    )
-                )
-            snapshot = latest_snapshot.get((customer.id, balance.currency))
-            if (
-                snapshot is not None
-                and snapshot.resulting_balance is not None
-                and not _later_receivable_activity(s, customer.id, balance.currency, snapshot.posted_at)
-                and differs(recomputed, snapshot.resulting_balance)
-            ):
-                r.findings.append(
-                    _receivable_finding(
-                        customer.id,
-                        names,
-                        balance.currency,
+                    Finding(
+                        CheckKind.CUSTOMER_RECEIVABLE,
+                        "customer",
+                        str(customer.id),
+                        names.get(customer.id, str(customer.id)),
                         recomputed,
-                        snapshot.resulting_balance,
-                        f"adjustment {snapshot.id} resulting balance",
+                        balance.balance,
+                        balance.currency,
+                        "displayed balance",
+                        {"customer_id": str(customer.id)},
                     )
                 )
-
-
-def _receivable_finding(
-    customer_id: uuid.UUID, names: dict[uuid.UUID, str], currency: str, ledger: Decimal, stored: Decimal, source: str
-) -> Finding:
-    return Finding(
-        CheckKind.CUSTOMER_RECEIVABLE,
-        "customer",
-        str(customer_id),
-        names.get(customer_id, str(customer_id)),
-        ledger,
-        stored,
-        currency,
-        source,
-        {"customer_id": str(customer_id)},
-    )
 
 
 def check_invoices(s: Session, r: Report) -> None:
-    line_totals = dict(
-        s.execute(
-            select(HireInvoiceLine.invoice_id, func.sum(HireInvoiceLine.amount)).group_by(HireInvoiceLine.invoice_id)
-        ).all()
-    )
-    for inv in s.execute(
-        select(TenantHireInvoice).where(TenantHireInvoice.status == HireInvoiceStatus.ISSUED)
-    ).scalars():
+    """A credit invoice never asks for more than its order costs."""
+    for inv, order_amount in s.execute(
+        select(CreditInvoice, HoursPurchase.amount).join(HoursPurchase, HoursPurchase.id == CreditInvoice.purchase_id)
+    ).tuples():
         r.checked[CheckKind.INVOICE_TOTAL] += 1
-        lines = Decimal(line_totals.get(inv.id, ZERO))
-        arithmetic = inv.subtotal - inv.discount_total + inv.tax_total
-        consistent = (not differs(arithmetic, inv.total)) and (
-            not differs(lines, inv.total) or not differs(lines, inv.subtotal)
-        )
-        if not consistent:
+        if inv.amount > order_amount + ZERO:
             r.findings.append(
                 Finding(
                     CheckKind.INVOICE_TOTAL,
-                    "tenant_hire_invoice",
+                    "credit_invoice",
                     str(inv.id),
-                    inv.invoice_number or str(inv.id),
-                    lines,
-                    inv.total,
+                    inv.invoice_number,
+                    order_amount,
+                    inv.amount,
                     inv.currency,
-                    "invoice total against its lines",
-                    {"subtotal": str(inv.subtotal), "discount": str(inv.discount_total), "tax": str(inv.tax_total)},
+                    "credit invoice amount against its order",
+                    {"purchase_id": str(inv.purchase_id)},
                 )
             )

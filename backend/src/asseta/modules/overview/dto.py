@@ -32,7 +32,7 @@ class OverviewFleetSectionDto(BaseModel):
     machines: int = Field(description="Registered machines, excluding disposed ones")
     connectivity: OverviewConnectivityCountsDto
     reported_work_state: dict[str, int] = Field(
-        description="Machines by supervisor-reported state (ReportedWorkState values, zero-filled)"
+        description="Machines by the state of their latest machine report (ReportedWorkState values, zero-filled)"
     )
     engine_on_verified: int = Field(
         description="Machines whose verified ignition input reports ON with a fresh position (never inferred)"
@@ -42,7 +42,9 @@ class OverviewFleetSectionDto(BaseModel):
 
 
 class OverviewWorkSectionDto(BaseModel):
-    jobs_by_status: dict[str, int] = Field(description="JobStatus values, zero-filled")
+    machine_reports_by_status: dict[str, int] = Field(
+        description="Machine reports by status (SUBMITTED, APPROVED, REJECTED; zero-filled)"
+    )
     pending_approvals: int | None = Field(description="Approval requests waiting; null without tenant.approval.read")
     readings_needing_review: int | None = Field(
         description="Provisional meter readings (open exceptions to review); null without tenant.meter.read"
@@ -53,7 +55,7 @@ class OverviewWorkSectionDto(BaseModel):
 
 class OverviewCurrencyMoneyDto(BaseModel):
     currency: str
-    receivables_outstanding: Money = Field(description="Unpaid balance of issued customer invoices")
+    receivables_outstanding: Money = Field(description="Unpaid balance of credit invoices")
     receivables_overdue: Money = Field(description="Part of the outstanding balance past its due date")
     overdue_invoices: int
     verified_receipts_mtd: Money = Field(description="Verified customer payments received this tenant-local month")
@@ -83,6 +85,6 @@ class TenantOverviewDto(BaseModel):
     as_of: datetime = Field(description="When the overview was computed (UTC)")
     timezone: str = Field(description="Tenant timezone for rendering dates and the month boundary")
     fleet: OverviewFleetSectionDto | None = Field(description="Present with tenant.fleet.read")
-    work: OverviewWorkSectionDto | None = Field(description="Present with tenant.job.read")
+    work: OverviewWorkSectionDto | None = Field(description="Present with tenant.machine_report.read")
     money: OverviewMoneySectionDto | None = Field(description="Present with tenant.finance.read")
     risk: OverviewRiskSectionDto | None = Field(description="Present with tenant.case.read or tenant.signal.read")

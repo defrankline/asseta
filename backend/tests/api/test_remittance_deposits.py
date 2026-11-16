@@ -14,7 +14,7 @@ from asseta.modules.finance.deposit_accounts import mask_account_number
 from asseta.modules.finance.remittance_cutoff import run_remittance_cutoff
 from tests.support.api import Actor, Api
 from tests.support.finance import FinCtx, cash_policy, setup_finance
-from tests.support.jobs import capture, unique_jpeg
+from tests.support.meter import unique_jpeg
 from tests.support.notify import sql, sync_mirror
 
 C = "/api/v1/tenant/cash"
@@ -382,25 +382,20 @@ def test_site_override_and_staff_scope_rules(api: Api) -> None:
             {"code": "FAR", "name": "Remote quarry", "center": {"type": "Point", "coordinates": [39.28, -6.8]}},
         )
     )
-    [m2] = api.add_machines(o, 1, prefix="FAR")
-    job = _ok(
+    # The supervisor's current site: the latest order naming a site for a machine assigned to them.
+    _ok(
         o.post(
-            "/api/v1/tenant/jobs",
+            "/api/v1/tenant/hours-purchases",
             {
-                "contract_id": f.c.contract_id,
-                "job_number": "J-FAR",
-                "machine_id": m2,
+                "customer_id": f.customer_id,
+                "machine_id": f.c.t.machine_id,
+                "hours": "2",
                 "job_site_id": site["id"],
-                "supervisor_id": f.sup_staff_id,
-                "planned_start": api.clock.now.isoformat(),
-                "hourly_rate": "90000",
+                "client_id": str(uuid.uuid4()),
+                "payments": [{"amount": "170000", "method": "CREDIT"}],
             },
         )
     )
-    for action in ("SUBMIT", "APPROVE"):
-        _ok(o.post(f"/api/v1/tenant/jobs/{job['id']}/transitions", {"action": action}), 200)
-    _ok(o.post("/api/v1/tenant/meter-captures", capture(job["id"], "OPENING", "100", api.clock.now, mode="MANUAL")))
-    _ok(o.post(f"/api/v1/tenant/jobs/{job['id']}/transitions", {"action": "START"}), 200)
     _collect(f.manager, f, f.sup_staff_id, "40000")
     office = _staff(f, "Office Cashier")
     _collect(f.manager, f, office, "40000")

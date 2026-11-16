@@ -18,16 +18,16 @@ from asseta.modules.finance.models import (
     CustomerPayment,
     SettlementStatus,
     SupervisorCashCustody,
-    TenantHireInvoice,
 )
 from asseta.modules.finance.receivables import open_receivables
 from asseta.modules.geospatial.fleet_map import Connectivity, FleetMapService, Observed
 from asseta.modules.geospatial.models import AlertStatus, TrackingAlert
+from asseta.modules.hours.models import CreditInvoice
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.intelligence.models import AnomalyCase, CaseStatus, RiskSignal
-from asseta.modules.jobs.models import Job, JobStatus
-from asseta.modules.jobs.work_state import ReportedWorkState
-from asseta.modules.meter.models import CaptureState, ExceptionStatus, JobException, MeterCapture
+from asseta.modules.machine_reports.models import MachineReport, MachineReportStatus
+from asseta.modules.machine_reports.states import ReportedWorkState
+from asseta.modules.meter.models import CaptureState, ExceptionStatus, MeterCapture, MeterException
 from asseta.modules.overview.dto import (
     OverviewConnectivityCountsDto,
     OverviewCurrencyMoneyDto,
@@ -42,9 +42,9 @@ from asseta.modules.pettycash.ledger import FundLedger
 from asseta.modules.pettycash.models import PettyCashFund
 from asseta.modules.policy.capabilities import INVESTIGATIONS, PETTY_CASH, TRACKING, capability_on
 
-FLEET, JOBS, FINANCE = "tenant.fleet.read", "tenant.job.read", "tenant.finance.read"
+FLEET, REPORTS, FINANCE = "tenant.fleet.read", "tenant.machine_report.read", "tenant.finance.read"
 CASES, SIGNALS, APPROVALS, METER = "tenant.case.read", "tenant.signal.read", "tenant.approval.read", "tenant.meter.read"
-SECTION_PERMISSIONS = (FLEET, JOBS, FINANCE)  # any one of these opens the overview
+SECTION_PERMISSIONS = (FLEET, REPORTS, FINANCE)  # any one of these opens the overview
 SIGNAL_WINDOW = timedelta(days=7)
 _CONNECTIVITY_FIELD = {
     Connectivity.LIVE: "live",
@@ -85,7 +85,7 @@ class OverviewService:
             as_of=self._now,
             timezone=tz,
             fleet=self.fleet() if self._can(FLEET) else None,
-            work=self.work() if self._can(JOBS) else None,
+            work=self.work() if self._can(REPORTS) else None,
             money=self.money(tz) if self._can(FINANCE) else None,
             risk=self.risk() if (self._can(CASES) or self._can(SIGNALS)) and self._investigations() else None,
         )
@@ -123,9 +123,11 @@ class OverviewService:
         )
 
     def work(self) -> OverviewWorkSectionDto:
-        by_status = dict(self._s.execute(select(Job.status, func.count()).group_by(Job.status)).tuples().all())
+        by_status = dict(
+            self._s.execute(select(MachineReport.status, func.count()).group_by(MachineReport.status)).tuples().all()
+        )
         pending = readings = exceptions = None
-        latest = [self._max(Job.updated_at)]
+        latest = [self._max(MachineReport.submitted_at), self._max(MachineReport.decided_at)]
         if self._can(APPROVALS):
             pending = int(
                 self._s.execute(
@@ -138,11 +140,11 @@ class OverviewService:
                 self._s.execute(select(func.count()).where(MeterCapture.state == CaptureState.PROVISIONAL)).scalar_one()
             )
             exceptions = int(
-                self._s.execute(select(func.count()).where(JobException.status == ExceptionStatus.OPEN)).scalar_one()
+                self._s.execute(select(func.count()).where(MeterException.status == ExceptionStatus.OPEN)).scalar_one()
             )
-            latest += [self._max(MeterCapture.received_at), self._max(JobException.created_at)]
+            latest += [self._max(MeterCapture.received_at), self._max(MeterException.created_at)]
         return OverviewWorkSectionDto(
-            jobs_by_status={s.value: int(by_status.get(s, 0)) for s in JobStatus},
+            machine_reports_by_status={s.value: int(by_status.get(s, 0)) for s in MachineReportStatus},
             pending_approvals=pending,
             readings_needing_review=readings,
             open_exceptions=exceptions,
@@ -194,7 +196,7 @@ class OverviewService:
                 )
             )
         latest = _latest(
-            self._max(TenantHireInvoice.issued_at),
+            self._max(CreditInvoice.issued_at),
             self._max(CustomerPayment.recorded_at),
             self._max(CustomerPayment.verified_at),
             self._max(Expense.submitted_at),

@@ -87,9 +87,9 @@ def test_role_is_judged_by_what_it_carries_not_its_name(api: Api) -> None:
     a = api.onboard("Custom Co", price="1")
     tid, owner = a["tenant"]["id"], a["owner"]
     admin = _member(api, tid, owner, "admin@custom.example.com", "administrator")
-    _custom_role(api, tid, "shift-lead", {"tenant.job.read", "tenant.job.approve"})
+    _custom_role(api, tid, "shift-lead", {"tenant.machine_report.read", "tenant.machine_report.approve"})
     _custom_role(api, tid, "delegate", {ASSIGN_APPROVERS_PERMISSION})  # carries no approval but reaches them
-    _custom_role(api, tid, "viewer", {"tenant.job.read"})
+    _custom_role(api, tid, "viewer", {"tenant.machine_report.read"})
 
     _refused(_invite(admin, "a@custom.example.com", "shift-lead"))
     _refused(_invite(admin, "b@custom.example.com", "delegate"))
@@ -166,7 +166,7 @@ def test_operations_mandate_is_not_widened(api: Api) -> None:
     a = api.onboard("Ops Co", price="1")
     tid, owner = a["tenant"]["id"], a["owner"]
     actor = staff(api, "staff-ops", "staff-ops@asseta.local")
-    _custom_role(api, tid, "field-helper", {"tenant.job.read"})
+    _custom_role(api, tid, "field-helper", {"tenant.machine_report.read"})
     ops = grant(api, tid, scope="OPERATIONS")
 
     r = assign(api, ops, "staff-ops@asseta.local", "owner")
@@ -178,7 +178,7 @@ def test_operations_mandate_is_not_widened(api: Api) -> None:
     assert assign(api, ops, "staff-ops@asseta.local", "field-helper").status_code == 200
     gid = api.idp.groups[f"/tenants/{tid}/field-helper"]
     api.idp.set_group_permissions(
-        gid, {"tenant.job.read", "tenant.access.read", "tenant.access.manage", ASSIGN_APPROVERS_PERMISSION}
+        gid, {"tenant.machine_report.read", "tenant.access.read", "tenant.access.manage", ASSIGN_APPROVERS_PERMISSION}
     )
     _mirror(api, tid)
     _refused(_invite(refreshed(api, actor, tid), "z@ops.example.com", "manager"))

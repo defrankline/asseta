@@ -18,8 +18,8 @@ from asseta.core.outbox import OutboxWriter
 from asseta.core.search import ilike_any
 from asseta.core.signals import sod_violation
 from asseta.modules.fleet.models import Machine
+from asseta.modules.fleet.scope import METER_OVERSIGHT, assigned_machine_ids, own_staff, restricted_to_own
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.scope import METER_OVERSIGHT, assigned_machine_ids, own_staff, restricted_to_own
 from asseta.modules.meter.allocation_dto import (
     DailyReportDto,
     DailyReportIn,
@@ -47,7 +47,7 @@ ACTIVE = (DailyReportStatus.SUBMITTED, DailyReportStatus.REVIEWED)
 
 
 def _point(c: MeterCapture) -> LedgerPoint:
-    return LedgerPoint(c.id, c.kind.value, c.captured_at, c.reading, c.received_at, True, c.job_id)
+    return LedgerPoint(c.id, c.kind.value, c.captured_at, c.reading, c.received_at, True)
 
 
 class DailyReportService:
@@ -154,8 +154,6 @@ class DailyReportService:
                 allocation_id=r.id,
                 kind=r.kind,
                 customer_id=r.customer_id,
-                job_id=r.job_id,
-                activity_type=r.activity_type,
                 start_reading=r.start_reading,
                 end_reading=r.end_reading,
                 hours=r.hours,

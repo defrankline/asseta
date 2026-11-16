@@ -156,7 +156,7 @@ def update_site(site_id: uuid.UUID, body: JobSiteUpdateIn, session: DbSession, c
 
 @router.post("/job-sites/{site_id}/deactivate", response_model=JobSiteDto, operation_id="deactivateJobSite")
 def deactivate_site(site_id: uuid.UUID, body: LifecycleChangeIn, session: DbSession, ctx: GeoWrite) -> JobSiteDto:
-    """Refused while an open job (DRAFT..IN_PROGRESS) is at the site (SITE_IN_USE)."""
+    """Geofences, orders and history keep referencing the site; it leaves the pickers."""
     return SiteService(session, _tid(ctx), ctx.audit_actor()).set_site_active(site_id, False, body.reason, body.version)
 
 

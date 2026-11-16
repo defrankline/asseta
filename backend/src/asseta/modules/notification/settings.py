@@ -28,7 +28,6 @@ class NotificationSettings(BaseSettings):
     invoice_due_soon_days: int = Field(default=3, ge=0)
     approval_pending_hours: int = Field(default=24, ge=1)
     cash_handover_cutoff_hour: int = Field(default=19, ge=0, le=23, description="Tenant-local hour")
-    job_missing_reading_hours: int = Field(default=4, ge=1)
     restriction_warning_days: int = Field(default=3, ge=0)
     scheduler_interval_seconds: int = Field(default=900, ge=60)
     mirror_refresh_seconds: int = Field(default=3600, ge=300)

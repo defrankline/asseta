@@ -3,11 +3,11 @@ Inputs are plain values so rules are deterministic, unit-testable, and identical
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from decimal import ROUND_DOWN, ROUND_HALF_UP, ROUND_UP, Decimal
+from decimal import Decimal
 from typing import Any
 
 from asseta.modules.meter.models import ExceptionType, GpsStatus
-from asseta.modules.policy.schemas import CaptureMode, GpsEnforcement, HireBillingPolicy, MeterCapturePolicy
+from asseta.modules.policy.schemas import CaptureMode, GpsEnforcement, MeterCapturePolicy
 
 HOUR = Decimal(3600)
 
@@ -112,8 +112,6 @@ def capture_findings(
 class PriorReading:
     reading: Decimal
     captured_at: datetime
-    job_id: str
-    kind: str
 
 
 def sequence_findings(
@@ -122,9 +120,8 @@ def sequence_findings(
     captured_at: datetime,
     prior: PriorReading | None,
     reset_new_reading: Decimal | None,
-    is_opening: bool,
 ) -> list[Finding]:
-    """Decrease / impossible increment / cross-job continuity, relative to the machine's last valid reading.
+    """Decrease / impossible increment, relative to the machine's last valid reading.
     An approved reset after the prior reading re-bases the comparison (meter replacement/rollover)."""
     if prior is None:
         return []
@@ -134,7 +131,6 @@ def sequence_findings(
     evidence = {
         "previous_reading": str(base),
         "previous_at": prior.captured_at.isoformat(),
-        "previous_job_id": prior.job_id,
         "reading": str(reading),
     }
     if delta < 0:
@@ -150,15 +146,6 @@ def sequence_findings(
                 "CRITICAL",
                 True,
                 {**evidence, "delta_hours": str(delta), "elapsed_hours": str(elapsed_h.quantize(Decimal("0.01")))},
-            )
-        )
-    if is_opening and prior.kind == "CLOSING" and delta > policy.continuity_tolerance_hours:
-        findings.append(
-            Finding(
-                ExceptionType.CONTINUITY_GAP,
-                "WARNING",
-                True,
-                {**evidence, "gap_hours": str(delta), "tolerance_hours": str(policy.continuity_tolerance_hours)},
             )
         )
     return findings
@@ -208,16 +195,3 @@ def telemetry_findings(
             )
         ]
     return []
-
-
-_ROUNDING = {"UP": ROUND_UP, "HALF_UP": ROUND_HALF_UP, "DOWN": ROUND_DOWN}
-
-
-def billable_hours(
-    meter_hours: Decimal, nonbillable_hours: Decimal, minimum_hours: Decimal, policy: HireBillingPolicy
-) -> Decimal:
-    """Billable hours follow contract rules, not raw engine/meter hours: subtract approved non-billable periods,
-    round to the configured increment, then apply the contract minimum."""
-    worked = max(meter_hours - nonbillable_hours, Decimal(0))
-    steps = (worked / policy.billable_hours_increment).quantize(Decimal(1), rounding=_ROUNDING[policy.rounding])
-    return max(steps * policy.billable_hours_increment, minimum_hours)

@@ -9,32 +9,29 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import and_, or_, select, text
+from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session
 
 from asseta.core.errors import AppError, Conflict, ErrorDetail, NotFound, PermissionDenied
 from asseta.modules.accountability.names import fill_names
+from asseta.modules.customers.dto import CustomerDto
+from asseta.modules.customers.models import Customer
 from asseta.modules.expenses.dto import ExpenseCategoryDto
 from asseta.modules.expenses.models import ExpenseCategory
 from asseta.modules.finance.cash_service import CashCustodyService
 from asseta.modules.finance.deposit_accounts import SyncDepositAccountDto
 from asseta.modules.finance.deposit_models import CompanyDepositAccount
 from asseta.modules.finance.dto import CashCustodyBalanceDto
-from asseta.modules.finance.models import HireInvoiceStatus, TenantHireInvoice
-from asseta.modules.finance.receivables import verified_paid_subquery
 from asseta.modules.fleet.dto import StaffDto
 from asseta.modules.fleet.machine_view import machine_dtos
 from asseta.modules.fleet.models import Machine, MachineAssignment, StaffMember
+from asseta.modules.fleet.scope import own_staff
 from asseta.modules.geospatial.models import JobSite
 from asseta.modules.geospatial.sites_service import SiteService
 from asseta.modules.hours.credit_invoices import invoice_dtos, invoice_query, local_today
 from asseta.modules.hours.models import CreditInvoice
 from asseta.modules.hours.service import HoursService
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.dto import ContractDto, CustomerDto
-from asseta.modules.jobs.lifecycle import job_dtos
-from asseta.modules.jobs.models import Customer, Job, JobStatus, RentalContract
-from asseta.modules.jobs.scope import job_filter, own_staff
 from asseta.modules.machine_reports.service import MachineReportService
 from asseta.modules.meter.engine_models import EngineHourReason, EngineHourReasonKind
 from asseta.modules.pettycash.dto import (
@@ -67,13 +64,11 @@ from asseta.modules.sync.dto import (
     DeviceRegisterIn,
     DeviceSessionDto,
     PolicySnapshotDto,
-    SyncChangeoverJobDto,
     SyncData,
-    SyncOpenInvoiceDto,
     SyncUnbillableReasonDto,
     announced_capabilities,
 )
-from asseta.modules.sync.inbox import OPEN_JOB_STATES, InboxReader
+from asseta.modules.sync.inbox import InboxReader
 from asseta.modules.sync.models import (
     TENANT_DATA_RESET_REVOKE_REASON,
     DevicePolicySnapshot,
@@ -84,8 +79,6 @@ from asseta.modules.tenancy.models import TenantSettings
 
 LOOKBACK = 500
 PAGE = 500
-CLOSED_JOB_STATES = (JobStatus.COMPLETED, JobStatus.CANCELLED)
-CLOSED_JOB_WINDOW = timedelta(days=14)  # bootstrap ships recently closed jobs so the device shows history
 
 
 class DeviceRevoked(AppError):
@@ -194,21 +187,6 @@ class SyncService:
     def _data(self, min_revision: int | None) -> tuple[SyncData, int, bool]:
         watermark = self._watermark()
         staff = own_staff(self._s, self._ctx)
-        scope = job_filter(staff)
-        jobs_stmt = select(Job).where(scope)
-        if min_revision is None:  # open jobs plus recently closed ones (history on the device)
-            recent = and_(Job.status.in_(CLOSED_JOB_STATES), Job.updated_at >= self._now - CLOSED_JOB_WINDOW)
-            # the caller's own field requests still waiting for approval ("Waiting for approval" on the device)
-            conds = [Job.status.in_(OPEN_JOB_STATES), recent]
-            if staff is not None:
-                conds.append(and_(Job.status == JobStatus.PENDING_APPROVAL, Job.requested_by_staff_id == staff.id))
-            jobs_stmt = jobs_stmt.where(or_(*conds))
-        else:
-            jobs_stmt = jobs_stmt.where(Job.sync_revision > min_revision)
-        jobs = list(self._s.execute(jobs_stmt.order_by(Job.sync_revision).limit(PAGE + 1)).scalars())
-        jobs_more = len(jobs) > PAGE
-        jobs = jobs[:PAGE]
-        scope_jobs = list(self._s.execute(select(Job).where(scope, Job.status.in_(OPEN_JOB_STATES))).scalars())
         assignments: list[tuple[uuid.UUID, int]] = []
         if staff is not None:
             open_assignments = select(MachineAssignment.machine_id, MachineAssignment.sync_revision).where(
@@ -217,32 +195,22 @@ class SyncService:
             assignments = [(m, rev) for m, rev in self._s.execute(open_assignments).all()]
         # A machine newly assigned to the supervisor ships even when the machine row itself did not change.
         fresh_assigned = {m for m, rev in assignments if min_revision is None or rev > min_revision}
-        machine_ids = {j.machine_id for j in [*jobs, *scope_jobs]} | {m for m, _ in assignments}
-        site_ids = {j.job_site_id for j in [*jobs, *scope_jobs] if j.job_site_id}
-        contract_ids = {j.contract_id for j in [*jobs, *scope_jobs]}
+        machine_ids = {m for m, _ in assignments}
 
-        def changed(model: Any, ids: set[uuid.UUID], force: set[uuid.UUID] | None = None) -> list[Any]:
+        def changed(model: Any, ids: set[uuid.UUID] | None, force: set[uuid.UUID] | None = None) -> list[Any]:
             """Bootstrap ships only active reference data; deltas also carry deactivations (is_active=false) so
-            devices drop them from pickers."""
-            if not ids:
+            devices drop them from pickers. `ids` None: every row of the table (company reference data)."""
+            if ids is not None and not ids:
                 return []
-            stmt = select(model).where(model.id.in_(ids))
+            stmt = select(model) if ids is None else select(model).where(model.id.in_(ids))
             if min_revision is not None:
                 stmt = stmt.where(or_(model.sync_revision > min_revision, model.id.in_(force or set())))
             elif hasattr(model, "is_active"):
                 stmt = stmt.where(model.is_active.is_(True))
-            return list(self._s.execute(stmt).scalars())
+            return list(self._s.execute(stmt.order_by(model.sync_revision).limit(PAGE + 1)).scalars())
 
-        contracts = changed(RentalContract, contract_ids)
-        customers = changed(
-            Customer,
-            {
-                c.customer_id
-                for c in self._s.execute(select(RentalContract).where(RentalContract.id.in_(contract_ids))).scalars()
-            }
-            if contract_ids
-            else set(),
-        )
+        customers = changed(Customer, None) if "tenant.customer.read" in self._ctx.permissions else []
+        sites = changed(JobSite, None)
         categories = select(ExpenseCategory).order_by(ExpenseCategory.code)
         if min_revision is None:
             categories = categories.where(ExpenseCategory.is_active.is_(True))
@@ -250,43 +218,34 @@ class SyncService:
             categories = categories.where(ExpenseCategory.sync_revision > min_revision)
         sites_svc = SiteService(self._s, self._tid, self._ctx.audit_actor())
         inbox = InboxReader(self._s, self._ctx, self._now, staff, PAGE).read(min_revision)
-        scope_machines = {j.machine_id for j in scope_jobs} | {m for m, _ in assignments}
-        changeover_jobs, changeover_more = self._changeover_jobs(scope_machines, min_revision)
         data = SyncData(
-            jobs=job_dtos(self._s, jobs),
             machines=machine_dtos(self._s, changed(Machine, machine_ids, fresh_assigned), self._now),
-            sites=[sites_svc.site_dto(s) for s in changed(JobSite, site_ids)],
-            customers=[CustomerDto.model_validate(c) for c in customers],
-            contracts=[ContractDto.model_validate(c) for c in contracts],
+            sites=[sites_svc.site_dto(s) for s in sites[:PAGE]],
+            customers=[CustomerDto.model_validate(c) for c in customers[:PAGE]],
             staff=[StaffDto.model_validate(staff)]
             if staff is not None and (min_revision is None or staff.sync_revision > min_revision)
             else [],
             expense_categories=[ExpenseCategoryDto.model_validate(c) for c in self._s.execute(categories).scalars()],
             cash_custody=self._custody(staff),
-            open_invoices=self._open_invoices(contract_ids),
             deposit_accounts=self._deposit_accounts(min_revision),
-            changeover_jobs=changeover_jobs,
             unbillable_reasons=self._unbillable_reasons(min_revision),
             my_meter_captures=inbox.meter_captures.items,
             my_meter_resets=inbox.meter_resets.items,
-            my_job_activities=inbox.job_activities.items,
-            my_acknowledgements=inbox.acknowledgements.items,
             my_expenses=inbox.expenses.items,
             my_fuel_events=inbox.fuel_events.items,
             my_cash_collections=inbox.cash_collections.items,
             my_cash_handovers=inbox.cash_handovers.items,
             **self._petty_cash(staff),
-            **self._hours_prices(scope_machines),
+            **self._hours_prices(machine_ids),
             **self._machine_reports(),
             **self._credit_invoices(),
         )
         # Every stream is ordered by revision: a truncated stream holds back the cursor to its last delivered row;
         # complete streams were delivered up to the watermark (re-delivery above the cursor is a harmless upsert).
         truncated = [s.last_revision for s in inbox.streams() if s.has_more]
-        if jobs_more:
-            truncated.append(max(j.sync_revision for j in jobs))
-        if changeover_more:
-            truncated.append(changeover_jobs[-1].sync_revision)
+        for rows in (customers, sites):
+            if len(rows) > PAGE:
+                truncated.append(rows[PAGE - 1].sync_revision)
         cursor = min(truncated) if truncated else watermark
         return data, cursor, bool(truncated)
 
@@ -379,39 +338,6 @@ class SyncService:
             else [],
         }
 
-    def _open_invoices(self, contract_ids: set[uuid.UUID]) -> list[SyncOpenInvoiceDto]:
-        """Issued invoices with a balance for the customers on the caller's jobs (cash recorders only)."""
-        if not contract_ids or "tenant.collection.record" not in self._ctx.permissions:
-            return []
-        customers = select(RentalContract.customer_id).where(RentalContract.id.in_(contract_ids))
-        paid = verified_paid_subquery()
-        rows = self._s.execute(
-            select(TenantHireInvoice, Customer.name, paid.label("paid"))
-            .join(Customer, Customer.id == TenantHireInvoice.customer_id)
-            .where(
-                TenantHireInvoice.status == HireInvoiceStatus.ISSUED,
-                TenantHireInvoice.customer_id.in_(customers),
-                TenantHireInvoice.total > paid,
-            )
-            .order_by(TenantHireInvoice.due_date.asc().nulls_last(), TenantHireInvoice.issued_at, TenantHireInvoice.id)
-            .limit(PAGE)
-        ).all()
-        return [
-            SyncOpenInvoiceDto(
-                id=inv.id,
-                invoice_number=inv.invoice_number,
-                customer_id=inv.customer_id,
-                customer_name=name,
-                currency=inv.currency,
-                total=inv.total,
-                paid=paid_amount,
-                balance=inv.total - paid_amount,
-                due_date=inv.due_date,
-                issued_at=inv.issued_at,
-            )
-            for inv, name, paid_amount in rows
-        ]
-
     def _deposit_accounts(self, min_revision: int | None) -> list[SyncDepositAccountDto]:
         """The remittance account picker for cash recorders (bootstrap: active; deltas: every change)."""
         if "tenant.collection.record" not in self._ctx.permissions:
@@ -427,37 +353,6 @@ class SyncService:
 
     def _engine_hours_on(self) -> bool:
         return capability_on(self._s, self._tid, ENGINE_HOURS, self._now)
-
-    def _changeover_jobs(
-        self, machine_ids: set[uuid.UUID], min_revision: int | None
-    ) -> tuple[list[SyncChangeoverJobDto], bool]:
-        """Jobs a changeover can name on these machines, whoever created them (the supervisor's own job list is not
-        widened: these are not their jobs to work on). Drafts stay in the office."""
-        if not machine_ids or not self._engine_hours_on():
-            return [], False
-        stmt = (
-            select(Job, Customer.id, Customer.name)
-            .join(RentalContract, RentalContract.id == Job.contract_id)
-            .join(Customer, Customer.id == RentalContract.customer_id)
-            .where(Job.machine_id.in_(machine_ids))
-        )
-        if min_revision is None:
-            stmt = stmt.where(Job.status.in_((JobStatus.PENDING_APPROVAL, JobStatus.APPROVED)))
-        else:
-            stmt = stmt.where(Job.sync_revision > min_revision, Job.status != JobStatus.DRAFT)
-        rows = self._s.execute(stmt.order_by(Job.sync_revision).limit(PAGE + 1)).all()
-        return [
-            SyncChangeoverJobDto(
-                id=j.id,
-                job_number=j.job_number,
-                machine_id=j.machine_id,
-                customer_id=cid,
-                customer_name=name,
-                status=j.status.value,
-                sync_revision=j.sync_revision,
-            )
-            for j, cid, name in rows[:PAGE]
-        ], len(rows) > PAGE
 
     def _unbillable_reasons(self, min_revision: int | None) -> list[SyncUnbillableReasonDto]:
         if "tenant.meter.capture" not in self._ctx.permissions or not self._engine_hours_on():
@@ -544,7 +439,7 @@ class SyncService:
         device = self.active_device(device_id)
         data, new_cursor, has_more = self._data(max(cursor - LOOKBACK, 0))
         self.touch(device)
-        machine_ids = {m.id for m in data.machines} | {j.machine_id for j in data.jobs}
+        machine_ids = {m.id for m in data.machines}
         return ChangesDto(
             capabilities=self.capabilities(),
             server_time=self._now,

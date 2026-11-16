@@ -4,7 +4,7 @@ smaller management additions (guideline sections 6, 8, 10)."""
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import Engine, event
@@ -24,7 +24,8 @@ from asseta.modules.identity.role_templates import (
 from tests.support.api import Actor, Api
 from tests.support.finance import FinCtx, cash_policy, role, setup_finance
 from tests.support.hours import purchase, verify
-from tests.support.jobs import capture, unique_jpeg
+from tests.support.machine_reports import idle, later, report_body, setup_reports, submit
+from tests.support.meter import capture, unique_jpeg
 
 T = "/api/v1/tenant"
 C = f"{T}/cash"
@@ -84,11 +85,13 @@ def test_template_contents() -> None:
     assert "tenant.meter.capture" in _template("operator-readings")
     admin = _template("administrator")
     assert {"tenant.access.manage", "tenant.policy.manage"} <= admin
-    assert not [c for c in admin if c.startswith(("tenant.collection.", "tenant.job.", "tenant.adjustment."))]
+    assert not [
+        c for c in admin if c.startswith(("tenant.collection.", "tenant.machine_report.", "tenant.adjustment."))
+    ]
     finance = _template("accountant")
     assert "tenant.finance.verify" in finance
     assert not [c for c in finance if c.startswith("tenant.meter.")]
-    assert "tenant.job.approve" not in finance
+    assert "tenant.machine_report.approve" not in finance
 
 
 def _sync(api: Api) -> None:
@@ -124,12 +127,12 @@ def test_existing_groups_narrowed_once_and_edited_groups_not_widened(api: Api) -
     for code in ("tenant.meter.approve", "tenant.meter.review"):
         forget("manager", code)
     custom = api.idp.ensure_group(f"/tenants/{tid}/night-shift")
-    api.idp.group_perms[custom] = {"tenant.job.read"}
+    api.idp.group_perms[custom] = {"tenant.machine_report.read"}
 
     _sync(api)
     assert "tenant.hours.transfer_approve" not in api.idp.group_perms[sup]
     assert "tenant.meter.approve" in api.idp.group_perms[mgr]  # nobody edited this group: it gains the approvals
-    assert api.idp.group_perms[custom] == {"tenant.job.read"}  # a custom role is never touched
+    assert api.idp.group_perms[custom] == {"tenant.machine_report.read"}  # a custom role is never touched
 
     api.idp.group_perms[sup].add("tenant.hours.transfer_approve")  # the tenant deliberately grants it back
     _sync(api)
@@ -186,10 +189,8 @@ def test_excavator_operations_section(api: Api) -> None:
     machine = f.c.t.machine_id
     start = api.clock.now
     for value, at in (("100", start), ("108", start + timedelta(hours=8))):
-        body = capture("", "DAILY", value, at, mode="MANUAL")
-        body.pop("job_id")
         api.clock.set_at(at)
-        _ok(f.owner.post(f"{T}/meter-captures", {**body, "machine_id": machine}), 201)
+        _ok(f.owner.post(f"{T}/meter-captures", capture(machine, value, at, mode="MANUAL")), 201)
     s = _summary(f.owner)["operations_section"]
     assert s["unexplained_hours"]["hours"] == s["operating_hours"]["hours"]
     assert float(s["unexplained_hours"]["hours"]) > 0
@@ -411,8 +412,17 @@ def test_lookup_resolves_numbers_and_ids_across_types(api: Api) -> None:
         assert [(m["record_type"], m["id"]) for m in found] == [(record_type, record["id"])]
         assert _lookup(f.owner, record["id"])[0]["record_type"] == record_type
     assert _lookup(f.owner, remittance["remittance_number"])[0]["balance_outstanding"] == "4000.0000"
-    job = _ok(f.owner.get(f"{T}/jobs/{f.c.job_id}"))["job"]
-    assert _lookup(f.owner, job["job_number"])[0]["record_type"] == "job"
+    sale = {
+        "customer_id": f.customer_id,
+        "machine_id": f.c.t.machine_id,
+        "hours": "2",
+        "client_id": str(uuid.uuid4()),
+        "payments": [{"amount": "170000", "method": "CREDIT"}],
+    }
+    invoice = _ok(f.accountant.post(f"{T}/hours-purchases", sale), 201)["credit_invoice"]
+    [invoiced] = _lookup(f.owner, invoice["invoice_number"])
+    assert (invoiced["record_type"], invoiced["id"], invoiced["status"]) == ("credit_invoice", invoice["id"], "UNPAID")
+    assert invoiced["balance_outstanding"] == "170000.0000"
     assert _lookup(f.owner, "NO-SUCH-NUMBER") == []
     assert f.supervisor.get(f"{T}/lookup", reference=number).status_code == 403
 
@@ -506,58 +516,39 @@ def test_credit_update_accepts_evidence(api: Api) -> None:
     assert f.manager.put(f"{T}/credit-arrangements/{made['id']}", bad).status_code == 404
 
 
-def test_sync_offers_open_invoices_to_collection_recorders(api: Api) -> None:
-    from tests.support.finance import complete_job, issue_invoice
-
+def test_sync_offers_open_credit_invoices_to_payment_recorders(api: Api) -> None:
     f = setup_finance(api, "Invoice Sync", "IS-1")
-    complete_job(api, f, f.c.job_id, "500.0", "508.0", 9)
-    invoice = issue_invoice(f, [f.c.job_id])
+    sale = {
+        "customer_id": f.customer_id,
+        "machine_id": f.c.t.machine_id,
+        "hours": "3",
+        "client_id": str(uuid.uuid4()),
+        "payments": [{"amount": "255000", "method": "CREDIT"}],
+    }
+    invoice = _ok(f.accountant.post(f"{T}/hours-purchases", sale), 201)["credit_invoice"]
     device = {"device_id": "android-open-invoices", "platform": "ANDROID", "app_version": "1.0.0"}
     headers = {**f.supervisor.headers(True, None), "X-Device-Id": device["device_id"]}
     _ok(api.client.post("/api/v1/sync/devices", headers=headers, json=device), 201)
     boot = _ok(api.client.get("/api/v1/sync/bootstrap", headers=headers))
-    assert "SYNC_OPEN_INVOICES" in boot["capabilities"]
-    open_invoices = boot["data"]["open_invoices"]
+    assert "OP_CREDIT_INVOICE_PAYMENT" in boot["capabilities"]
+    open_invoices = boot["data"]["open_credit_invoices"]
     assert [(i["id"], i["balance"]) for i in open_invoices] == [(invoice["id"], invoice["balance"])]
 
 
-def test_unapproved_changeover_job_is_flagged_with_its_age(api: Api) -> None:
-    from tests.support.notify import sql
-
-    f = setup_finance(api, "Changeover Co", "CO-1")
-    next_job = _ok(
-        f.owner.post(
-            f"{T}/jobs",
-            {
-                "contract_id": f.c.contract_id,
-                "job_number": "J-NEXT-1",
-                "machine_id": f.c.t.machine_id,
-                "planned_start": api.clock.now.isoformat(),
-            },
-        ),
-        201,
-    )["id"]
-    _ok(f.owner.post(f"{T}/jobs/{next_job}/transitions", {"action": "SUBMIT"}))
-    capture_id = uuid.uuid4()
-    three_days_ago: datetime = api.clock.now - timedelta(days=3)
-    body = capture(f.c.job_id, "OPENING", "50", three_days_ago, mode="MANUAL", capture_id=str(capture_id))
-    api.clock.set_at(three_days_ago)
-    assert f.owner.post(f"{T}/meter-captures", body).status_code in (200, 201)
-    api.clock.set_at(three_days_ago + timedelta(days=3))
-    sql(
-        "INSERT INTO machine_changeover (id, tenant_id, machine_id, capture_id, job_id, from_customer_id, to_customer_id,"
-        " to_job_id, created_at) VALUES (gen_random_uuid(), :t, :m, :c, :j, :cu, :cu, :n, :at)",
-        t=f.tid,
-        m=f.c.t.machine_id,
-        c=capture_id,
-        j=f.c.job_id,
-        cu=f.customer_id,
-        n=next_job,
-        at=three_days_ago,
-    )
-    flag = _summary(f.owner)["exceptions_section"]["changeover_jobs_awaiting_approval"]
-    assert flag["count"] == 1 and flag["oldest_days"] == 3 and flag["items"][0]["job_id"] == next_job
-    assert flag["items"][0]["job_number"] == "J-NEXT-1" and flag["items"][0]["customer_name"]
+def test_machine_reports_waiting_for_a_decision_are_counted_and_found(api: Api) -> None:
+    ctx = setup_reports(api, "Reports View", "RV-1")
+    f = ctx.f
+    body = report_body(ctx.machine_id, "1003.0", later(api, 3), [idle(ctx.reasons["IDLE_ON_SITE"], 3)])
+    report = submit(f.supervisor, body)
+    summary = _summary(f.owner)
+    assert summary["outstanding_approvals"]["machine_reports"] == 1
+    s = summary["exceptions_section"]["outstanding_approvals"]
+    by_kind = {k["kind"]: k for k in s["by_kind"]}
+    assert by_kind["machine_reports"]["count"] == 1 and "/tenant/machine-reports" in by_kind["machine_reports"]["route"]
+    [hit] = _lookup(f.owner, report["report_number"])
+    assert (hit["record_type"], hit["id"]) == ("machine_report", report["id"])
+    _ok(f.manager.post(f"{T}/machine-reports/{report['id']}/approve", {}))
+    assert _summary(f.owner)["outstanding_approvals"]["machine_reports"] == 0
 
 
 def test_administrator_manages_access_but_not_accountability(api: Api) -> None:

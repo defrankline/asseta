@@ -1,14 +1,15 @@
-"""Writes and maintains the work allocation ledger (DEC-032 A1) day by day: on every reading and sweep, on job start and
-completion, and when an explanation is approved. Idempotent: a machine's active entries are compared with what its
-readings now give, and only differences are written (the old entry superseded, never edited). An approved correction
-stands until the ledger piece it replaced changes under it. Runs in the tenant's RLS scope."""
+"""Writes and maintains the derived part of the work allocation ledger (DEC-032 A1) day by day: on every reading and
+sweep, and when an explanation is approved. Customer work comes only from approved machine reports (ADR-008), which
+write their own entries; this writer keeps the hours no report covers (unexplained, or an approved explanation).
+Idempotent: a machine's active entries are compared with what its readings now give, and only differences are written
+(the old entry superseded, never edited). An approved correction stands until the ledger piece it replaced changes
+under it. Runs in the tenant's RLS scope."""
 
 import uuid
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -20,10 +21,7 @@ from sqlalchemy.orm import Session
 from asseta.core.audit import AuditActor, AuditService
 from asseta.core.db import DbScope, apply_scope
 from asseta.modules.fleet.models import Machine
-from asseta.modules.hours.models import SIGN, HoursLedgerEntry, LedgerEntryType
-from asseta.modules.jobs.models import Job
 from asseta.modules.meter.allocation_models import (
-    AllocationKind,
     AllocationSource,
     AllocationStatus,
     WorkAllocation,
@@ -31,12 +29,10 @@ from asseta.modules.meter.allocation_models import (
 from asseta.modules.meter.allocation_plan import Plan, PlannedEntry, plan_allocations
 from asseta.modules.meter.engine_hours import MachineLedger, approved_resets, engine_hours_on, load_machine_ledger
 from asseta.modules.meter.models import MeterCapture
-from asseta.modules.policy.schemas import BillingMode
 from asseta.modules.tenancy.models import Tenant, TenantSettings, TenantStatus
 
 log = structlog.get_logger()
 SWEEP = AuditActor(None, [], "scheduler")
-T = LedgerEntryType
 
 
 @dataclass
@@ -65,11 +61,8 @@ def _row_signature(r: WorkAllocation) -> tuple[Any, ...]:
         r.hours,
         r.kind,
         r.customer_id,
-        r.job_id,
-        r.activity_type,
         r.reason_id,
         r.classification_id,
-        r.changeover_id,
         r.reading_review,
         r.approval_ref_type,
         tuple(sorted(r.approval_ref_ids, key=str)),
@@ -89,68 +82,13 @@ def _plan_signature(e: PlannedEntry) -> tuple[Any, ...]:
         e.hours,
         e.kind,
         e.customer_id,
-        e.job_id,
-        e.activity_type,
         e.reason_id,
         e.classification_id,
-        e.changeover_id,
         e.reading_review,
         e.approval_ref_type,
         tuple(sorted(e.approval_ref_ids, key=str)),
         tuple(lots),
     )
-
-
-def job_lots(s: Session, job_id: uuid.UUID) -> list[tuple[uuid.UUID, Decimal]]:
-    """Per lot, the hours this job took from it: final consumption, else the net provisional draw while it runs."""
-    rows = list(
-        s.execute(
-            select(HoursLedgerEntry)
-            .where(
-                HoursLedgerEntry.job_id == job_id,
-                HoursLedgerEntry.entry_type.in_([T.CONSUMED, T.PROVISIONAL, T.PROVISIONAL_REVERSED]),
-            )
-            .order_by(HoursLedgerEntry.occurred_at, HoursLedgerEntry.id)
-        ).scalars()
-    )
-    consumed = [r for r in rows if r.entry_type is T.CONSUMED]
-    held: dict[uuid.UUID, Decimal] = defaultdict(lambda: Decimal(0))
-    for r in consumed or rows:
-        held[r.purchase_id] += r.hours if r.entry_type is T.CONSUMED else -SIGN[r.entry_type] * r.hours
-    return [(p, h) for p, h in held.items() if h > 0]
-
-
-def assign_lots(s: Session, entries: list[PlannedEntry], job_customer: dict[uuid.UUID, uuid.UUID]) -> None:
-    """Spread each prepaid job's lot hours over its customer-work entries in meter order. Lots follow billable hours,
-    so an entry can carry fewer lot hours than engine hours (non-billable time, minimum-hours billing)."""
-    work: dict[uuid.UUID, list[PlannedEntry]] = defaultdict(list)
-    for e in entries:
-        if (
-            e.kind is AllocationKind.CUSTOMER_WORK
-            and e.job_id is not None
-            and e.customer_id == job_customer.get(e.job_id)
-        ):
-            work[e.job_id].append(e)
-    if not work:
-        return
-    prepaid = set(
-        s.execute(
-            select(Job.id).where(Job.id.in_(work.keys()), Job.billing_mode == BillingMode.PREPAID_HOURS)
-        ).scalars()
-    )
-    for job_id in prepaid:
-        lots = job_lots(s, job_id)
-        at = 0
-        for entry in work[job_id]:
-            left = entry.hours
-            while left > 0 and at < len(lots):
-                purchase, available = lots[at]
-                take = min(left, available)
-                entry.lots.append({"purchase_id": str(purchase), "hours": str(take)})
-                left -= take
-                lots[at] = (purchase, available - take)
-                if lots[at][1] <= 0:
-                    at += 1
 
 
 class AllocationWriter:
@@ -159,16 +97,7 @@ class AllocationWriter:
         self._tz = tenant_zone(s, tenant_id)
 
     def build_plan(self, ml: MachineLedger) -> Plan:
-        resets = approved_resets(self._s, ml.machine.id)
-        plan = plan_allocations(ml.ledger.intervals, resets, self._tz)
-        customers = {i.job_id: i.job_customer_id for i in ml.ledger.intervals if i.job_id and i.job_customer_id}
-        customers |= {
-            i.billed_to_job_id: i.changeover_customer_id
-            for i in ml.ledger.intervals
-            if i.billed_to_job_id and i.changeover_customer_id
-        }
-        assign_lots(self._s, plan.entries, customers)
-        return plan
+        return plan_allocations(ml.ledger.intervals, approved_resets(self._s, ml.machine.id), self._tz)
 
     def sync_machine(self, machine_id: uuid.UUID) -> tuple[int, int]:
         """Bring one machine's active entries into line with its ledger; returns (written, superseded)."""
@@ -255,11 +184,8 @@ class AllocationWriter:
             hours=e.hours,
             kind=e.kind,
             customer_id=e.customer_id,
-            job_id=e.job_id,
-            activity_type=e.activity_type,
             reason_id=e.reason_id,
             classification_id=e.classification_id,
-            changeover_id=e.changeover_id,
             reading_review=e.reading_review,
             approval_ref_type=e.approval_ref_type,
             approval_ref_ids=e.approval_ref_ids,
@@ -306,7 +232,7 @@ class AllocationWriter:
 
 
 def sync_allocations(s: Session, tenant_id: uuid.UUID, machine_id: uuid.UUID, now: datetime) -> None:
-    """On-event hook (capture/sync, job start/complete, approved explanation). It must never fail the action that
+    """On-event hook (capture/sync, approved explanation). It must never fail the action that
     triggered it: a refusal by the exclusion constraint is logged and the next sweep retries."""
     try:
         with s.begin_nested():

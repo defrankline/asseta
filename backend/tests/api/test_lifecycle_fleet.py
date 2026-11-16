@@ -5,7 +5,8 @@ from datetime import timedelta
 from typing import Any
 
 from tests.support.api import Actor, Api
-from tests.support.jobs import setup_job
+from tests.support.machine_reports import idle, later, ok, report_body, setup_reports, submit
+from tests.support.meter import setup_machine
 
 T = "/api/v1/tenant"
 REASON = {"reason": "No longer used"}
@@ -88,7 +89,7 @@ def test_machine_category_and_area_lifecycle(api: Api) -> None:
 
 
 def test_staff_lifecycle_and_integrity(api: Api) -> None:
-    c = setup_job(api, "Staff Co", "STAFF-1")
+    c = setup_machine(api, "Staff Co", "STAFF-1")
     o, tid = c.owner, c.t.tenant["tenant"]["id"]
     sup = o.post(f"{T}/staff", {"full_name": "Asha", "kind": "SUPERVISOR", "employee_code": "E-1"}).json()
     assert o.get(f"{T}/staff/{sup['id']}").json()["employee_code"] == "E-1"
@@ -102,7 +103,7 @@ def test_staff_lifecycle_and_integrity(api: Api) -> None:
     )
     assert clash.json()["error"]["code"] == "DUPLICATE_STAFF"
 
-    # Assigned to a machine: the kind cannot change; supervising an approved job blocks deactivation.
+    # Assigned to a machine: the kind cannot change.
     [m2] = api.add_machines(o, 1, prefix="STF")
     a = o.post(
         f"{T}/machines/{m2}/assignments",
@@ -111,22 +112,6 @@ def test_staff_lifecycle_and_integrity(api: Api) -> None:
     assert a.status_code == 201, a.text
     kind = o.put(f"{T}/staff/{sup['id']}", {**edit, "kind": "OPERATOR", "keycloak_subject": "asha-login", "version": 2})
     assert kind.json()["error"]["code"] == "STAFF_ASSIGNED"
-    job = o.post(
-        f"{T}/jobs",
-        {
-            "contract_id": c.contract_id,
-            "job_number": "J-STAFF",
-            "machine_id": m2,
-            "supervisor_id": sup["id"],
-            "planned_start": api.clock.now.isoformat(),
-            "hourly_rate": "50000",
-        },
-    ).json()
-    for action in ("SUBMIT", "APPROVE"):
-        assert o.post(f"{T}/jobs/{job['id']}/transitions", {"action": action}).status_code == 200
-    busy = o.post(f"{T}/staff/{sup['id']}/deactivate", REASON)
-    assert (busy.status_code, busy.json()["error"]["code"]) == (422, "STAFF_HAS_ACTIVE_JOBS")
-    o.post(f"{T}/jobs/{job['id']}/transitions", {"action": "CANCEL", "reason": "Customer postponed"})
 
     # Holding company cash blocks deactivation until the custody is settled.
     f = o.post(f"{T}/cash/floats", {"staff_member_id": sup["id"], "amount": "5000"})
@@ -164,22 +149,25 @@ def test_staff_lifecycle_and_integrity(api: Api) -> None:
 
 
 def test_machine_retire_and_reinstate(api: Api) -> None:
-    c = setup_job(api, "Retire Co", "RET-1")
-    o, mid = c.owner, c.t.machine_id
+    ctx = setup_reports(api, "Retire Co", "RET-1")
+    f = ctx.f
+    o, mid = f.owner, ctx.machine_id
+    # A machine report waiting for a decision blocks retirement.
+    pending = submit(f.supervisor, report_body(mid, "1002.0", later(api, 3), [idle(ctx.reasons["TRANSIT"], 2)]))
     blocked = o.post(f"{T}/machines/{mid}/deactivate", REASON)
-    assert (blocked.status_code, blocked.json()["error"]["code"]) == (422, "MACHINE_HAS_OPEN_JOBS")
+    assert (blocked.status_code, blocked.json()["error"]["code"]) == (422, "MACHINE_HAS_PENDING_REPORT")
     m = o.get(f"{T}/machines/{mid}").json()
     keys = ("name", "category_id", "operating_area_id", "meter_decimal_places", "ownership")
     via_put = o.put(f"{T}/machines/{mid}", {**{k: m[k] for k in keys}, "status": "DISPOSED", "version": m["version"]})
-    assert via_put.json()["error"]["code"] == "MACHINE_HAS_OPEN_JOBS"  # same rules when disposing via edit
-    o.post(f"{T}/jobs/{c.job_id}/transitions", {"action": "CANCEL", "reason": "Machine sold"})
+    assert via_put.json()["error"]["code"] == "MACHINE_HAS_PENDING_REPORT"  # same rules when disposing via edit
+    ok(f.manager.post(f"{T}/machine-reports/{pending['id']}/approve", {"note": "Checked"}))
     assert o.post(f"{T}/machines/{mid}/deactivate", REASON).json()["error"]["code"] == "MACHINE_HAS_TRACKER"
     end = (api.clock.now + timedelta(hours=1)).isoformat()
-    u = o.post(f"{T}/trackers/{c.t.tracker_id}/unassign", {"effective_to": end, "reason": "Machine sold"})
+    u = o.post(f"{T}/trackers/{f.c.t.tracker_id}/unassign", {"effective_to": end, "reason": "Machine sold"})
     assert u.status_code == 200, u.text
     assert o.post(f"{T}/machines/{mid}/deactivate", REASON).json()["error"]["code"] == "MACHINE_ENROLLED"
 
-    # A plain machine (no jobs/tracker/enrollment) retires; its staff assignment ends; it can be reinstated.
+    # A plain machine (no pending report/tracker/enrollment) retires; its staff assignment ends; it can be reinstated.
     [plain] = api.add_machines(o, 1, prefix="PLN")
     op = o.post(f"{T}/staff", {"full_name": "Peter", "kind": "OPERATOR"}).json()
     o.post(
@@ -200,17 +188,8 @@ def test_machine_retire_and_reinstate(api: Api) -> None:
     d = o.get(f"{T}/machines/{plain}").json()
     locked = o.put(f"{T}/machines/{plain}", {**{k: d[k] for k in keys}, "status": "ACTIVE", "version": d["version"]})
     assert locked.json()["error"]["code"] == "MACHINE_DISPOSED"
-    job = o.post(
-        f"{T}/jobs",
-        {
-            "contract_id": c.contract_id,
-            "job_number": "J-RET",
-            "machine_id": plain,
-            "planned_start": api.clock.now.isoformat(),
-            "hourly_rate": "1",
-        },
-    )
-    assert job.json()["error"]["code"] == "MACHINE_INACTIVE"
+    order = o.post(f"{T}/hours-purchases", {"machine_id": plain, "hours": "4", "customer_id": f.customer_id})
+    assert order.json()["error"]["code"] == "MACHINE_INACTIVE"  # no hours are sold on a retired machine
     on = o.post(f"{T}/machines/{plain}/reactivate", {"reason": "Bought back"})
     assert on.status_code == 200 and on.json()["status"] == "ACTIVE" and on.json()["deactivated_at"] is None
     assert o.post(f"{T}/machines/{plain}/reactivate", {"reason": "Twice"}).json()["error"]["code"] == "ALREADY_ACTIVE"

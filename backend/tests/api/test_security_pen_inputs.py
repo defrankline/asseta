@@ -17,7 +17,7 @@ from httpx import Response
 
 from asseta.modules.reports.render import safe_csv_cell
 from tests.support.api import Actor, Api
-from tests.support.jobs import setup_job, unique_jpeg
+from tests.support.meter import setup_machine, unique_jpeg
 from tests.support.routes import Kind, RouteSpec, concrete, inventory
 
 SQLI = [
@@ -48,7 +48,7 @@ def _get(api: Api, actor: Actor, spec: RouteSpec, query: dict[str, str]) -> Resp
 
 
 def test_sql_meta_characters_in_every_search_box_are_inert(api: Api) -> None:
-    c = setup_job(api, "Inject Co", "INJ-1")  # data present, so an injected OR 1=1 would surface rows
+    c = setup_machine(api, "Inject Co", "INJ-1")  # data present, so an injected OR 1=1 would surface rows
     owner = c.owner
     searchable = [r for r in _routes(api) if r.method == "GET" and "q" in r.query and r.kind is not Kind.SELF]
     failures, checked = [], 0
@@ -72,7 +72,7 @@ def test_sql_meta_characters_in_every_search_box_are_inert(api: Api) -> None:
 
 
 def test_junk_in_every_query_parameter_never_crashes(api: Api) -> None:
-    c = setup_job(api, "Fuzz Co", "FUZ-1")
+    c = setup_machine(api, "Fuzz Co", "FUZ-1")
     with_query = [r for r in _routes(api) if r.method == "GET" and r.query and r.kind in (Kind.TENANT, Kind.PLATFORM)]
     junk = ["' OR '1'='1", "-1", "99999999999999999999", "2026-13-45", "../../etc/passwd", "\x00", "NaN"]
     failures, checked = [], 0
@@ -87,7 +87,7 @@ def test_junk_in_every_query_parameter_never_crashes(api: Api) -> None:
 
 
 def test_hostile_path_segments_are_rejected_cleanly(api: Api) -> None:
-    c = setup_job(api, "Path Co", "PTH-1")
+    c = setup_machine(api, "Path Co", "PTH-1")
     for seg in ("..%2F..%2Fetc%2Fpasswd", "%00", "1%20OR%201=1", "%27", "..", "%2e%2e"):
         for path in (f"/api/v1/tenant/machines/{seg}", f"/api/v1/tenant/attachments/{seg}/url"):
             r = api.client.get(path, headers=c.owner.headers(False, None))
@@ -95,7 +95,7 @@ def test_hostile_path_segments_are_rejected_cleanly(api: Api) -> None:
 
 
 def test_oversized_inputs_are_refused_without_server_errors(api: Api) -> None:
-    c = setup_job(api, "Big Co", "BIG-1")
+    c = setup_machine(api, "Big Co", "BIG-1")
     owner = c.owner
     big_field = owner.post("/api/v1/tenant/machines", {"asset_code": "BIG", "name": "x" * 1_000_000})
     assert big_field.status_code == 422 and big_field.json()["error"]["code"] == "VALIDATION_FAILED"
@@ -114,7 +114,7 @@ def test_oversized_inputs_are_refused_without_server_errors(api: Api) -> None:
 
 
 def test_sync_chunk_larger_than_declared_is_refused(api: Api) -> None:
-    c = setup_job(api, "Chunk Co", "CHK-1")
+    c = setup_machine(api, "Chunk Co", "CHK-1")
     tid = c.t.tenant["tenant"]["id"]
     sup = Actor(api, "sup-chunk", [f"/tenants/{tid}/supervisor"], tid, email="chunk@pen.example.com")
     h: dict[str, Any] = {**sup.headers(True, None), "X-Device-Id": "chunk-dev"}

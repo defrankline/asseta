@@ -18,7 +18,7 @@ from asseta.core.storage import S3ObjectStore
 from tests.support.api import Actor, Api
 from tests.support.finance import setup_finance
 from tests.support.idp import InMemoryObjectStore
-from tests.support.jobs import capture, fix, photo, setup_job, unique_jpeg
+from tests.support.meter import capture, fix, photo, setup_machine, unique_jpeg
 from tests.support.notify import sync_mirror
 
 T = "/api/v1/tenant"
@@ -91,7 +91,7 @@ def _h(actor: Actor, device: str = DEVICE) -> dict[str, str]:
 
 
 def test_revoked_device_is_refused_on_every_sync_endpoint_and_device_ids_are_user_bound(api: Api) -> None:
-    c = setup_job(api, "Device Co", "DEV-1")
+    c = setup_machine(api, "Device Co", "DEV-1")
     tid = c.t.tenant["tenant"]["id"]
     sup = _sup(api, c.owner, tid, c.t.machine_id, "sup-dev")
     reg = api.client.post(
@@ -115,8 +115,8 @@ def test_revoked_device_is_refused_on_every_sync_endpoint_and_device_ids_are_use
     assert c.owner.post(f"{T}/devices/{dev['id']}/revoke", {"reason": "Phone lost on site"}).status_code == 200
     note = {
         "id": str(uuid.uuid4()),
-        "op_type": "JOB_ACTIVITY",
-        "payload": {"job_id": c.job_id, "client_id": str(uuid.uuid4()), "activity_type": "NOTE"},
+        "op_type": "METER_CAPTURE",
+        "payload": capture(c.t.machine_id, "12.0", api.clock.now, mode="MANUAL"),
         "created_at_device": api.clock.now.isoformat(),
         "depends_on": [],
     }
@@ -136,7 +136,7 @@ def test_revoked_device_is_refused_on_every_sync_endpoint_and_device_ids_are_use
 
 
 def test_stale_offline_policy_is_refreshed_recorded_and_foreign_snapshots_refused(api: Api) -> None:
-    c = setup_job(api, "Policy Co", "POL-1")
+    c = setup_machine(api, "Policy Co", "POL-1")
     tid = c.t.tenant["tenant"]["id"]
     sup = _sup(api, c.owner, tid, c.t.machine_id, "sup-pol")
     api.client.post(
@@ -146,7 +146,7 @@ def test_stale_offline_policy_is_refreshed_recorded_and_foreign_snapshots_refuse
     old = {s["scope_key"]: s for s in boot["policy_snapshots"] if s["policy_type"] == "METER_CAPTURE"}["tenant"]
     changed = c.owner.post(
         f"{T}/policies/METER_CAPTURE/versions",
-        {"scope": "TENANT", "values": {"opening_mode": "MANUAL"}, "reason": "Owner switches to manual opening"},
+        {"scope": "TENANT", "values": {"capture_mode": "MANUAL"}, "reason": "Owner switches to manual readings"},
     )
     assert changed.status_code == 201, changed.text
     # Next contact hands the device the new version (the old snapshot is superseded, never silently kept).
@@ -158,9 +158,7 @@ def test_stale_offline_policy_is_refreshed_recorded_and_foreign_snapshots_refuse
     now = api.clock.now
     r = c.owner.post(
         f"{T}/meter-captures",
-        capture(
-            c.job_id, "OPENING", "10.0", now, photo_id=photo(api, c.owner), gps=fix(now), snapshot=old["version_ids"]
-        ),
+        capture(c.t.machine_id, "10.0", now, photo_id=photo(api, c.owner), gps=fix(now), snapshot=old["version_ids"]),
     )
     assert r.status_code == 201, r.text
     stamp = r.json()["capture"]["policy_version"]
@@ -178,7 +176,7 @@ def test_stale_offline_policy_is_refreshed_recorded_and_foreign_snapshots_refuse
     )
     bad = c.owner.post(
         f"{T}/meter-captures",
-        capture(c.job_id, "OPENING", "11.0", now, gps=fix(now), snapshot=[foreign], capture_id=str(uuid.uuid4())),
+        capture(c.t.machine_id, "11.0", now, gps=fix(now), snapshot=[foreign], capture_id=str(uuid.uuid4())),
     )
     assert bad.json()["error"]["code"] == "POLICY_SNAPSHOT_UNKNOWN", bad.text
 
@@ -202,15 +200,15 @@ def test_role_revocation_and_permission_removal_apply_to_still_valid_tokens(api:
     api.idp.set_group_permissions(gid, api.idp.group_perms[gid] - {"tenant.machine.read"})
     sync_mirror(api)
     assert api.client.get(f"{T}/machines", headers=stale).status_code == 403
-    assert api.client.get(f"{T}/jobs", headers=stale).status_code == 200  # other permissions untouched
+    assert api.client.get(f"{T}/machine-reports", headers=stale).status_code == 200  # other permissions untouched
 
     # Role revoked through Asseta: the still-valid token (group claim present until expiry) is refused at once.
     revoked = owner.post(f"{T}/access/members/{r.json()['user_id']}/roles/manager/revoke")
     assert revoked.status_code == 200, revoked.text
-    denied = api.client.get(f"{T}/jobs", headers=stale)
+    denied = api.client.get(f"{T}/machine-reports", headers=stale)
     assert denied.status_code == 403 and denied.json()["error"]["code"] == "TENANT_ACCESS_DENIED", denied.text
     fresh = Actor(api, mgr.subject, sorted(api.idp.memberships[mgr.subject]), tid)
-    assert fresh.get(f"{T}/jobs").status_code == 403
+    assert fresh.get(f"{T}/machine-reports").status_code == 403
 
     # Re-granted through Asseta: access returns (the deny is tied to the closed membership, not the person).
     again = owner.post(
@@ -218,4 +216,4 @@ def test_role_revocation_and_permission_removal_apply_to_still_valid_tokens(api:
         {"email": "mgr@role.example.com", "first_name": "M", "last_name": "G", "role_key": "manager"},
     )
     assert again.status_code == 201, again.text
-    assert api.tenant_user("mgr@role.example.com", tid).get(f"{T}/jobs").status_code == 200
+    assert api.tenant_user("mgr@role.example.com", tid).get(f"{T}/machine-reports").status_code == 200

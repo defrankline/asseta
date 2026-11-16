@@ -1,4 +1,5 @@
-"""Engine-hour ledger (design B [3.2.3]-[3.2.6]): pure derivation from readings, job windows and decisions."""
+"""Engine-hour ledger (design B [3.2.3]-[3.2.6]): pure derivation from readings, machine-report periods and
+decisions."""
 
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -6,14 +7,13 @@ from decimal import Decimal
 
 from asseta.modules.meter.ledger import (
     ClassificationFact,
-    JobSpan,
     LedgerPoint,
     ReadingReview,
+    ReportSpan,
     ResetPoint,
     SegmentClassification,
     SegmentKind,
     build_ledger,
-    job_overlaps,
 )
 
 T0 = datetime(2026, 11, 1, 6, 0, tzinfo=UTC)
@@ -24,28 +24,30 @@ def _p(hours: float, reading: str, source: str = "DAILY", verified: bool = True)
     return LedgerPoint(uuid.uuid4(), source, at, Decimal(reading), at, verified)
 
 
-def _span(start: LedgerPoint, end: LedgerPoint | None, number: str = "J-1") -> JobSpan:
-    return JobSpan(uuid.uuid4(), number, start.at, end.at if end else None, start.reading, end.reading if end else None)
+def _span(start: LedgerPoint, end: LedgerPoint, number: str = "MR-2026-00001") -> ReportSpan:
+    return ReportSpan(uuid.uuid4(), number, start.at, end.at)
 
 
-def test_intervals_split_customer_work_and_unallocated_with_totals() -> None:
+def test_intervals_split_reported_and_unallocated_with_totals() -> None:
     base = _p(0, "1000", "BASELINE")
     daily = _p(3, "1003")
-    opening = _p(4, "1003.5", "OPENING")
+    start = _p(4, "1003.5")
     mid = _p(6, "1005")
-    closing = _p(9, "1008", "CLOSING")
-    span = _span(opening, closing)
-    ledger = build_ledger([closing, mid, base, opening, daily], [], [span], [])
+    end = _p(9, "1008")
+    span = _span(start, end)
+    ledger = build_ledger([end, mid, base, start, daily], [], [span], [])
     kinds = [(i.kind, i.hours) for i in ledger.intervals]
     assert kinds == [
         (SegmentKind.UNALLOCATED, Decimal("3")),
         (SegmentKind.UNALLOCATED, Decimal("0.5")),
-        (SegmentKind.CUSTOMER_WORK, Decimal("1.5")),
-        (SegmentKind.CUSTOMER_WORK, Decimal("3")),
+        (SegmentKind.REPORTED, Decimal("1.5")),
+        (SegmentKind.REPORTED, Decimal("3")),
     ]
-    assert ledger.intervals[2].job_id == span.job_id
+    assert ledger.intervals[2].report_id == span.report_id
+    assert ledger.intervals[2].report_number == "MR-2026-00001"
+    assert ledger.intervals[2].classification is SegmentClassification.NOT_APPLICABLE
     t = ledger.totals()
-    assert (t.total_hours, t.customer_work_hours, t.unallocated_hours, t.unexplained_hours) == (
+    assert (t.total_hours, t.reported_hours, t.unallocated_hours, t.unexplained_hours) == (
         Decimal("8"),
         Decimal("4.5"),
         Decimal("3.5"),
@@ -54,10 +56,11 @@ def test_intervals_split_customer_work_and_unallocated_with_totals() -> None:
     assert all(i.classification is SegmentClassification.UNEXPLAINED for i in ledger.intervals[:2])
 
 
-def test_running_job_window_is_open_ended() -> None:
-    opening, later = _p(1, "50", "OPENING"), _p(30, "70")
-    ledger = build_ledger([opening, later], [], [_span(opening, None)], [])
-    assert ledger.intervals[0].kind is SegmentKind.CUSTOMER_WORK
+def test_interval_only_partly_inside_a_report_stays_unallocated() -> None:
+    a, b, c = _p(0, "50"), _p(2, "52"), _p(5, "55")
+    ledger = build_ledger([a, b, c], [], [_span(b, c)], [])
+    assert [i.kind for i in ledger.intervals] == [SegmentKind.UNALLOCATED, SegmentKind.REPORTED]
+    assert ledger.totals().reported_hours == Decimal("3")
 
 
 def test_approved_reset_rebases_elapsed_hours_and_decrease_is_inconsistent() -> None:
@@ -97,18 +100,3 @@ def test_unreviewed_reading_holds_interval_for_review() -> None:
     seg = build_ledger([a, b], [], [], []).intervals[0]
     assert seg.review is ReadingReview.PENDING_REVIEW and not seg.open_item
     assert build_ledger([a, b], [], [], []).totals().pending_review_hours == Decimal("2")
-
-
-def test_overlapping_jobs_are_detected_and_hours_counted_once() -> None:
-    o1, c1 = _p(0, "100", "OPENING"), _p(8, "108", "CLOSING")
-    o2, c2 = _p(4, "104", "OPENING"), _p(10, "110", "CLOSING")
-    j1, j2 = _span(o1, c1, "J-1"), _span(o2, c2, "J-2")
-    overlaps = job_overlaps([j1, j2])
-    assert len(overlaps) == 1 and overlaps[0].basis == "TIME"
-    ledger = build_ledger([o1, o2, c1, c2], [], [j1, j2], [])
-    covered = [i for i in ledger.intervals if i.overlapping_job_ids]
-    assert covered and all(i.job_id == j1.job_id for i in covered)
-    assert ledger.totals().total_hours == Decimal("10")  # every engine hour exactly once
-    # meter-range overlap without a time overlap (e.g. a back-dated reading)
-    o3, c3 = _p(20, "105", "OPENING"), _p(22, "107", "CLOSING")
-    assert job_overlaps([j1, _span(o3, c3, "J-3")])[0].basis == "METER_RANGE"

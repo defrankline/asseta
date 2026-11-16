@@ -3,38 +3,11 @@ and re-running is idempotent (dedupe key; one case link per signal)."""
 
 from datetime import timedelta
 
-from asseta.tools.gps_simulator import Fix
 from tests.support.api import Api
-from tests.support.finance import category, complete_job, expense_policy, setup_finance
+from tests.support.finance import category, expense_policy, setup_finance
 from tests.support.intelligence import cases, expense, feed_events, fraud_policy, receipt, signals, sweep
-from tests.support.jobs import capture, unique_jpeg
-from tests.support.telemetry import DAR, Telemetry
-
-
-def test_unreported_engine_activity_from_verified_ignition(api: Api) -> None:
-    tel = Telemetry(api)
-    t = tel.tracked_machine("Engine Co", "ENG-1")
-    tid, t0 = t.tenant["tenant"]["id"], api.clock.now
-    for minutes, ignition in ((1, True), (20, True), (40, True), (50, False)):
-        api.clock.set_at(t0 + timedelta(minutes=minutes))  # ignition is verified by the first real report
-        assert tel.send("ENG-1", Fix(api.clock.now, DAR[0], DAR[1], 0.0, 0.0, ignition=ignition))["accepted"] == 1
-    tel.drain_timeline()
-    api.clock.set_at(t0 + timedelta(hours=1))
-
-    fraud_policy(t.owner, engine_activity_min_minutes=50)  # engine on for 49 minutes: below the threshold
-    assert sweep(api, tid).signals == 0
-    fraud_policy(t.owner, engine_activity_min_minutes=49)
-    first = sweep(api, tid)
-    assert (first.signals, first.cases_opened) == (1, 1)
-    [sig] = signals(t.owner, rule_code="UNREPORTED_ENGINE_ACTIVITY")
-    ev = sig["evidence"]
-    assert sig["subject_type"] == "MACHINE" and sig["subject_id"] == t.machine_id and sig["status"] == "LINKED"
-    assert ev["basis"] == "IGNITION" and ev["uncovered_minutes"] == 49.0 and ev["threshold_minutes"] == 49
-    assert sig["policy_version"].startswith("FRAUD_CONTROLS@")
-    again = sweep(api, tid)
-    assert (again.signals, again.linked, again.cases_opened) == (0, 0, 0)  # idempotent re-run
-    [case] = cases(t.owner)
-    assert case["title"] == "Engine activity without an active job" and case["signal_count"] == 1
+from tests.support.machine_reports import T, idle, later, ok, report_body, setup_reports, submit
+from tests.support.meter import capture, unique_jpeg
 
 
 def test_duplicate_receipt_event_driven_and_sweep(api: Api) -> None:
@@ -62,25 +35,31 @@ def test_duplicate_receipt_event_driven_and_sweep(api: Api) -> None:
     assert late["id"] not in {s["subject_id"] for s in signals(f.owner, rule_code="DUPLICATE_RECEIPT")}
 
 
-def test_fuel_allowance_uses_meter_hours_and_machine_override(api: Api) -> None:
-    f = setup_finance(api, "Fuel Co", "FUEL-1")
+def test_fuel_allowance_per_approved_machine_report_and_machine_override(api: Api) -> None:
+    ctx = setup_reports(api, "Fuel Co", "FUEL-1")
+    f, m = ctx.f, ctx.machine_id
     t0 = api.clock.now
-    complete_job(api, f, f.c.job_id, "500.0", "508.0", 9)  # 8 meter hours
     for litres, kind in (("85", "USAGE"), ("40", "ISSUE")):
-        body = {"event_type": kind, "litres": litres, "machine_id": f.c.t.machine_id}
+        body = {"event_type": kind, "litres": litres, "machine_id": m}
         body |= {"occurred_at": (t0 + timedelta(hours=2)).isoformat(), "unit_price": "3000"}
         r = f.supervisor.post("/api/v1/tenant/fuel-events", body)
         assert r.status_code == 201, r.text
-    assert sweep(api, f.tid).signals == 0  # rule off by default
-    fraud_policy(f.owner, fuel_max_litres_per_meter_hour="10.625")  # 85 l / 8 h exactly: not above
+    at = later(api, 9)
+    rep = submit(f.supervisor, report_body(m, "1008.0", at, [idle(ctx.reasons["IDLE_ON_SITE"], 8)]))  # 8 meter hours
+    fraud_policy(f.owner, scope="MACHINE", ref=m, fuel_max_litres_per_meter_hour="10")
+    assert sweep(api, f.tid).signals == 0  # the report is not approved yet: nothing to judge
+    ok(f.manager.post(f"{T}/machine-reports/{rep['id']}/approve", {}))
+    fraud_policy(f.owner, scope="MACHINE", ref=m, fuel_max_litres_per_meter_hour="10.625")  # 85 l / 8 h: not above
     assert sweep(api, f.tid).signals == 0
-    fraud_policy(f.owner, scope="MACHINE", ref=f.c.t.machine_id, fuel_max_litres_per_meter_hour="10")
+    fraud_policy(f.owner, scope="MACHINE", ref=m, fuel_max_litres_per_meter_hour="10")
     assert sweep(api, f.tid).signals == 1
+    assert sweep(api, f.tid).signals == 0  # idempotent (one signal per report)
     [sig] = signals(f.owner, rule_code="FUEL_ALLOWANCE_EXCEEDED")
     ev = sig["evidence"]
     assert (ev["meter_hours"], ev["litres_used"], ev["litres_into_machine"]) == ("8.00", "85.000", "40.000")
     assert ev["litres_per_meter_hour"] == "10.625" and ev["allowance_litres_per_meter_hour"] == "10"
-    assert sig["job_id"] == f.c.job_id and ".M" in sig["policy_version"]
+    assert ev["machine_report_number"] == rep["report_number"] and sig["subject_id"] == m
+    assert sig["subject_type"] == "MACHINE" and ".M" in sig["policy_version"]
 
 
 def test_expense_threshold_per_machine_week_boundary(api: Api) -> None:
@@ -120,35 +99,11 @@ def test_cash_not_handed_over_age_then_amount_escalates_one_case(api: Api) -> No
     assert limits == {"HELD_LONGER_THAN_LIMIT", "ABOVE_AMOUNT_LIMIT"}
 
 
-def test_work_without_authorization_on_unapproved_job_and_unassigned_supervisor(api: Api) -> None:
-    f = setup_finance(api, "Auth Co", "AUTH-1")
-    cat = category(f, "SITE", "Site costs")
-    expense_policy(f, receipt_required_above="100000000", gps_required=False, auto_approve_limit="0")
-    draft = f.owner.post(
-        "/api/v1/tenant/jobs",
-        {"contract_id": f.c.contract_id, "job_number": "J-DRAFT", "machine_id": f.c.t.machine_id,
-         "planned_start": api.clock.now.isoformat()},
-    )  # fmt: skip
-    assert draft.status_code == 201, draft.text
-    ok = expense(api, f.supervisor, cat, "1000", job_id=f.c.job_id)  # approved job, assigned supervisor
-    on_draft = expense(api, f.supervisor, cat, "2000", job_id=draft.json()["id"])
-    before = (api.clock.now - timedelta(days=2)).isoformat()  # before the supervisor's assignment
-    unassigned = expense(api, f.supervisor, cat, "3000", job_id=f.c.job_id, incurred_at=before)
-
-    assert sweep(api, f.tid).signals == 2
-    found = {s["evidence"]["record_id"]: s for s in signals(f.owner, rule_code="WORK_WITHOUT_AUTHORIZATION")}
-    assert ok["id"] not in found
-    assert found[on_draft["id"]]["evidence"]["reasons"] == ["BEFORE_JOB_AUTHORIZED"]
-    assert found[on_draft["id"]]["evidence"]["job_status_now"] == "DRAFT"
-    assert found[unassigned["id"]]["evidence"]["reasons"] == ["SUPERVISOR_NOT_ASSIGNED_TO_MACHINE"]
-    assert found[unassigned["id"]]["staff_member_id"] == f.sup_staff_id
-
-
 def test_existing_sources_link_confirmed_meter_exceptions_only(api: Api) -> None:
     f = setup_finance(api, "Meter Co", "MTR-1")
     r = f.owner.post(
         "/api/v1/tenant/meter-captures",
-        capture(f.c.job_id, "OPENING", "500.0", api.clock.now, mode="MANUAL", gps={"status": "NO_FIX"}),
+        capture(f.c.t.machine_id, "500.0", api.clock.now, mode="MANUAL", gps={"status": "NO_FIX"}),
     )
     assert r.status_code == 201, r.text
     [exc] = f.owner.get("/api/v1/tenant/exceptions").json()["items"]

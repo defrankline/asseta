@@ -166,15 +166,13 @@ class ApprovalsTileDto(BaseModel):
     meter_corrections: int = 0
     allocation_corrections: int = 0
     classifications: int = 0
-    non_revenue_approvals: int = 0
     variance_closures: int = 0
     meter_baselines: int = 0
     meter_resets: int = 0
     partial_reasons: int = 0
-    jobs_awaiting_approval: int = 0
+    machine_reports: int = 0
     daily_reports_to_review: int = 0
     case_closures: int = 0
-    revenue_decisions: int = 0
     petty_cash_movements: int = 0
     petty_cash_adjustments: int = 0
     total: int
@@ -192,7 +190,7 @@ class AccountabilitySummaryDto(BaseModel):
     disabled_capabilities: list[str] = Field(
         default_factory=list,
         description="Tenant capabilities switched off by policy (CUSTOMER_HOURS, ENGINE_HOURS, CASH_CUSTODY, "
-        "REVENUE_RECONCILIATION, SCORECARD, UNBILLED_WORK, IDLE_MACHINES, SITE_CHECKIN); their "
+        "SCORECARD, IDLE_MACHINES, ...); their "
         "tiles are hidden and, for CASH_CUSTODY, the cash-control figures of the cash/discrepancy/approval tiles are "
         "empty",
     )
@@ -208,28 +206,16 @@ class AccountabilitySummaryDto(BaseModel):
     unexplained_hours: dict[str, Any] | None = Field(
         default=None,
         description="[3.6.4] unexplained engine hours: machines, hours, value_at_risk [{currency, amount}] (DEC-032 "
-        "A5: separate from expected revenue; empty unless the tenant uses VALUE_AT_RISK), items (meter module)",
+        "A5: the hours at the machine category's rate card), items (meter module)",
     )
     missing_daily_reports: dict[str, Any] | None = Field(
         default=None, description="[3.6.9] missing or overdue operational reports (meter module)"
     )
-    revenue_differences: dict[str, Any] | None = Field(
-        default=None,
-        description="[DEC-031 R3] revenue differences: open, awaiting_decision, amounts [{currency, count, amount}], "
-        "value_at_risk [{currency, amount}] (DEC-032 A5, unexplained hours, never in the amounts), "
-        "oldest_open_days, window_days, explained/confirmed/cleared_in_window, items [{id, machine_id, machine_code, "
-        "period_key, local_from, local_to, currency, difference, status}] (revenue module)",
-    )
-    unbilled_work: dict[str, Any] | None = Field(
-        default=None,
-        description="[DEC-031 M2] unbilled work: count, after_days, amounts [{currency, count, amount}], oldest_days, "
-        "items [{job_id, job_number, machine_id, machine_code, machine_name, customer_id, customer_name, completed_at, "
-        "days_unbilled, currency, total}] (oversight module)",
-    )
     idle_machines: dict[str, Any] | None = Field(
         default=None,
         description="[DEC-031 M2] idle machines: count, after_days, longest_idle_days, items [{machine_id, "
-        "machine_code, machine_name, idle_since, idle_days, planned_job_id, planned_job_number}] (oversight module)",
+        "machine_code, machine_name, idle_since, idle_days, last_machine_report_id, last_machine_report_number}] "
+        "(oversight module)",
     )
     investigations: InvestigationsTileDto | None = None
     cash: CashTileDto | None = None

@@ -181,7 +181,6 @@ class TopUpExpenseDto(BaseModel):
     decided_at: datetime | None
     category_id: uuid.UUID
     machine_id: uuid.UUID | None
-    job_id: uuid.UUID | None
 
 
 class TopUpSuggestionDto(BaseModel):

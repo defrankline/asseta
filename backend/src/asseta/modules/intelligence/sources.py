@@ -25,17 +25,17 @@ from asseta.modules.intelligence.models import (
     SubjectType,
 )
 from asseta.modules.intelligence.rules import RULE_VERSIONS, SignalFinding
-from asseta.modules.meter.models import ExceptionStatus, JobException, MeterCapture
+from asseta.modules.meter.models import ExceptionStatus, MeterCapture, MeterException
 
 RULE_TITLES: dict[str, str] = {
-    RuleCode.UNREPORTED_ENGINE_ACTIVITY: "Engine activity without an active job",
+    RuleCode.UNREPORTED_ENGINE_ACTIVITY: "Engine activity outside the recorded work (no longer raised)",
     RuleCode.DUPLICATE_RECEIPT: "Same receipt image on more than one expense",
     RuleCode.FUEL_ALLOWANCE_EXCEEDED: "Fuel above the allowance for the meter hours",
     RuleCode.EXPENSE_THRESHOLD_EXCEEDED: "Weekly machine spending above the threshold",
     RuleCode.CASH_NOT_HANDED_OVER: "Cash held beyond the handover limits",
-    RuleCode.WORK_WITHOUT_AUTHORIZATION: "Work recorded outside an authorized job",
+    RuleCode.WORK_WITHOUT_AUTHORIZATION: "Work recorded outside its authorized period (no longer raised)",
     RuleCode.UNEXPLAINED_ENGINE_HOURS: "Engine hours still unexplained after the review period",
-    RuleCode.ENGINE_RUNNING_WITHOUT_WORK: "Engine running without work during the day",
+    RuleCode.ENGINE_RUNNING_WITHOUT_WORK: "Engine running without work during the day (no longer raised)",
     RuleCode.MACHINE_FUEL_ABOVE_NORM: "Fuel above the norm for the engine hours",
     RuleCode.REPEATED_PATTERN: "Repeated items to look at for one person",
 }
@@ -70,7 +70,6 @@ def store_findings(s: Session, tenant_id: uuid.UUID, now: datetime, findings: Se
                 subject_type=f.subject_type,
                 subject_id=f.subject_id,
                 machine_id=f.machine_id,
-                job_id=f.job_id,
                 staff_member_id=f.staff_member_id,
                 window_start=f.window_start,
                 window_end=f.window_end,
@@ -106,7 +105,6 @@ def link_open_signals(s: Session, linker: CaseLinker) -> None:
                 sig.subject_id,
                 sig.policy_version,
                 sig.machine_id,
-                sig.job_id,
                 sig.staff_member_id,
                 tuple(sig.involved_user_ids),
                 tuple(sig.involved_staff_ids),
@@ -141,7 +139,7 @@ def _supervisors_at(s: Session, machine_id: uuid.UUID, at: datetime) -> tuple[uu
     )
 
 
-def meter_exception_item(s: Session, e: JobException, policy_version: str) -> CaseItem | None:
+def meter_exception_item(s: Session, e: MeterException, policy_version: str) -> CaseItem | None:
     """Confirmed by a reviewer, or blocking + CRITICAL and not yet explained."""
     if not (
         e.status is ExceptionStatus.CONFIRMED
@@ -174,7 +172,6 @@ def meter_exception_item(s: Session, e: JobException, policy_version: str) -> Ca
         e.machine_id,
         e.policy_version or policy_version,
         e.machine_id,
-        e.job_id,
         None,
         tuple(users),
         tuple(_staff_for_users(s, users).values()),
@@ -232,7 +229,7 @@ def link_sources(s: Session, linker: CaseLinker, since: datetime, policy_version
     """Sweep the existing deterministic layer (bounded by `since`); already linked sources are skipped. The outbox
     has no row-level security, so SoD events are filtered by tenant explicitly."""
     for e in s.execute(
-        select(JobException).where(or_(JobException.created_at >= since, JobException.reviewed_at >= since))
+        select(MeterException).where(or_(MeterException.created_at >= since, MeterException.reviewed_at >= since))
     ).scalars():
         if not linker.already_linked(CaseSourceType.METER_EXCEPTION, e.id) and (
             item := meter_exception_item(s, e, policy_version)

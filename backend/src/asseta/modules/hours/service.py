@@ -21,12 +21,13 @@ from asseta.core.money import quantize
 from asseta.core.outbox import OutboxWriter
 from asseta.core.search import ilike_any
 from asseta.modules.adjustments.models import AdjustmentRequest, AdjustmentRequestStatus, AdjustmentRequestType
+from asseta.modules.customers.dto import CustomerDto
+from asseta.modules.customers.models import Customer, CustomerKind, RentalRatePolicy
 from asseta.modules.finance.cash_service import CashCustodyService
 from asseta.modules.finance.common import tenant_settings
 from asseta.modules.finance.dto import CashCollectionIn, CustomerPaymentDto, CustomerPaymentIn
 from asseta.modules.finance.models import (
     CustomerPayment,
-    HirePaymentAllocation,
     HirePaymentMethod,
     SettlementStatus,
 )
@@ -36,7 +37,6 @@ from asseta.modules.geospatial.models import JobSite
 from asseta.modules.hours.cash_activation import CashActivation
 from asseta.modules.hours.credit_invoices import create_credit_invoice, invoice_summaries
 from asseta.modules.hours.dto import (
-    AllocationLineDto,
     CreditActivationIn,
     CustomerDiscountRateDto,
     CustomerRegistrationIn,
@@ -54,7 +54,6 @@ from asseta.modules.hours.dto import (
     PurchaseTotalsDto,
     WalkInCustomerDto,
     WalkInCustomerIn,
-    WorkExecutionAllocationDto,
 )
 from asseta.modules.hours.engine import TOPIC, HoursEngine, minor_units
 from asseta.modules.hours.ledger import (
@@ -77,13 +76,10 @@ from asseta.modules.hours.models import (
     LedgerEntryType,
     PaymentEvidence,
     ProposalStatus,
-    WorkExecutionAllocation,
 )
 from asseta.modules.hours.numbering import next_number
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.dto import CustomerDto
-from asseta.modules.jobs.models import Customer, CustomerKind, RentalRatePolicy
-from asseta.modules.meter.models import CaptureAttachment, JobException
+from asseta.modules.meter.models import CaptureAttachment
 from asseta.modules.policy.schemas import ActivationBasis
 
 T = LedgerEntryType
@@ -128,7 +124,6 @@ def purchase_dto(
             refunded=m.by_type[T.REFUNDED],
             corrected=m.by_type[T.CORRECTION_ADD] - m.by_type[T.CORRECTION_DEDUCT],
             remaining=m.remaining,
-            provisional=m.by_type[T.PROVISIONAL] - m.by_type[T.PROVISIONAL_REVERSED],
         )
         for mid, m in totals.machines.items()
     ]
@@ -176,7 +171,6 @@ def purchase_dto(
             refunded=totals.total(T.REFUNDED),
             corrected=totals.total(T.CORRECTION_ADD) - totals.total(T.CORRECTION_DEDUCT),
             remaining=totals.remaining,
-            provisional=totals.provisional,
             amount_verified=verified,
             amount_claimed_unverified=claimed,
             amount_outstanding=(
@@ -237,37 +231,6 @@ def purchase_query(
     if (match := ilike_any(q, HoursPurchase.purchase_number, Customer.name, Customer.code)) is not None:
         stmt = stmt.join(Customer, Customer.id == HoursPurchase.customer_id).where(match)
     return stmt
-
-
-def allocation_dto(session: Session, wea: WorkExecutionAllocation) -> WorkExecutionAllocationDto:
-    rows = session.execute(
-        select(HoursLedgerEntry, HoursPurchase.purchase_number)
-        .join(HoursPurchase, HoursPurchase.id == HoursLedgerEntry.purchase_id)
-        .where(HoursLedgerEntry.allocation_id == wea.id, HoursLedgerEntry.entry_type == T.CONSUMED)
-        .order_by(HoursLedgerEntry.created_at, HoursPurchase.purchase_number)
-    )
-    lines = [
-        AllocationLineDto(
-            purchase_id=e.purchase_id, purchase_number=n, hours=e.hours, entry_id=e.id, occurred_at=e.occurred_at
-        )
-        for e, n in rows
-    ]
-    consumed = sum((line.hours for line in lines), ZERO)
-    exc = session.get(JobException, wea.exception_id) if wea.exception_id else None
-    return WorkExecutionAllocationDto(
-        id=wea.id,
-        job_id=wea.job_id,
-        customer_id=wea.customer_id,
-        machine_id=wea.machine_id,
-        billable_hours=wea.billable_hours,
-        consumed_hours=consumed,
-        overrun_hours=max(ZERO, wea.billable_hours - consumed),
-        exception_id=wea.exception_id,
-        exception_status=exc.status.value if exc else None,
-        policy_version=wea.policy_version,
-        created_at=wea.created_at,
-        lines=lines,
-    )
 
 
 def balances(
@@ -334,7 +297,6 @@ def balances(
                 corrected=by[T.CORRECTION_ADD] - by[T.CORRECTION_DEDUCT],
                 remaining=sum((SIGN[t] * v for t, v in by.items()), ZERO),
                 awaiting_activation=r["awaiting"],
-                provisional=by[T.PROVISIONAL] - by[T.PROVISIONAL_REVERSED],
             )
         )
     return out
@@ -419,7 +381,7 @@ class HoursService:
         dto = CustomerDto.model_validate(c)
         self._audit.record(
             actor=self._ctx.audit_actor(),
-            action="jobs.customer.registered",
+            action="customers.customer.registered",
             entity_type="customer",
             entity_id=c.id,
             tenant_id=self._tid,
@@ -766,14 +728,7 @@ class HoursService:
             raise BusinessRuleViolation(
                 f"Allocation exceeds the purchase's open amount {open_amount}", code="OVER_ALLOCATION"
             )
-        hire = Decimal(
-            self._s.execute(
-                select(func.coalesce(func.sum(HirePaymentAllocation.amount), 0)).where(
-                    HirePaymentAllocation.payment_id == payment.id, HirePaymentAllocation.released_at.is_(None)
-                )
-            ).scalar_one()
-        )
-        if hire + active_allocated(self._s, payment_id=payment.id) + body.amount > payment.amount:
+        if active_allocated(self._s, payment_id=payment.id) + body.amount > payment.amount:
             raise BusinessRuleViolation("Allocations exceed the payment amount", code="ALLOCATION_EXCEEDS_PAYMENT")
         alloc = HoursPaymentAllocation(
             id=uuid.uuid4(),

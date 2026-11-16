@@ -1,5 +1,5 @@
 """Petty cash report definitions (DEC-033): a fund statement with its running balance, and the expenses paid from
-petty cash by category, machine and job. Rows reuse the petty cash ledger and the expense list query; a field user
+petty cash by category and machine. Rows reuse the petty cash ledger and the expense list query; a field user
 (no oversight permission) only reaches the funds they hold."""
 
 import uuid
@@ -19,7 +19,7 @@ from asseta.modules.pettycash.models import PettyCashFund
 from asseta.modules.pettycash.service import PettyCashService
 from asseta.modules.reports.definitions import ReportColumn as C
 from asseta.modules.reports.definitions import ReportDefinition
-from asseta.modules.reports.sources_ops import job_numbers, machine_codes
+from asseta.modules.reports.sources_ops import machine_codes
 
 
 class PettyCashStatementFilters(BaseModel):
@@ -97,7 +97,6 @@ class PettyCashExpensesFilters(BaseModel):
     petty_cash_fund_id: uuid.UUID | None = None
     status: ExpenseStatus | None = None
     machine_id: uuid.UUID | None = None
-    job_id: uuid.UUID | None = None
     control_flag: ExpenseFlag | None = None
 
 
@@ -105,7 +104,7 @@ def _expenses(session: Session, ctx: RequestContext, now: datetime, f: BaseModel
     assert isinstance(f, PettyCashExpensesFilters)
     svc = PettyCashService(session, ctx, now)
     stmt = expense_list_query(
-        f.status, f.machine_id, f.job_id, None, ExpensePaidFrom.PETTY_CASH, f.petty_cash_fund_id, f.control_flag
+        f.status, f.machine_id, None, ExpensePaidFrom.PETTY_CASH, f.petty_cash_fund_id, f.control_flag
     ).where(Expense.petty_cash_fund_id.in_(svc.visible_funds().with_only_columns(PettyCashFund.id)))
     expenses = list(session.execute(stmt.limit(limit + 1)).scalars())
     categories = dict(
@@ -127,7 +126,6 @@ def _expenses(session: Session, ctx: RequestContext, now: datetime, f: BaseModel
         .all()
     )
     machines = machine_codes(session, (e.machine_id for e in expenses))
-    jobs = job_numbers(session, (e.job_id for e in expenses))
     return [
         {
             "incurred_at": e.incurred_at,
@@ -138,7 +136,6 @@ def _expenses(session: Session, ctx: RequestContext, now: datetime, f: BaseModel
             "amount": e.amount,
             "currency": e.currency,
             "machine": machines.get(e.machine_id) if e.machine_id else None,
-            "job": jobs.get(e.job_id) if e.job_id else None,
             "status": e.status,
             "flags": ", ".join(e.control_flags) or None,
             "decided_at": e.decided_at,
@@ -150,7 +147,7 @@ def _expenses(session: Session, ctx: RequestContext, now: datetime, f: BaseModel
 PETTY_CASH_EXPENSES = ReportDefinition(
     code="petty_cash_expenses",
     title="Petty cash expenses",
-    description="Expenses paid from petty cash funds by fund, category, machine and job, with approval status",
+    description="Expenses paid from petty cash funds by fund, category and machine, with approval status",
     scope=S.TENANT,
     permission="tenant.pettycash.read",
     columns=(
@@ -162,7 +159,6 @@ PETTY_CASH_EXPENSES = ReportDefinition(
         C("amount", "Amount", "money"),
         C("currency", "Currency", width=0.6),
         C("machine", "Machine"),
-        C("job", "Job"),
         C("status", "Status", width=1.2),
         C("flags", "Flags", width=1.2),
         C("decided_at", "Decided", "instant", 1.2),

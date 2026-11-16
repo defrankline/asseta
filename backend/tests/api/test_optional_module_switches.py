@@ -1,6 +1,6 @@
 """DEC-032: the five per-company optional-module switches (platform default ON). Each one, switched off, omits its
 menus, refuses its endpoints (422 <CAPABILITY>_DISABLED) and lists itself in /me disabled_capabilities; defaults
-change nothing. Job sites, machines, cash variances, revenue differences and mandates are not touched by a switch."""
+change nothing. Sites, machines, cash variances and mandates are not touched by a switch."""
 
 import uuid
 from datetime import timedelta
@@ -8,20 +8,18 @@ from typing import Any
 
 from asseta.core.db import DbScope, apply_scope, get_sessionmaker
 from asseta.modules.geospatial.connectivity import sweep_tenant
-from asseta.modules.intelligence.detectors_telemetry import detect_engine_activity
 from asseta.modules.intelligence.linking import CaseItem, CaseLinker
 from asseta.modules.intelligence.models import CaseSourceType, SignalSeverity, SubjectType
 from asseta.tools.gps_simulator import Fix
 from tests.api.test_managed_service import grant
-from tests.api.test_oversight import _collect_and_remit
 from tests.support.api import Actor, Api
-from tests.support.finance import cash_policy, role, setup_finance
+from tests.support.finance import FinCtx, cash_policy, role, setup_finance
 from tests.support.notify import sql
 from tests.support.telemetry import DAR, Telemetry
 
 T = "/api/v1/tenant"
 ACCOUNTS = f"{T}/deposit-accounts"
-DEFAULT_OFF = ("IDLE_MACHINES", "PETTY_CASH", "REVENUE_RECONCILIATION", "SCORECARD", "SITE_CHECKIN", "UNBILLED_WORK")
+DEFAULT_OFF = ("IDLE_MACHINES", "PETTY_CASH", "SCORECARD")
 LAT, LON = DAR
 
 
@@ -52,6 +50,17 @@ def _policy(owner: Actor, ptype: str, **values: Any) -> None:
 
 def _steps(actor: Actor) -> dict[str, dict[str, Any]]:
     return {s["key"]: s for s in _ok(actor.get(f"{T}/setup-checklist"))["steps"]}
+
+
+def _collect_and_remit(f: FinCtx, at: str, amount: str, received: str) -> str:
+    """A collection handed over and counted short: returns the cash variance id."""
+    body = {"customer_id": f.customer_id, "amount": amount, "received_at": at, "staff_member_id": f.sup_staff_id}
+    _ok(f.manager.post(f"{T}/cash/collections", body), 201)
+    handover = {"staff_member_id": f.sup_staff_id, "amount": amount, "handed_at": at}
+    h = _ok(f.manager.post(f"{T}/cash/handovers", handover), 201)
+    _ok(f.accountant.post(f"{T}/cash/handovers/{h['id']}/decision", {"verified": True, "amount_received": received}))
+    variances = _ok(f.accountant.get(f"{T}/cash/variances", staff_member_id=f.sup_staff_id, page_size=50))["items"]
+    return str(next(v["id"] for v in variances if v["source_id"] == h["id"]))
 
 
 def _fix(api: Api, minutes: int) -> Fix:
@@ -158,7 +167,7 @@ def test_tracking_off_keeps_machines_sites_and_billing(api: Api) -> None:
     for path in ("trackers", "alerts", "geofences", f"geofences/{fence['id']}", "telemetry/ingestion-events"):
         _refused(o.get(f"{T}/{path}"), "TRACKING_DISABLED")
     _refused(o.post(f"{T}/geofences", geofence), "TRACKING_DISABLED")
-    # Job sites and machines are not tracking; billing enrollment is untouched.
+    # Sites and machines are not tracking; billing enrollment is untouched.
     assert [s["id"] for s in _ok(o.get(f"{T}/job-sites"))] == [site["id"]]
     assert _ok(o.get(f"{T}/machines/{a.machine_id}"))["billing_enrolled"] == before["billing_enrolled"]
 
@@ -167,17 +176,16 @@ def test_tracking_off_keeps_machines_sites_and_billing(api: Api) -> None:
     assert (result["accepted"], result["quarantined"], result["reasons"]) == (0, 1, ["TRACKING_DISABLED"])
     positions = sql("SELECT count(*) FROM machine_position_event WHERE machine_id = :m", m=a.machine_id)
     assert positions[0][0] == 1  # only the message from before the switch
-    # Trackers that stop reporting raise nothing, and engine evidence is skipped.
+    # Trackers that stop reporting raise nothing.
     later = api.clock.now + timedelta(days=3)
     tid = a.tenant["tenant"]["id"]
     with get_sessionmaker().begin() as session:
         apply_scope(session, DbScope.TENANT, tid, None)
         assert sweep_tenant(session, tid, later).transitions == 0
-        assert detect_engine_activity(session, tid, later, later - timedelta(days=4)) == []
 
     steps = _steps(o)
     assert steps["TRACKERS"]["status"] == "NOT_APPLICABLE"
-    assert {c["key"] for c in steps["SITES"]["checks"]} == {"JOB_SITES"}
+    assert {c["key"] for c in steps["SITES"]["checks"]} == {"SITES"}
     assert steps["SITES"]["status"] == "DONE"
     overview = _ok(o.get(f"{T}/overview"))["fleet"]
     assert overview["machines"] == 1 and overview["connectivity"]["live"] == 0 and overview["open_alerts"]["info"] == 0

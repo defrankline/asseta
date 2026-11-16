@@ -1,6 +1,6 @@
 """Supervisor inbox for sync pull: the caller's own field records, so they stay visible on the device after sync.
 
-Each stream is paged by `sync_revision` exactly like jobs (PAGE rows, `has_more` when more remain). Bootstrap ships
+Each stream is paged by `sync_revision` (PAGE rows, `has_more` when more remain). Bootstrap ships
 a recent window (WINDOW) plus everything still open; deltas ship anything changed above the cursor. Meter captures
 are immutable but their findings are reviewed later, so a capture's revision is the highest of the capture and its
 findings: a review re-delivers the capture with the new review state.
@@ -17,34 +17,22 @@ from sqlalchemy.orm import Session
 
 from asseta.modules.expenses.models import ApprovalRequest, Expense, ExpenseAttachment, ExpenseStatus, FuelEvent
 from asseta.modules.expenses.service import SUBJECT, own_expense_filter, own_fuel_filter
-from asseta.modules.finance.dto import HireAllocationDto
-from asseta.modules.finance.models import (
-    CashHandover,
-    CustomerPayment,
-    HirePaymentAllocation,
-    HirePaymentMethod,
-    SettlementStatus,
-)
+from asseta.modules.finance.models import CashHandover, CustomerPayment, HirePaymentMethod, SettlementStatus
 from asseta.modules.fleet.models import StaffMember
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.models import CustomerAcknowledgement, Job, JobActivity, JobStatus
-from asseta.modules.jobs.scope import job_filter, scoped_job_ids
 from asseta.modules.meter.dto import ExceptionDto
-from asseta.modules.meter.models import CaptureState, ExceptionStatus, JobException, MeterCapture, MeterResetEvent
+from asseta.modules.meter.models import CaptureState, ExceptionStatus, MeterCapture, MeterException, MeterResetEvent
 from asseta.modules.meter.service import own_capture_filter, own_reset_filter
 from asseta.modules.sync.dto import (
-    SyncAcknowledgementDto,
     SyncCashCollectionDto,
     SyncCashHandoverDto,
     SyncExpenseDto,
     SyncFuelEventDto,
-    SyncJobActivityDto,
     SyncMeterCaptureDto,
     SyncMeterResetDto,
 )
 
 WINDOW = timedelta(days=30)
-OPEN_JOB_STATES = (JobStatus.APPROVED, JobStatus.IN_PROGRESS)
 
 
 @dataclass
@@ -58,8 +46,6 @@ class Stream:
 class Inbox:
     meter_captures: Stream
     meter_resets: Stream
-    job_activities: Stream
-    acknowledgements: Stream
     expenses: Stream
     fuel_events: Stream
     cash_collections: Stream
@@ -77,14 +63,11 @@ class InboxReader:
     def read(self, min_revision: int | None) -> Inbox:
         perms = self._ctx.permissions
         meter = bool({"tenant.meter.capture", "tenant.meter.read"} & perms)
-        field_log = bool({"tenant.job.log", "tenant.job.read"} & perms)
         spend = bool({"tenant.expense.read", "tenant.expense.write"} & perms)
         cash = "tenant.collection.record" in perms and self._staff is not None
         return Inbox(
             meter_captures=self._captures(min_revision) if meter else Stream(),
             meter_resets=self._resets(min_revision) if meter else Stream(),
-            job_activities=self._activities(min_revision) if field_log else Stream(),
-            acknowledgements=self._acknowledgements(min_revision) if field_log else Stream(),
             expenses=self._expenses(min_revision) if spend else Stream(),
             fuel_events=self._fuel(min_revision) if spend and self._fuel_on() else Stream(),
             cash_collections=self._collections(min_revision) if cash else Stream(),
@@ -119,20 +102,17 @@ class InboxReader:
     def _stream(items: list[Any], revs: list[int], has_more: bool) -> Stream:
         return Stream(items, has_more, revs[-1] if revs else 0)
 
-    def _open_jobs(self) -> Select[uuid.UUID]:
-        return select(Job.id).where(job_filter(self._staff), Job.status.in_(OPEN_JOB_STATES))
-
     # --- streams ------------------------------------------------------------------------------------------------
     def _captures(self, min_revision: int | None) -> Stream:
         finding_rev = (
-            select(func.max(JobException.sync_revision))
-            .where(JobException.meter_capture_id == MeterCapture.id)
+            select(func.max(MeterException.sync_revision))
+            .where(MeterException.meter_capture_id == MeterCapture.id)
             .correlate(MeterCapture)
             .scalar_subquery()
         )
         revision = func.greatest(MeterCapture.sync_revision, func.coalesce(finding_rev, 0))
         open_finding = exists().where(
-            JobException.meter_capture_id == MeterCapture.id, JobException.status == ExceptionStatus.OPEN
+            MeterException.meter_capture_id == MeterCapture.id, MeterException.status == ExceptionStatus.OPEN
         )
         bootstrap = or_(MeterCapture.captured_at >= self._since, MeterCapture.state == CaptureState.PROVISIONAL)
         rows, revs, more = self._paged(
@@ -144,8 +124,8 @@ class InboxReader:
         )
         findings: dict[uuid.UUID, list[ExceptionDto]] = defaultdict(list)
         if rows:
-            stmt = select(JobException).where(JobException.meter_capture_id.in_([r.id for r in rows]))
-            for e in self._s.execute(stmt.order_by(JobException.created_at, JobException.id)).scalars():
+            stmt = select(MeterException).where(MeterException.meter_capture_id.in_([r.id for r in rows]))
+            for e in self._s.execute(stmt.order_by(MeterException.created_at, MeterException.id)).scalars():
                 assert e.meter_capture_id is not None
                 findings[e.meter_capture_id].append(ExceptionDto.model_validate(e))
         out = []
@@ -164,25 +144,6 @@ class InboxReader:
             MeterResetEvent, own_reset_filter(self._ctx, self._staff), min_revision, bootstrap
         )
         return self._stream([SyncMeterResetDto.model_validate(r) for r in rows], revs, more)
-
-    def _activities(self, min_revision: int | None) -> Stream:
-        own = or_(JobActivity.recorded_by == self._ctx.user_id, JobActivity.job_id.in_(scoped_job_ids(self._staff)))
-        bootstrap = or_(JobActivity.started_at >= self._since, JobActivity.job_id.in_(self._open_jobs()))
-        rows, revs, more = self._paged(JobActivity, own, min_revision, bootstrap)
-        out = []
-        for a in rows:
-            dto = SyncJobActivityDto.model_validate(a)
-            if a.ended_at is not None:
-                dto.duration_minutes = int((a.ended_at - a.started_at).total_seconds() // 60)
-            out.append(dto)
-        return self._stream(out, revs, more)
-
-    def _acknowledgements(self, min_revision: int | None) -> Stream:
-        ack = CustomerAcknowledgement
-        own = or_(ack.recorded_by == self._ctx.user_id, ack.job_id.in_(scoped_job_ids(self._staff)))
-        bootstrap = or_(ack.captured_at >= self._since, ack.job_id.in_(self._open_jobs()))
-        rows, revs, more = self._paged(ack, own, min_revision, bootstrap)
-        return self._stream([SyncAcknowledgementDto.model_validate(a) for a in rows], revs, more)
 
     def _expenses(self, min_revision: int | None) -> Stream:
         bootstrap = or_(Expense.incurred_at >= self._since, Expense.status == ExpenseStatus.PENDING_APPROVAL)
@@ -222,21 +183,7 @@ class InboxReader:
         )
         bootstrap = or_(CustomerPayment.received_at >= self._since, CustomerPayment.status == SettlementStatus.CLAIMED)
         rows, revs, more = self._paged(CustomerPayment, own, min_revision, bootstrap)
-        allocations: dict[uuid.UUID, list[HireAllocationDto]] = defaultdict(list)
-        if rows:
-            stmt = (
-                select(HirePaymentAllocation)
-                .where(HirePaymentAllocation.payment_id.in_([p.id for p in rows]))
-                .order_by(HirePaymentAllocation.created_at)
-            )
-            for a in self._s.execute(stmt).scalars():
-                allocations[a.payment_id].append(HireAllocationDto.model_validate(a))
-        out = []
-        for p in rows:
-            dto = SyncCashCollectionDto.model_validate(p)
-            dto.allocations = allocations[p.id]
-            out.append(dto)
-        return self._stream(out, revs, more)
+        return self._stream([SyncCashCollectionDto.model_validate(p) for p in rows], revs, more)
 
     def _handovers(self, min_revision: int | None) -> Stream:
         assert self._staff is not None

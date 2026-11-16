@@ -24,6 +24,8 @@ from asseta.core.paging import Page, PageParams, page_params, paginate
 from asseta.core.search import ilike_any
 from asseta.core.storage import ObjectStore
 from asseta.modules.accountability.names import fill_names, named
+from asseta.modules.customers.dto import CustomerDto
+from asseta.modules.customers.models import Customer
 from asseta.modules.finance import permissions as _finance_permissions  # noqa: F401  (declares finance codes)
 from asseta.modules.finance.common import period_conditions, tenant_settings
 from asseta.modules.fleet.models import Machine
@@ -65,7 +67,6 @@ from asseta.modules.hours.dto import (
     TransferIn,
     WalkInCustomerDto,
     WalkInCustomerIn,
-    WorkExecutionAllocationDto,
 )
 from asseta.modules.hours.ledger import PurchaseQueue
 from asseta.modules.hours.models import (
@@ -82,7 +83,6 @@ from asseta.modules.hours.models import (
     ProposalStatus,
     ReasonKind,
     RequestStatus,
-    WorkExecutionAllocation,
 )
 from asseta.modules.hours.permissions import (
     CANCEL_APPROVE,
@@ -101,7 +101,6 @@ from asseta.modules.hours.permissions import (
 )
 from asseta.modules.hours.service import (
     HoursService,
-    allocation_dto,
     balances,
     ledger_dto,
     purchase_dto,
@@ -113,8 +112,6 @@ from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.dependencies import requires, requires_any
 from asseta.modules.identity.models import AppUser
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.dto import CustomerDto
-from asseta.modules.jobs.models import Customer
 from asseta.modules.meter.dto import AttachmentDto
 from asseta.modules.meter.models import CaptureAttachment
 from asseta.modules.meter.router import save_attachment
@@ -592,7 +589,7 @@ def list_ledger(
     purchase_id: uuid.UUID | None = None,
     customer_id: uuid.UUID | None = None,
     machine_id: uuid.UUID | None = None,
-    job_id: uuid.UUID | None = None,
+    machine_report_id: uuid.UUID | None = None,
     entry_type: LedgerEntryType | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
@@ -608,7 +605,7 @@ def list_ledger(
         (HoursLedgerEntry.purchase_id, purchase_id),
         (HoursLedgerEntry.customer_id, customer_id),
         (HoursLedgerEntry.machine_id, machine_id),
-        (HoursLedgerEntry.job_id, job_id),
+        (HoursLedgerEntry.machine_report_id, machine_report_id),
         (HoursLedgerEntry.entry_type, entry_type),
     ):
         if value is not None:
@@ -641,47 +638,6 @@ def machine_balances(machine_id: uuid.UUID, session: DbSession, _: Read) -> list
     if session.get(Machine, machine_id) is None:
         raise NotFound("Machine not found")
     return balances(session, machine_id=machine_id)
-
-
-@router.get(
-    "/work-execution-allocations",
-    response_model=Page[WorkExecutionAllocationDto],
-    operation_id="listWorkExecutionAllocations",
-)
-@named
-def list_allocations(
-    session: DbSession,
-    _: Read,
-    paging: Paging,
-    job_id: uuid.UUID | None = None,
-    customer_id: uuid.UUID | None = None,
-    machine_id: uuid.UUID | None = None,
-) -> Page[WorkExecutionAllocationDto]:
-    stmt = select(WorkExecutionAllocation).order_by(WorkExecutionAllocation.created_at.desc())
-    for col, value in (
-        (WorkExecutionAllocation.job_id, job_id),
-        (WorkExecutionAllocation.customer_id, customer_id),
-        (WorkExecutionAllocation.machine_id, machine_id),
-    ):
-        if value is not None:
-            stmt = stmt.where(col == value)
-    rows, total = paginate(session, stmt, paging)
-    return Page(
-        items=[allocation_dto(session, w) for w in rows], total=total, page=paging.page, page_size=paging.page_size
-    )
-
-
-@router.get(
-    "/work-execution-allocations/{allocation_id}",
-    response_model=WorkExecutionAllocationDto,
-    operation_id="getWorkExecutionAllocation",
-)
-@named
-def get_allocation(allocation_id: uuid.UUID, session: DbSession, _: Read) -> WorkExecutionAllocationDto:
-    row = session.get(WorkExecutionAllocation, allocation_id)
-    if row is None:
-        raise NotFound("Work execution allocation not found")
-    return allocation_dto(session, row)
 
 
 # --- transfers --------------------------------------------------------------------------------------------------
@@ -956,8 +912,8 @@ def customer_statement(
     date_from: date | None = None,
     date_to: date | None = None,
 ) -> HoursStatementDto:
-    """Bought, activated, used per day and job, transferred, expired, cancelled and remaining hours of one customer
-    (optionally one machine) for a tenant-local period (default: this month to date)."""
+    """Bought, activated, used per day and machine report, transferred, expired, cancelled and remaining hours of one
+    customer (optionally one machine) for a tenant-local period (default: this month to date)."""
     return _statement(session, ctx, now, customer_id, machine_id, date_from, date_to)[0]
 
 

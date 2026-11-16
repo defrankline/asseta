@@ -377,7 +377,6 @@ class FundLedger:
                     decided_at=e.decided_at,
                     category_id=e.category_id,
                     machine_id=e.machine_id,
-                    job_id=e.job_id,
                 )
                 for e in expenses
             ],

@@ -3,6 +3,7 @@
 from asseta.core import audit, idempotency, outbox  # noqa: F401
 from asseta.modules.accountability import models as accountability_models  # noqa: F401
 from asseta.modules.adjustments import models as adjustments_models  # noqa: F401
+from asseta.modules.customers import models as customers_models  # noqa: F401
 from asseta.modules.dataprotection import models as dataprotection_models  # noqa: F401
 from asseta.modules.expenses import models as expenses_models  # noqa: F401
 from asseta.modules.finance import custody_models as finance_custody_models  # noqa: F401
@@ -16,7 +17,6 @@ from asseta.modules.identity import models as identity_models  # noqa: F401
 from asseta.modules.intelligence import ml_models as intelligence_ml_models  # noqa: F401
 from asseta.modules.intelligence import ml_monitoring_models as intelligence_ml_monitoring  # noqa: F401
 from asseta.modules.intelligence import models as intelligence_models  # noqa: F401
-from asseta.modules.jobs import models as jobs_models  # noqa: F401
 from asseta.modules.machine_reports import models as machine_reports_models  # noqa: F401
 from asseta.modules.managed_service import models as managed_service_models  # noqa: F401
 from asseta.modules.meter import allocation_models as meter_allocation_models  # noqa: F401
@@ -25,11 +25,9 @@ from asseta.modules.meter import models as meter_models  # noqa: F401
 from asseta.modules.notification import channel_models as notification_channel_models  # noqa: F401
 from asseta.modules.notification import models as notification_models  # noqa: F401
 from asseta.modules.onboarding import models as onboarding_models  # noqa: F401
-from asseta.modules.oversight import models as oversight_models  # noqa: F401
 from asseta.modules.pettycash import models as pettycash_models  # noqa: F401
 from asseta.modules.platform_billing import models_catalog, models_commercial, models_ledger  # noqa: F401
 from asseta.modules.policy import models as policy_models  # noqa: F401
-from asseta.modules.revenue import models as revenue_models  # noqa: F401
 from asseta.modules.sync import models as sync_models  # noqa: F401
 from asseta.modules.telemetry import models as telemetry_models  # noqa: F401
 from asseta.modules.tenancy import models as tenancy_models  # noqa: F401

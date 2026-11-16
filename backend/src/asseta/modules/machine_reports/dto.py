@@ -46,7 +46,11 @@ class MachineReportIn(BaseModel):
     """A machine report: the new reading and how its hours split. Give the new reading as `capture` (a DAILY meter
     reading of this machine: photo, OCR, GPS, time, exactly as POST /meter-captures) or as `capture_id` (a reading
     already recorded, e.g. the reading of a rejected report being corrected, then with `corrects_report_id`). The
-    lines must add up to the difference between the machine's last approved reading and the new one exactly."""
+    lines must add up to the difference between the machine's last approved reading and the new one exactly.
+
+    Opening report (`opening: true`, `lines: []`): when the machine has no starting reading yet (no approved report,
+    baseline or reset; `opening_required` in its status), the first report gives only the reading. It is approved like
+    any report and its reading then becomes where the next report starts."""
 
     id: uuid.UUID | None = Field(
         default=None, description="Device-generated report id (offline idempotency; the sync operation id)"
@@ -57,7 +61,10 @@ class MachineReportIn(BaseModel):
     corrects_report_id: uuid.UUID | None = Field(
         default=None, description="The REJECTED report this one corrects (same reading)"
     )
-    lines: list[MachineReportLineIn] = Field(min_length=1, max_length=50)
+    opening: bool = Field(
+        default=False, description="An opening report: the machine's first reading, no lines (difference 0)"
+    )
+    lines: list[MachineReportLineIn] = Field(default_factory=list, max_length=50)
     note: Annotated[str, StringConstraints(max_length=1000, strip_whitespace=True)] | None = None
     client_created_at: datetime | None = Field(default=None, description="Device time the report was made")
 
@@ -65,9 +72,13 @@ class MachineReportIn(BaseModel):
     def _reading(self) -> "MachineReportIn":
         if (self.capture is None) == (self.capture_id is None):
             raise ValueError("give exactly one of capture or capture_id")
+        if self.opening and self.lines:
+            raise ValueError("an opening report has no lines")
+        if not self.opening and not self.lines:
+            raise ValueError("give the lines the hours are split into")
         if self.capture is not None:
-            if self.capture.kind.value != "DAILY" or self.capture.job_id is not None:
-                raise ValueError("the report's reading is a DAILY reading without a job")
+            if self.capture.kind.value != "DAILY":
+                raise ValueError("the report's reading is a DAILY reading")
             if self.capture.machine_id is not None and self.capture.machine_id != self.machine_id:
                 raise ValueError("capture.machine_id is not the report's machine")
         return self
@@ -127,6 +138,7 @@ class MachineReportDto(BaseModel):
     machine_code: str | None = None
     machine_name: str | None = None
     capture_id: uuid.UUID
+    opening: bool = Field(default=False, description="An opening report (the machine's first reading, 0 hours)")
     start_source: StartSource
     start_ref: uuid.UUID
     start_reading: Decimal
@@ -194,7 +206,10 @@ class MachineReportContextDto(BaseModel):
     machine_code: str | None = None
     machine_name: str | None = None
     meter_decimal_places: int
-    previous_reading: Decimal | None = Field(description="Null: no approved baseline yet (BASELINE_REQUIRED)")
+    previous_reading: Decimal | None = Field(
+        description="Null: no starting reading yet: send an opening report (opening: true, no lines)"
+    )
+    opening_required: bool = Field(default=False, description="The next report on this machine is an opening report")
     previous_at: datetime | None
     previous_source: StartSource | None
     meter_epoch: int
@@ -217,6 +232,10 @@ class MachineReportStatusDto(BaseModel):
     )
     previous_at: datetime | None = None
     previous_source: StartSource | None = None
+    opening_required: bool = Field(
+        default=False,
+        description="No starting reading yet: the next report is an opening report (opening: true, lines: [])",
+    )
     last_approved_reading: Decimal | None
     last_approved_at: datetime | None
     last_report_at: datetime | None

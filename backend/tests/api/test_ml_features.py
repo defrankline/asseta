@@ -12,7 +12,8 @@ from asseta.core.db import DbScope, apply_scope, get_sessionmaker
 from asseta.ml.features import MachineFacts
 from asseta.modules.intelligence.facts import load_tenant_facts, week_ends
 from tests.support.api import Api
-from tests.support.finance import FinCtx, complete_job, setup_finance
+from tests.support.finance import FinCtx, setup_finance
+from tests.support.machine_reports import ReportCtx, idle, later, report_body, setup_reports, submit
 from tests.support.notify import sql
 
 DAR_TZ = ZoneInfo("Africa/Dar_es_Salaam")
@@ -33,10 +34,16 @@ def fuel(f: FinCtx, at: datetime, litres: str) -> None:
     assert r.status_code == 201, r.text
 
 
+def worked(api: Api, ctx: ReportCtx, reading: str, after_h: float, hours: str) -> None:
+    """A machine report submitted `after_h` hours from now (its reading is the meter interval's end)."""
+    at = later(api, after_h)
+    submit(ctx.f.supervisor, report_body(ctx.machine_id, reading, at, [idle(ctx.reasons["IDLE_ON_SITE"], hours)]))
+
+
 def test_late_recorded_fact_is_excluded_even_if_it_happened_before_as_of(api: Api) -> None:
-    f = setup_finance(api, "Pit Co", "PIT-1")
-    t0 = api.clock.now
-    complete_job(api, f, f.c.job_id, "500.0", "508.0", 9)  # meter interval closes at t0 + 9h
+    ctx = setup_reports(api, "Pit Co", "PIT-1")
+    f, t0 = ctx.f, api.clock.now
+    worked(api, ctx, "1008.0", 9, "8")  # meter interval closes at t0 + 9h
     fuel(f, t0 + timedelta(hours=2), "40")  # recorded promptly (t0 + 9h)
     api.clock.set_at(t0 + timedelta(days=3))
     fuel(f, t0 + timedelta(hours=3), "25")  # happened at t0 + 3h but synced three days later
@@ -53,8 +60,9 @@ def test_late_recorded_fact_is_excluded_even_if_it_happened_before_as_of(api: Ap
 
 
 def test_weekly_snapshots_from_real_facts_are_append_only(api: Api) -> None:
-    f = setup_finance(api, "Snap Co", "SNAP-1")
-    complete_job(api, f, f.c.job_id, "100.0", "106.5", 8)
+    ctx = setup_reports(api, "Snap Co", "SNAP-1")
+    f = ctx.f
+    worked(api, ctx, "1006.5", 8, "6.5")
     fuel(f, api.clock.now - timedelta(hours=1), "52")
     api.clock.set_at(datetime(2026, 11, 3, 9, tzinfo=UTC))
     body = {"from_date": "2026-10-26", "to_date": "2026-11-08"}
@@ -90,11 +98,12 @@ def test_weekly_snapshots_from_real_facts_are_append_only(api: Api) -> None:
 
 
 def test_snapshots_are_tenant_isolated(api: Api) -> None:
-    a = setup_finance(api, "Iso A", "ISO-A")
+    ctx = setup_reports(api, "Iso A", "ISO-A")
+    a = ctx.f
     b = api.onboard("Iso B", price="1000")
     b_tid = b["tenant"]["id"]
     [b_machine] = api.add_machines(b["owner"], 1, prefix="ISOB")
-    complete_job(api, a, a.c.job_id, "10.0", "15.0", 6)
+    worked(api, ctx, "1005.0", 6, "5")
     api.clock.set_at(datetime(2026, 11, 3, 9, tzinfo=UTC))
     r = api.platform.post(
         f"/api/v1/platform/ml/tenants/{a.tid}/snapshots", {"from_date": "2026-11-01", "to_date": "2026-11-02"}

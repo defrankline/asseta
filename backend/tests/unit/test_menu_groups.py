@@ -70,7 +70,7 @@ def test_finance_only_role_sees_only_finance_and_its_administration_items() -> N
     menus, groups = menus_for(_rows(), "TENANT", perms)
     assert [g.key for g in groups] == ["tenant.finance", "tenant.admin"]
     assert [(m.group, m.label) for m in menus] == [
-        ("tenant.finance", "Hire finance"),
+        ("tenant.finance", "Customer payments"),
         ("tenant.finance", "Cash custody"),
         ("tenant.finance", "Expenses & fuel"),
         ("tenant.finance", "Expense approvals"),
@@ -107,12 +107,10 @@ def test_supervisor_template_gets_the_field_work_group_after_overview() -> None:
     assert [g.key for g in groups][:2] == ["tenant.overview", "tenant.field"]
     assert [(m.label, m.path) for m in menus if m.group == "tenant.field"] == [
         ("Machine report", "/tenant/field/machine-report"),
-        ("My jobs", "/tenant/field/jobs"),
         ("Readings", "/tenant/field/readings"),
         ("Fuel", "/tenant/field/fuel"),
         ("Expenses", "/tenant/field/expenses"),
         ("Cash", "/tenant/field/cash"),
         ("Customer hours", "/tenant/field/hours"),
-        ("Site check-in", "/tenant/field/check-in"),
         ("Petty cash", "/tenant/field/petty-cash"),
     ]

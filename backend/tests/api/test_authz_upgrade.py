@@ -53,6 +53,6 @@ def test_orphan_keycloak_tenant_groups_do_not_break_sync(api: Api) -> None:
 def test_accountant_reads_reference_data_but_writes_only_finance() -> None:
     accountant = next(t for t in TENANT_TEMPLATES if t.key == "accountant")
     perms = template_permissions(accountant)
-    assert {"tenant.customer.read", "tenant.job.read", "tenant.machine.read", "tenant.staff.read"} <= perms
-    operational = ("tenant.customer.", "tenant.job.", "tenant.machine.", "tenant.staff.")
+    assert {"tenant.customer.read", "tenant.machine_report.read", "tenant.machine.read", "tenant.staff.read"} <= perms
+    operational = ("tenant.customer.", "tenant.machine_report.", "tenant.machine.", "tenant.staff.")
     assert {p for p in perms if p.startswith(operational) and not p.endswith(".read")} == set()

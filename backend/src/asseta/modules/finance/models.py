@@ -1,20 +1,17 @@
-"""Tenant hire finance ledger (R1-G): customer hire invoices (immutable once issued), reversals, customer payments
-with verification and allocations, supervisor cash custody and handovers. Strictly separate from the platform
-subscription ledger (`platform_invoice` & co): no shared tables, numbering, permissions or endpoints."""
+"""Tenant hire finance ledger (R1-G): customer payments with verification, receivable adjustments, supervisor cash
+custody and handovers. Strictly separate from the platform subscription ledger (`platform_invoice` & co): no shared
+tables, numbering, permissions or endpoints."""
 
 import uuid
-from datetime import date, datetime
+from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 
 from sqlalchemy import (
     CheckConstraint,
-    Date,
     DateTime,
     Enum,
     ForeignKey,
-    Index,
-    Integer,
     Numeric,
     String,
     Text,
@@ -26,19 +23,12 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from asseta.core.db import Base, SyncRevisioned, UuidPk, utcnow
 from asseta.modules.finance.deposit_models import PartialRemittanceApproval, RemittanceEvidence, RemittanceMethod
-from asseta.modules.jobs.charges import ChargeKind
 
 MONEY = Numeric(18, 4)
 
 
 def _enum(cls: type[StrEnum], length: int = 24) -> Enum:
     return Enum(cls, native_enum=False, length=length)
-
-
-class HireInvoiceStatus(StrEnum):
-    DRAFT = "DRAFT"
-    ISSUED = "ISSUED"  # immutable snapshot; corrections only by reversal (void)
-    VOIDED = "VOIDED"  # reversed by a financial_adjustment (issued) or abandoned (draft)
 
 
 class HirePaymentMethod(StrEnum):
@@ -56,7 +46,6 @@ class SettlementStatus(StrEnum):
 
 
 class AdjustmentKind(StrEnum):
-    INVOICE_REVERSAL = "INVOICE_REVERSAL"  # credit: reduces what the customer owes
     # DEC-032 B3/B4 (debits: raise what the customer owes back): a verified payment reversed, a refund paid out.
     PAYMENT_REVERSAL = "PAYMENT_REVERSAL"
     HOURS_REFUND_PAYOUT = "HOURS_REFUND_PAYOUT"
@@ -64,7 +53,6 @@ class AdjustmentKind(StrEnum):
     HOURS_REFUND_CREDIT = "HOURS_REFUND_CREDIT"
 
 
-CREDIT_KINDS = frozenset({AdjustmentKind.INVOICE_REVERSAL})
 DEBIT_KINDS = frozenset({AdjustmentKind.PAYMENT_REVERSAL, AdjustmentKind.HOURS_REFUND_PAYOUT})
 
 
@@ -73,86 +61,14 @@ class CustodyEntryType(StrEnum):
     FLOAT_ISSUED = "FLOAT_ISSUED"  # office -> supervisor
 
 
-class TenantHireInvoice(UuidPk, Base):
-    __tablename__ = "tenant_hire_invoice"
-    __table_args__ = (
-        UniqueConstraint("tenant_id", "invoice_number", name="uq_hire_invoice_number"),
-        CheckConstraint("(issued_at IS NULL) = (invoice_number IS NULL)", name="ck_hire_invoice_numbered"),
-    )
-
-    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
-    customer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("customer.id"), nullable=False, index=True)
-    invoice_number: Mapped[str | None] = mapped_column(String(40))
-    status: Mapped[HireInvoiceStatus] = mapped_column(_enum(HireInvoiceStatus), nullable=False)
-    currency: Mapped[str] = mapped_column(ForeignKey("currency.code"), nullable=False)
-    subtotal: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
-    discount_total: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
-    tax_total: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
-    total: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
-    notes: Mapped[str | None] = mapped_column(Text)
-    due_date: Mapped[date | None] = mapped_column(Date)
-    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
-    issued_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
-    issued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    voided_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
-    voided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    void_reason: Mapped[str | None] = mapped_column(Text)
-
-
-class HireInvoiceLine(UuidPk, Base):
-    """Snapshot of the job's computed charges. Immutable after insert (trigger + no UPDATE/DELETE grant)."""
-
-    __tablename__ = "hire_invoice_line"
-    __table_args__ = (UniqueConstraint("invoice_id", "line_no", name="uq_hire_invoice_line_no"),)
-
-    invoice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant_hire_invoice.id"), nullable=False, index=True)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
-    line_no: Mapped[int] = mapped_column(Integer, nullable=False)
-    kind: Mapped[ChargeKind] = mapped_column(_enum(ChargeKind), nullable=False)
-    job_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("job.id"), nullable=False, index=True)
-    machine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("machine.id"), nullable=False)
-    description: Mapped[str] = mapped_column(String(300), nullable=False)
-    quantity: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
-    unit_price: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
-    amount: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
-
-
-class HireInvoiceJob(UuidPk, Base):
-    """A job's claim on an invoice. The partial unique index makes double invoicing impossible at the database:
-    a job can sit on at most one non-voided invoice; voiding releases the claim (only `released_at` may change)."""
-
-    __tablename__ = "hire_invoice_job"
-    __table_args__ = (
-        Index("uq_hire_invoice_job_active", "job_id", unique=True, postgresql_where=text("released_at IS NULL")),
-    )
-
-    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
-    invoice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant_hire_invoice.id"), nullable=False, index=True)
-    job_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("job.id"), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
-    released_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-
-class HireInvoiceCounter(Base):
-    """Per-tenant, per-year gap-free invoice counter (row lock via INSERT .. ON CONFLICT DO UPDATE)."""
-
-    __tablename__ = "hire_invoice_counter"
-
-    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), primary_key=True)
-    year: Mapped[int] = mapped_column(Integer, primary_key=True)
-    last_number: Mapped[int] = mapped_column(Integer, nullable=False)
-
-
 class FinancialAdjustment(UuidPk, Base):
-    """Append-only correction (credit) against a customer's receivable, e.g. the reversal of a voided invoice."""
+    """Append-only correction of what a customer owes (a reversed payment, a refund paid out)."""
 
     __tablename__ = "financial_adjustment"
     __table_args__ = (CheckConstraint("amount > 0", name="ck_fin_adjustment_amount"),)
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
     customer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("customer.id"), nullable=False, index=True)
-    invoice_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tenant_hire_invoice.id"))
     kind: Mapped[AdjustmentKind] = mapped_column(_enum(AdjustmentKind), nullable=False)
     amount: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
     currency: Mapped[str] = mapped_column(ForeignKey("currency.code"), nullable=False)
@@ -198,23 +114,6 @@ class CustomerPayment(UuidPk, SyncRevisioned, Base):
     reversal_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     # DEC-032: the generated reference (COL-<yyyy>-<nnnnn> cash, PAY-... otherwise), distinct from `reference`.
     collection_number: Mapped[str] = mapped_column(String(32), nullable=False)
-
-
-class HirePaymentAllocation(UuidPk, Base):
-    """Applies (part of) a payment to an issued invoice. Counts toward the invoice only once the payment is
-    VERIFIED; released (never deleted) when the payment is rejected or the invoice is voided."""
-
-    __tablename__ = "hire_payment_allocation"
-    __table_args__ = (CheckConstraint("amount > 0", name="ck_hire_allocation_amount"),)
-
-    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
-    payment_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("customer_payment.id"), nullable=False, index=True)
-    invoice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant_hire_invoice.id"), nullable=False, index=True)
-    amount: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
-    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
-    released_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    release_reason: Mapped[str | None] = mapped_column(Text)
 
 
 class SupervisorCashCustody(UuidPk, Base):

@@ -1,10 +1,10 @@
-"""Record lifecycle for job sites, geofences, trackers, the platform tracker-model catalog, tenant company details
+"""Record lifecycle for sites, geofences, trackers, the platform tracker-model catalog, tenant company details
 and expense categories; READ_ONLY subscriptions refuse lifecycle writes; devices drop deactivated reference data."""
 
 from typing import Any
 
 from tests.support.api import Actor, Api
-from tests.support.jobs import setup_job
+from tests.support.meter import setup_machine
 from tests.support.telemetry import DAR, Telemetry
 
 T = "/api/v1/tenant"
@@ -29,7 +29,7 @@ def _role(api: Api, tid: str, key: str) -> Actor:
 
 
 def test_job_site_and_geofence_lifecycle(api: Api) -> None:
-    c = setup_job(api, "Site Co", "SITE-1")
+    c = setup_machine(api, "Site Co", "SITE-1")
     o, tid = c.owner, c.t.tenant["tenant"]["id"]
     site = o.post(f"{T}/job-sites", {"code": "S1", "name": "Bridge", "center": POINT}).json()
     assert (site["version"], site["is_active"]) == (1, True)
@@ -44,38 +44,16 @@ def test_job_site_and_geofence_lifecycle(api: Api) -> None:
         == "DUPLICATE_SITE"
     )
 
-    # A job at the site blocks deactivation (draft counts: it would otherwise point at a hidden site).
-    [m2] = api.add_machines(o, 1, prefix="SIT")
-    job = o.post(
-        f"{T}/jobs",
-        {
-            "contract_id": c.contract_id,
-            "job_number": "J-SITE",
-            "machine_id": m2,
-            "job_site_id": site["id"],
-            "planned_start": api.clock.now.isoformat(),
-            "hourly_rate": "1000",
-        },
-    ).json()
-    in_use = o.post(f"{T}/job-sites/{site['id']}/deactivate", REASON)
-    assert (in_use.status_code, in_use.json()["error"]["code"]) == (422, "SITE_IN_USE")
-    o.post(f"{T}/jobs/{job['id']}/transitions", {"action": "CANCEL", "reason": "Moved"})
+    # Deactivation is not blocked by orders at the site (they keep pointing at it); new orders refuse it.
     off = o.post(f"{T}/job-sites/{site['id']}/deactivate", REASON)
     assert off.status_code == 200 and off.json()["is_active"] is False and off.json()["deactivated_at"]
     assert site["id"] not in _ids(o.get(f"{T}/job-sites").json())
     assert site["id"] in _ids(o.get(f"{T}/job-sites", include_inactive="true").json())
-    new_job = o.post(
-        f"{T}/jobs",
-        {
-            "contract_id": c.contract_id,
-            "job_number": "J-SITE2",
-            "machine_id": m2,
-            "job_site_id": site["id"],
-            "planned_start": api.clock.now.isoformat(),
-            "hourly_rate": "1000",
-        },
+    order = o.post(
+        f"{T}/hours-purchases",
+        {"machine_id": c.t.machine_id, "customer_id": c.customer_id, "hours": "4", "job_site_id": site["id"]},
     )
-    assert new_job.json()["error"]["code"] == "SITE_INACTIVE"
+    assert order.json()["error"]["code"] == "SITE_INACTIVE", order.text
     assert o.post(f"{T}/job-sites/{site['id']}/reactivate", {"reason": "Phase 2"}).json()["is_active"] is True
 
     fence = o.post(f"{T}/geofences", {"name": "Yard", "kind": "ALLOWED_AREA", "polygon": SQUARE}).json()
@@ -197,7 +175,7 @@ def test_platform_tenant_company_details(api: Api) -> None:
 
 
 def test_expense_categories_read_only_and_device_sync(api: Api) -> None:
-    c = setup_job(api, "Exp Co", "EXP-1")
+    c = setup_machine(api, "Exp Co", "EXP-1")
     o, tid = c.owner, c.t.tenant["tenant"]["id"]
     cat = o.post(f"{T}/expense-categories", {"code": "FUEL", "name": "Fuel"}).json()
     keep = o.post(f"{T}/expense-categories", {"code": "MEALS", "name": "Meals"}).json()
@@ -246,6 +224,6 @@ def test_expense_categories_read_only_and_device_sync(api: Api) -> None:
         o.post(f"{T}/expense-categories/{cat['id']}/reactivate", {"reason": "Back"}),
         o.put(f"{T}/machines/{c.t.machine_id}", {"name": "x", "status": "ACTIVE", "version": 1}),
         o.post(f"{T}/machines/{c.t.machine_id}/deactivate", REASON),
-        o.post(f"{T}/contracts/{c.contract_id}/close", REASON),
+        o.post(f"{T}/customers/{c.customer_id}/deactivate", REASON),
     ):
         assert (resp.status_code, resp.json()["error"]["code"]) == (403, "SUBSCRIPTION_READ_ONLY")

@@ -146,7 +146,7 @@ def test_accountability_summary(api: Api) -> None:
     assert s["outstanding_approvals"]["remittances_to_verify"] == 1
     assert s["investigations"] == {"open": 0, "in_review": 0}
     hours = s["customer_hours"]
-    assert hours is not None and hours["open_overruns"] == 0 and hours["purchases_by_status"] == {}
+    assert hours is not None and hours["purchases_by_status"] == {}
     assert s["hours_awaiting_activation"]["count"] == 0
     assert _ok(acct.get("/api/v1/tenant/accountability/summary"))["cash"] is not None
 
@@ -158,7 +158,7 @@ def test_accountability_summary(api: Api) -> None:
     assert r.status_code == 201, r.text
     hidden = _ok(mgr.get("/api/v1/tenant/accountability/summary"))
     assert (
-        hidden["hidden_tiles"] == ["cash", "idle_machines", "payments", "revenue_differences", "unbilled_work"]
+        hidden["hidden_tiles"] == ["cash", "idle_machines", "payments"]
         and hidden["cash"] is None
         and hidden["payments"] is None
     )

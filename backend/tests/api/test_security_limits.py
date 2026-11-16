@@ -24,7 +24,7 @@ from asseta.core.db import get_engine, get_session
 from asseta.core.errors import install_error_handlers
 from asseta.core.request_limits import RequestSizeLimitMiddleware
 from tests.support.api import Api
-from tests.support.jobs import setup_job
+from tests.support.meter import setup_machine
 
 LIMIT = 1000
 
@@ -84,7 +84,7 @@ def test_request_size_limit_by_declared_length_and_while_streaming() -> None:
 
 
 def test_api_refuses_oversized_bodies_but_accepts_full_size_images(api: Api) -> None:
-    c = setup_job(api, "Size Co", "SIZE-1")
+    c = setup_machine(api, "Size Co", "SIZE-1")
     limit = get_settings().max_request_bytes
     assert limit >= get_settings().max_image_bytes + 64 * 1024  # room for multipart framing
     headers = c.owner.headers(True, None)

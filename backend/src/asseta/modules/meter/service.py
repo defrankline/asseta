@@ -13,16 +13,8 @@ from asseta.core.audit import AuditService
 from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
 from asseta.core.outbox import OutboxWriter
 from asseta.modules.fleet.models import Machine, MachineAssignment, StaffMember
+from asseta.modules.fleet.scope import METER_OVERSIGHT, assigned_machine_ids, own_staff, restricted_to_own
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.models import Customer, Job, JobStatus, RentalContract
-from asseta.modules.jobs.scope import (
-    METER_OVERSIGHT,
-    assigned_machine_ids,
-    own_staff,
-    restricted_to_own,
-    scoped_job_ids,
-)
-from asseta.modules.meter.allocation_models import MachineChangeover
 from asseta.modules.meter.allocation_writer import sync_allocations
 from asseta.modules.meter.dto import CaptureResultDto, FindingDto, MeterCaptureDto, MeterCaptureIn, ResetDto, ResetIn
 from asseta.modules.meter.engine_hours import EngineHoursMonitor
@@ -32,8 +24,8 @@ from asseta.modules.meter.models import (
     ExceptionStatus,
     ExceptionType,
     GpsStatus,
-    JobException,
     MeterCapture,
+    MeterException,
     MeterResetEvent,
     ReadingKind,
 )
@@ -45,9 +37,7 @@ from asseta.modules.meter.rules import (
     gps_findings,
     location_findings,
     sequence_findings,
-    telemetry_findings,
 )
-from asseta.modules.policy.capabilities import ENGINE_HOURS, require_capability
 from asseta.modules.policy.schemas import CaptureMode, MeterCapturePolicy, PolicyType
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.sync.models import DevicePolicySnapshot, DeviceSession
@@ -58,17 +48,15 @@ _ACTIVE = (CaptureState.ACCEPTED, CaptureState.PROVISIONAL)
 
 
 def capture_list_query(
-    job_id: uuid.UUID | None = None,
     machine_id: uuid.UUID | None = None,
     kind: ReadingKind | None = None,
     state: CaptureState | None = None,
     captured_from: datetime | None = None,
     captured_to: datetime | None = None,
 ) -> Select[MeterCapture]:
-    """Meter readings across jobs (latest captured first), shared by the readings endpoint and report."""
+    """Meter readings (latest captured first), shared by the readings endpoint and report."""
     stmt = select(MeterCapture).order_by(MeterCapture.captured_at.desc(), MeterCapture.id)
     for col, val in (
-        (MeterCapture.job_id, job_id),
         (MeterCapture.machine_id, machine_id),
         (MeterCapture.kind, kind),
         (MeterCapture.state, state),
@@ -83,14 +71,14 @@ def capture_list_query(
 
 
 def own_capture_filter(ctx: RequestContext, staff: StaffMember | None) -> Any:
-    """A field user's readings: captured by them, or on a job they supervise."""
-    return or_(MeterCapture.supervisor_user_id == ctx.user_id, MeterCapture.job_id.in_(scoped_job_ids(staff)))
+    """A field user's readings: captured by them, or of a machine currently assigned to them."""
+    assigned = MeterCapture.machine_id.in_(assigned_machine_ids(staff.id)) if staff is not None else false()
+    return or_(MeterCapture.supervisor_user_id == ctx.user_id, assigned)
 
 
 def own_exception_filter(ctx: RequestContext, staff: StaffMember | None) -> Any:
-    """Findings on the caller's readings or on jobs they supervise."""
-    own = select(MeterCapture.id).where(own_capture_filter(ctx, staff))
-    return or_(JobException.meter_capture_id.in_(own), JobException.job_id.in_(scoped_job_ids(staff)))
+    """Findings on the caller's readings (and readings of their machines)."""
+    return MeterException.meter_capture_id.in_(select(MeterCapture.id).where(own_capture_filter(ctx, staff)))
 
 
 def own_reset_filter(ctx: RequestContext, staff: StaffMember | None) -> Any:
@@ -152,43 +140,11 @@ class MeterService:
             evidence |= {"issued_at": nearest.issued_at.isoformat(), "valid_until": nearest.valid_until.isoformat()}
         return Finding(ExceptionType.POLICY_SNAPSHOT_UNVERIFIED, "WARNING", True, evidence)
 
-    def _running_other(self, job: Job) -> bool:
-        return (
-            self._s.execute(
-                select(Job.id)
-                .where(Job.machine_id == job.machine_id, Job.status == JobStatus.IN_PROGRESS, Job.id != job.id)
-                .limit(1)
-            ).first()
-            is not None
-        )
-
-    def _target(self, body: MeterCaptureIn, correction: bool) -> tuple[Job | None, uuid.UUID, uuid.UUID | None]:
-        """The job (locked) and machine a reading belongs to. A DAILY reading may name only its machine; a field
-        user may only read machines assigned to them (others are "not found"). An approved correction replaces a
-        historical reading, so the job-status window that applies to new readings does not apply to it."""
-        if body.job_id is not None:
-            job = self._s.execute(select(Job).where(Job.id == body.job_id).with_for_update()).scalar_one_or_none()
-            if job is None:
-                raise NotFound("Job not found")
-            allowed = {
-                ReadingKind.OPENING: (JobStatus.APPROVED,),
-                ReadingKind.CLOSING: (JobStatus.IN_PROGRESS,),
-                ReadingKind.DAILY: (JobStatus.APPROVED, JobStatus.IN_PROGRESS),
-            }
-            if not correction and job.status not in allowed[body.kind]:
-                raise BusinessRuleViolation(
-                    f"{body.kind.value} reading not allowed while job is {job.status.value}",
-                    code="READING_NOT_ALLOWED",
-                )
-            if body.machine_id is not None and body.machine_id != job.machine_id:
-                raise BusinessRuleViolation("machine_id is not the job's machine", code="READING_MACHINE_MISMATCH")
-            if not correction and job.status is JobStatus.APPROVED and self._running_other(job):
-                # A later booking on a busy machine: its readings start once the running job is completed.
-                raise BusinessRuleViolation(
-                    "Another job is running on this machine; read it for this job once that one is completed",
-                    code="MACHINE_BUSY",
-                )
-            return job, job.machine_id, job.job_site_id
+    def _target(self, body: MeterCaptureIn, correction: bool) -> uuid.UUID:
+        """The machine a reading belongs to. A field user may only read machines assigned to them (others are "not
+        found"); an approved correction replaces a historical reading, so that check does not apply to it."""
+        if body.machine_id is None:
+            raise BusinessRuleViolation("Name the machine read (machine_id)", code="VALIDATION_FAILED")
         machine = self._s.get(Machine, body.machine_id)
         if machine is None:
             raise NotFound("Machine not found", code="MACHINE_NOT_FOUND")
@@ -203,7 +159,7 @@ class MeterService:
             )
             if assigned is None:
                 raise NotFound("Machine not found", code="MACHINE_NOT_FOUND")
-        return None, machine.id, None
+        return machine.id
 
     def submit(
         self,
@@ -212,23 +168,17 @@ class MeterService:
         *,
         correction_of: MeterCapture | None = None,
         recorded_by: uuid.UUID | None = None,
-        for_machine_report: bool = False,
     ) -> CaptureResultDto:
         """Record a reading (online API and offline sync). `correction_of` (with `recorded_by`, the proposer) is
         used only when an approved correction is applied: the old reading becomes SUPERSEDED and this replaces it."""
         existing = self._s.get(MeterCapture, body.id)
         if existing is not None:  # idempotent replay of the same device operation
-            if existing.reading != body.reading or existing.job_id != body.job_id or existing.kind != body.kind:
+            if existing.reading != body.reading or existing.machine_id != body.machine_id or existing.kind != body.kind:
                 raise Conflict("Capture id reused with different content", code="CAPTURE_ID_CONFLICT")
             return self._result(existing)
-        if body.kind is ReadingKind.DAILY and correction_of is None and not for_machine_report:
-            # Daily operational readings belong to the engine-hour controls (refused while ENGINE_HOURS is off).
-            require_capability(self._s, self._tid, ENGINE_HOURS, self._now)
-        job, machine_id, site_id = self._target(body, correction_of is not None)
+        machine_id = self._target(body, correction_of is not None)
         now = self._now  # injected clock: server receive time and skew checks are deterministic
-        if body.changeover_to_customer_id is not None:
-            self._check_changeover(body, job, correction_of is not None)
-        policy, stamp = self._policy(body, machine_id, site_id)
+        policy, stamp = self._policy(body, machine_id, None)
         photo = self._s.get(CaptureAttachment, body.photo_attachment_id) if body.photo_attachment_id else None
         if body.photo_attachment_id and photo is None:
             raise NotFound("Photo attachment not found")
@@ -236,10 +186,9 @@ class MeterService:
             correction_of.state = CaptureState.SUPERSEDED  # status-only change, audited by the correction
             self._s.flush()
         elif body.supersedes_id:
-            self._supersede(body.supersedes_id, machine_id, job)
+            self._supersede(body.supersedes_id, machine_id)
 
-        # A DAILY reading carries the same evidence rules as a closing reading.
-        expected = CaptureMode(policy.opening_mode if body.kind is ReadingKind.OPENING else policy.closing_mode)
+        expected = CaptureMode(policy.capture_mode)
         gps = GpsEvidence(body.gps.status, body.gps.accuracy_m, body.gps.captured_at)
         findings, reject = gps_findings(policy, gps, body.captured_at)
         if body.policy_version_ids and (unverified := self._snapshot_finding(body, device_session_id)):
@@ -259,13 +208,9 @@ class MeterService:
         if photo is not None and self._image_reused(photo.sha256, body.id):
             findings.append(Finding(ExceptionType.DUPLICATE_IMAGE, "CRITICAL", True, {"sha256": photo.sha256}))
         prior, reset = self._prior(machine_id, body.captured_at)
-        findings += sequence_findings(
-            policy, body.reading, body.captured_at, prior, reset, body.kind is ReadingKind.OPENING
-        )
+        findings += sequence_findings(policy, body.reading, body.captured_at, prior, reset)
         loc, comparison = self._location(machine_id, body, policy)
         findings += loc
-        if body.kind is ReadingKind.CLOSING and job is not None:
-            findings += self._telemetry(job, body, policy)
 
         state = (
             CaptureState.REJECTED
@@ -275,7 +220,6 @@ class MeterService:
         capture = MeterCapture(
             id=body.id,
             tenant_id=self._tid,
-            job_id=job.id if job else None,
             machine_id=machine_id,
             kind=body.kind,
             capture_mode=body.capture_mode.value,
@@ -306,11 +250,10 @@ class MeterService:
         self._s.flush()
         for f in findings:
             self._s.execute(
-                insert(JobException)
+                insert(MeterException)
                 .values(
                     id=uuid.uuid4(),
                     tenant_id=self._tid,
-                    job_id=job.id if job else None,
                     machine_id=machine_id,
                     meter_capture_id=capture.id,
                     exception_type=f.type,
@@ -339,14 +282,12 @@ class MeterService:
                 "supersedes_id": str(body.supersedes_id) if body.supersedes_id else None,
             },
         )
-        job_ref = str(job.id) if job else None
         OutboxWriter(self._s).emit(
             topic="asseta.meter",
             event_type="MeterCaptured",
             key=str(machine_id),
             payload={
                 "capture_id": str(capture.id),
-                "job_id": job_ref,
                 "machine_id": str(machine_id),
                 "kind": body.kind.value,
                 "state": state.value,
@@ -360,7 +301,6 @@ class MeterService:
                 key=str(machine_id),
                 payload={
                     "capture_id": str(capture.id),
-                    "job_id": job_ref,
                     "machine_id": str(machine_id),
                     "exception_types": sorted({f.type.value for f in findings}),
                     "blocking": any(f.blocking for f in findings),
@@ -368,49 +308,11 @@ class MeterService:
                 tenant_id=self._tid,
             )
         EngineHoursMonitor(self._s, self._tid, now).flag_machine(machine_id)
-        self._changeover(body, capture, job, correction_of)
         sync_allocations(self._s, self._tid, machine_id, now)
         return self._result(capture)
 
-    def _changeover(
-        self, body: MeterCaptureIn, capture: MeterCapture, job: Job | None, correction_of: MeterCapture | None
-    ) -> None:
-        """[DEC-032 A3] Record a mid-job changeover against this reading. A correction keeps the changeover of the
-        reading it replaces unless it names one itself. Job status and billing are not touched here."""
-        previous = (
-            self._s.execute(
-                select(MachineChangeover).where(MachineChangeover.capture_id == correction_of.id)
-            ).scalar_one_or_none()
-            if correction_of is not None
-            else None
-        )
-        to_customer = body.changeover_to_customer_id or (previous.to_customer_id if previous else None)
-        to_job = body.changeover_to_job_id or (previous.to_job_id if previous else None)
-        if to_customer is None or job is None:
-            return
-        if self._s.get(Customer, to_customer) is None:
-            raise NotFound("Customer not found", code="CUSTOMER_NOT_FOUND")
-        from_customer = self._job_customer(job)
-        if to_job is not None and self._s.get(Job, to_job) is None:
-            raise NotFound("Job not found")
-        self._s.add(
-            MachineChangeover(
-                id=uuid.uuid4(),
-                tenant_id=self._tid,
-                machine_id=job.machine_id,
-                capture_id=capture.id,
-                job_id=job.id,
-                from_customer_id=from_customer,
-                to_customer_id=to_customer,
-                to_job_id=to_job,
-                recorded_by=capture.supervisor_user_id,
-                created_at=self._now,
-            )
-        )
-        self._s.flush()
-
     def _result(self, capture: MeterCapture) -> CaptureResultDto:
-        rows = self._s.execute(select(JobException).where(JobException.meter_capture_id == capture.id)).scalars()
+        rows = self._s.execute(select(MeterException).where(MeterException.meter_capture_id == capture.id)).scalars()
         return CaptureResultDto(
             capture=MeterCaptureDto.model_validate(capture),
             findings=[
@@ -418,63 +320,6 @@ class MeterService:
                 for r in rows
             ],
         )
-
-    def _check_changeover(self, body: MeterCaptureIn, job: Job | None, correction: bool) -> None:
-        """Refused before anything is stored. A new changeover needs the running job and a real change of customer. A
-        correction replaces one already recorded, so those two no longer apply (the job may have finished since)."""
-        if (
-            body.kind is not ReadingKind.DAILY
-            or job is None
-            or (not correction and job.status is not JobStatus.IN_PROGRESS)
-        ):
-            raise BusinessRuleViolation(
-                "A changeover is a DAILY reading on the job currently running", code="CHANGEOVER_NOT_ALLOWED"
-            )
-        require_capability(self._s, self._tid, ENGINE_HOURS, self._now)
-        if not correction:
-            latest = self._s.execute(
-                select(MachineChangeover.to_customer_id)
-                .where(MachineChangeover.job_id == job.id)
-                .order_by(MachineChangeover.created_at.desc())
-                .limit(1)
-            ).scalar_one_or_none()
-            current = latest or self._job_customer(job)
-            if body.changeover_to_customer_id == current:
-                raise BusinessRuleViolation(
-                    "The machine is already working for this customer", code="CHANGEOVER_SAME_CUSTOMER"
-                )
-        policy = PolicyService(self._s).engine_hours(self._tid, job.machine_id, at=job.started_at or self._now).policy
-        if policy.in_force().changeover_splits_billing:
-            self._check_billed_job(body, job, correction)
-
-    def _job_customer(self, job: Job) -> uuid.UUID:
-        return self._s.execute(
-            select(RentalContract.customer_id).where(RentalContract.id == job.contract_id)
-        ).scalar_one()
-
-    def _check_billed_job(self, body: MeterCaptureIn, job: Job, correction: bool) -> None:
-        """With billing split on, the hours after the changeover must bill somebody: the follow-on job is required.
-        It waits in the approval queue (the one-active-job rule keeps it from being approved while this job runs)."""
-        if body.changeover_to_job_id is None:
-            raise BusinessRuleViolation(
-                "Name the job the machine moves on to, so these hours are billed", code="CHANGEOVER_JOB_REQUIRED"
-            )
-        target = self._s.get(Job, body.changeover_to_job_id)
-        waiting = target is not None and (
-            target.status is JobStatus.PENDING_APPROVAL
-            or (correction and target.status in (JobStatus.APPROVED, JobStatus.IN_PROGRESS, JobStatus.COMPLETED))
-        )
-        if (
-            target is None
-            or not waiting
-            or target.id == job.id
-            or target.machine_id != job.machine_id
-            or self._job_customer(target) != body.changeover_to_customer_id
-        ):
-            raise BusinessRuleViolation(
-                "The job named must be awaiting approval, on this machine, for that customer",
-                code="CHANGEOVER_JOB_INVALID",
-            )
 
     def request_reset(self, body: ResetIn) -> ResetDto:
         """Documented meter replacement/rollover, PENDING until a different user with approval permission decides
@@ -496,7 +341,7 @@ class MeterService:
         self._s.flush()
         return ResetDto.model_validate(row)
 
-    def _supersede(self, capture_id: uuid.UUID, machine_id: uuid.UUID, job: Job | None) -> None:
+    def _supersede(self, capture_id: uuid.UUID, machine_id: uuid.UUID) -> None:
         """Inline supersession (the behaviour before two-person corrections), only when the tenant's policy does not
         require a second person; otherwise corrections go through `POST /meter-corrections`."""
         eff = PolicyService(self._s).engine_hours(self._tid, machine_id, at=self._now)
@@ -508,8 +353,6 @@ class MeterService:
         if "tenant.meter.approve" not in self._ctx.permissions:
             raise BusinessRuleViolation("Corrections require meter approval permission", code="CORRECTION_FORBIDDEN")
         stmt = select(MeterCapture).where(MeterCapture.id == capture_id, MeterCapture.machine_id == machine_id)
-        if job is not None:
-            stmt = stmt.where(MeterCapture.job_id == job.id)
         old = self._s.execute(stmt.with_for_update()).scalar_one_or_none()
         if old is None or old.state not in _ACTIVE:
             raise NotFound("Active capture to supersede not found")
@@ -546,8 +389,7 @@ class MeterService:
             .order_by(MeterResetEvent.effective_at.desc())
             .limit(1)
         ).scalar_one_or_none()
-        job_ref = str(row.job_id) if row.job_id else ""
-        return PriorReading(row.reading, row.captured_at, job_ref, row.kind.value), reset
+        return PriorReading(row.reading, row.captured_at), reset
 
     def _location(
         self, machine_id: uuid.UUID, body: MeterCaptureIn, policy: MeterCapturePolicy
@@ -580,23 +422,3 @@ class MeterService:
             {"tracker_latitude": row.lat, "tracker_longitude": row.lon, "tracker_accuracy_m": row.accuracy_m}
         )
         return findings, comparison
-
-    def _telemetry(self, job: Job, body: MeterCaptureIn, policy: MeterCapturePolicy) -> list[Finding]:
-        opening = self._s.execute(
-            select(MeterCapture).where(
-                MeterCapture.job_id == job.id, MeterCapture.kind == ReadingKind.OPENING, MeterCapture.state.in_(_ACTIVE)
-            )
-        ).scalar_one_or_none()
-        if opening is None:
-            return []
-        hours = self._s.execute(
-            text("""
-            SELECT (SELECT engine_hours FROM machine_position_event WHERE machine_id = :m AND engine_hours IS NOT NULL
-                      AND event_time <= :b ORDER BY event_time DESC LIMIT 1),
-                   (SELECT engine_hours FROM machine_position_event WHERE machine_id = :m AND engine_hours IS NOT NULL
-                      AND event_time <= :e ORDER BY event_time DESC LIMIT 1)"""),
-            {"m": job.machine_id, "b": opening.captured_at, "e": body.captured_at},
-        ).one()
-        if hours[0] is None or hours[1] is None:
-            return []  # capability not reporting: no comparison, no claim
-        return telemetry_findings(policy, body.reading - opening.reading, Decimal(hours[1]) - Decimal(hours[0]))

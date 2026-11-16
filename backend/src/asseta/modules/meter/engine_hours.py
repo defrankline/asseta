@@ -1,49 +1,41 @@
-"""Engine-hour ledger loading and the controls built on it (design B): the START gate (approved baseline, no
-overlapping allocation), machine-level flags (UNEXPLAINED_HOURS, OVERLAPPING_ALLOCATION, MISSING_DAILY_REPORT) and
-the facts the periodic sweep ages into investigations. Runs in the tenant's RLS scope. Flags are evidence for
-review only; nothing here decides anything about a person."""
+"""Engine-hour ledger loading and the controls built on it (design B): machine-level flags (UNEXPLAINED_HOURS,
+MISSING_DAILY_REPORT, DUPLICATE_DAILY_REPORT) and the facts the periodic sweep ages into investigations. Hours inside a
+submitted or approved machine report are accounted for by the report (ADR-008). Runs in the tenant's RLS scope. Flags
+are evidence for review only; nothing here decides anything about a person."""
 
 import uuid
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import ColumnElement, Select, and_, exists, or_, select
+from sqlalchemy import and_, exists, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from asseta.core.db import utcnow
-from asseta.core.errors import BusinessRuleViolation
 from asseta.core.outbox import OutboxWriter
 from asseta.modules.fleet.models import Machine
-from asseta.modules.jobs.models import ActivityType, Job, JobActivity, JobStatus, RentalContract
-from asseta.modules.meter.allocation_models import DailyOperationalReport, MachineChangeover
+from asseta.modules.machine_reports.models import MachineReport, MachineReportStatus
+from asseta.modules.meter.allocation_models import DailyOperationalReport
 from asseta.modules.meter.engine_models import EngineHourClassification, MachineMeterBaseline, MeterProposalStatus
 from asseta.modules.meter.ledger import (
-    ActivitySpan,
-    ChangeoverPoint,
     ClassificationFact,
-    JobSpan,
     Ledger,
     LedgerInterval,
     LedgerPoint,
+    ReportSpan,
     ResetPoint,
     build_ledger,
-    rebased_between,
 )
 from asseta.modules.meter.models import (
     CaptureState,
     ExceptionStatus,
     ExceptionType,
-    JobException,
     MeterCapture,
+    MeterException,
     MeterResetEvent,
-    ReadingKind,
 )
 from asseta.modules.policy.engine_hours import EngineHoursPolicy
-from asseta.modules.policy.schemas import BillingMode
 from asseta.modules.policy.service import EffectivePolicy, PolicyService
 from asseta.modules.telemetry.models import MachineStateEvent, StateDimension
 from asseta.modules.tenancy.models import TenantSettings
@@ -93,10 +85,10 @@ def _unverified_capture_ids(s: Session, capture_ids: list[uuid.UUID]) -> set[uui
     if not capture_ids:
         return set()
     rows = s.execute(
-        select(JobException.meter_capture_id).where(
-            JobException.meter_capture_id.in_(capture_ids),
-            JobException.blocking.is_(True),
-            JobException.status.in_([ExceptionStatus.OPEN, ExceptionStatus.CONFIRMED]),
+        select(MeterException.meter_capture_id).where(
+            MeterException.meter_capture_id.in_(capture_ids),
+            MeterException.blocking.is_(True),
+            MeterException.status.in_([ExceptionStatus.OPEN, ExceptionStatus.CONFIRMED]),
         )
     ).scalars()
     return {r for r in rows if r is not None}
@@ -118,8 +110,7 @@ def load_machine_ledger(s: Session, tenant_id: uuid.UUID, machine: Machine, now:
         else _unverified_capture_ids(s, [c.id for c in captures if c.state is CaptureState.PROVISIONAL])
     )
     points = [
-        LedgerPoint(c.id, c.kind.value, c.captured_at, c.reading, c.received_at, c.id not in held, c.job_id)
-        for c in captures
+        LedgerPoint(c.id, c.kind.value, c.captured_at, c.reading, c.received_at, c.id not in held) for c in captures
     ]
     if baseline is not None:
         points.append(
@@ -142,184 +133,21 @@ def load_machine_ledger(s: Session, tenant_id: uuid.UUID, machine: Machine, now:
             )
         ).scalars()
     ]
-    spans = _job_rules(s, tenant_id, machine.id, job_spans(s, machine.id))
-    activities = non_revenue_activities(s, tenant_id, [sp.job_id for sp in spans], now)
-    ledger = build_ledger(
-        points,
-        resets,
-        spans,
-        classifications,
-        activities,
-        _cover_entries(s, [sp.job_id for sp in spans if sp.requires_cover], now),
-        job_changeovers(s, machine.id),
-        _billing_spans(s, tenant_id, [sp.job_id for sp in spans if sp.splits_billing]),
-    )
+    ledger = build_ledger(points, resets, report_spans(s, machine.id), classifications)
     return MachineLedger(machine, baseline, proposal, ledger, eff)
 
 
-def _job_rules(s: Session, tenant_id: uuid.UUID, machine_id: uuid.UUID, spans: list[JobSpan]) -> list[JobSpan]:
-    """Each job's A2/A3 switches: the policy in force when it started, so later changes never reinterpret it."""
-    svc = PolicyService(s)
-    out = []
-    for sp in spans:
-        policy = svc.engine_hours(tenant_id, machine_id, at=sp.start).policy.in_force()
-        out.append(
-            replace(
-                sp,
-                requires_cover=not policy.in_job_time_counts_as_customer_work,
-                splits_billing=policy.changeover_splits_billing,
-            )
-        )
-    return out
-
-
-def _cover_entries(s: Session, job_ids: list[uuid.UUID], now: datetime) -> list[ActivitySpan]:
-    """[DEC-032 A2] Timed work-log entries of jobs that need cover. One still running covers up to now."""
-    if not job_ids:
-        return []
-    rows = s.execute(
-        select(JobActivity).where(JobActivity.job_id.in_(job_ids), JobActivity.activity_type != ActivityType.NOTE)
-    ).scalars()
-    return [ActivitySpan(a.job_id, a.activity_type.value, a.started_at, a.ended_at or now) for a in rows]
-
-
-def _billing_spans(s: Session, tenant_id: uuid.UUID, job_ids: list[uuid.UUID]) -> list[ActivitySpan]:
-    """[DEC-032 A3] Non-billable time the job's own billing deducts, so a changeover moves only billable hours."""
-    out: list[ActivitySpan] = []
-    for job in s.execute(select(Job).where(Job.id.in_(job_ids))).scalars() if job_ids else ():
-        rows = s.execute(
-            select(JobActivity).where(
-                JobActivity.job_id == job.id,
-                JobActivity.billable.is_(False),
-                JobActivity.ended_at.is_not(None),
-                billing_deduction_filter(s, tenant_id, job),
+def report_spans(s: Session, machine_id: uuid.UUID) -> list[ReportSpan]:
+    """The periods of the machine's submitted and approved machine reports (they account for those hours)."""
+    return [
+        ReportSpan(r.id, r.report_number, r.start_at, r.end_at)
+        for r in s.execute(
+            select(MachineReport).where(
+                MachineReport.machine_id == machine_id,
+                MachineReport.status.in_([MachineReportStatus.SUBMITTED, MachineReportStatus.APPROVED]),
+                MachineReport.hours > 0,
             )
         ).scalars()
-        out += [ActivitySpan(a.job_id, a.activity_type.value, a.started_at, a.ended_at) for a in rows if a.ended_at]
-    return out
-
-
-def job_changeovers(s: Session, machine_id: uuid.UUID) -> list[ChangeoverPoint]:
-    """[DEC-032 A3] Changeovers whose reading is still live (a superseded reading's changeover no longer counts)."""
-    rows = s.execute(
-        select(MachineChangeover, MeterCapture.captured_at)
-        .join(MeterCapture, MeterCapture.id == MachineChangeover.capture_id)
-        .where(MachineChangeover.machine_id == machine_id, MeterCapture.state.in_(LIVE))
-    ).all()
-    return [ChangeoverPoint(c.id, at, c.job_id, c.to_customer_id, c.to_job_id) for c, at in rows]
-
-
-def job_carried_hours(s: Session, tenant_id: uuid.UUID, job: Job) -> Decimal:
-    """[DEC-032 A3] Billable hours moved to this job by mid-job changeovers on the running job before it. Exactly what
-    `job_billing_cut` took from that job. 0, with no ledger read, for a job no changeover names."""
-    named = s.execute(
-        select(MachineChangeover.id)
-        .join(MeterCapture, MeterCapture.id == MachineChangeover.capture_id)
-        .where(MachineChangeover.to_job_id == job.id, MeterCapture.state.in_(LIVE))
-        .limit(1)
-    ).first()
-    machine = s.get(Machine, job.machine_id) if named is not None else None
-    if machine is None:
-        return Decimal(0)
-    intervals = load_machine_ledger(s, tenant_id, machine, utcnow()).ledger.intervals
-    return sum((i.changeover_cut for i in intervals if i.billed_to_job_id == job.id), Decimal(0))
-
-
-def ensure_not_changeover_target(s: Session, tenant_id: uuid.UUID, job: Job) -> None:
-    """[DEC-032 A3] A job that post-changeover hours bill to cannot be cancelled or moved to another machine: those
-    hours would bill nobody. Correct the changeover reading to name another job first."""
-    rows = s.execute(
-        select(MachineChangeover, Job)
-        .join(MeterCapture, MeterCapture.id == MachineChangeover.capture_id)
-        .join(Job, Job.id == MachineChangeover.job_id)
-        .where(MachineChangeover.to_job_id == job.id, MeterCapture.state.in_(LIVE))
-    ).all()
-    svc = PolicyService(s)
-    for _, source in rows:
-        policy = svc.engine_hours(tenant_id, source.machine_id, at=source.started_at or utcnow()).policy.in_force()
-        if policy.changeover_splits_billing and source.status in (JobStatus.IN_PROGRESS, JobStatus.COMPLETED):
-            raise BusinessRuleViolation(
-                f"Hours from job {source.job_number} are billed to this job; correct that changeover first",
-                code="JOB_HAS_CHANGEOVER_HOURS",
-            )
-
-
-def job_billing_cut(s: Session, tenant_id: uuid.UUID, job: Job) -> Decimal:
-    """Engine hours of a job its billing leaves out because of A2 or A3; 0 (no ledger read) with both at their
-    defaults, so billing for tenants that did not switch either on is computed exactly as before."""
-    at = job.started_at or utcnow()
-    policy = PolicyService(s).engine_hours(tenant_id, job.machine_id, at=at).policy.in_force()
-    if policy.in_job_time_counts_as_customer_work and not policy.changeover_splits_billing:
-        return Decimal(0)
-    machine = s.get(Machine, job.machine_id)
-    if machine is None:
-        return Decimal(0)
-    intervals = load_machine_ledger(s, tenant_id, machine, utcnow()).ledger.intervals
-    return sum((i.billing_cut for i in intervals if i.job_id == job.id), Decimal(0))
-
-
-def approved_non_revenue_ids() -> Select[uuid.UUID]:
-    from asseta.modules.revenue.models import (  # lazy: revenue builds on meter
-        NonRevenueApproval,
-        NonRevenueApprovalStatus,
-    )
-
-    return select(NonRevenueApproval.activity_id).where(NonRevenueApproval.status == NonRevenueApprovalStatus.APPROVED)
-
-
-def billing_deduction_filter(s: Session, tenant_id: uuid.UUID, job: Job) -> ColumnElement[bool]:
-    """Non-billable work-log entries subtracted from a job's meter hours: DOWNTIME and STANDBY (as always) plus, when
-    the tenant's revenue-hour basis deducts them (DEC-031 R1, policy in force when the job started), its declared
-    non-revenue types — from an INVOICE job's billable hours and/or a PREPAID job's drawdown; when the tenant
-    requires it, only entries explained and approved by a second person. (Callers also require `billable` false and
-    an end time.)"""
-    policy = PolicyService(s).revenue_reconciliation(tenant_id, at=job.started_at or utcnow()).policy
-    always, approved_only = policy.billing_deductions(job.billing_mode is BillingMode.PREPAID_HOURS)
-    cond: ColumnElement[bool] = JobActivity.activity_type.in_(always)
-    if approved_only:
-        cond = or_(
-            cond,
-            and_(JobActivity.activity_type.in_(approved_only), JobActivity.id.in_(approved_non_revenue_ids())),
-        )
-    return cond
-
-
-def non_revenue_activities(
-    s: Session, tenant_id: uuid.UUID, job_ids: list[uuid.UUID], now: datetime
-) -> list[ActivitySpan]:
-    """[DEC-031 R1] Non-billable, ended work-log entries of the tenant's declared non-revenue types on these jobs
-    (approved ones only, when the tenant requires approval) — only while the tenant's revenue-hour basis is on
-    (`deduct_non_revenue_from_working_hours`); none otherwise, so the ledger is exactly as before."""
-    policy = PolicyService(s).revenue_reconciliation(tenant_id, at=now).policy.in_force()
-    if not policy.deduct_non_revenue_from_working_hours or not policy.non_revenue_activity_types or not job_ids:
-        return []
-    from asseta.modules.revenue.models import (  # lazy: revenue builds on meter
-        NonRevenueApproval,
-        NonRevenueApprovalStatus,
-    )
-
-    stmt = (
-        select(JobActivity, NonRevenueApproval.id)
-        .outerjoin(
-            NonRevenueApproval,
-            and_(
-                NonRevenueApproval.activity_id == JobActivity.id,
-                NonRevenueApproval.status == NonRevenueApprovalStatus.APPROVED,
-            ),
-        )
-        .where(
-            JobActivity.job_id.in_(job_ids),
-            JobActivity.activity_type.in_(policy.non_revenue_activity_types),
-            JobActivity.billable.is_(False),
-            JobActivity.ended_at.is_not(None),
-        )
-    )
-    if policy.non_revenue_requires_approval:  # owner rule: non-revenue only once explained and approved
-        stmt = stmt.where(NonRevenueApproval.id.is_not(None))
-    return [
-        ActivitySpan(a.job_id, a.activity_type.value, a.started_at, a.ended_at, approval)
-        for a, approval in s.execute(stmt).all()
-        if a.ended_at is not None
     ]
 
 
@@ -334,129 +162,9 @@ def approved_resets(s: Session, machine_id: uuid.UUID) -> list[ResetPoint]:
     ]
 
 
-def job_spans(s: Session, machine_id: uuid.UUID, exclude: uuid.UUID | None = None) -> list[JobSpan]:
-    """Started jobs' engine windows on a machine, from their live opening/closing readings."""
-    jobs = s.execute(
-        select(Job, RentalContract.customer_id)
-        .join(RentalContract, RentalContract.id == Job.contract_id)
-        .where(
-            Job.machine_id == machine_id,
-            Job.status.in_([JobStatus.IN_PROGRESS, JobStatus.COMPLETED]),
-            Job.started_at.is_not(None),
-        )
-    ).all()
-    spans = []
-    for job, customer_id in jobs:
-        if job.id == exclude:
-            continue
-        reads = {
-            c.kind: c
-            for c in s.execute(
-                select(MeterCapture).where(
-                    MeterCapture.job_id == job.id,
-                    MeterCapture.kind.in_([ReadingKind.OPENING, ReadingKind.CLOSING]),
-                    MeterCapture.state.in_(LIVE),
-                )
-            ).scalars()
-        }
-        opening, closing = reads.get(ReadingKind.OPENING), reads.get(ReadingKind.CLOSING)
-        if opening is None:
-            continue
-        spans.append(
-            JobSpan(
-                job.id,
-                job.job_number,
-                opening.captured_at,
-                closing.captured_at if closing else None,
-                opening.reading,
-                closing.reading if closing else None,
-                customer_id,
-            )
-        )
-    return spans
-
-
 def engine_hours_on(s: Session, tenant_id: uuid.UUID, at: datetime) -> bool:
     """The tenant's ENGINE_HOURS capability (master switch; tenant level only)."""
     return PolicyService(s).engine_hours(tenant_id, at=at).policy.enabled
-
-
-# --- job gates ---------------------------------------------------------------------------------------------------
-def ensure_job_can_start(s: Session, tenant_id: uuid.UUID, job: Job, opening: MeterCapture, now: datetime) -> None:
-    """START controls, each a tenant policy switch: an approved baseline must exist [3.2.1], and the opening reading
-    must not fall inside another job's engine interval in time or meter range [3.2.5]. Both off with ENGINE_HOURS."""
-    policy = PolicyService(s).engine_hours(tenant_id, job.machine_id, at=now).policy.in_force()
-    if policy.baseline_required_before_start and approved_baseline(s, job.machine_id) is None:
-        raise BusinessRuleViolation(
-            "This machine has no approved meter baseline yet; propose one and have it approved before starting",
-            code="BASELINE_REQUIRED",
-        )
-    if policy.prevent_overlapping_allocation:
-        _ensure_no_overlap(s, job, opening.captured_at, opening.reading, None, None)
-
-
-def ensure_job_can_complete(s: Session, tenant_id: uuid.UUID, job: Job, closing: MeterCapture, now: datetime) -> None:
-    """COMPLETE control: the job's whole interval must not overlap another job's [3.2.5]."""
-    policy = PolicyService(s).engine_hours(tenant_id, job.machine_id, at=now).policy.in_force()
-    if not policy.prevent_overlapping_allocation:
-        return
-    opening = s.execute(
-        select(MeterCapture).where(
-            MeterCapture.job_id == job.id, MeterCapture.kind == ReadingKind.OPENING, MeterCapture.state.in_(LIVE)
-        )
-    ).scalar_one_or_none()
-    if opening is not None:
-        _ensure_no_overlap(s, job, opening.captured_at, opening.reading, closing.captured_at, closing.reading)
-
-
-def _ensure_no_overlap(
-    s: Session,
-    job: Job,
-    start: datetime,
-    start_reading: Any,
-    end: datetime | None,
-    end_reading: Any,
-) -> None:
-    resets = approved_resets(s, job.machine_id)
-    for other in job_spans(s, job.machine_id, exclude=job.id):
-        other_end = other.end or datetime.max.replace(tzinfo=start.tzinfo)
-        mine_end = end or datetime.max.replace(tzinfo=start.tzinfo)
-        in_time = start < other_end and other.start < mine_end
-        in_range = other.start_reading <= start_reading and (
-            other.end_reading is None or start_reading < other.end_reading
-        )
-        if end_reading is not None and other.end_reading is not None:
-            in_range = in_range or (start_reading < other.end_reading and other.start_reading < end_reading)
-        in_range = in_range and not rebased_between(resets, other.start, start)
-        if in_time or in_range:
-            raise BusinessRuleViolation(
-                f"These engine hours are already allocated to job {other.job_number}",
-                code="OVERLAPPING_ALLOCATION",
-            )
-
-
-def ensure_no_activity_overlap(
-    s: Session, tenant_id: uuid.UUID, job: Job, activity_type: str, start: datetime, end: datetime | None
-) -> None:
-    """[3.2.5] A timed work-log entry may not overlap another timed entry of the same job (an hour logged once).
-    Notes and entries without an end are points in time and never overlap. Policy switch per machine."""
-    if activity_type == ActivityType.NOTE.value or end is None:
-        return
-    if not PolicyService(s).engine_hours(tenant_id, job.machine_id).policy.in_force().prevent_overlapping_activity:
-        return
-    clash = s.execute(
-        select(JobActivity.id).where(
-            JobActivity.job_id == job.id,
-            JobActivity.activity_type != ActivityType.NOTE,
-            JobActivity.ended_at.is_not(None),
-            JobActivity.started_at < end,
-            JobActivity.ended_at > start,
-        )
-    ).first()
-    if clash is not None:
-        raise BusinessRuleViolation(
-            "This entry overlaps another work-log entry of the job", code="OVERLAPPING_ACTIVITY"
-        )
 
 
 # --- flags -------------------------------------------------------------------------------------------------------
@@ -482,7 +190,7 @@ def unexplained_dedupe(machine_id: uuid.UUID, start_ref: uuid.UUID, end_ref: uui
 
 class EngineHoursMonitor:
     """Machine-level engine-hour flags. Nothing is flagged, aged or reminded while the tenant's ENGINE_HOURS
-    capability is switched off (job meter readings then work as before these controls)."""
+    capability is switched off."""
 
     def __init__(self, s: Session, tenant_id: uuid.UUID, now: datetime):
         self._s, self._tid, self._now = s, tenant_id, now
@@ -493,18 +201,16 @@ class EngineHoursMonitor:
     def _flag(
         self,
         machine_id: uuid.UUID,
-        job_id: uuid.UUID | None,
         kind: ExceptionType,
         dedupe: str,
         evidence: dict[str, Any],
     ) -> bool:
         stamp = PolicyService(self._s).engine_hours(self._tid, machine_id, at=self._now).version_stamp
         new_id = self._s.execute(
-            insert(JobException)
+            insert(MeterException)
             .values(
                 id=uuid.uuid4(),
                 tenant_id=self._tid,
-                job_id=job_id,
                 machine_id=machine_id,
                 meter_capture_id=None,  # machine-level: never shown as a finding on someone's reading
                 exception_type=kind,
@@ -516,8 +222,8 @@ class EngineHoursMonitor:
                 status=ExceptionStatus.OPEN,
                 created_at=self._now,
             )
-            .on_conflict_do_nothing(constraint="uq_job_exception_dedupe")
-            .returning(JobException.id)
+            .on_conflict_do_nothing(constraint="uq_meter_exception_dedupe")
+            .returning(MeterException.id)
         ).scalar_one_or_none()
         if new_id is not None:
             OutboxWriter(self._s).emit(
@@ -528,7 +234,6 @@ class EngineHoursMonitor:
                     "exception_id": str(new_id),
                     "exception_type": kind.value,
                     "machine_id": str(machine_id),
-                    "job_id": str(job_id) if job_id else None,
                     "hours": evidence.get("hours"),
                     "day": evidence.get("day"),
                 },
@@ -537,8 +242,8 @@ class EngineHoursMonitor:
         return new_id is not None
 
     def flag_machine(self, machine_id: uuid.UUID) -> int:
-        """UNEXPLAINED_HOURS for each verified unexplained segment and OVERLAPPING_ALLOCATION for each pair of jobs
-        sharing engine hours, once each (dedupe). Only after reconciliation began (approved baseline)."""
+        """UNEXPLAINED_HOURS for each verified unexplained segment, once each (dedupe). Only after reconciliation
+        began (approved baseline)."""
         machine = self._s.get(Machine, machine_id)
         if machine is None or not self.enabled() or approved_baseline(self._s, machine_id) is None:
             return 0
@@ -547,19 +252,9 @@ class EngineHoursMonitor:
         for i in ml.open_items():
             raised += self._flag(
                 machine_id,
-                None,
                 ExceptionType.UNEXPLAINED_HOURS,
                 unexplained_dedupe(machine_id, i.start.ref, i.end.ref),
                 _segment_evidence(i, self._now),
-            )
-        for o in ml.ledger.overlaps:
-            a, b = sorted([str(o.first_job_id), str(o.second_job_id)])
-            raised += self._flag(
-                machine_id,
-                o.first_job_id,
-                ExceptionType.OVERLAPPING_ALLOCATION,
-                f"engine:overlap:{a}:{b}",
-                {"first_job_id": str(o.first_job_id), "second_job_id": str(o.second_job_id), "basis": o.basis},
             )
         return raised
 
@@ -567,7 +262,6 @@ class EngineHoursMonitor:
         """[DEC-032 A6] A second daily operational report for one machine-day: kept and flagged for review."""
         return self._flag(
             report.machine_id,
-            None,
             ExceptionType.DUPLICATE_DAILY_REPORT,
             f"engine:dup-report:{report.id}",
             {
@@ -599,7 +293,6 @@ class EngineHoursMonitor:
         for miss in missing_daily_reports(self._s, self._tid, self._now):
             raised += self._flag(
                 miss.machine_id,
-                miss.job_id,
                 ExceptionType.MISSING_DAILY_REPORT,
                 f"engine:daily:{miss.machine_id}:{miss.day.isoformat()}",
                 {"day": miss.day.isoformat(), "cutoff_hour": miss.cutoff_hour, "basis": miss.basis},
@@ -615,14 +308,13 @@ class MissingReport:
     machine_name: str
     day: date
     cutoff_hour: int
-    basis: str  # ACTIVE_JOB | ENGINE_ACTIVITY
-    job_id: uuid.UUID | None
+    basis: str  # ENGINE_ACTIVITY (tracker engine-on in the window)
 
 
 def missing_daily_reports(s: Session, tenant_id: uuid.UUID, now: datetime) -> list[MissingReport]:
-    """Working machines without a reading (DAILY or job reading) before the policy cut-off of a tenant-local day
-    whose cut-off has passed (today after the cut-off, and yesterday). Working = a job running during that window,
-    or engine-on reported by its tracker in it. Per-machine policy may switch the requirement off."""
+    """Working machines without a reading before the policy cut-off of a tenant-local day whose cut-off has passed
+    (today after the cut-off, and yesterday). Working = engine-on reported by its tracker in that window. Per-machine
+    policy may switch the requirement off."""
     svc = PolicyService(s)
     tenant_policy = svc.engine_hours(tenant_id, at=now).policy
     if not tenant_policy.enabled:
@@ -636,40 +328,28 @@ def missing_daily_reports(s: Session, tenant_id: uuid.UUID, now: datetime) -> li
     for day in days:
         start = datetime.combine(day, datetime.min.time(), tz)
         end = start + timedelta(hours=cutoff)
-        running = select(Job.machine_id, Job.id).where(
-            Job.started_at.is_not(None),
-            Job.started_at < end,
-            Job.status.in_([JobStatus.IN_PROGRESS, JobStatus.COMPLETED]),
-            or_(Job.completed_at.is_(None), Job.completed_at > start),
-        )
-        working: dict[uuid.UUID, tuple[str, uuid.UUID | None]] = {
-            m: ("ACTIVE_JOB", j) for m, j in s.execute(running).tuples()
-        }
+        working: set[uuid.UUID] = set()
         engine_on = select(MachineStateEvent.machine_id).where(
             MachineStateEvent.dimension == StateDimension.ENGINE,
             MachineStateEvent.value == "ON",
             MachineStateEvent.event_time >= start,
             MachineStateEvent.event_time < end,
         )
-        for m in s.execute(engine_on.distinct()).scalars():
-            working.setdefault(m, ("ENGINE_ACTIVITY", None))
+        working.update(s.execute(engine_on.distinct()).scalars())
         if not working:
             continue
         reported = set(
             s.execute(
                 select(MeterCapture.machine_id).where(
-                    MeterCapture.machine_id.in_(working.keys()),
+                    MeterCapture.machine_id.in_(working),
                     MeterCapture.state.in_(LIVE),
                     and_(MeterCapture.captured_at >= start, MeterCapture.captured_at < end),
                 )
             ).scalars()
         )
-        machines = {
-            m.id: m for m in s.execute(select(Machine).where(Machine.id.in_(working.keys() - reported))).scalars()
-        }
+        machines = {m.id: m for m in s.execute(select(Machine).where(Machine.id.in_(working - reported))).scalars()}
         for machine_id, machine in sorted(machines.items(), key=lambda kv: kv[1].asset_code):
             if not svc.engine_hours(tenant_id, machine_id, at=now).policy.daily_report_required:
                 continue
-            basis, job_id = working[machine_id]
-            out.append(MissingReport(machine_id, machine.asset_code, machine.name, day, cutoff, basis, job_id))
+            out.append(MissingReport(machine_id, machine.asset_code, machine.name, day, cutoff, "ENGINE_ACTIVITY"))
     return out

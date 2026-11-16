@@ -20,8 +20,8 @@ FORBIDDEN = (
             "credit_adjustment",
             "machine_position_event",
             "policy_version",
-            # Gate 5 append-only finance evidence
-            "hire_invoice_line",
+            # Gate 5 append-only finance evidence; ADR-008 report lines
+            "machine_report_line",
             "financial_adjustment",
             "supervisor_cash_custody",
             "expense_attachment",
@@ -49,13 +49,12 @@ FORBIDDEN = (
             "managed_service_mandate",
             "mandate_assignment",
             # Gate 5: financial records are corrected by reversal/decision, never deleted
-            "tenant_hire_invoice",
-            "hire_invoice_line",
-            "hire_invoice_job",
-            "hire_invoice_counter",
+            "credit_invoice",
             "financial_adjustment",
             "customer_payment",
-            "hire_payment_allocation",
+            # ADR-008: machine reports are decided (approved/rejected) or corrected by a new report, never deleted
+            "machine_report",
+            "machine_report_line",
             "supervisor_cash_custody",
             "cash_handover",
             "expense_category",
@@ -69,8 +68,6 @@ FORBIDDEN = (
             "job_site",
             "machine_category",
             "operating_area",
-            "rental_contract",
-            "job",
             "geofence",
             "tracker_model",
             # DEC-022: commerce and notification records are reversed/closed/marked, never deleted
@@ -87,7 +84,7 @@ FORBIDDEN = (
     ]
     + [
         (t, "TRUNCATE")
-        for t in ("tenant_hire_invoice", "customer_payment", "expense", "sms_wallet_entry", "platform_line_allocation")
+        for t in ("credit_invoice", "customer_payment", "expense", "sms_wallet_entry", "platform_line_allocation")
     ]
 )
 

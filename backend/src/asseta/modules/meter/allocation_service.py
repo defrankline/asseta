@@ -20,10 +20,10 @@ from asseta.core.search import ilike_any
 from asseta.core.signals import sod_violation
 from asseta.modules.adjustments.models import AdjustmentEntryStatus, AdjustmentType, AdjustmentUnit
 from asseta.modules.adjustments.posting import AdjustmentPosting, post_adjustment
+from asseta.modules.customers.models import Customer
 from asseta.modules.fleet.models import Machine
+from asseta.modules.fleet.scope import METER_OVERSIGHT, assigned_machine_ids, own_staff, restricted_to_own
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.models import Customer, Job
-from asseta.modules.jobs.scope import METER_OVERSIGHT, assigned_machine_ids, own_staff, restricted_to_own
 from asseta.modules.meter.allocation_dto import (
     AllocationCorrectionDto,
     AllocationCorrectionIn,
@@ -71,7 +71,6 @@ class WorkAllocationService:
         customer_id: uuid.UUID | None,
         kind: AllocationKind | None,
         status: AllocationStatus | None,
-        job_id: uuid.UUID | None = None,
     ) -> Select[WorkAllocation]:
         stmt = (
             select(WorkAllocation)
@@ -85,7 +84,6 @@ class WorkAllocationService:
             (WorkAllocation.machine_id, machine_id),
             (WorkAllocation.customer_id, customer_id),
             (WorkAllocation.kind, kind),
-            (WorkAllocation.job_id, job_id),
         ):
             if val is not None:
                 stmt = stmt.where(col == val)
@@ -217,10 +215,6 @@ class WorkAllocationService:
                 )
         elif part.reason_id is not None:
             raise BusinessRuleViolation("Only authorized activity names a reason", code="REASON_NOT_ALLOWED")
-        if part.job_id is not None:
-            job = self._s.get(Job, part.job_id)
-            if job is None or job.machine_id != entry.machine_id:
-                raise NotFound("Job not found on this machine", code="JOB_NOT_FOUND")
 
     def _check_evidence(self, ids: list[uuid.UUID]) -> None:
         for attachment_id in ids:
@@ -265,11 +259,8 @@ class WorkAllocationService:
                 hours=part.hours,
                 kind=part.kind,
                 customer_id=part.customer_id,
-                job_id=part.job_id if part.job_id is not None else entry.job_id,
-                activity_type=entry.activity_type if part.kind is entry.kind else None,
                 reason_id=part.reason_id,
                 classification_id=None,
-                changeover_id=entry.changeover_id if part.kind is AllocationKind.CUSTOMER_WORK else None,
                 reading_review=entry.reading_review,
                 approval_ref_type="work_allocation_correction",
                 approval_ref_ids=[group],

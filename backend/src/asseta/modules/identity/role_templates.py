@@ -39,7 +39,6 @@ TENANT_TEMPLATES = (
             "tenant.tracker.",
             "tenant.fleet.",
             "tenant.geofence.",
-            "tenant.job.",
             "tenant.customer.",
             "tenant.approval.",
             "tenant.policy.read",
@@ -63,10 +62,7 @@ TENANT_TEMPLATES = (
             "tenant.hours.",
             # ADR-008 §2: managers report on any machine and approve or reject machine reports (never their own).
             "tenant.machine_report.",
-            # Revenue reconciliation (DEC-031): see the daily machine sheet, explain revenue differences and decide
-            # on someone else's explanation (never their own: segregation of duties).
-            "tenant.revenue.",
-            # Oversight (DEC-031 Phase 5): the people scorecard, unbilled work, idle machines and site check-ins.
+            # Oversight (DEC-031 Phase 5): the people scorecard and idle machines.
             "tenant.oversight.",
             # Go-live setup checklist: see progress, mark steps not needed, confirm default controls.
             "tenant.setup.",
@@ -87,9 +83,6 @@ TENANT_TEMPLATES = (
         "Supervisor",
         PermissionScope.TENANT,
         (
-            "tenant.job.read",
-            "tenant.job.log",
-            "tenant.job.request",  # request jobs from the field; the owner/manager approves them
             "tenant.meter.capture",
             "tenant.meter.read",
             "tenant.customer.read",
@@ -109,7 +102,6 @@ TENANT_TEMPLATES = (
             "tenant.fleet.read",
             "tenant.notification.read",
             "tenant.directory.read",
-            "tenant.site_checkin.record",  # GPS site check-in at the tenant's times (DEC-031 M3; only when switched on)
             "tenant.pettycash.read",  # DEC-033: the funds they hold (never anyone else's), and counting them
             "tenant.pettycash.count",
         ),
@@ -126,10 +118,9 @@ TENANT_TEMPLATES = (
             "tenant.billing.read",
             "tenant.notification.read",
             "tenant.directory.read",
-            # Read-only reference data so invoices, payments and custody show customer, job, machine and
-            # supervisor names (DEC-023); no write on operations.
+            # Read-only reference data so invoices, payments and custody show customer, machine and supervisor
+            # names (DEC-023); no write on operations.
             "tenant.customer.read",
-            "tenant.job.read",
             "tenant.machine.read",
             "tenant.staff.read",
             "tenant.case.read",  # read-only view of investigation cases and signals (Gate 6)
@@ -142,9 +133,7 @@ TENANT_TEMPLATES = (
             "tenant.hours.credit_activate",
             "tenant.hours.invoice_payment",  # ADR-008: record payments of credit invoices
             "tenant.machine_report.read",  # ADR-008: machine reports behind the hours used (read only)
-            "tenant.revenue.read",  # revenue reconciliation (DEC-031): daily sheet, explain differences
-            "tenant.revenue.explain",
-            "tenant.oversight.read",  # unbilled work and idle machines (DEC-031 M2); not the people scorecard
+            "tenant.oversight.read",  # idle machines (DEC-031 M2); not the people scorecard
             "tenant.adjustment.",  # adjustments ledger: read, propose, decide (never your own proposal)
             "tenant.pettycash.read",  # DEC-033: propose fundings/top-ups/adjustments, issue money, confirm returns
             "tenant.pettycash.propose",
@@ -166,7 +155,6 @@ TENANT_TEMPLATES = (
         (
             "tenant.meter.capture",
             "tenant.meter.read",
-            "tenant.job.read",
             "tenant.sync.read",
             "tenant.sync.push",
             "tenant.notification.read",
@@ -225,12 +213,10 @@ DECISION_PERMISSIONS = frozenset(
         "tenant.hours.credit_approve",
         "tenant.hours.discount_approve",
         "tenant.hours.transfer_approve",
-        "tenant.job.approve",
         "tenant.machine_report.approve",
         "tenant.meter.approve",
         "tenant.meter.classify",
         "tenant.pettycash.approve",
-        "tenant.revenue.decide",
         "tenant.sync_conflict.resolve",
     }
 )

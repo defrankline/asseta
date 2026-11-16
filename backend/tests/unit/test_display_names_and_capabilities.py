@@ -15,7 +15,7 @@ def test_name_field_convention() -> None:
     assert _rule("staff_member_id") == ("staff", {"name": "staff_member_name"})
     assert _rule("to_machine_id") == ("machine", {"name": "to_machine_name", "code": "to_machine_code"})
     assert _rule("job_site_id") == ("site", {"name": "job_site_name"})
-    assert _rule("job_id") == ("job", {"number": "job_number"})
+    assert _rule("machine_report_id") == ("machine_report", {"number": "machine_report_number"})
     assert _rule("reason_id") is None and _rule("amount") is None
     fields = {f for f, _, _ in _spec(CashTransferDto)}
     assert {"from_staff_id", "to_staff_id", "recorded_by", "acknowledged_by"} <= fields

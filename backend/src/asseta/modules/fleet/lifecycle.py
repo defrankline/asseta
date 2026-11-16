@@ -32,12 +32,9 @@ from asseta.modules.fleet.models import (
     StaffMember,
 )
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.models import Job, JobStatus
+from asseta.modules.machine_reports.models import MachineReport, MachineReportStatus
 from asseta.modules.platform_billing.models_ledger import SubscriptionAssetEnrollment
 from asseta.modules.tracker.models import TrackerAssignment
-
-OPEN_JOB_STATES = (JobStatus.DRAFT, JobStatus.PENDING_APPROVAL, JobStatus.APPROVED, JobStatus.IN_PROGRESS)
-RUNNING_JOB_STATES = (JobStatus.APPROVED, JobStatus.IN_PROGRESS)
 
 
 class FleetLifecycleService:
@@ -152,8 +149,8 @@ class FleetLifecycleService:
         return dto
 
     def set_staff_active(self, staff_id: uuid.UUID, active: bool, reason: str, version: int | None) -> StaffDto:
-        """Deactivation is refused while the person supervises an approved/running job or holds company cash;
-        otherwise their open machine assignments are ended now (history kept)."""
+        """Deactivation is refused while the person holds company cash; otherwise their open machine assignments are
+        ended now (history kept)."""
         staff = self._get(StaffMember, staff_id, "Staff member")
         check_version(staff.version, version, "Staff member")
         if not active:
@@ -180,13 +177,6 @@ class FleetLifecycleService:
         self._s.flush()
 
     def _guard_staff_deactivation(self, staff: StaffMember) -> None:
-        running = self._s.execute(
-            select(Job.id).where(Job.supervisor_id == staff.id, Job.status.in_(RUNNING_JOB_STATES))
-        ).first()
-        if running is not None:
-            raise BusinessRuleViolation(
-                "Staff member supervises an approved or running job; reassign it first", code="STAFF_HAS_ACTIVE_JOBS"
-            )
         balances = CashCustodyService(self._s, self._ctx, self._now).balances(staff.id)
         if any(b.outstanding != 0 or b.claimed_unverified_handovers != 0 for b in balances):
             raise BusinessRuleViolation(
@@ -196,9 +186,13 @@ class FleetLifecycleService:
     # --- machines: retire (DISPOSED) / reinstate ------------------------------------------------------
     def guard_machine_retirement(self, machine: Machine) -> None:
         """A machine can be retired only when nothing operational or billable still depends on it."""
-        if self._s.execute(select(Job.id).where(Job.machine_id == machine.id, Job.status.in_(OPEN_JOB_STATES))).first():
+        pending = select(MachineReport.id).where(
+            MachineReport.machine_id == machine.id, MachineReport.status == MachineReportStatus.SUBMITTED
+        )
+        if self._s.execute(pending).first():
             raise BusinessRuleViolation(
-                "Machine has open jobs; complete or cancel them first", code="MACHINE_HAS_OPEN_JOBS"
+                "A machine report on this machine waits for a decision; decide it first",
+                code="MACHINE_HAS_PENDING_REPORT",
             )
         if self._s.execute(
             select(TrackerAssignment.id).where(

@@ -1,12 +1,11 @@
 """Customer payments (cash collections, bank, mobile money): CLAIMED on record, VERIFIED/REJECTED by someone other
-than the recorder (segregation of duties). Allocations apply payments to issued invoices (partial payments);
-verified money not allocated is customer credit (deposits/advances). Payment gateways stay out of scope (BL)."""
+than the recorder (segregation of duties). A payment pays orders (hours purchases) and credit invoices through their
+own links; verified money not linked is customer credit (deposits/advances). Payment gateways stay out of scope."""
 
 import uuid
 from datetime import datetime
-from decimal import Decimal
 
-from sqlalchemy import ColumnElement, func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from asseta.core.audit import AuditService
@@ -14,44 +13,32 @@ from asseta.core.db import utcnow
 from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
 from asseta.core.outbox import OutboxWriter
 from asseta.core.signals import sod_violation
+from asseta.modules.customers.models import Customer
 from asseta.modules.finance.common import currency_or_default, insert
 from asseta.modules.finance.dto import (
     CustomerPaymentDto,
     CustomerPaymentIn,
-    HireAllocationDto,
-    HireAllocationIn,
     PurchaseLinkDto,
     SettlementDecisionIn,
 )
 from asseta.modules.finance.models import (
     CashHandover,
     CustomerPayment,
-    HireInvoiceStatus,
-    HirePaymentAllocation,
     HirePaymentMethod,
     SettlementStatus,
-    TenantHireInvoice,
 )
 from asseta.modules.finance.references import payment_series, reference
 from asseta.modules.fleet.models import StaffMember
 from asseta.modules.hours.cash_activation import verified_by_handover
 from asseta.modules.hours.engine import HoursEngine
-from asseta.modules.hours.ledger import active_allocated as hours_allocated
 from asseta.modules.hours.models import HoursPaymentAllocation, HoursPurchase, PaymentAutoVerification
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.models import Customer
 
 TOPIC = "asseta.finance"
 
 
 def payment_dto(session: Session, p: CustomerPayment) -> CustomerPaymentDto:
-    allocs = session.execute(
-        select(HirePaymentAllocation)
-        .where(HirePaymentAllocation.payment_id == p.id)
-        .order_by(HirePaymentAllocation.created_at)
-    ).scalars()
     dto = CustomerPaymentDto.model_validate(p)
-    dto.allocations = [HireAllocationDto.model_validate(a) for a in allocs]
     links = session.execute(
         select(HoursPaymentAllocation, HoursPurchase.purchase_number)
         .join(HoursPurchase, HoursPurchase.id == HoursPaymentAllocation.purchase_id)
@@ -133,8 +120,6 @@ class CustomerPaymentService:
                 "status": "CLAIMED",
             },
         )
-        if body.allocations:
-            self._allocate(payment, body.allocations)
         OutboxWriter(self._s).emit(
             topic=TOPIC,
             event_type="CustomerPaymentRecorded",
@@ -150,76 +135,6 @@ class CustomerPaymentService:
         )
         return payment_dto(self._s, payment)
 
-    def _allocate(self, payment: CustomerPayment, items: list[HireAllocationIn]) -> None:
-        if payment.status is SettlementStatus.REJECTED:
-            raise BusinessRuleViolation("A rejected payment cannot be allocated", code="PAYMENT_REJECTED")
-        if payment.reversed_at is not None:
-            raise BusinessRuleViolation("A reversed payment cannot be allocated", code="PAYMENT_REVERSED")
-        # Money already linked to hours purchases counts too: a payment is never allocated twice.
-        allocated = self._active_allocated(HirePaymentAllocation.payment_id == payment.id) + hours_allocated(
-            self._s, payment_id=payment.id
-        )
-        for item in sorted(items, key=lambda i: i.invoice_id):  # fixed lock order
-            inv = self._s.execute(
-                select(TenantHireInvoice).where(TenantHireInvoice.id == item.invoice_id).with_for_update()
-            ).scalar_one_or_none()
-            if inv is None:
-                raise NotFound("Hire invoice not found")
-            if inv.status is not HireInvoiceStatus.ISSUED:
-                raise BusinessRuleViolation(
-                    "Payments can only be allocated to issued invoices", code="INVOICE_NOT_OPEN"
-                )
-            if inv.customer_id != payment.customer_id or inv.currency != payment.currency:
-                raise BusinessRuleViolation(
-                    "Invoice belongs to another customer or currency", code="ALLOCATION_MISMATCH"
-                )
-            open_amount = inv.total - self._active_allocated(HirePaymentAllocation.invoice_id == inv.id)
-            if item.amount > open_amount:
-                raise BusinessRuleViolation(
-                    f"Allocation exceeds the invoice's open amount {open_amount}", code="OVER_ALLOCATION"
-                )
-            if allocated + item.amount > payment.amount:
-                raise BusinessRuleViolation("Allocations exceed the payment amount", code="ALLOCATION_EXCEEDS_PAYMENT")
-            allocated += item.amount
-            alloc = HirePaymentAllocation(
-                id=uuid.uuid4(),
-                tenant_id=self._tid,
-                payment_id=payment.id,
-                invoice_id=inv.id,
-                amount=item.amount,
-                created_by=self._ctx.user_id,
-                created_at=self._now,
-            )
-            self._s.add(alloc)
-            self._s.flush()
-            self._audit.record(
-                actor=self._ctx.audit_actor(),
-                action="finance.payment.allocated",
-                entity_type="hire_payment_allocation",
-                entity_id=alloc.id,
-                tenant_id=self._tid,
-                after={"payment_id": str(payment.id), "invoice_id": str(inv.id), "amount": str(item.amount)},
-            )
-
-    def _active_allocated(self, condition: ColumnElement[bool]) -> Decimal:
-        """Allocations of non-rejected payments that are still active (claimed allocations reserve capacity)."""
-        return Decimal(
-            self._s.execute(
-                select(func.coalesce(func.sum(HirePaymentAllocation.amount), 0))
-                .join(CustomerPayment, CustomerPayment.id == HirePaymentAllocation.payment_id)
-                .where(
-                    condition,
-                    HirePaymentAllocation.released_at.is_(None),
-                    CustomerPayment.status != SettlementStatus.REJECTED,
-                )
-            ).scalar_one()
-        )
-
-    def allocate(self, payment_id: uuid.UUID, items: list[HireAllocationIn]) -> CustomerPaymentDto:
-        payment = self.payment(payment_id, lock=True)
-        self._allocate(payment, items)
-        return payment_dto(self._s, payment)
-
     def decide(self, payment_id: uuid.UUID, body: SettlementDecisionIn) -> CustomerPaymentDto:
         payment = self.payment(payment_id, lock=True)
         if payment.status is not SettlementStatus.CLAIMED:
@@ -231,13 +146,6 @@ class CustomerPaymentService:
             )
         payment.status = SettlementStatus.VERIFIED if body.verified else SettlementStatus.REJECTED
         payment.verified_by, payment.verified_at, payment.decision_note = self._ctx.user_id, self._now, body.note
-        if payment.status is SettlementStatus.REJECTED:
-            for alloc in self._s.execute(
-                select(HirePaymentAllocation).where(
-                    HirePaymentAllocation.payment_id == payment.id, HirePaymentAllocation.released_at.is_(None)
-                )
-            ).scalars():
-                alloc.released_at, alloc.release_reason = self._now, "Payment rejected"
         self._s.flush()
         # Linked hours purchases: verified money activates hours, a rejection releases the links.
         HoursEngine(self._s, self._tid, self._ctx.audit_actor(), self._now).on_payment_decided(payment)

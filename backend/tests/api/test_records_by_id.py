@@ -7,7 +7,7 @@ from urllib.parse import parse_qs, urlparse
 from tests.support.api import Actor, Api
 from tests.support.finance import FinCtx, category, expense_policy, role, setup_finance, tenant_sql
 from tests.support.intelligence import expense
-from tests.support.jobs import capture
+from tests.support.meter import capture
 
 T = "/api/v1/tenant"
 C = f"{T}/cash"
@@ -95,11 +95,11 @@ def test_direction_lists_money_only_like_the_figures(api: Api) -> None:
     assert _ids(f.owner, direction="SHORTAGE") == {money}
 
 
-def _capture_job(api: Api, f: FinCtx) -> tuple[str, str]:
-    """A job with an accepted opening reading; returns (job id, capture id)."""
-    body = capture(f.c.job_id, "OPENING", "500.0", api.clock.now, mode="MANUAL")
+def _reading(api: Api, f: FinCtx) -> str:
+    """An accepted daily reading of the machine; returns its id."""
+    body = capture(f.c.t.machine_id, "500.0", api.clock.now, mode="MANUAL")
     _ok(f.owner.post(f"{T}/meter-captures", body), 201)
-    return f.c.job_id, str(body["id"])
+    return str(body["id"])
 
 
 def _reset(api: Api, f: FinCtx) -> str:
@@ -115,7 +115,7 @@ def _reset(api: Api, f: FinCtx) -> str:
 
 def test_each_record_opens_by_its_own_id(api: Api) -> None:
     f = setup_finance(api, "By Id", "BYID-1")
-    _, capture_id = _capture_job(api, f)
+    capture_id = _reading(api, f)
     assert _ok(f.owner.get(f"{T}/meter-captures/{capture_id}"))["reading"].startswith("500")
     reset_id = _reset(api, f)
     assert _ok(f.owner.get(f"{T}/meter-resets/{reset_id}"))["status"] == "PENDING"
@@ -137,11 +137,11 @@ def test_each_record_opens_by_its_own_id(api: Api) -> None:
 
 def test_exception_opens_by_id_with_the_field_rule(api: Api) -> None:
     f = setup_finance(api, "By Id Findings", "BYID-2")
-    body = capture(f.c.job_id, "OPENING", "500.0", api.clock.now, mode="MANUAL", gps={"status": "NO_FIX"})
+    body = capture(f.c.t.machine_id, "500.0", api.clock.now, mode="MANUAL", gps={"status": "NO_FIX"})
     _ok(f.owner.post(f"{T}/meter-captures", body), 201)
     [listed] = _ok(f.owner.get(f"{T}/exceptions"))["items"]
     assert _ok(f.owner.get(f"{T}/exceptions/{listed['id']}")) == listed
-    assert f.supervisor.get(f"{T}/exceptions/{listed['id']}").status_code == 200  # the job's own supervisor
+    assert f.supervisor.get(f"{T}/exceptions/{listed['id']}").status_code == 200  # the machine's own supervisor
     stranger = role(api, f.tid, "supervisor", "stranger-BYID-2")
     _ok(
         f.owner.post(
@@ -154,7 +154,7 @@ def test_exception_opens_by_id_with_the_field_rule(api: Api) -> None:
 
 def test_field_users_open_only_their_own_records_by_id(api: Api) -> None:
     f = setup_finance(api, "By Id Field", "BYID-3")
-    _, capture_id = _capture_job(api, f)
+    capture_id = _reading(api, f)
     reset_id = _reset(api, f)
     stranger = role(api, f.tid, "supervisor", "stranger-BYID-3")
     _ok(

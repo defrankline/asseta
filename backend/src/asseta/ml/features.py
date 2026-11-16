@@ -27,7 +27,6 @@ from typing import Protocol
 
 class FeatureEntity(StrEnum):
     MACHINE = "MACHINE"
-    JOB = "JOB"
     STAFF = "STAFF"
 
 
@@ -443,7 +442,7 @@ R1_FEATURE_DEFINITIONS: tuple[FeatureDefinition, ...] = (
         "outside_geofence_minutes",
         _D.SPATIAL,
         "min",
-        "Observed minutes outside the job geofence (gaps capped).",
+        "Observed minutes outside the site geofences (gaps capped).",
         (_S.POSITION,),
         _outside_geofence_minutes,
     ),

@@ -179,8 +179,6 @@ class CashVarianceDto(Dto):
     machine_name: str | None = None
     purchase_id: uuid.UUID | None = None
     purchase_number: str | None = None
-    job_id: uuid.UUID | None = None
-    job_number: str | None = None
     petty_cash_fund_id: uuid.UUID | None = Field(default=None, description="The petty cash fund (PETTY_CASH_*)")
     petty_cash_fund_name: str | None = None
 

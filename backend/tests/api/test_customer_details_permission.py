@@ -1,4 +1,4 @@
-"""tenant.customer.details: supervisors add customers and edit their details; terms, contracts and rates stay with
+"""tenant.customer.details: supervisors add customers and edit their details; terms and rates stay with
 tenant.customer.write (the office)."""
 
 from typing import Any
@@ -19,7 +19,7 @@ def _refused(r: Any, status: int, code: str) -> None:
     assert r.json()["error"]["code"] == code, r.text
 
 
-def test_supervisor_adds_and_edits_customers_but_not_terms_contracts_or_rates(api: Api) -> None:
+def test_supervisor_adds_and_edits_customers_but_not_terms_or_rates(api: Api) -> None:
     f = setup_finance(api, "Details Co", "DET-1")
     sup, owner = f.supervisor, f.owner
 
@@ -42,14 +42,13 @@ def test_supervisor_adds_and_edits_customers_but_not_terms_contracts_or_rates(ap
         403,
         "CUSTOMER_TERMS_NOT_PERMITTED",
     )
-    # Deactivating, contracts and rate cards stay with the office.
+    # Deactivating and rate cards stay with the office.
     assert (
         sup.post(
             f"{C}/customers/{created['id']}/deactivate", {"reason": "Not a customer", "version": edited["version"]}
         ).status_code
         == 403
     )
-    assert sup.post(f"{C}/contracts", {"customer_id": created["id"], "contract_number": "CT-X"}).status_code == 403
     assert (
         sup.post(
             f"{C}/rate-cards",

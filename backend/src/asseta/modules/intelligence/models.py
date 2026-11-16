@@ -35,6 +35,8 @@ SEVERITY_RANK = {SignalSeverity.INFO: 0, SignalSeverity.WARNING: 1, SignalSeveri
 
 
 class RuleCode(StrEnum):
+    # UNREPORTED_ENGINE_ACTIVITY, WORK_WITHOUT_AUTHORIZATION and ENGINE_RUNNING_WITHOUT_WORK are no longer raised
+    # (they measured work against the removed jobs, ADR-008); kept so signals raised before stay readable.
     UNREPORTED_ENGINE_ACTIVITY = "UNREPORTED_ENGINE_ACTIVITY"
     DUPLICATE_RECEIPT = "DUPLICATE_RECEIPT"
     FUEL_ALLOWANCE_EXCEEDED = "FUEL_ALLOWANCE_EXCEEDED"
@@ -49,7 +51,6 @@ class RuleCode(StrEnum):
 
 class SubjectType(StrEnum):
     MACHINE = "MACHINE"
-    JOB = "JOB"
     STAFF = "STAFF"
     EXPENSE = "EXPENSE"
     USER = "USER"  # a login without a staff record (e.g. a segregation-of-duties attempt by office staff)
@@ -75,7 +76,7 @@ class CaseSourceType(StrEnum):
     SOD_EVENT = "SOD_EVENT"
     PREDICTION = "PREDICTION"  # surfaced model predictions only (never shadow ones)
     CASH_VARIANCE = "CASH_VARIANCE"  # declared != received cash above the tenant's case threshold
-    REVENUE_DIFFERENCE = "REVENUE_DIFFERENCE"  # engine hours not matched by money above the tenant's case threshold
+    REVENUE_DIFFERENCE = "REVENUE_DIFFERENCE"  # cases opened before ADR-008 removed revenue differences (history)
     ADJUSTMENT = "ADJUSTMENT"  # a reversal that took back hours already used (policy reversal_used_hours_treatment)
 
 
@@ -107,7 +108,6 @@ class RiskSignal(UuidPk, Base):
     subject_type: Mapped[SubjectType] = mapped_column(_enum(SubjectType, 16), nullable=False)
     subject_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     machine_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("machine.id"))
-    job_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("job.id"))
     staff_member_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("staff_member.id"))
     window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -139,7 +139,6 @@ class AnomalyCase(UuidPk, Base):
     subject_type: Mapped[SubjectType] = mapped_column(_enum(SubjectType, 16), nullable=False)
     subject_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     machine_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("machine.id"))
-    job_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("job.id"))
     staff_member_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("staff_member.id"))
     severity: Mapped[SignalSeverity] = mapped_column(_enum(SignalSeverity, 16), nullable=False)
     status: Mapped[CaseStatus] = mapped_column(_enum(CaseStatus, 16), nullable=False)

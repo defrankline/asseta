@@ -3,13 +3,12 @@ calls that module's own service, so no rule is re-implemented here and the dashb
 unavailable) in a deployment without the module. Each returns a JSON-able dict."""
 
 import importlib
-import uuid
 from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from asseta.modules.identity.principal import RequestContext
@@ -49,7 +48,6 @@ def customer_hours_tile(s: Session, _: RequestContext, __: datetime) -> dict[str
         "awaiting_activation": _sum(rows, "awaiting_activation"),
         "expired": _sum(rows, "expired"),
         "purchases_by_status": _purchase_statuses(s),
-        "open_overruns": _open_overruns(s),
     }
 
 
@@ -65,19 +63,6 @@ def _purchase_statuses(s: Session) -> dict[str, int]:
         st = str(status_of(p, totals_of[p.id]))
         counts[st] = counts.get(st, 0) + 1
     return counts
-
-
-def _open_overruns(s: Session) -> int:
-    """Open HOURS_OVERRUN exceptions: prepaid work beyond the activated hours, awaiting a controlled outcome."""
-    from asseta.modules.meter.models import ExceptionStatus, JobException
-
-    overrun = getattr(_optional("asseta.modules.meter.models", "ExceptionType"), "HOURS_OVERRUN", None)
-    if overrun is None:
-        raise TileUnavailable("HOURS_OVERRUN")
-    stmt = select(func.count()).where(
-        JobException.exception_type == overrun, JobException.status == ExceptionStatus.OPEN
-    )
-    return int(s.execute(stmt).scalar_one())
 
 
 def hours_awaiting_activation_tile(s: Session, _: RequestContext, __: datetime) -> dict[str, Any]:
@@ -134,20 +119,25 @@ def unexplained_hours_tile(s: Session, ctx: RequestContext, now: datetime) -> di
 
 
 def _value_at_risk(s: Session, ctx: RequestContext, now: datetime, rows: list[Any]) -> list[dict[str, str]]:
-    """[DEC-032 A5] Unexplained hours x rate per currency, separate from expected revenue. Empty unless the tenant
-    treats them as VALUE_AT_RISK (the platform default)."""
-    policy_service = _optional("asseta.modules.policy.service", "PolicyService")
-    sheet = _optional("asseta.modules.revenue.sheet", "unexplained_rate")
+    """[DEC-032 A5] Unexplained hours x the machine category's rate card in force, per currency (machines without a
+    rate card are left out)."""
     machine_model = _optional("asseta.modules.fleet.models", "Machine")
-    treatment = policy_service(s).revenue_reconciliation(ctx.tenant_id, at=now).policy.unexplained_hours_treatment
-    if str(treatment) != "VALUE_AT_RISK":
-        return []
+    rate_card = _optional("asseta.modules.customers.models", "RentalRatePolicy")
     amounts: dict[str, Decimal] = {}
     for r in rows:
         machine = s.get(machine_model, r.machine_id)
-        rate = sheet(s, ctx.tenant_id, machine, now) if machine is not None else None
-        if rate is not None:
-            amounts[rate[0]] = amounts.get(rate[0], Decimal(0)) + Decimal(r.totals.unexplained_hours) * rate[1]
+        if machine is None or machine.category_id is None:
+            continue
+        card = s.execute(
+            select(rate_card)
+            .where(rate_card.machine_category_id == machine.category_id, rate_card.effective_from <= now)
+            .order_by(rate_card.effective_from.desc())
+            .limit(1)
+        ).scalar_one_or_none()
+        if card is not None:
+            amounts[card.currency] = amounts.get(card.currency, Decimal(0)) + Decimal(
+                r.totals.unexplained_hours
+            ) * Decimal(card.hourly_rate)
     return [{"currency": c, "amount": str(a.quantize(Decimal("0.01")))} for c, a in sorted(amounts.items())]
 
 
@@ -164,25 +154,14 @@ def missing_daily_reports_tile(s: Session, ctx: RequestContext, now: datetime) -
                 "machine_code": r.machine_code,
                 "day": r.day.isoformat(),
                 "basis": r.basis,
-                "job_id": str(r.job_id) if isinstance(r.job_id, uuid.UUID) else None,
             }
             for r in rows
         ],
     }
 
 
-def revenue_differences_tile(s: Session, ctx: RequestContext, now: datetime) -> dict[str, Any]:
-    """[DEC-031 R3] Revenue differences to explain / decide (revenue module)."""
-    return dict(_optional("asseta.modules.revenue.tile", "revenue_differences_tile")(s, ctx, now))
-
-
-def unbilled_work_tile(s: Session, ctx: RequestContext, now: datetime) -> dict[str, Any]:
-    """[DEC-031 M2] Completed, billing-ready jobs not invoiced after the tenant's days (oversight module)."""
-    return dict(_optional("asseta.modules.oversight.tile", "unbilled_work_tile")(s, ctx, now))
-
-
 def idle_machines_tile(s: Session, ctx: RequestContext, now: datetime) -> dict[str, Any]:
-    """[DEC-031 M2] Active machines with no job and no engine hours for the tenant's days (oversight module)."""
+    """[DEC-031 M2] Active machines with no approved machine-report hours for the tenant's days (oversight module)."""
     return dict(_optional("asseta.modules.oversight.tile", "idle_machines_tile")(s, ctx, now))
 
 
@@ -192,7 +171,5 @@ EXTERNAL_TILES: dict[str, Tile] = {
     "engine_hours": engine_hours_tile,
     "unexplained_hours": unexplained_hours_tile,
     "missing_daily_reports": missing_daily_reports_tile,
-    "revenue_differences": revenue_differences_tile,
-    "unbilled_work": unbilled_work_tile,
     "idle_machines": idle_machines_tile,
 }

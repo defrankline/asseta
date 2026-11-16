@@ -10,7 +10,7 @@ from datetime import datetime
 from decimal import Decimal
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import Text, cast, func, select
 from sqlalchemy.orm import Session
 
 from asseta.core.audit import AuditActor, AuditService
@@ -26,11 +26,15 @@ from asseta.modules.finance.custody_models import (
 )
 from asseta.modules.finance.custody_rules import variance_event
 from asseta.modules.hours.ledger import ZERO, purchase_totals
-from asseta.modules.hours.models import HoursLedgerEntry, HoursPurchase, LedgerEntryType, WorkExecutionAllocation
-from asseta.modules.jobs.models import Job, JobStatus
-from asseta.modules.meter.allocation_models import AllocationKind, AllocationStatus, WorkAllocation
+from asseta.modules.hours.models import HoursLedgerEntry, HoursPurchase, LedgerEntryType
+from asseta.modules.machine_reports.models import (
+    MachineReport,
+    MachineReportLine,
+    MachineReportStatus,
+    ReportLineKind,
+)
+from asseta.modules.meter.allocation_models import AllocationKind, AllocationSource, AllocationStatus, WorkAllocation
 from asseta.modules.policy.capabilities import CUSTOMER_HOURS, ENGINE_HOURS, capability_on
-from asseta.modules.policy.schemas import BillingMode
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.tenancy.models import Tenant, TenantStatus
 
@@ -54,7 +58,6 @@ class Mismatch:
     customer_id: uuid.UUID | None
     machine_id: uuid.UUID | None
     purchase_id: uuid.UUID | None = None
-    job_id: uuid.UUID | None = None
 
 
 class HourVarianceSweep:
@@ -82,7 +85,7 @@ class HourVarianceSweep:
 
     def _mismatches(self) -> Iterator[Mismatch]:
         yield from self._purchase_checks()
-        yield from self._job_checks()
+        yield from self._report_checks()
 
     def _purchase_checks(self) -> Iterator[Mismatch]:
         for p in self._s.execute(select(HoursPurchase).where(HoursPurchase.cancelled_at.is_(None))).scalars():
@@ -103,58 +106,58 @@ class HourVarianceSweep:
                         p.id,
                     )
 
-    def _job_checks(self) -> Iterator[Mismatch]:
+    def _report_checks(self) -> Iterator[Mismatch]:
+        """Per approved machine report: the customers' hours it gives = the hours consumed from their orders = the lot
+        hours its allocation-ledger entries carry."""
         consumed_of = dict(
             self._s.execute(
-                select(HoursLedgerEntry.job_id, func.coalesce(func.sum(HoursLedgerEntry.hours), 0))
-                .where(HoursLedgerEntry.entry_type == LedgerEntryType.CONSUMED, HoursLedgerEntry.job_id.is_not(None))
-                .group_by(HoursLedgerEntry.job_id)
+                select(HoursLedgerEntry.machine_report_id, func.coalesce(func.sum(HoursLedgerEntry.hours), 0))
+                .where(
+                    HoursLedgerEntry.entry_type == LedgerEntryType.CONSUMED,
+                    HoursLedgerEntry.machine_report_id.is_not(None),
+                )
+                .group_by(HoursLedgerEntry.machine_report_id)
             )
             .tuples()
             .all()
         )
-        lots_of = self._lots_by_job() if capability_on(self._s, self._tid, ENGINE_HOURS, self._now) else {}
-        for wea, job in self._s.execute(
-            select(WorkExecutionAllocation, Job)
-            .join(Job, Job.id == WorkExecutionAllocation.job_id)
-            .where(Job.billing_mode == BillingMode.PREPAID_HOURS, Job.status == JobStatus.COMPLETED)
-        ):
-            consumed = Decimal(consumed_of.get(wea.job_id, 0))
-            covered = consumed + (wea.billable_hours - consumed if wea.exception_id else ZERO)
-            if self._over(wea.billable_hours, covered):
+        lots_of = self._lots_by_report() if capability_on(self._s, self._tid, ENGINE_HOURS, self._now) else {}
+        rows = self._s.execute(
+            # Postgres has no min(uuid): the first customer (by text) names the variance.
+            select(
+                MachineReport, func.sum(MachineReportLine.hours), func.min(cast(MachineReportLine.customer_id, Text))
+            )
+            .join(MachineReportLine, MachineReportLine.report_id == MachineReport.id)
+            .where(
+                MachineReport.status == MachineReportStatus.APPROVED,
+                MachineReportLine.kind == ReportLineKind.CUSTOMER,
+            )
+            .group_by(MachineReport.id)
+        ).all()
+        for report, given, first_customer in rows:
+            customer_id = uuid.UUID(first_customer) if first_customer else None
+            consumed = Decimal(consumed_of.get(report.id, 0))
+            if self._over(Decimal(given), consumed):
                 yield Mismatch(
-                    CONSUMPTION_MISMATCH,
-                    wea.id,
-                    wea.billable_hours,
-                    consumed,
-                    wea.customer_id,
-                    wea.machine_id,
-                    job_id=job.id,
+                    CONSUMPTION_MISMATCH, report.id, Decimal(given), consumed, customer_id, report.machine_id
                 )
-            if wea.job_id in lots_of and self._over(consumed, lots_of[wea.job_id]):
+            if report.id in lots_of and self._over(consumed, lots_of[report.id]):
                 yield Mismatch(
-                    ALLOCATION_MISMATCH,
-                    job.id,
-                    consumed,
-                    lots_of[wea.job_id],
-                    wea.customer_id,
-                    wea.machine_id,
-                    job_id=job.id,
+                    ALLOCATION_MISMATCH, report.id, consumed, lots_of[report.id], customer_id, report.machine_id
                 )
 
-    def _lots_by_job(self) -> dict[uuid.UUID, Decimal]:
-        """Prepaid hours Ledger 3 says were drawn, per job (active customer-work entries with lots)."""
+    def _lots_by_report(self) -> dict[uuid.UUID, Decimal]:
+        """Customer hours Ledger 3 says were drawn, per approved machine report (active customer-work entries)."""
         out: dict[uuid.UUID, Decimal] = {}
-        for job_id, lots in self._s.execute(
-            select(WorkAllocation.job_id, WorkAllocation.lots).where(
+        for refs, lots in self._s.execute(
+            select(WorkAllocation.approval_ref_ids, WorkAllocation.lots).where(
                 WorkAllocation.status == AllocationStatus.ACTIVE,
                 WorkAllocation.kind == AllocationKind.CUSTOMER_WORK,
-                WorkAllocation.job_id.is_not(None),
+                WorkAllocation.source == AllocationSource.MACHINE_REPORT,
             )
         ).all():
-            if lots:
-                assert job_id is not None
-                out[job_id] = out.get(job_id, ZERO) + sum((Decimal(str(x["hours"])) for x in lots), ZERO)
+            if lots and refs:
+                out[refs[0]] = out.get(refs[0], ZERO) + sum((Decimal(str(x["hours"])) for x in lots), ZERO)
         return out
 
     def _open(self, m: Mismatch) -> bool:
@@ -189,7 +192,6 @@ class HourVarianceSweep:
             customer_id=m.customer_id,
             machine_id=m.machine_id,
             purchase_id=m.purchase_id,
-            job_id=m.job_id,
             evidence_attachment_ids=[],
         )
         self._s.add(row)

@@ -1,7 +1,8 @@
 """DEC-030 follow-up: the ENGINE_HOURS and CASH_CUSTODY master switches (F1) and field users opening their own
 overdue-remittance flag (F2). A switched-off capability hides its menus and dashboard tiles, refuses its endpoints
 (422, <CAPABILITY>_DISABLED) and offline operations (CONFLICT, same code), is no longer announced to devices and its
-sweeps do nothing — while the behaviour that existed before it keeps working."""
+sweeps do nothing — while the behaviour that existed before it keeps working (daily readings and machine reports
+never depend on ENGINE_HOURS, ADR-008)."""
 
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -12,7 +13,8 @@ from asseta.modules.finance.remittance_cutoff import run_remittance_cutoff
 from tests.support.api import Actor, Api
 from tests.support.finance import FinCtx, cash_policy, role, setup_finance
 from tests.support.intelligence import sweep
-from tests.support.jobs import capture, engine_hours_policy
+from tests.support.machine_reports import idle, opening_body, report_body
+from tests.support.meter import capture, engine_hours_policy
 from tests.support.notify import sql
 
 T = "/api/v1/tenant"
@@ -22,7 +24,7 @@ T1 = "2026-11-01T07:00:00+00:00"
 AFTER_CUTOFF = datetime(2026, 11, 1, 16, 0, tzinfo=UTC)  # 19:00 local
 DEVICE = "android-switch-0001"
 # Capabilities a tenant opts into (platform default off, DEC-031), in the sorted order /me lists them.
-DEFAULT_OFF = ("IDLE_MACHINES", "PETTY_CASH", "REVENUE_RECONCILIATION", "SCORECARD", "SITE_CHECKIN", "UNBILLED_WORK")
+DEFAULT_OFF = ("IDLE_MACHINES", "PETTY_CASH", "SCORECARD")
 
 
 def _ok(r: Any, status: int = 200) -> Any:
@@ -69,12 +71,8 @@ def _op(op_type: str, payload: dict[str, Any], at: str = T1) -> dict[str, Any]:
     return {"id": str(uuid.uuid4()), "op_type": op_type, "payload": payload, "created_at_device": at, "depends_on": []}
 
 
-def _reading(job_id: str | None, machine_id: str, kind: str, value: str, at: datetime) -> dict[str, Any]:
-    body = capture(job_id or "", kind, value, at, mode="MANUAL")
-    if job_id is None:
-        body.pop("job_id")
-    body["machine_id"] = machine_id
-    return body
+def _reading(machine_id: str, value: str, at: datetime) -> dict[str, Any]:
+    return capture(machine_id, value, at, mode="MANUAL")
 
 
 def _staff(f: FinCtx, name: str, subject: str | None = None) -> str:
@@ -85,9 +83,9 @@ def _staff(f: FinCtx, name: str, subject: str | None = None) -> str:
 
 
 # --- ENGINE_HOURS ----------------------------------------------------------------------------------------------
-def test_engine_hours_switched_off_keeps_the_job_meter_flow_from_before(api: Api) -> None:
+def test_engine_hours_switched_off_keeps_readings_and_machine_reports(api: Api) -> None:
     f = setup_finance(api, "Switch Engines", "SWE-1")
-    o, sup, c, machine = f.owner, f.supervisor, f.c, f.c.t.machine_id
+    o, sup, machine = f.owner, f.supervisor, f.c.t.machine_id
     t0 = api.clock.now
     nav = _nav(o)
     assert nav["disabled_capabilities"] == [*DEFAULT_OFF] and "tenant.engine_hours" in {
@@ -96,13 +94,13 @@ def test_engine_hours_switched_off_keeps_the_job_meter_flow_from_before(api: Api
     assert "OP_METER_BASELINE" in _device(api, sup)
 
     # Switched off, with its controls still configured on underneath: the master switch wins.
-    engine_hours_policy(o, enabled=False, baseline_required_before_start=True, daily_report_required=True)
+    engine_hours_policy(o, enabled=False, daily_report_required=True)
     nav = _nav(o)
     assert nav["disabled_capabilities"] == ["ENGINE_HOURS", *DEFAULT_OFF]
     assert "tenant.engine_hours" not in {g["key"] for g in nav["menu_groups"]}
     keys = {m["key"] for m in nav["menus"]}
     assert not keys & {"tenant.engine_hours", "tenant.meter_baselines", "tenant.meter_corrections"}
-    assert {"tenant.jobs", "tenant.exceptions", "tenant.cash_custody"} <= keys  # the rest is untouched
+    assert {"tenant.field.machine_report", "tenant.exceptions", "tenant.cash_custody"} <= keys  # the rest stays
 
     # Its endpoints are refused, reads included.
     _refused(o.get(f"{T}/meter-baselines"), "ENGINE_HOURS_DISABLED")
@@ -110,22 +108,24 @@ def test_engine_hours_switched_off_keeps_the_job_meter_flow_from_before(api: Api
     _refused(o.get(f"{T}/meter-corrections"), "ENGINE_HOURS_DISABLED")
     body = {"machine_id": machine, "reading": "999", "captured_at": t0.isoformat()}
     _refused(o.post(f"{T}/meter-baselines", body), "ENGINE_HOURS_DISABLED")
-    _refused(o.post(f"{T}/meter-captures", _reading(None, machine, "DAILY", "1001", t0)), "ENGINE_HOURS_DISABLED")
     outsider = role(api, f.tid, "operator", "swe-operator")
     assert outsider.post(f"{T}/meter-baselines", body).status_code == 403  # the permission is checked first
 
-    # Job meter readings work exactly as before: START without an approved baseline, then a closing reading.
-    _ok(o.post(f"{T}/meter-captures", _reading(c.job_id, machine, "OPENING", "1000", t0)), 201)
-    _ok(o.post(f"{T}/jobs/{c.job_id}/transitions", {"action": "START"}))
+    # Daily readings and machine reports work without it: an opening report (no baseline needed), then hours.
+    _ok(o.post(f"{T}/meter-captures", _reading(machine, "999", t0)), 201)
+    opening = _ok(sup.post(f"{T}/machine-reports", opening_body(machine, "1000", t0)), 201)
+    _ok(f.manager.post(f"{T}/machine-reports/{opening['id']}/approve", {}))
     api.clock.set_at(t0 + timedelta(hours=3))
-    _ok(o.post(f"{T}/meter-captures", _reading(c.job_id, machine, "CLOSING", "1003", api.clock.now)), 201)
+    reason = next(r["id"] for r in _ok(o.get(f"{T}/machine-report-reasons")) if r["code"] == "IDLE_ON_SITE")
+    report = _ok(sup.post(f"{T}/machine-reports", report_body(machine, "1003", api.clock.now, [idle(reason, 3)])), 201)
+    assert report["start_reading"] == opening["end_reading"] and report["status"] == "SUBMITTED"
 
     # Sweeps do nothing: a running machine without a reading past the next day's cut-off is not flagged.
     api.clock.set_at(t0 + timedelta(days=1, hours=8))
     sweep(api, f.tid)
     flags = sql(
-        "SELECT count(*) FROM job_exception WHERE tenant_id = :t AND exception_type IN"
-        " ('MISSING_DAILY_REPORT', 'UNEXPLAINED_HOURS', 'OVERLAPPING_ALLOCATION')",
+        "SELECT count(*) FROM meter_exception WHERE tenant_id = :t AND exception_type IN"
+        " ('MISSING_DAILY_REPORT', 'UNEXPLAINED_HOURS')",
         t=f.tid,
     )
     assert flags[0][0] == 0
@@ -138,13 +138,14 @@ def test_engine_hours_switched_off_keeps_the_job_meter_flow_from_before(api: Api
 
     # Devices: its operations are no longer announced, and queued ones are refused for review (never applied).
     caps = _ok(api.client.get("/api/v1/sync/bootstrap", headers=_h(sup)))["capabilities"]
-    assert not {"OP_METER_BASELINE", "OP_METER_CORRECTION", "METER_DAILY_READING"} & set(caps)
-    assert {"OP_CASH_TRANSFER", "OP_JOB_REQUEST"} <= set(caps)
+    assert not {"OP_METER_BASELINE", "OP_METER_CORRECTION", "OP_DAILY_REPORT"} & set(caps)
+    assert {"OP_CASH_TRANSFER", "METER_DAILY_READING", "OP_MACHINE_REPORT"} <= set(caps)
     at = api.clock.now
     baseline = _op("METER_BASELINE", {"machine_id": machine, "reading": "1003", "captured_at": at.isoformat()})
-    daily = _op("METER_CAPTURE", _reading(None, machine, "DAILY", "1003.5", at))
+    daily = _op("METER_CAPTURE", _reading(machine, "1003.5", at))
     results = _push(api, sup, baseline, daily)
-    assert [(r["status"], r["error"]["code"]) for r in results] == [("CONFLICT", "ENGINE_HOURS_DISABLED")] * 2
+    assert [r["status"] for r in results] == ["CONFLICT", "ACKED"], results
+    assert results[0]["error"]["code"] == "ENGINE_HOURS_DISABLED"
     assert sql("SELECT count(*) FROM machine_meter_baseline WHERE tenant_id = :t", t=f.tid)[0][0] == 0
 
     # Back on: everything returns.

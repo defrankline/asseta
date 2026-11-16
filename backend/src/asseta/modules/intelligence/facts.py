@@ -8,7 +8,7 @@ way (an expense rejected after T still counted at T).
 
 Sources (fact record: table -> event time / recording time):
 
-* MeterInterval: meter_capture OPENING+CLOSING of a job -> closing `captured_at` / max(`received_at`) of the pair.
+* MeterInterval: machine_report (submitted or approved, ADR-008) -> its reading's time `end_at` / `submitted_at`.
 * EngineInterval: machine_position_event ignition or engine_hours, per tenant-local day -> fix `event_time` /
   max fix `received_at`.
 * PositionSample: machine_position_event (GOOD, one per 5 min) + geofences -> `event_time` / `received_at`.
@@ -16,7 +16,7 @@ Sources (fact record: table -> event time / recording time):
 * ExpenseEntry: expense with a machine -> `incurred_at` / `submitted_at`.
 * CashEntry RECEIVED: customer_payment CASH -> `received_at` / `recorded_at`; supervisor_cash_custody ->
   `occurred_at` / `created_at`. HANDED_OVER: cash_handover -> `handed_at` / `recorded_at`.
-* ExceptionEvent: job_exception -> capture `captured_at` (else `created_at`) / `created_at`; tracking_alert ->
+* ExceptionEvent: meter_exception -> capture `captured_at` (else `created_at`) / `created_at`; tracking_alert ->
   `event_time` / `created_at`.
 
 Notes and deliberate limits (documented, not hidden):
@@ -29,7 +29,8 @@ Notes and deliberate limits (documented, not hidden):
   deactivated before the fix; an in-place geometry edit is not versioned, so history uses the current shape.
 * Cash is held by people, not machines: a supervisor's cash movements are attributed to the machine(s) they were
   assigned to (SUPERVISOR assignment effective at the event and recorded by T).
-* A meter interval is attributed to the week its CLOSING reading falls in (long jobs land in one week).
+* A meter interval is attributed to the week its report's reading falls in (a long report lands in one week). A
+  report rejected after T still counted at T.
 """
 
 import uuid
@@ -81,17 +82,11 @@ WHERE tenant_id = :t AND created_at <= :as_of AND (deactivated_at IS NULL OR dea
 """
 
 _METER = """
-WITH caps AS (
-  SELECT DISTINCT ON (job_id, kind) job_id, machine_id, kind, reading, captured_at, received_at, capture_mode,
-         manually_corrected
-  FROM meter_capture
-  WHERE tenant_id = :t AND state <> 'REJECTED' AND captured_at <= :as_of AND received_at <= :as_of
-  ORDER BY job_id, kind, received_at DESC
-)
-SELECT c.machine_id, c.captured_at AS event_time, greatest(c.received_at, o.received_at) AS recorded_at,
-       (c.reading - o.reading) AS hours, (c.capture_mode = 'MANUAL' OR c.manually_corrected) AS manual
-FROM caps c JOIN caps o ON o.job_id = c.job_id AND o.kind = 'OPENING'
-WHERE c.kind = 'CLOSING' AND c.captured_at > :since AND c.reading >= o.reading
+SELECT r.machine_id, r.end_at AS event_time, r.submitted_at AS recorded_at, r.hours,
+       (c.capture_mode = 'MANUAL' OR c.manually_corrected) AS manual
+FROM machine_report r JOIN meter_capture c ON c.id = r.capture_id
+WHERE r.tenant_id = :t AND r.hours > 0 AND r.end_at > :since AND r.end_at <= :as_of AND r.submitted_at <= :as_of
+  AND (r.status <> 'REJECTED' OR r.decided_at > :as_of)
 """
 
 _ENGINE_FIXES = """
@@ -164,7 +159,7 @@ WHERE m.event_time > :since AND m.event_time <= :as_of AND m.recorded_at <= :as_
 _EXCEPTIONS = """
 SELECT je.machine_id, coalesce(mc.captured_at, je.created_at) AS event_time, je.created_at AS recorded_at,
        je.exception_type AS code
-FROM job_exception je LEFT JOIN meter_capture mc ON mc.id = je.meter_capture_id
+FROM meter_exception je LEFT JOIN meter_capture mc ON mc.id = je.meter_capture_id
 WHERE je.tenant_id = :t AND je.created_at <= :as_of
   AND coalesce(mc.captured_at, je.created_at) > :since AND coalesce(mc.captured_at, je.created_at) <= :as_of
 UNION ALL

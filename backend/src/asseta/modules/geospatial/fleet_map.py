@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from asseta.core.search import matches
-from asseta.modules.jobs.work_state import ReportedWorkState, reported_work_states
+from asseta.modules.machine_reports.states import ReportedWorkState, reported_work_states
 from asseta.modules.policy.schemas import TrackingPolicy
 from asseta.modules.policy.service import PolicyService
 
@@ -54,7 +54,7 @@ class MachineMapDto(BaseModel):
     position_quality: str | None
     connectivity: Connectivity
     is_live: bool
-    reported_work_status: str  # supervisor reports (jobs/work logs, `ReportedWorkState`) — never inferred from GPS
+    reported_work_status: str  # supervisors' machine reports (`ReportedWorkState`) — never inferred from GPS
     observed_engine: Observed
     observed_motion: Observed
     location_compliance: Compliance
@@ -120,8 +120,8 @@ class FleetMapService:
             _FLEET_SQL,
             {"now": now, "tol": tenant_policy.geofence_tolerance_m, "machine": str(machine_id) if machine_id else None},
         ).all()
-        work = reported_work_states(self._s, now)
-        return [self._row(r, now, work.get(r.id, ReportedWorkState.NO_ACTIVE_JOB)) for r in rows]
+        work = reported_work_states(self._s)
+        return [self._row(r, now, work.get(r.id, ReportedWorkState.NOT_REPORTED)) for r in rows]
 
     def _row(self, r: Any, now: datetime, work: ReportedWorkState) -> MachineMapDto:
         eff = self._policies.tracking(self._tenant_id, r.id, at=now)

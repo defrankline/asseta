@@ -1,4 +1,4 @@
-"""Customer hours helpers: tenant policy, purchases with payments, verification, prepaid jobs."""
+"""Customer hours helpers: tenant policy, purchases with payments, verification."""
 
 import uuid
 from typing import Any
@@ -66,26 +66,6 @@ def balance(actor: Actor, customer_id: str, machine_id: str) -> dict[str, Any] |
     r = actor.get(f"/api/v1/tenant/customers/{customer_id}/hours-balances")
     assert r.status_code == 200, r.text
     return next((b for b in r.json() if b["machine_id"] == machine_id), None)
-
-
-def prepaid_job(api: Api, f: FinCtx, number: str, machine_id: str | None = None) -> str:
-    r = f.owner.post(
-        "/api/v1/tenant/jobs",
-        {
-            "contract_id": f.c.contract_id,
-            "job_number": number,
-            "machine_id": machine_id or f.c.t.machine_id,
-            "planned_start": api.clock.now.isoformat(),
-            "billing_mode": "PREPAID_HOURS",
-        },
-    )
-    assert r.status_code == 201, r.text
-    assert r.json()["billing_mode"] == "PREPAID_HOURS"
-    job_id = str(r.json()["id"])
-    for action in ("SUBMIT", "APPROVE"):
-        a = f.owner.post(f"/api/v1/tenant/jobs/{job_id}/transitions", {"action": action})
-        assert a.status_code == 200, a.text
-    return job_id
 
 
 def new_id() -> str:

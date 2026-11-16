@@ -14,7 +14,7 @@ ADJUSTMENT_PROPOSE = requires(
     "Propose customer-hour corrections, refunds and reversals of posted transactions (never decide your own)",
 )
 ADJUSTMENT_DECIDE = requires(
-    "tenant.adjustment.decide", S.TENANT, "Approve or reject proposed corrections, refunds, reversals and invoice voids"
+    "tenant.adjustment.decide", S.TENANT, "Approve or reject proposed corrections, refunds and reversals"
 )
 READ_PERMISSION = "tenant.adjustment.read"
 DECIDE_PERMISSION = "tenant.adjustment.decide"

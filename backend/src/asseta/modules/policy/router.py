@@ -40,7 +40,7 @@ CATALOG.register_menu(
 # capture permission alone grants the effective policy of that capture type, nothing else.
 CAPTURE_POLICY_READERS = {
     PolicyType.METER_CAPTURE: "tenant.meter.capture",
-    PolicyType.ENGINE_HOURS: "tenant.meter.capture",  # changeover and daily-report rules the field must follow
+    PolicyType.ENGINE_HOURS: "tenant.meter.capture",  # the daily-report rules the field must follow
     PolicyType.EXPENSE_CAPTURE: "tenant.expense.write",
     PolicyType.CASH_CUSTODY: "tenant.collection.record",
     PolicyType.CUSTOMER_HOURS: "tenant.hours.purchase",

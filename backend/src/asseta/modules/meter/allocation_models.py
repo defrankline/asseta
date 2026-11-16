@@ -1,4 +1,4 @@
-"""Work allocation ledger ("Ledger 3", DEC-032 A1), mid-job changeovers (A3) and the daily operational report (A4).
+"""Work allocation ledger ("Ledger 3", DEC-032 A1) and the daily operational report (A4).
 
 Append-only in the database: guard triggers allow only a row's status transition and its decision stamps, and the
 application role has no DELETE. Correcting an allocation adds new entries that supersede the old one (the original
@@ -10,7 +10,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -74,14 +74,11 @@ class WorkAllocation(UuidPk, Base):
     hours: Mapped[Decimal] = mapped_column(READING, nullable=False)
     kind: Mapped[AllocationKind] = mapped_column(_enum(AllocationKind), nullable=False)
     customer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("customer.id"))
-    job_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("job.id"), index=True)
-    activity_type: Mapped[str | None] = mapped_column(String(24))  # work-log type of non-revenue time inside a job
     reason_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("engine_hour_reason.id"))  # activity category
     classification_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("engine_hour_classification.id"))
-    changeover_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("machine_changeover.id"))
     reading_review: Mapped[str] = mapped_column(String(16), nullable=False)  # VERIFIED | PENDING_REVIEW
-    # The approval behind this entry, where one is required: engine_hour_classification, non_revenue_approval or
-    # work_allocation_correction (several work-log entries can share one interval, hence a list).
+    # The approval behind this entry, where one is required: engine_hour_classification, machine_report or
+    # work_allocation_correction (older entries may name non_revenue_approval, removed with jobs).
     approval_ref_type: Mapped[str | None] = mapped_column(String(32))
     approval_ref_ids: Mapped[list[uuid.UUID]] = mapped_column(ARRAY(UUID(as_uuid=True)), nullable=False, default=list)
     lots: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)  # {purchase_id, hours}
@@ -101,24 +98,6 @@ class WorkAllocation(UuidPk, Base):
     decision_note: Mapped[str | None] = mapped_column(Text)
     superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     policy_version: Mapped[str] = mapped_column(String(80), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
-
-
-class MachineChangeover(UuidPk, Base):
-    """A reading taken during a running job at which the machine moved to another customer (A3). Never touches the
-    job's status: the one-active-job-per-machine rule stands. `to_job_id` optionally names the follow-on job."""
-
-    __tablename__ = "machine_changeover"
-    __table_args__ = (UniqueConstraint("capture_id", name="uq_machine_changeover_capture"),)
-
-    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
-    machine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("machine.id"), nullable=False, index=True)
-    capture_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("meter_capture.id"), nullable=False)
-    job_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("job.id"), nullable=False, index=True)
-    from_customer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("customer.id"), nullable=False)
-    to_customer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("customer.id"), nullable=False)
-    to_job_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("job.id"))
-    recorded_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 

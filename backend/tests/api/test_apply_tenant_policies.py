@@ -45,7 +45,7 @@ def test_dry_run_apply_and_second_run(
     f = _file(
         tmp_path,
         {
-            "CUSTOMER_HOURS": {"default_billing_mode": "PREPAID_HOURS", "expiry_days": 365},
+            "CUSTOMER_HOURS": {"expiry_warning_days": 21, "expiry_days": 365},
             "DEVICE_SYNC": {"offline_grant_hours": 336, "snapshot_validity_hours": 336},
         },
     )
@@ -57,7 +57,7 @@ def test_dry_run_apply_and_second_run(
     assert "APPLIED: 4 setting(s)" in capsys.readouterr().out
     assert _versions(owner_engine, tid) == 2
     effective = a["owner"].get(CUSTOMER_HOURS).json()
-    assert effective["values"]["default_billing_mode"] == "PREPAID_HOURS"
+    assert effective["values"]["expiry_warning_days"] == 21
     assert effective["values"]["expiry_days"] == 365
     with owner_engine.begin() as c:
         c.execute(text("SELECT set_config('app.scope', 'system', true)"))
@@ -78,10 +78,12 @@ def test_refusals_change_nothing(
     bad: list[dict[str, object]] = [
         {"NOPE": {"x": 1}},
         {"CUSTOMER_HOURS": {"not_a_field": 1}},
+        {"CUSTOMER_HOURS": {"default_billing_mode": "PREPAID_HOURS"}},  # retired with jobs (ADR-008)
+        {"REVENUE_RECONCILIATION": {"enabled": True}},  # a removed policy type
         {"OVERSIGHT": {"managed_service_enabled": False}},
         {"DEVICE_SYNC": {"offline_grant_hours": 100000}},
         # The whole set is validated together, and one bad type stops the good one.
-        {"ENGINE_HOURS": {"daily_report_required": True}, "CUSTOMER_HOURS": {"default_billing_mode": "NOT_A_MODE"}},
+        {"ENGINE_HOURS": {"daily_report_required": True}, "CUSTOMER_HOURS": {"expiry_warning_days": "soon"}},
     ]
     for policies in bad:
         assert tool.main(["--tenant-id", tid, "--file", _file(tmp_path, policies), "--yes"]) == 2, policies

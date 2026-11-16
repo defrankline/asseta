@@ -1,4 +1,4 @@
-"""DEC-032 Phase 5 (guideline 6 and 9): full tenant data export (background job, audited, evidence manifest), balance
+"""DEC-032 Phase 5 (guideline 6 and 9): full tenant data export (background task, audited, evidence manifest), balance
 verification against stored figures (planted mismatch; the ledger prevails), the go-live marker and the reset lock."""
 
 import csv
@@ -29,7 +29,7 @@ from asseta.modules.dataprotection.verification import run_balance_verification_
 from tests.support.api import Api
 from tests.support.finance import FinCtx, setup_finance
 from tests.support.hours import RATE, balance, hours_policy, purchase, verify
-from tests.support.jobs import unique_jpeg
+from tests.support.meter import unique_jpeg
 
 T = "/api/v1/tenant"
 P = "/api/v1/platform"
@@ -276,18 +276,24 @@ def test_planted_invoice_and_report_figures_are_flagged(api: Api, owner_engine: 
         apply_scope(s, DbScope.TENANT, uuid.UUID(f.tid), None)
         report = verify_tenant(s, uuid.UUID(f.tid), api.clock.now)
     assert report.findings == []
-    _sql(
-        owner_engine,
-        "INSERT INTO tenant_hire_invoice (id, tenant_id, customer_id, invoice_number, status, currency, subtotal,"
-        " discount_total, tax_total, total, created_at, issued_at) VALUES (gen_random_uuid(), :t, :c, 'INV-PLANT',"
-        " 'ISSUED', :cur, 100, 0, 0, 90, now(), now())",
-        t=f.tid,
-        c=f.customer_id,
-        cur="TZS",
-    )
+    sale = {
+        "machine_id": f.c.t.machine_id,
+        "customer_id": f.customer_id,
+        "hours": "2",
+        "client_id": str(uuid.uuid4()),
+        "payments": [{"amount": str(2 * RATE), "method": "CREDIT"}],
+    }
+    invoice = _ok(f.accountant.post(f"{T}/hours-purchases", sale), 201)["credit_invoice"]
+    clean = _check(_run(f), CheckKind.INVOICE_TOTAL)
+    assert (clean["checked"], clean["mismatches"]) == (1, 0)
+    _sql(owner_engine, "ALTER TABLE credit_invoice DISABLE TRIGGER trg_credit_invoice_immutable")
+    try:  # a credit invoice asking for more than its order costs
+        _sql(owner_engine, "UPDATE credit_invoice SET amount = amount + 1000 WHERE id = :i", i=invoice["id"])
+    finally:
+        _sql(owner_engine, "ALTER TABLE credit_invoice ENABLE TRIGGER trg_credit_invoice_immutable")
     run = _run(f)
     assert _check(run, CheckKind.INVOICE_TOTAL)["mismatches"] == 1
-    assert any(x["label"] == "INV-PLANT" for x in run["findings"])
+    assert any(x["label"] == invoice["invoice_number"] for x in run["findings"])
 
 
 def test_sweep_is_off_by_default_and_runs_when_enabled(api: Api) -> None:

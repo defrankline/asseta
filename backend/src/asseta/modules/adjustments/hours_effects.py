@@ -28,7 +28,7 @@ from asseta.modules.hours.models import HoursLedgerEntry, HoursPurchase, LedgerE
 from asseta.modules.identity.principal import RequestContext
 
 T = LedgerEntryType
-CONSUMED_LIKE = (T.CONSUMED, T.PROVISIONAL)
+CONSUMED_LIKE = (T.CONSUMED,)
 
 
 class HoursEffects:
@@ -96,14 +96,12 @@ class HoursEffects:
             req.machine_id,
             T.CORRECTION_ADD if req.hours > 0 else T.CORRECTION_DEDUCT,
             abs(req.hours),
-            job_id=_uuid(req.params.get("job_id")),
+            machine_report_id=_uuid(req.params.get("machine_report_id")),
             adjustment_request_id=req.id,
             reason=req.reason,
             policy_version=self.engine.eff.version_stamp,
         )
         after = before + req.hours
-        if req.hours > 0:
-            self.engine.cover_overruns(purchase.customer_id, req.machine_id)
         return {
             "machine_id": str(req.machine_id),
             "hours": str(req.hours),

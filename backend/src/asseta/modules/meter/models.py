@@ -9,7 +9,6 @@ from typing import Any
 
 from sqlalchemy import (
     Boolean,
-    CheckConstraint,
     DateTime,
     Enum,
     Float,
@@ -20,7 +19,6 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
-    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -35,9 +33,9 @@ def _enum(cls: type[StrEnum], length: int = 24) -> Enum:
 
 
 class ReadingKind(StrEnum):
-    OPENING = "OPENING"
-    CLOSING = "CLOSING"
-    DAILY = "DAILY"  # daily operational reading of a machine, inside or outside a job (job_id optional)
+    # A reading of a machine (machine reports, daily readings, baselines). Readings taken before ADR-008 as opening or
+    # closing readings of a job were kept as DAILY readings by migration adr8rm01.
+    DAILY = "DAILY"
 
 
 class GpsStatus(StrEnum):
@@ -74,8 +72,9 @@ class ExceptionType(StrEnum):
     # Engine-hour accountability (design B): machine-level flags, raised for review only, never a verdict.
     MISSING_DAILY_REPORT = "MISSING_DAILY_REPORT"  # working machine without a reading by the policy cut-off
     UNEXPLAINED_HOURS = "UNEXPLAINED_HOURS"  # an unallocated engine-hour segment nobody has explained yet
-    OVERLAPPING_ALLOCATION = "OVERLAPPING_ALLOCATION"  # two jobs claim the same engine interval
-    HOURS_OVERRUN = "HOURS_OVERRUN"  # prepaid job used more hours than the customer had activated on the machine
+    # Kept so findings raised before ADR-008 stay readable; no longer raised (the removed jobs raised them).
+    OVERLAPPING_ALLOCATION = "OVERLAPPING_ALLOCATION"
+    HOURS_OVERRUN = "HOURS_OVERRUN"
     DUPLICATE_DAILY_REPORT = "DUPLICATE_DAILY_REPORT"  # a repeat DAILY report for one machine-day (DEC-032 A6)
 
 
@@ -103,20 +102,9 @@ class MeterCapture(UuidPk, SyncRevisioned, Base):
     """`id` is the device-generated UUID, so offline retries can never create a second reading."""
 
     __tablename__ = "meter_capture"
-    __table_args__ = (
-        Index("ix_meter_capture_machine_time", "machine_id", "captured_at"),
-        Index(
-            "uq_meter_capture_job_kind_active",
-            "job_id",
-            "kind",
-            unique=True,
-            postgresql_where=text("state IN ('ACCEPTED', 'PROVISIONAL') AND kind <> 'DAILY'"),
-        ),
-        CheckConstraint("kind = 'DAILY' OR job_id IS NOT NULL", name="ck_meter_capture_job_reading"),
-    )
+    __table_args__ = (Index("ix_meter_capture_machine_time", "machine_id", "captured_at"),)
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
-    job_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("job.id"), index=True)  # null: DAILY outside a job
     machine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("machine.id"), nullable=False)
     kind: Mapped[ReadingKind] = mapped_column(_enum(ReadingKind), nullable=False)
     capture_mode: Mapped[str] = mapped_column(String(16), nullable=False)  # AUTOMATIC | MANUAL
@@ -163,17 +151,17 @@ class MeterResetEvent(UuidPk, SyncRevisioned, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
-class JobException(UuidPk, SyncRevisioned, Base):
-    """Auditable exception — evidence for human review, never an automatic fraud verdict."""
+class MeterException(UuidPk, SyncRevisioned, Base):
+    """Auditable exception (a review finding of a reading or a machine) — evidence for human review, never an
+    automatic fraud verdict."""
 
-    __tablename__ = "job_exception"
+    __tablename__ = "meter_exception"
     __table_args__ = (
-        UniqueConstraint("tenant_id", "dedupe_key", name="uq_job_exception_dedupe"),
-        Index("ix_job_exception_status", "tenant_id", "status"),
+        UniqueConstraint("tenant_id", "dedupe_key", name="uq_meter_exception_dedupe"),
+        Index("ix_meter_exception_status", "tenant_id", "status"),
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False)
-    job_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("job.id"), index=True)
     machine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("machine.id"), nullable=False)
     meter_capture_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("meter_capture.id"), index=True)
     exception_type: Mapped[ExceptionType] = mapped_column(_enum(ExceptionType, 32), nullable=False)

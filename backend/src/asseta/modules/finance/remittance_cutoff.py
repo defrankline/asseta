@@ -4,8 +4,8 @@
   daily-report check: once the cut-off of the tenant-local day has passed, every custodian still holding unremitted
   cash that they already held before the cut-off is flagged once for that day (reason CUTOFF).
 - Holding allowance (`CASH_CUSTODY.max_holding_days`, DEC-031 D3; null = no limit): the tenant default, overridden
-  per site (the custodian's current site: the site of the latest in-progress job they supervise or whose machine they
-  are assigned to) and per staff member (most specific). A custodian whose oldest unremitted cash (first-in
+  per site (the custodian's current site: the site of the latest order sold for a machine currently assigned to
+  them) and per staff member (most specific). A custodian whose oldest unremitted cash (first-in
   first-out) is older than their allowance is flagged once per tenant-local day (reason HELD_TOO_LONG).
 
 Rows are `cash_remittance_overdue`, unique per custodian per day per reason; REMITTANCE_OVERDUE notifies holders of
@@ -23,7 +23,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import structlog
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -33,8 +33,8 @@ from asseta.modules.finance.cash_service import CashCustodyService
 from asseta.modules.finance.custody_models import OverdueReason, RemittanceOverdue
 from asseta.modules.finance.custody_rules import cash_policy, cutoff_window, day_collection_recorders
 from asseta.modules.fleet.models import MachineAssignment, StaffMember
+from asseta.modules.hours.models import HoursPurchase
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.models import Job, JobStatus
 from asseta.modules.notification.engine import NotificationEngine
 from asseta.modules.notification.rules import Audience, Intent, perm, record_link, staff, user
 from asseta.modules.notification.settings import get_notification_settings
@@ -59,19 +59,15 @@ def _money(value: Decimal) -> str:
 
 
 def custodian_site(s: Session, staff_id: uuid.UUID) -> uuid.UUID | None:
-    """The custodian's current site: the site of the most recently started in-progress job they supervise or whose
-    machine is assigned to them (None when they are on no running job)."""
+    """The custodian's current site: the site of the latest order (hours sale) naming a site for a machine currently
+    assigned to them (None when there is none)."""
     assigned = select(MachineAssignment.machine_id).where(
         MachineAssignment.staff_member_id == staff_id, MachineAssignment.effective_to.is_(None)
     )
     return s.execute(
-        select(Job.job_site_id)
-        .where(
-            Job.status == JobStatus.IN_PROGRESS,
-            Job.job_site_id.is_not(None),
-            or_(Job.supervisor_id == staff_id, Job.machine_id.in_(assigned)),
-        )
-        .order_by(Job.started_at.desc().nulls_last(), Job.id)
+        select(HoursPurchase.job_site_id)
+        .where(HoursPurchase.job_site_id.is_not(None), HoursPurchase.machine_id.in_(assigned))
+        .order_by(HoursPurchase.created_at.desc(), HoursPurchase.id)
         .limit(1)
     ).scalar_one_or_none()
 

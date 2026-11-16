@@ -12,24 +12,23 @@ from sqlalchemy.orm import Session
 from asseta.modules.hours.ledger import floor_to
 from asseta.modules.notification.rules import RULES, DomainEvent
 from asseta.modules.notification.types import TYPES
-from asseta.modules.policy.schemas import SEED_DEFAULTS, BillingMode, CustomerHoursPolicy, PolicyType
+from asseta.modules.policy.schemas import SEED_DEFAULTS, CustomerHoursPolicy, PolicyType
 
 
 def _policy(**kw: Any) -> CustomerHoursPolicy:
     return CustomerHoursPolicy.model_validate({**SEED_DEFAULTS[PolicyType.CUSTOMER_HOURS], **kw})
 
 
-def test_platform_default_keeps_the_invoice_flow_and_never_expires() -> None:
+def test_platform_default_never_expires_and_requires_approvals() -> None:
     p = _policy()
-    assert p.default_billing_mode is BillingMode.INVOICE and p.expiry_days is None
+    assert p.expiry_days is None
     assert p.transfer_requires_approval and p.cancellation_requires_approval and p.discount_requires_approval
 
 
 @pytest.mark.parametrize(
     "values",
     [
-        {"billing_modes": ["INVOICE"], "default_billing_mode": "PREPAID_HOURS"},
-        {"billing_modes": ["INVOICE", "INVOICE"]},
+        {"billing_modes": ["INVOICE"]},  # retired (ADR-008): refused as an unknown field
         {"activation_basis": []},
         {"hours_increment": "0"},
         {"expiry_days": 0},
@@ -62,17 +61,6 @@ def test_activation_rounds_down_to_the_policy_step() -> None:
         (
             "HoursApprovalDecided",
             {"kind": "CREDIT", "entity_id": "e1", "user_id": str(uuid.uuid4()), "outcome": "APPROVED"},
-        ),
-        (
-            "CustomerHoursOverrun",
-            {
-                "exception_id": "e1",
-                "job_id": "j",
-                "job_number": "J-1",
-                "machine_id": "n/a",
-                "billable_hours": "10",
-                "excess_hours": "3",
-            },
         ),
         ("CustomerHoursExpired", {"purchase_id": "p", "purchase_number": "HP-2026-00001", "hours": "2"}),
     ],

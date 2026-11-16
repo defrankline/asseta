@@ -8,6 +8,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
+from asseta.modules.customers.models import CustomerKind
 from asseta.modules.finance.dto import CustomerPaymentDto
 from asseta.modules.finance.models import HirePaymentMethod
 from asseta.modules.hours.models import (
@@ -17,7 +18,6 @@ from asseta.modules.hours.models import (
     ReasonKind,
     RequestStatus,
 )
-from asseta.modules.jobs.models import CustomerKind
 from asseta.modules.platform_billing.dto import CurrencyCode, Money, Reason
 
 PositiveHours = Annotated[Decimal, Field(gt=0, max_digits=12, decimal_places=2)]
@@ -350,9 +350,6 @@ class MachineHoursDto(BaseModel):
     refunded: Decimal = Decimal(0)
     corrected: Decimal = Decimal(0)  # net corrections on the lot
     remaining: Decimal
-    provisional: Decimal = Field(
-        default=Decimal(0), description="Hours held provisionally by running jobs (daily drawdown; final at completion)"
-    )
 
 
 class PurchaseTotalsDto(BaseModel):
@@ -370,9 +367,6 @@ class PurchaseTotalsDto(BaseModel):
     refunded: Decimal = Decimal(0)
     corrected: Decimal = Decimal(0)  # net corrections on the lot
     remaining: Decimal
-    provisional: Decimal = Field(
-        default=Decimal(0), description="Hours held provisionally by running jobs (daily drawdown; final at completion)"
-    )
     amount_verified: Money
     amount_claimed_unverified: Money
     amount_outstanding: Money
@@ -473,14 +467,12 @@ class LedgerEntryDto(Dto):
     activation_source: ActivationSource | None
     expires_at: datetime | None
     payment_id: uuid.UUID | None
-    job_id: uuid.UUID | None
-    job_number: str | None = None
-    allocation_id: uuid.UUID | None
+    machine_report_id: uuid.UUID | None = Field(default=None, description="CONSUMED: the approved machine report")
+    machine_report_number: str | None = None
     transfer_id: uuid.UUID | None
     cancellation_id: uuid.UUID | None
     reason: str | None
     policy_version: str | None
-    usage_day: date | None = Field(default=None, description="Daily drawdown entries: the tenant-local day of use")
     created_by: uuid.UUID | None
     created_at: datetime
 
@@ -504,9 +496,6 @@ class HoursBalanceDto(BaseModel):
     corrected: Decimal = Decimal(0)  # net corrections on the lot
     remaining: Decimal
     awaiting_activation: Decimal
-    provisional: Decimal = Field(
-        default=Decimal(0), description="Hours held provisionally by running jobs (daily drawdown; final at completion)"
-    )
 
 
 # --- transfers & cancellations ----------------------------------------------------------------------------------
@@ -570,34 +559,6 @@ class CancellationDto(Dto):
     decision_note: str | None
 
 
-# --- work execution allocation ----------------------------------------------------------------------------------
-class AllocationLineDto(BaseModel):
-    purchase_id: uuid.UUID
-    purchase_number: str
-    hours: Decimal
-    entry_id: uuid.UUID
-    occurred_at: datetime
-
-
-class WorkExecutionAllocationDto(BaseModel):
-    id: uuid.UUID
-    job_id: uuid.UUID
-    job_number: str | None = None
-    customer_id: uuid.UUID
-    customer_name: str | None = None
-    machine_id: uuid.UUID
-    machine_code: str | None = None
-    machine_name: str | None = None
-    billable_hours: Decimal
-    consumed_hours: Decimal
-    overrun_hours: Decimal
-    exception_id: uuid.UUID | None
-    exception_status: str | None
-    policy_version: str
-    created_at: datetime
-    lines: list[AllocationLineDto]
-
-
 # --- payment evidence -------------------------------------------------------------------------------------------
 class EvidenceLinkIn(BaseModel):
     attachment_ids: list[uuid.UUID] = Field(min_length=1, max_length=10)
@@ -639,9 +600,6 @@ class LowBalanceAlertDto(Dto):
 
 
 # --- customer hours statement (DEC-031 P3) ----------------------------------------------------------------------
-HoursStatementUsageBasis = Literal["DAILY", "FINAL"]
-
-
 class HoursStatementTotalsDto(BaseModel):
     """Movements inside the period (hours). closing = opening + activated + transferred_in - used - transferred_out
     - expired - cancelled."""
@@ -649,7 +607,7 @@ class HoursStatementTotalsDto(BaseModel):
     opening_balance: Decimal
     bought: Decimal = Field(description="Hours of purchases recorded in the period (activated once paid)")
     activated: Decimal
-    used: Decimal = Field(description="Final allocations plus provisional daily drawdown of running jobs")
+    used: Decimal = Field(description="Hours used: consumed by approved machine reports")
     transferred_in: Decimal
     transferred_out: Decimal
     expired: Decimal
@@ -657,7 +615,6 @@ class HoursStatementTotalsDto(BaseModel):
     refunded: Decimal = Field(default=Decimal(0), description="Unused hours refunded")
     corrected: Decimal = Field(default=Decimal(0), description="Net approved corrections")
     closing_balance: Decimal
-    provisional_at_close: Decimal = Field(description="Of `used`: still provisional (jobs running at period end)")
     awaiting_activation: Decimal = Field(description="Hours bought but not yet paid / activated (now)")
 
 
@@ -681,18 +638,15 @@ class HoursStatementPurchaseDto(BaseModel):
 
 
 class HoursStatementUsageDto(BaseModel):
-    """Hours used on one day for one job. DAILY: drawn day by day while the job ran; FINAL: the final allocation's
-    difference to what was drawn daily (all of the job's hours for jobs allocated at completion)."""
+    """Hours used on one day (the day the machine report was approved) on one machine report."""
 
     day: date
-    job_id: uuid.UUID | None
-    job_number: str | None = None
+    machine_report_id: uuid.UUID | None
+    machine_report_number: str | None = None
     machine_id: uuid.UUID
     machine_code: str | None = None
     machine_name: str | None = None
     hours: Decimal
-    basis: HoursStatementUsageBasis
-    job_running: bool
 
 
 class HoursStatementLineDto(BaseModel):
@@ -707,8 +661,8 @@ class HoursStatementLineDto(BaseModel):
     machine_id: uuid.UUID
     machine_code: str | None = None
     machine_name: str | None = None
-    job_id: uuid.UUID | None
-    job_number: str | None = None
+    machine_report_id: uuid.UUID | None = None
+    machine_report_number: str | None = None
     hours: Decimal = Field(description="Signed: + adds to the balance, - takes from it")
     balance_after: Decimal
     reason: str | None
@@ -825,7 +779,7 @@ class CreditInvoicePaymentIn(BaseModel):
 
 class CustomerHoursSummaryDto(BaseModel):
     """One customer's hours (ADR-008): bought (orders not cancelled), activated, used (approved machine reports and
-    any older job allocations), left to use, still awaiting payment or activation, and credit still owed."""
+    any older consumption), left to use, still awaiting payment or activation, and credit still owed."""
 
     customer_id: uuid.UUID
     customer_name: str | None = None

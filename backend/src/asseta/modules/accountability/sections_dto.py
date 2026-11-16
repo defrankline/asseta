@@ -213,27 +213,6 @@ class UnresolvedVariancesDto(BaseModel):
     by_source: list[VarianceSourceDto]
 
 
-class ChangeoverJobDto(BaseModel):
-    job_id: uuid.UUID
-    job_number: str | None = None
-    machine_id: uuid.UUID
-    machine_code: str | None = None
-    machine_name: str | None = None
-    customer_id: uuid.UUID
-    customer_name: str | None = None
-    changed_over_at: datetime
-    days_waiting: int
-    route: str
-
-
-class ChangeoverJobsDto(BaseModel):
-    """Follow-on jobs still unapproved: hours after the changeover are unbilled until they are."""
-
-    count: int
-    oldest_days: int | None
-    items: list[ChangeoverJobDto]
-
-
 class ExceptionsSectionDto(BaseModel):
     unexplained_engine_hours: HoursFigureDto
     shortages: MoneyFigureDto
@@ -246,7 +225,6 @@ class ExceptionsSectionDto(BaseModel):
     outstanding_approvals: OutstandingApprovalsDto
     overdue_reports: OverdueReportsDto
     unresolved_variances: UnresolvedVariancesDto
-    changeover_jobs_awaiting_approval: ChangeoverJobsDto
 
 
 class PeriodDto(BaseModel):

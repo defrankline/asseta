@@ -25,7 +25,6 @@ from asseta.modules.identity.catalog import PermissionScope
 from asseta.modules.identity.dependencies import requires_any
 from asseta.modules.identity.models import AppUser
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.router import JOB_READ
 from asseta.modules.machine_reports.permissions import READ as MACHINE_REPORT_READ
 from asseta.modules.meter.router import METER_READ
 from asseta.modules.notification.settings import get_notification_settings
@@ -48,13 +47,12 @@ from asseta.modules.reports.sources_hours import (
 )
 from asseta.modules.reports.sources_hours import CUSTOMER_HOURS as CUSTOMER_HOURS_REPORT
 from asseta.modules.reports.sources_money import CASH, EXPENSES, PLATFORM_SUBSCRIPTION, SUBSCRIPTION
-from asseta.modules.reports.sources_ops import ALERTS, FLEET, JOBS, READINGS, UTILISATION
+from asseta.modules.reports.sources_ops import ALERTS, FLEET, READINGS, UTILISATION
 from asseta.modules.reports.sources_petty import PETTY_CASH_EXPENSES, PETTY_CASH_STATEMENT
 from asseta.modules.tenancy.models import Tenant
 
 TENANT_REPORTS: tuple[ReportDefinition, ...] = (
     FLEET,
-    JOBS,
     READINGS,
     CASH,
     EXPENSES,
@@ -73,7 +71,6 @@ PLATFORM_REPORTS: tuple[ReportDefinition, ...] = (PLATFORM_SUBSCRIPTION,)
 # Each report reuses its list endpoint's permission dependency (declared by the owning module).
 PERMISSIONS: dict[str, Callable[..., RequestContext]] = {
     "tenant.fleet.read": FLEET_READ,
-    "tenant.job.read": JOB_READ,
     "tenant.meter.read": METER_READ,
     "tenant.finance.read": FINANCE_READ,
     "tenant.expense.read": EXPENSE_READ,

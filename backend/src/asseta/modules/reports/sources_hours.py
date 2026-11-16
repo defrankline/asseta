@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from asseta.modules.customers.models import Customer
 from asseta.modules.finance.common import local_bounds, local_date, tenant_settings
 from asseta.modules.finance.models import CustomerPayment, SettlementStatus
 from asseta.modules.fleet.models import Machine
@@ -28,7 +29,6 @@ from asseta.modules.hours.models import (
 from asseta.modules.hours.summary import customer_hours
 from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.models import Customer
 from asseta.modules.machine_reports.models import (
     MachineReport,
     MachineReportLine,

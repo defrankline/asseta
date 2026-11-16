@@ -12,9 +12,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from asseta.modules.customers.models import Customer
 from asseta.modules.fleet.models import AssignmentRole, Machine, MachineAssignment, StaffMember
-from asseta.modules.geospatial.models import JobSite
-from asseta.modules.jobs.models import Customer
 from asseta.modules.notification.types import Severity
 
 
@@ -86,8 +85,6 @@ RECORDS: dict[str, tuple[str, str]] = {
     "baseline": ("METER_BASELINE", "/tenant/meter-baselines"),
     "correction": ("METER_CORRECTION", "/tenant/meter-corrections"),
     "classification": ("ENGINE_HOURS_CLASSIFICATION", "/tenant/engine-hours/classifications"),
-    "revenue_difference": ("REVENUE_DIFFERENCE", "/tenant/revenue-differences"),
-    "non_revenue_approval": ("NON_REVENUE_APPROVAL", "/tenant/non-revenue-approvals"),
     "correction_group": ("WORK_ALLOCATION_CORRECTION", "/tenant/work-allocations/corrections"),
     "adjustment_request": ("ADJUSTMENT_REQUEST", "/tenant/finance/adjustments/requests"),
     "daily_report": ("DAILY_REPORT", "/tenant/daily-reports"),
@@ -443,127 +440,6 @@ def _staff_name(session: Session, staff_id: object) -> str | None:
     return session.execute(select(StaffMember.full_name).where(StaffMember.id == sid)).scalar_one_or_none()
 
 
-def _site_name(session: Session, site_id: object) -> str | None:
-    try:
-        sid = uuid.UUID(str(site_id))
-    except ValueError:
-        return None
-    return session.execute(select(JobSite.name).where(JobSite.id == sid)).scalar_one_or_none()
-
-
-@rule("JobPendingApproval")
-def _job_pending(session: Session, e: DomainEvent) -> list[Intent]:
-    p = e.payload
-    jid = p.get("job_id")
-    number = p.get("job_number", "")
-    body = f"Job {number} was submitted for price approval."
-    if requester := p.get("requested_by_staff_id"):
-        who = _staff_name(session, requester) or "a supervisor"
-        body = f"Job {number} was requested from the field by {who}."
-        if note := p.get("request_note"):
-            body += f" {note[:300]}"
-    return [
-        Intent(
-            "JOB_AWAITING_APPROVAL",
-            (perm("tenant.job.approve"),),
-            "Job awaiting approval",
-            body,
-            _key(e),
-            f"/tenant/jobs/{jid}" if jid else "/tenant/jobs",
-            "job",
-            jid,
-        )
-    ]
-
-
-@rule("JobApproved")
-def _job_approved(session: Session, e: DomainEvent) -> list[Intent]:
-    """The named supervisor learns the job is theirs to start: their own request approved, or a job the office
-    created and assigned to them."""
-    p = e.payload
-    jid, number, supervisor = p.get("job_id"), p.get("job_number", ""), p.get("supervisor_id")
-    if not supervisor:
-        return []
-    link = f"/tenant/field/jobs/{jid}" if jid else "/tenant/field/jobs"
-    if p.get("requested_by_staff_id") == supervisor:
-        how = (
-            " automatically: the customer's prepaid hours are paid and verified"
-            if p.get("approved_automatically")
-            else ""
-        )
-        return [
-            Intent(
-                "JOB_REQUEST_APPROVED",
-                (staff(supervisor),),
-                f"Job {number} approved",
-                f"Your job request {number} was approved{how}; you can start it.",
-                _key(e),
-                link,
-                "job",
-                jid,
-            )
-        ]
-    where = _machine_label(session, p.get("machine_id"))
-    if p.get("job_site_id") and (site := _site_name(session, p["job_site_id"])):
-        where += f" at {site}"
-    return [
-        Intent(
-            "JOB_ASSIGNED",
-            (staff(supervisor),),
-            f"New job {number} assigned to you",
-            f"New job {number} assigned to you: {where}.",
-            _key(e),
-            link,
-            "job",
-            jid,
-        )
-    ]
-
-
-@rule("JobAutoApprovalHeld")
-def _job_auto_approval_held(_: Session, e: DomainEvent) -> list[Intent]:
-    """A job booked with an hours sale is fully paid but the approval checks kept it pending: the approvers decide."""
-    p = e.payload
-    jid, number = p.get("job_id"), p.get("job_number", "")
-    return [
-        Intent(
-            "JOB_AUTO_APPROVAL_HELD",
-            (perm("tenant.job.approve"),),
-            f"Job {number} needs approval",
-            f"Job {number} is covered by the verified hours sale {p.get('purchase_number', '')} but was not approved "
-            f"automatically: {p.get('reason', 'the approval checks did not pass')}. Please review it.",
-            _key(e),
-            f"/tenant/jobs/{jid}" if jid else "/tenant/jobs",
-            "job",
-            jid,
-        )
-    ]
-
-
-@rule("JobCancelled")
-def _job_cancelled(_: Session, e: DomainEvent) -> list[Intent]:
-    """A declined field request (or a cancelled job) reaches the supervisor it was for, with the reason."""
-    p = e.payload
-    jid, number, supervisor = p.get("job_id"), p.get("job_number", ""), p.get("supervisor_id")
-    if not supervisor:
-        return []
-    requested = p.get("requested_by_staff_id") == supervisor
-    verb = "declined" if requested else "cancelled"
-    reason = p.get("reason") or "no reason given"
-    return [
-        Intent(
-            "JOB_CANCELLED",
-            (staff(supervisor),),
-            f"Job {number} {verb}",
-            f"Job {number} {verb}: {reason}",
-            _key(e),
-            f"/tenant/field/jobs/{jid}" if jid else "/tenant/field/jobs",
-            "job",
-            jid,
-        )
-    ]
-
-
 @rule("CustomerPaymentRecorded")
 def _customer_payment(session: Session, e: DomainEvent) -> list[Intent]:
     """Nothing to verify when the tenant's cash_activation already verified the payment (on recording) or verifies
@@ -779,24 +655,6 @@ def _machine_report_decided(session: Session, e: DomainEvent) -> list[Intent]:
     ]
 
 
-@rule("CustomerHoursOverrun")
-def _hours_overrun(session: Session, e: DomainEvent) -> list[Intent]:
-    p = e.payload
-    return [
-        Intent(
-            "HOURS_OVERRUN",
-            (perm("tenant.meter.review"), perm("tenant.hours.credit_activate")),
-            f"Hours beyond purchase — job {p.get('job_number', '')}",
-            f"{_machine_label(session, p.get('machine_id'))}: {p['excess_hours']} of {p['billable_hours']} billable "
-            "hours were not covered by activated customer hours. Activate more hours or review the exception.",
-            _key(e),
-            "/tenant/exceptions",
-            "job_exception",
-            p["exception_id"],
-        )
-    ]
-
-
 @rule("CustomerHoursLowBalance")
 def _hours_low_balance(session: Session, e: DomainEvent) -> list[Intent]:
     """DEC-031 P2: a purchase fell to the tenant's low-balance threshold (once per crossing)."""
@@ -991,60 +849,6 @@ def _partial_remittance_decided(_: Session, e: DomainEvent) -> list[Intent]:
             record_link("cash_handover", p["handover_id"], f"{CASH}/remittances"),
             "cash_handover",
             p["handover_id"],
-        )
-    ]
-
-
-@rule("RevenueDifferenceOpened", "RevenueExplanationProposed")
-def _revenue_difference(session: Session, e: DomainEvent) -> list[Intent]:
-    """DEC-031 R3: a revenue difference to explain (sweep) or an explanation awaiting a second person's decision.
-    Neutral wording: a difference is never a verdict."""
-    p = e.payload
-    machine = _machine_label(session, p.get("machine_id"))
-    period = str(p.get("period_key", "")).replace(":", " ")
-    if e.event_type == "RevenueDifferenceOpened":
-        title = f"Revenue difference to explain: {machine}"
-        body = (
-            f"{period}: expected {p['currency']} {p['expected_amount']} from engine hours, money attributed "
-            f"{p['currency']} {p['attributed_amount']} (difference {p['currency']} {p['difference']})."
-        )
-    else:
-        title = f"Revenue explanation to decide: {machine}"
-        body = (
-            f'{period}: a difference of {p["currency"]} {p["difference"]} was explained as "{p.get("reason")}"; '
-            "it awaits a decision by someone other than the person who explained it."
-        )
-    return [
-        Intent(
-            "REVENUE_DIFFERENCE",
-            (perm("tenant.revenue.decide"),),
-            title,
-            body,
-            _key(e),
-            record_link("revenue_difference", p["difference_id"], "/tenant/revenue-differences"),
-            "revenue_difference",
-            p["difference_id"],
-        )
-    ]
-
-
-@rule("NonRevenueApprovalProposed")
-def _non_revenue_approval(session: Session, e: DomainEvent) -> list[Intent]:
-    """DEC-031 (owner rule): non-revenue time explained by one person, awaiting another's approval."""
-    p = e.payload
-    machine = _machine_label(session, p.get("machine_id"))
-    kind = str(p.get("activity_type", "")).replace("_", " ").lower()
-    return [
-        Intent(
-            "NON_REVENUE_APPROVAL_REQUESTED",
-            (perm("tenant.revenue.decide"),),
-            f"Non-revenue hours to approve: {machine}",
-            f'{p["hours"]} h of {kind} explained as "{p.get("reason")}"; until approved by someone other than the '
-            "person who explained it, the time counts as revenue.",
-            _key(e),
-            record_link("non_revenue_approval", p["approval_id"], "/tenant/non-revenue-approvals"),
-            "non_revenue_approval",
-            p["approval_id"],
         )
     ]
 
@@ -1291,11 +1095,9 @@ ENTITY_CHANGES: dict[str, tuple[str, str, str]] = {
     "CustomerPaymentVerified": ("customer_payment", "payment_id", "verified"),
     "CashHandoverRecorded": ("cash_handover", "handover_id", "created"),
     "CashHandoverVerified": ("cash_handover", "handover_id", "verified"),
-    "HireInvoiceIssued": ("hire_invoice", "invoice_id", "issued"),
     "HoursPurchaseRecorded": ("hours_purchase", "purchase_id", "created"),
     "CustomerHoursActivated": ("hours_purchase", "purchase_id", "updated"),
     "CustomerHoursExpired": ("hours_purchase", "purchase_id", "updated"),
-    "HireInvoiceVoided": ("hire_invoice", "invoice_id", "voided"),
     "MeterCaptured": ("meter_capture", "capture_id", "created"),
     "MeterExceptionRaised": ("meter_exception", "capture_id", "created"),
     "PlatformInvoiceIssued": ("platform_invoice", "invoice_id", "issued"),
@@ -1320,9 +1122,7 @@ PLATFORM_ENTITY_EVENTS = frozenset(
 
 
 def entity_change(e: DomainEvent) -> dict[str, Any] | None:
-    spec = ENTITY_CHANGES.get(e.event_type) or (
-        ("job", "job_id", "updated") if e.event_type.startswith("Job") else None
-    )
+    spec = ENTITY_CHANGES.get(e.event_type)
     if spec is None:
         return None
     entity, key, action = spec

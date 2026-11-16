@@ -8,7 +8,7 @@ from typing import Any
 from tests.support.api import Actor, Api
 from tests.support.finance import FinCtx, category, expense_policy, role, setup_finance
 from tests.support.intelligence import cases, expense, feed_events, fraud_policy, receipt, signals, sweep
-from tests.support.jobs import unique_jpeg
+from tests.support.meter import unique_jpeg
 from tests.support.notify import member, sql, user_id
 
 

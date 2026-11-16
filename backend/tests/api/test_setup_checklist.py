@@ -10,6 +10,7 @@ from sqlalchemy.exc import ProgrammingError
 
 from tests.support.api import Actor, Api
 from tests.support.finance import FinCtx, setup_finance, tenant_sql
+from tests.support.machine_reports import idle, report_body
 from tests.support.notify import sql
 
 T = "/api/v1/tenant"
@@ -21,13 +22,13 @@ KEYS = [
     "MACHINES",
     "TRACKERS",
     "SITES",
-    "CUSTOMERS_AND_CONTRACTS",
+    "CUSTOMERS",
     "CONTROLS_CHOSEN",
     "REASON_LISTS",
     "DEPOSIT_ACCOUNTS",
     "METER_BASELINES",
     "FIELD_APP_SIGNED_IN",
-    "FIRST_JOB",
+    "FIRST_MACHINE_REPORT",
 ]
 
 
@@ -105,7 +106,7 @@ def test_fresh_tenant_all_todo(api: Api) -> None:
 
 def _complete(api: Api, f: FinCtx) -> None:
     """Every remaining step done with real data (setup_finance already has a tracked, enrolled, rated machine, a
-    customer with an active contract, a tenant policy version and an approved job)."""
+    customer and a tenant policy version); the first machine report is submitted and approved here."""
     o, tid = f.owner, f.tid
     approver = _invite(api, o, tid, "partner@hire.example.com", "owner")  # a second person who can approve
     sup = _invite(api, o, tid, "sup@hire.example.com", "supervisor")
@@ -125,6 +126,15 @@ def _complete(api: Api, f: FinCtx) -> None:
         201,
     )
     _ok(approver.post(f"{T}/meter-baselines/{proposed['id']}/decision", {"decision": "APPROVE", "note": "Checked"}))
+    reasons = {r["code"]: r["id"] for r in _ok(o.get(f"{T}/machine-report-reasons"))}
+    report = _ok(
+        o.post(
+            f"{T}/machine-reports",
+            report_body(f.c.t.machine_id, "1002", api.clock.now, [idle(reasons["IDLE_ON_SITE"], 2)]),
+        ),
+        201,
+    )
+    _ok(approver.post(f"{T}/machine-reports/{report['id']}/approve", {}))
     device = {"device_id": "android-setup-0001", "platform": "ANDROID", "app_version": "1.5.0"}
     r = api.client.post(
         "/api/v1/sync/devices", headers={**sup.headers(True, None), "X-Device-Id": device["device_id"]}, json=device
@@ -135,7 +145,7 @@ def _complete(api: Api, f: FinCtx) -> None:
 def test_fully_set_up_tenant_is_complete(api: Api) -> None:
     f = setup_finance(api)
     before = _ok(f.owner.get(S))
-    assert _status(before)["FIRST_JOB"] == "DONE" and _status(before)["TRACKERS"] == "DONE"
+    assert _status(before)["FIRST_MACHINE_REPORT"] == "TODO" and _status(before)["TRACKERS"] == "DONE"
     assert _status(before)["PEOPLE"] == "TODO"
     _complete(api, f)
     body = _ok(f.owner.get(S))
@@ -193,17 +203,6 @@ def test_capability_off_steps_not_applicable(api: Api) -> None:
     assert status["DEPOSIT_ACCOUNTS"] == status["METER_BASELINES"] == status["REASON_LISTS"] == "NOT_APPLICABLE"
     assert body["steps_total"] == 10
     assert sum(1 for s in status.values() if s in ("DONE", "NOT_NEEDED")) == body["steps_done"]
-    # Revenue checks on: the reason-list step applies again, asking only for revenue reasons.
-    _ok(
-        f.owner.post(
-            f"{T}/policies/REVENUE_RECONCILIATION/versions",
-            {"scope": "TENANT", "values": {"enabled": True}, "reason": "Revenue checks on"},
-        ),
-        201,
-    )
-    reasons = _steps(_ok(f.owner.get(S)))["REASON_LISTS"]
-    assert reasons["status"] == "TODO" and [c["key"] for c in reasons["checks"]] == ["REVENUE_REASONS"]
-    assert reasons["link"] == "/tenant/revenue-reasons"
 
 
 def test_not_needed_marks_confirm_controls_and_dismiss(api: Api) -> None:
@@ -261,7 +260,7 @@ def test_tenant_isolation(api: Api) -> None:
     assert _status(mine)["TRACKERS"] == "DONE" and _steps(mine)["TRACKERS"]["not_needed"] is None
     assert mine["controls_confirmed_by"] is None
     theirs = _ok(o2.get(S))
-    assert _status(theirs)["MACHINES"] == "TODO" and _status(theirs)["FIRST_JOB"] == "TODO"
+    assert _status(theirs)["MACHINES"] == "TODO" and _status(theirs)["FIRST_MACHINE_REPORT"] == "TODO"
     assert _status(theirs)["TRACKERS"] == "NOT_NEEDED"
     # A user of one tenant cannot read another tenant's checklist.
     assert f.owner.get(S, tenant=other["tenant"]["id"]).status_code in (403, 404)

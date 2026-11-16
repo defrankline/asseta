@@ -46,16 +46,12 @@ class WorkAllocationDto(Dto):
     kind: AllocationKind
     customer_id: uuid.UUID | None
     customer_name: str | None = None
-    job_id: uuid.UUID | None
-    job_number: str | None = None
-    activity_type: str | None
     reason_id: uuid.UUID | None
     reason_name: str | None = None
     classification_id: uuid.UUID | None
-    changeover_id: uuid.UUID | None
     reading_review: str
     approval_ref_type: str | None = Field(
-        default=None, description="engine_hour_classification, non_revenue_approval or work_allocation_correction"
+        default=None, description="machine_report, engine_hour_classification or work_allocation_correction"
     )
     approval_ref_ids: list[uuid.UUID] = Field(default_factory=list)
     lots: list[AllocationLotDto]
@@ -83,7 +79,6 @@ class AllocationPartIn(BaseModel):
     hours: Hours
     kind: AllocationKind
     customer_id: uuid.UUID | None = None
-    job_id: uuid.UUID | None = None
     reason_id: uuid.UUID | None = Field(default=None, description="AUTHORIZED_ACTIVITY: tenant category or variance")
 
 
@@ -148,9 +143,6 @@ class ReportAllocationDto(BaseModel):
     kind: AllocationKind
     customer_id: uuid.UUID | None
     customer_name: str | None = None
-    job_id: uuid.UUID | None
-    job_number: str | None = None
-    activity_type: str | None
     start_reading: Decimal
     end_reading: Decimal
     hours: Decimal

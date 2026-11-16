@@ -64,15 +64,14 @@ DELETE: frozenset[str] = frozenset(
         "machine", "machine_category", "machine_assignment", "machine_photo", "machine_state_event",
         "machine_latest_position", "machine_position_event", "machine_meter_baseline", "operating_area",
         "tracker", "tracker_assignment", "tracker_capability", "tracker_ingestion_event", "tracking_alert",
-        "geofence", "geofence_event", "geofence_machine", "job_site", "site_checkin",
+        "geofence", "geofence_event", "geofence_machine", "job_site",
         # per-machine billing of the deleted fleet
         "subscription_asset_enrollment", "subscription_pending_charge",
-        # customers, contracts, rate cards, jobs, readings, work logs, exceptions
-        "customer", "rental_contract", "rental_rate_policy", "job", "job_activity", "job_exception",
-        "customer_acknowledgement", "meter_capture", "meter_correction", "meter_reset_event", "capture_attachment",
-        "approval_request", "non_revenue_approval", "work_execution_allocation",
+        # customers, rate cards, readings, exceptions
+        "customer", "rental_rate_policy", "meter_exception", "meter_capture", "meter_correction", "meter_reset_event",
+        "capture_attachment", "approval_request",
         # engine hours
-        "engine_hour_classification", "engine_hour_reason", "work_allocation", "machine_changeover",
+        "engine_hour_classification", "engine_hour_reason", "work_allocation",
         "daily_operational_report",
         # expenses, fuel, receipts
         "expense", "expense_attachment", "expense_category", "fuel_event",
@@ -83,17 +82,14 @@ DELETE: frozenset[str] = frozenset(
         # petty cash funds (DEC-033)
         "petty_cash_fund", "petty_cash_movement", "petty_cash_count", "petty_cash_holder_change",
         "petty_cash_adjustment", "petty_cash_advance",
-        # hire invoices, payments, allocations
-        "tenant_hire_invoice", "hire_invoice_job", "hire_invoice_line", "hire_invoice_counter", "customer_payment",
-        "hire_payment_allocation", "payment_evidence", "payment_auto_verification", "financial_adjustment",
+        # customer payments and receivable adjustments
+        "customer_payment", "payment_evidence", "payment_auto_verification", "financial_adjustment",
         # customer hours
         "hours_purchase", "hours_ledger_entry", "hours_payment_allocation", "hours_transfer", "hours_cancellation",
         "hours_low_balance_alert", "hours_reason_code", "hours_sequence", "credit_arrangement", "customer_discount",
         "credit_invoice", "credit_invoice_payment",
         # machine reports (ADR-008)
         "machine_report", "machine_report_line",
-        # revenue reconciliation
-        "revenue_difference", "revenue_difference_adjustment", "revenue_reason",
         # adjustments ledger (Ledger 6) and its propose/decide flow
         "adjustment_ledger_entry", "adjustment_request",
         # data protection: export jobs and balance verification runs of the erased records

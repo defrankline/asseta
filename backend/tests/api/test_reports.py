@@ -19,7 +19,8 @@ from asseta.modules.geospatial.alerts import AlertService
 from asseta.modules.geospatial.models import AlertSeverity, AlertType
 from asseta.modules.reports import router as reports_router
 from tests.support.api import Actor, Api
-from tests.support.finance import FinCtx, category, complete_job, expense_policy, issue_invoice, role, setup_finance
+from tests.support.finance import FinCtx, category, expense_policy, role, setup_finance
+from tests.support.meter import capture
 from tests.support.notify import sql
 
 R = "/api/v1/tenant/reports"
@@ -73,8 +74,10 @@ def _alert(tid: str, machine_id: str, title: str, minutes: int, api: Api) -> Non
 @pytest.fixture
 def data(api: Api) -> FinCtx:
     f = setup_finance(api)
-    complete_job(api, f, f.c.job_id, "1000.0", "1008.0", 9, downtime_h=1.5)
-    issue_invoice(f, [f.c.job_id])
+    for value, hours in (("1000.0", 0), ("1008.0", 9)):
+        api.clock.set_at(api.clock.now + timedelta(hours=hours))
+        body = capture(f.c.t.machine_id, value, api.clock.now, mode="MANUAL")
+        _ok(f.owner.post("/api/v1/tenant/meter-captures", body), 201)
     _ok(f.accountant.post("/api/v1/tenant/cash/floats", {"staff_member_id": f.sup_staff_id, "amount": "100000"}), 201)
     misc = category(f, "SPARES", "Spares")
     expense_policy(f, receipt_required_above="100000000", gps_required=False, auto_approve_limit="50000")
@@ -105,16 +108,15 @@ def data(api: Api) -> FinCtx:
 
 def test_csv_matches_list_endpoints_for_the_same_filters(api: Api, data: FinCtx) -> None:
     f, o = data, data.owner
-    jobs = parse_csv(o.get(f"{R}/jobs.csv", status="COMPLETED"))
-    listed = _ok(o.get("/api/v1/tenant/jobs", status="COMPLETED"))["items"]
-    assert [r["Job"] for r in jobs] == [j["job_number"] for j in listed] == ["J-001"]
-    assert jobs[0]["Customer"] == "Road Builders Ltd" and jobs[0]["Hourly rate"] == listed[0]["hourly_rate"]
-    assert jobs[0]["Started"].endswith("+03:00")  # instants in the tenant timezone
-
-    readings = parse_csv(o.get(f"{R}/readings.csv", job_id=f.c.job_id))
-    listed = _ok(o.get("/api/v1/tenant/meter-captures", job_id=f.c.job_id))["items"]
+    readings = parse_csv(o.get(f"{R}/readings.csv", machine_id=f.c.t.machine_id))
+    listed = _ok(o.get("/api/v1/tenant/meter-captures", machine_id=f.c.t.machine_id))["items"]
     assert [Decimal(r["Reading"]) for r in readings] == [Decimal(c["reading"]) for c in listed]
-    assert [r["Kind"] for r in readings] == ["CLOSING", "OPENING"]  # latest captured first, like the list
+    assert [Decimal(r["Reading"]) for r in readings] == [
+        Decimal("1008"),
+        Decimal("1000"),
+    ]  # latest first, like the list
+    assert {r["Kind"] for r in readings} == {"DAILY"}
+    assert readings[0]["Captured"].endswith("+03:00")  # instants in the tenant timezone
 
     expenses = parse_csv(o.get(f"{R}/expenses.csv", status="APPROVED"))
     listed = _ok(o.get("/api/v1/tenant/expenses", status="APPROVED"))["items"]
@@ -198,7 +200,7 @@ def test_row_caps_add_truncation_note(api: Api, data: FinCtx, monkeypatch: pytes
     pdf = data.owner.get(f"{R}/expenses.pdf")
     assert pdf.headers["x-report-truncated"] == "true"
     assert b"TRUNCATED: only the first 1 rows" in pdf_text(pdf.content)
-    full = data.owner.get(f"{R}/jobs.csv")
+    full = data.owner.get(f"{R}/readings.csv")
     assert full.headers["x-report-truncated"] == "false"
 
 
@@ -227,15 +229,16 @@ def test_permissions_mirror_the_list_endpoints(api: Api, data: FinCtx) -> None:
         sup.get("/api/v1/tenant/cash/supervisor-summary", **{"from": "2026-11-01", "to": "2026-11-01"}).status_code
         == 403
     )
-    assert sup.get(f"{R}/jobs.pdf").status_code == 200
+    assert sup.get(f"{R}/readings.pdf").status_code == 200
     menu = {d["code"] for d in _ok(data.accountant.get(R))}
     adr008 = {"customer_hours", "machine_hours", "sales_collections", "credit_invoices", "credit_invoice_payments"}
-    assert menu == {"jobs", "cash", "expenses", "subscription", *adr008}
+    assert menu == {"cash", "expenses", "subscription", *adr008}
     assert {d["code"] for d in _ok(data.owner.get(R))} == {
-        "fleet", "jobs", "readings", "cash", "expenses", "alerts", "subscription", "utilisation", *adr008
+        "fleet", "readings", "cash", "expenses", "alerts", "subscription", "utilisation", *adr008
     }  # fmt: skip
-    jobs_def = next(d for d in _ok(data.owner.get(R)) if d["code"] == "jobs")
-    assert jobs_def["csv_path"] == f"{R}/jobs.csv" and jobs_def["filters"] == ["q", "status", "machine_id"]
+    readings_def = next(d for d in _ok(data.owner.get(R)) if d["code"] == "readings")
+    assert readings_def["csv_path"] == f"{R}/readings.csv"
+    assert readings_def["filters"] == ["machine_id", "kind", "state", "captured_from", "captured_to"]
     operator: Actor = role(api, data.tid, "operator", "op-2")
     assert operator.get(R).status_code == 403
     assert data.accountant.get(f"{R}/fleet.csv").status_code == 403
@@ -243,4 +246,4 @@ def test_permissions_mirror_the_list_endpoints(api: Api, data: FinCtx) -> None:
     api.activate(other)
     leaked = other["owner"].get(f"{R}/expenses.csv")
     assert parse_csv(leaked) == []  # RLS: another tenant's export never sees these rows
-    assert data.owner.get(f"{R}/jobs.csv", bogus="1").status_code == 422  # unknown filters are refused
+    assert data.owner.get(f"{R}/readings.csv", bogus="1").status_code == 422  # unknown filters are refused

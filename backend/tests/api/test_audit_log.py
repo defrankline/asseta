@@ -12,7 +12,7 @@ from sqlalchemy import text
 from asseta.core.db import DbScope, apply_scope, get_sessionmaker
 from tests.support.api import PLATFORM_SUBJECT, Actor, Api
 from tests.support.finance import role
-from tests.support.jobs import setup_job
+from tests.support.meter import setup_machine
 
 A = "/api/v1/tenant/audit-events"
 PA = "/api/v1/platform/audit-events"
@@ -31,18 +31,24 @@ def _staff(api: Api, subject: str, email: str, tenant_id: str | None = None) -> 
 
 
 def test_tenant_audit_filters_names_paging_and_permissions(api: Api) -> None:
-    c = setup_job(api)
+    c = setup_machine(api)
     owner, tid = c.owner, c.t.tenant["tenant"]["id"]
+    _ok(owner.post(f"/api/v1/tenant/customers/{c.customer_id}/deactivate", {"reason": "Moved away"}))
+    _ok(owner.post(f"/api/v1/tenant/customers/{c.customer_id}/reactivate", {"reason": "Came back"}))
     page = _ok(owner.get(A, page_size=2))
     assert page["total"] > 2 and len(page["items"]) == 2
     times = [i["occurred_at"] for i in _ok(owner.get(A, page_size=100))["items"]]
     assert times == sorted(times, reverse=True)
 
-    jobs = _ok(owner.get(A, action_prefix="jobs.job."))["items"]
-    assert {i["action"] for i in jobs} == {"jobs.job.created", "jobs.job.submit", "jobs.job.approve"}
-    one = _ok(owner.get(A, entity_type="job", entity_id=c.job_id))["items"]
-    assert {i["entity_id"] for i in one} == {c.job_id} and len(one) == 3
-    created = next(i for i in one if i["action"] == "jobs.job.created")
+    customers = _ok(owner.get(A, action_prefix="customers.customer."))["items"]
+    assert {i["action"] for i in customers} == {
+        "customers.customer.created",
+        "customers.customer.deactivated",
+        "customers.customer.reactivated",
+    }
+    one = _ok(owner.get(A, entity_type="customer", entity_id=c.customer_id))["items"]
+    assert {i["entity_id"] for i in one} == {c.customer_id} and len(one) == 3
+    created = next(i for i in one if i["action"] == "customers.customer.created")
     me = _ok(owner.get("/api/v1/tenant/people", ids=created["actor_user_id"]))
     assert created["actor_display_name"] == me[0]["display_name"] and created["mandate_reference"] is None
     assert created["tenant_id"] == tid and created["correlation_id"]
@@ -63,13 +69,13 @@ def test_tenant_audit_filters_names_paging_and_permissions(api: Api) -> None:
 
 
 def test_audit_is_tenant_isolated_api_and_rls(api: Api) -> None:
-    c = setup_job(api)
+    c = setup_machine(api)
     tid = c.t.tenant["tenant"]["id"]
     other = api.onboard("Other Audit Co", price="1")
     api.activate(other)
     mine = _ok(other["owner"].get(A, page_size=100))["items"]
     assert mine and all(i["tenant_id"] == other["tenant"]["id"] for i in mine)
-    assert _ok(other["owner"].get(A, entity_id=c.job_id))["total"] == 0
+    assert _ok(other["owner"].get(A, entity_id=c.customer_id))["total"] == 0
     assert other["owner"].get(A, tenant=tid).status_code == 403
     with get_sessionmaker().begin() as s:
         apply_scope(s, DbScope.TENANT, uuid.UUID(other["tenant"]["id"]), None)
@@ -106,7 +112,9 @@ def test_mandate_reference_on_platform_staff_actions_and_platform_view(api: Api)
     customer = _ok(asha.post("/api/v1/tenant/customers", {"code": "C9", "name": "Mandate Customer"}), 201)
 
     rows = _ok(client["owner"].get(A, entity_id=customer["id"]))["items"]
-    assert [(r["action"], r["mandate_reference"]) for r in rows] == [("jobs.customer.created", mandate["reference"])]
+    assert [(r["action"], r["mandate_reference"]) for r in rows] == [
+        ("customers.customer.created", mandate["reference"])
+    ]
     assert rows[0]["actor_user_id"] == asha_id and rows[0]["mandate_id"] == mandate["id"]
     assert rows[0]["actor_display_name"]
     by_staff = _ok(asha.get(A, actor_user_id=asha_id))["items"]  # mandate manager role includes tenant.audit.read
@@ -116,7 +124,7 @@ def test_mandate_reference_on_platform_staff_actions_and_platform_view(api: Api)
     actions = {r["action"] for r in platform}
     assert "platform.tenant.onboarded" in actions and "platform.mandate.granted" in actions
     assert all(r["action"].startswith(("platform.", "billing.")) for r in platform)  # never tenant business audit
-    assert _ok(api.platform.get(PA, action_prefix="jobs."))["total"] == 0
+    assert _ok(api.platform.get(PA, action_prefix="customers."))["total"] == 0
     assert client["owner"].get(PA).status_code == 403
     menus = _ok(api.platform.get("/api/v1/me"))["platform_menus"]
     assert any(m["key"] == "platform.audit" and m["group"] == "platform.admin" for m in menus)

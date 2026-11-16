@@ -230,20 +230,12 @@ class CashCustodyService:
         self, body: CashCollectionIn, source: str = "API", link_satisfied: bool = False
     ) -> CustomerPaymentDto:
         """Cash received from a customer. When the tenant requires it, the collection names what it pays for: an
-        invoice (allocations), an hours purchase (purchase_id, linked up to its open amount), or both. The link is
-        checked when the collection is recorded, online or at sync (a device cannot skip it)."""
+        hours purchase (purchase_id, linked up to its open amount; a credit invoice's payment names its order). The
+        link is checked when the collection is recorded, online or at sync (a device cannot skip it)."""
         replay = self._replayed_collection(body.client_id)
         policy = self._policy().policy
-        if (
-            replay is None
-            and policy.collection_link_required
-            and not link_satisfied
-            and not body.allocations
-            and body.purchase_id is None
-        ):
-            raise BusinessRuleViolation(
-                "Name the purchase or invoice this cash pays for", code="COLLECTION_LINK_REQUIRED"
-            )
+        if replay is None and policy.collection_link_required and not link_satisfied and body.purchase_id is None:
+            raise BusinessRuleViolation("Name the order this cash pays for", code="COLLECTION_LINK_REQUIRED")
         staff = resolve_recorded_custodian(self._s, self._ctx, body.staff_member_id, policy)
         payment = CustomerPaymentIn(
             customer_id=body.customer_id,
@@ -255,7 +247,6 @@ class CashCustodyService:
             received_by_staff_id=staff.id,
             note=body.note,
             client_id=body.client_id,
-            allocations=body.allocations,
         )
         recorded = CustomerPaymentService(self._s, self._ctx, self._now).record(payment, source)
         if body.purchase_id is not None and replay is None:

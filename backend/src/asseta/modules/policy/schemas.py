@@ -14,13 +14,11 @@ from asseta.modules.policy.data_protection import (
 )
 from asseta.modules.policy.engine_hours import ENGINE_HOURS_SEED, EngineHoursPolicy
 from asseta.modules.policy.petty_cash import PETTY_CASH_SEED, PettyCashPolicy
-from asseta.modules.policy.revenue import REVENUE_RECONCILIATION_SEED, RevenueReconciliationPolicy
 
 
 class PolicyType(StrEnum):
     TRACKING = "TRACKING"
     METER_CAPTURE = "METER_CAPTURE"
-    HIRE_BILLING = "HIRE_BILLING"
     DEVICE_SYNC = "DEVICE_SYNC"
     EXPENSE_CAPTURE = "EXPENSE_CAPTURE"
     FRAUD_CONTROLS = "FRAUD_CONTROLS"
@@ -28,7 +26,6 @@ class PolicyType(StrEnum):
     CASH_CUSTODY = "CASH_CUSTODY"
     OVERSIGHT = "OVERSIGHT"
     CUSTOMER_HOURS = "CUSTOMER_HOURS"
-    REVENUE_RECONCILIATION = "REVENUE_RECONCILIATION"
     DATA_PROTECTION = "DATA_PROTECTION"
     PETTY_CASH = "PETTY_CASH"
 
@@ -43,7 +40,7 @@ class PolicyScope(StrEnum):
 
 
 class FieldFleetScope(StrEnum):
-    ASSIGNED = "ASSIGNED"  # field users see their own machines: assigned to them or on jobs they supervise
+    ASSIGNED = "ASSIGNED"  # field users see their own machines: those assigned to them
     ALL = "ALL"  # field users see the whole fleet
 
 
@@ -105,12 +102,11 @@ class GpsEnforcement(StrEnum):
 
 
 class MeterCapturePolicy(BaseModel):
-    """Owner-controlled hour-meter capture rules (R1-E, S-007). Opening and closing modes are independent."""
+    """Owner-controlled hour-meter capture rules (R1-E, S-007)."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    opening_mode: CaptureMode
-    closing_mode: CaptureMode
+    capture_mode: CaptureMode  # how a reading is expected to be taken (versions before ADR-008: `closing_mode`)
     manual_photo_required: bool
     min_ocr_confidence: float = Field(ge=0, le=1)
     max_recapture_attempts: int = Field(ge=0, le=10)
@@ -123,16 +119,6 @@ class MeterCapturePolicy(BaseModel):
     max_hours_per_elapsed_hour: Decimal = Field(gt=0, le=Decimal(5))  # meter can't run faster than wall clock
     continuity_tolerance_hours: Decimal = Field(ge=0, le=Decimal(100))
     telemetry_engine_hours_tolerance: Decimal = Field(ge=0, le=Decimal(100))
-
-
-class HireBillingPolicy(BaseModel):
-    """How meter hours become billable hours (engine hours != billable hours)."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    billable_hours_increment: Decimal = Field(gt=0, le=Decimal(1))  # e.g. 0.1 h
-    rounding: str = Field(pattern="^(UP|HALF_UP|DOWN)$")
-    invoice_void_requires_approval: bool = True  # DEC-032 B1: voiding an issued invoice needs a second person
 
 
 class DeviceSyncPolicy(BaseModel):
@@ -172,48 +158,22 @@ class FraudControlsPolicy(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    engine_activity_min_minutes: int = Field(ge=1, le=24 * 60)  # verified engine-on time without a running job
     fuel_max_litres_per_meter_hour: Decimal | None = Field(default=None, gt=0, le=Decimal(1000))
     expense_threshold_per_machine_per_week: Decimal | None = Field(default=None, gt=0)
     cash_outstanding_max_hours: int = Field(ge=1, le=24 * 60)
     cash_outstanding_max_amount: Decimal | None = Field(default=None, gt=0)
     case_grouping_window_hours: int = Field(ge=1, le=24 * 90)  # new signals join an open case on the same subject
     duplicate_receipt_lookback_days: int = Field(ge=1, le=3660)
-    authorization_tolerance_minutes: int = Field(ge=0, le=24 * 60)  # clock tolerance around job authorization
     detection_lookback_hours: int = Field(ge=1, le=24 * 90)  # how far back each periodic sweep re-examines facts
-    # DEC-031 S1: engine running without work (tracker engine-on without a job, unexplained meter hours outside
-    # jobs, after-hours movement) of one machine and tenant-local day form ONE case; a day with at least this many
-    # minutes adds a summary signal with all evidence. Null = off (each signal follows the usual case grouping).
-    engine_without_work_case_min_minutes: int | None = Field(default=None, ge=1, le=24 * 60)
-    # DEC-031 S2: all fuel issued/purchased into a machine vs its engine hours per tenant-local DAY or ISO WEEK,
-    # inside or outside jobs. Off while either the period or the norm (machine > category > tenant) is empty.
+    # DEC-031 S2: all fuel issued/purchased into a machine vs its engine hours per tenant-local DAY or ISO WEEK.
+    # Off while either the period or the norm (machine > category > tenant) is empty.
     fuel_check_period: FuelCheckPeriod | None = None
     fuel_litres_per_hour_max: Decimal | None = Field(default=None, gt=0, le=Decimal(1000))
-
-
-class BillingMode(StrEnum):
-    PREPAID_HOURS = "PREPAID_HOURS"  # the job consumes the customer's activated purchased hours
-    INVOICE = "INVOICE"  # post-paid: the completed job is invoiced (the behaviour before customer hours)
 
 
 class ActivationBasis(StrEnum):
     VERIFIED_PAYMENT = "VERIFIED_PAYMENT"  # hours activate only from independently verified money
     CREDIT = "CREDIT"  # explicit, permissioned activation within an approved credit arrangement
-
-
-class OverConsumption(StrEnum):
-    BLOCK_START = "BLOCK_START"  # a prepaid job cannot start without remaining activated hours on its machine
-    FLAG_EXCESS = "FLAG_EXCESS"  # it may start; any excess on completion is flagged (never silently consumed)
-
-
-class UsedHoursTreatment(StrEnum):
-    RECEIVABLE = "RECEIVABLE"  # a reversal bills the used hours to the customer (an issued receivable)
-    CASE = "CASE"  # a reversal opens an investigation case about the used hours; no receivable until resolved
-
-
-class HoursDrawdown(StrEnum):
-    AT_COMPLETION = "AT_COMPLETION"  # a prepaid job's hours are taken from the balance when it completes (as before)
-    DAILY = "DAILY"  # each day's customer-work hours are drawn provisionally; the final allocation replaces them
 
 
 class CashActivation(StrEnum):
@@ -238,17 +198,13 @@ class CustomerHoursPolicy(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    enabled: bool  # off => no new purchases/prepaid jobs; jobs keep the invoice flow
+    enabled: bool  # off => no orders (hours sales), no customer lines on machine reports
     walk_in_allowed: bool
-    billing_modes: list[BillingMode] = Field(min_length=1)
-    default_billing_mode: BillingMode
     activation_basis: list[ActivationBasis] = Field(min_length=1)
     partial_activation: bool  # partial verified payments activate hours pro rata
     hours_increment: Decimal = Field(gt=0, le=Decimal(1))  # activation rounds DOWN to this step
     expiry_days: int | None = Field(default=None, ge=1, le=3660)  # None => activated hours never expire
     expiry_warning_days: int = Field(ge=0, le=365)
-    over_consumption: OverConsumption
-    overrun_exception_blocking: bool  # the HOURS_OVERRUN exception blocks the job until reviewed/covered
     transfer_requires_approval: bool
     cancellation_requires_approval: bool
     cancellation_after_consumption_allowed: bool  # cancel the remaining hours of a partly used purchase
@@ -256,21 +212,16 @@ class CustomerHoursPolicy(BaseModel):
     max_discount_percent: Decimal = Field(ge=0, le=Decimal(100))
     credit_allowed: bool
     reason_code_required: bool  # approvals/proposals must cite a tenant reason code (tenant list)
-    # DEC-031 P1: when a running prepaid job's hours leave the balance. DAILY draws each tenant-local day's
-    # customer-work hours (from readings, after the job's billing deductions) provisionally; the final allocation at
-    # completion replaces them, so totals always reconcile. AT_COMPLETION = today's behaviour.
-    drawdown: HoursDrawdown = HoursDrawdown.AT_COMPLETION
     # DEC-031 P2: warn the office (HOURS_LOW_BALANCE) once when a purchase's remaining hours fall to this many hours
     # (and the customer has no more on that machine). Null = no low-balance warning.
     low_balance_hours: Decimal | None = Field(default=None, gt=0, le=Decimal(100000))
     low_balance_notify_customer: bool = False  # also SMS the customer's contact phone (uses the tenant's SMS credits)
     # DEC-032 B3/B4: refunds of unused activated hours are switchable per tenant (D4); a reversal that takes back hours
-    # already used turns them into money owed: an issued receivable (the default) or an investigation case.
+    # already used opens an investigation case about the money owed.
     refund_allowed: bool = False
     # Off (today): field staff record only cash on an hours sale. On: staff who collect cash may also record bank and
     # mobile-money parts of the payment (reference required); they stay claimed until the office verifies them.
     field_noncash_payments: bool = False
-    reversal_used_hours_treatment: UsedHoursTreatment = UsedHoursTreatment.RECEIVABLE
     # T7: corrections, refunds and reversals carry supporting evidence (attachments); a tenant may relax it.
     adjustment_evidence_required: bool = True
     # DEC-032 Phase 3 (off = today): supporting evidence on hours transfers and credit arrangements.
@@ -298,10 +249,6 @@ class CustomerHoursPolicy(BaseModel):
 
     @model_validator(mode="after")
     def _consistent(self) -> "CustomerHoursPolicy":
-        if len(set(self.billing_modes)) != len(self.billing_modes):
-            raise ValueError("billing_modes must not repeat")
-        if self.default_billing_mode not in self.billing_modes:
-            raise ValueError("default_billing_mode must be one of billing_modes")
         if len(set(self.activation_basis)) != len(self.activation_basis):
             raise ValueError("activation_basis must not repeat")
         return self
@@ -342,7 +289,7 @@ class CashCustodyPolicy(BaseModel):
     # DEC-032 Phase 3: supporting evidence on cash variance closures and custody adjustments (off = today).
     variance_evidence_required: bool = False
     custody_adjustment_evidence_required: bool = False
-    # Every cash collection names the purchase or invoice it pays for (online and offline). Off: free-standing.
+    # Every cash collection names the order (or credit invoice) it pays for (online and offline). Off: free-standing.
     collection_link_required: bool = False
     # A variance (cash or customer-hour) is closed by a second person after someone proposes the closure. Off: a
     # variance-permission holder closes it directly. Accountable people, the counterparty and the opener never close.
@@ -390,9 +337,7 @@ class ScorecardItem(StrEnum):
     ALERT = "ALERT"  # tracking alert on the person's machines
     CASH_HELD_TOO_LONG = "CASH_HELD_TOO_LONG"  # remittance overdue (cut-off or holding allowance)
     CASH_DIFFERENCE = "CASH_DIFFERENCE"  # cash variance the person stays accountable for
-    REVENUE_DIFFERENCE = "REVENUE_DIFFERENCE"  # revenue difference on the person's machines
     REFUSED_ATTEMPT = "REFUSED_ATTEMPT"  # missing permission / segregation-of-duties attempt
-    MISSED_CHECKIN = "MISSED_CHECKIN"  # scheduled site check-in not made (M3)
 
 
 class OversightPolicy(BaseModel):
@@ -415,21 +360,12 @@ class OversightPolicy(BaseModel):
     repeat_pattern_items: list[ScorecardItem] = Field(
         default_factory=lambda: [
             ScorecardItem.CASH_DIFFERENCE,
-            ScorecardItem.REVENUE_DIFFERENCE,
             ScorecardItem.MISSING_DAILY_REPORT,
         ],
         max_length=len(ScorecardItem),
     )
-    # M2: completed, billing-ready jobs not on an issued invoice after this many days -> UNBILLED_WORK. Null = off.
-    unbilled_after_days: int | None = Field(default=None, ge=1, le=365)
-    # M2: active machines with no job and no engine hours for this many days -> idle machines. Null = off.
+    # M2: active machines with no approved machine-report hours for this many days -> idle machines. Null = off.
     idle_after_days: int | None = Field(default=None, ge=1, le=365)
-    # M3 site check-in (capability SITE_CHECKIN): supervisors running a job check in by GPS at these tenant-local
-    # times, within +/- the window. Person-location data only while the tenant switches this on.
-    site_checkin_required: bool = False
-    site_checkin_times: list[time] = Field(default_factory=list, max_length=12)
-    site_checkin_window_minutes: int = Field(default=60, ge=5, le=720)
-    site_checkin_max_distance_m: int | None = Field(default=None, ge=10, le=100000)  # null = distance shown only
     # DEC-032 optional modules (capabilities INSIGHTS, INVESTIGATIONS, MANAGED_SERVICE; platform default ON).
     insights_enabled: bool = True
     # Off: the case linker opens no cases; cash variances, revenue differences and signals are still recorded.
@@ -445,17 +381,12 @@ class OversightPolicy(BaseModel):
     def _consistent(self) -> "OversightPolicy":
         if len(set(self.repeat_pattern_items)) != len(self.repeat_pattern_items):
             raise ValueError("repeat_pattern_items must not repeat")
-        if len(set(self.site_checkin_times)) != len(self.site_checkin_times):
-            raise ValueError("site_checkin_times must not repeat")
-        if self.site_checkin_required and not self.site_checkin_times:
-            raise ValueError("site_checkin_required needs at least one time in site_checkin_times")
         return self
 
 
 SCHEMAS: dict[PolicyType, type[BaseModel]] = {
     PolicyType.TRACKING: TrackingPolicy,
     PolicyType.METER_CAPTURE: MeterCapturePolicy,
-    PolicyType.HIRE_BILLING: HireBillingPolicy,
     PolicyType.DEVICE_SYNC: DeviceSyncPolicy,
     PolicyType.EXPENSE_CAPTURE: ExpenseCapturePolicy,
     PolicyType.FRAUD_CONTROLS: FraudControlsPolicy,
@@ -463,7 +394,6 @@ SCHEMAS: dict[PolicyType, type[BaseModel]] = {
     PolicyType.CASH_CUSTODY: CashCustodyPolicy,
     PolicyType.OVERSIGHT: OversightPolicy,
     PolicyType.CUSTOMER_HOURS: CustomerHoursPolicy,
-    PolicyType.REVENUE_RECONCILIATION: RevenueReconciliationPolicy,
     PolicyType.DATA_PROTECTION: DataProtectionPolicy,
     PolicyType.PETTY_CASH: PettyCashPolicy,
 }
@@ -472,7 +402,7 @@ SCHEMAS: dict[PolicyType, type[BaseModel]] = {
 # MACHINE_CATEGORY entry has no overrides at that scope.
 OVERRIDABLE: dict[PolicyType, dict[PolicyScope, frozenset[str]]] = {
     PolicyType.ENGINE_HOURS: {
-        PolicyScope.MACHINE: frozenset({"baseline_required_before_start", "daily_report_required"}),
+        PolicyScope.MACHINE: frozenset({"daily_report_required"}),
         PolicyScope.SITE: frozenset(),
     },
     PolicyType.TRACKING: {
@@ -494,8 +424,7 @@ OVERRIDABLE: dict[PolicyType, dict[PolicyScope, frozenset[str]]] = {
     PolicyType.METER_CAPTURE: {
         PolicyScope.MACHINE: frozenset(
             {
-                "opening_mode",
-                "closing_mode",
+                "capture_mode",
                 "manual_photo_required",
                 "min_ocr_confidence",
                 "max_hours_per_elapsed_hour",
@@ -504,7 +433,6 @@ OVERRIDABLE: dict[PolicyType, dict[PolicyScope, frozenset[str]]] = {
         ),
         PolicyScope.SITE: frozenset({"gps_max_accuracy_m", "tracker_distance_tolerance_m"}),
     },
-    PolicyType.HIRE_BILLING: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
     PolicyType.DEVICE_SYNC: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
     PolicyType.EXPENSE_CAPTURE: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
     PolicyType.CASH_CUSTODY: {
@@ -517,25 +445,64 @@ OVERRIDABLE: dict[PolicyType, dict[PolicyScope, frozenset[str]]] = {
         PolicyScope.MACHINE_CATEGORY: frozenset({"fuel_litres_per_hour_max"}),
         PolicyScope.MACHINE: frozenset(
             {
-                "engine_activity_min_minutes",
                 "fuel_max_litres_per_meter_hour",
                 "expense_threshold_per_machine_per_week",
-                "engine_without_work_case_min_minutes",
                 "fuel_litres_per_hour_max",
             }
         ),
         PolicyScope.SITE: frozenset(),
     },
     PolicyType.CUSTOMER_HOURS: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
-    PolicyType.REVENUE_RECONCILIATION: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
     PolicyType.DATA_PROTECTION: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
     PolicyType.PETTY_CASH: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
 }
 
-# Settings a policy type no longer has (ADR-008 removed "Book the job"). Versions written before keep them in their
-# stored values; readers drop them before validating, and new versions may not set them (unknown field).
+# Settings a policy type no longer has (ADR-008 removed "Book the job", then jobs, contracts, hire invoices, site
+# check-ins and job revenue differences). Versions written before keep them in their stored values; readers drop them
+# before validating, and new versions may not set them (unknown field, POLICY_UNKNOWN_FIELD).
 RETIRED_FIELDS: dict[PolicyType, frozenset[str]] = {
-    PolicyType.CUSTOMER_HOURS: frozenset({"walk_in_standard_contract", "prepaid_job_auto_approval"}),
+    PolicyType.CUSTOMER_HOURS: frozenset(
+        {
+            "walk_in_standard_contract",
+            "prepaid_job_auto_approval",
+            "billing_modes",
+            "default_billing_mode",
+            "over_consumption",
+            "overrun_exception_blocking",
+            "drawdown",
+            "reversal_used_hours_treatment",
+        }
+    ),
+    PolicyType.ENGINE_HOURS: frozenset(
+        {
+            "baseline_required_before_start",
+            "prevent_overlapping_allocation",
+            "prevent_overlapping_activity",
+            "in_job_time_counts_as_customer_work",
+            "changeover_splits_billing",
+        }
+    ),
+    PolicyType.METER_CAPTURE: frozenset({"opening_mode"}),
+    PolicyType.FRAUD_CONTROLS: frozenset(
+        {"engine_activity_min_minutes", "authorization_tolerance_minutes", "engine_without_work_case_min_minutes"}
+    ),
+    PolicyType.OVERSIGHT: frozenset(
+        {
+            "unbilled_after_days",
+            "site_checkin_required",
+            "site_checkin_times",
+            "site_checkin_window_minutes",
+            "site_checkin_max_distance_m",
+        }
+    ),
+}
+# Settings stored under an older name: read as the new one (new versions must use the new name).
+RENAMED_FIELDS: dict[PolicyType, dict[str, str]] = {
+    PolicyType.METER_CAPTURE: {"closing_mode": "capture_mode"},
+}
+# List values a setting no longer accepts, left out when older versions are read.
+RETIRED_VALUES: dict[PolicyType, dict[str, frozenset[str]]] = {
+    PolicyType.OVERSIGHT: {"repeat_pattern_items": frozenset({"REVENUE_DIFFERENCE", "MISSED_CHECKIN"})},
 }
 
 # Platform-wide settings kept in a policy type: only a PLATFORM version may set them; tenant and lower layers never
@@ -546,7 +513,6 @@ PLATFORM_ONLY_FIELDS: dict[PolicyType, frozenset[str]] = {
 
 SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
     PolicyType.ENGINE_HOURS: ENGINE_HOURS_SEED,
-    PolicyType.REVENUE_RECONCILIATION: REVENUE_RECONCILIATION_SEED,
     PolicyType.DATA_PROTECTION: DATA_PROTECTION_SEED,
     PolicyType.PETTY_CASH: PETTY_CASH_SEED,
     PolicyType.TRACKING: {
@@ -567,8 +533,7 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "operating_weekdays": [0, 1, 2, 3, 4, 5, 6],
     },
     PolicyType.METER_CAPTURE: {
-        "opening_mode": "AUTOMATIC",
-        "closing_mode": "AUTOMATIC",
+        "capture_mode": "AUTOMATIC",
         "manual_photo_required": True,
         "min_ocr_confidence": 0.85,
         "max_recapture_attempts": 3,
@@ -581,11 +546,6 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "max_hours_per_elapsed_hour": "1.05",
         "continuity_tolerance_hours": "0.5",
         "telemetry_engine_hours_tolerance": "0.5",
-    },
-    PolicyType.HIRE_BILLING: {
-        "billable_hours_increment": "0.1",
-        "rounding": "HALF_UP",
-        "invoice_void_requires_approval": True,
     },
     PolicyType.DEVICE_SYNC: {
         "offline_grant_hours": 72,
@@ -601,16 +561,13 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "fuel_enabled": True,
     },
     PolicyType.FRAUD_CONTROLS: {
-        "engine_activity_min_minutes": 30,
         "fuel_max_litres_per_meter_hour": None,
         "expense_threshold_per_machine_per_week": None,
         "cash_outstanding_max_hours": 48,
         "cash_outstanding_max_amount": None,
         "case_grouping_window_hours": 72,
         "duplicate_receipt_lookback_days": 90,
-        "authorization_tolerance_minutes": 5,
         "detection_lookback_hours": 168,
-        "engine_without_work_case_min_minutes": None,
         "fuel_check_period": None,
         "fuel_litres_per_hour_max": None,
     },
@@ -643,13 +600,8 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "near_threshold_percent": "90",
         "repeat_pattern_count": None,
         "repeat_pattern_window_days": 30,
-        "repeat_pattern_items": ["CASH_DIFFERENCE", "REVENUE_DIFFERENCE", "MISSING_DAILY_REPORT"],
-        "unbilled_after_days": None,
+        "repeat_pattern_items": ["CASH_DIFFERENCE", "MISSING_DAILY_REPORT"],
         "idle_after_days": None,
-        "site_checkin_required": False,
-        "site_checkin_times": [],
-        "site_checkin_window_minutes": 60,
-        "site_checkin_max_distance_m": None,
         "insights_enabled": True,
         "investigations_enabled": True,
         "managed_service_enabled": True,
@@ -658,15 +610,11 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
     PolicyType.CUSTOMER_HOURS: {
         "enabled": True,
         "walk_in_allowed": True,
-        "billing_modes": ["PREPAID_HOURS", "INVOICE"],
-        "default_billing_mode": "INVOICE",
         "activation_basis": ["VERIFIED_PAYMENT", "CREDIT"],
         "partial_activation": True,
         "hours_increment": "0.01",
         "expiry_days": None,
         "expiry_warning_days": 7,
-        "over_consumption": "BLOCK_START",
-        "overrun_exception_blocking": True,
         "transfer_requires_approval": True,
         "cancellation_requires_approval": True,
         "cancellation_after_consumption_allowed": False,
@@ -674,12 +622,10 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "max_discount_percent": "100",
         "credit_allowed": True,
         "reason_code_required": False,
-        "drawdown": "AT_COMPLETION",
         "low_balance_hours": None,
         "low_balance_notify_customer": False,
         "refund_allowed": False,
         "field_noncash_payments": False,
-        "reversal_used_hours_treatment": "RECEIVABLE",
         "adjustment_evidence_required": True,
         "transfer_evidence_required": False,
         "credit_evidence_required": False,

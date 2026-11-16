@@ -1,7 +1,7 @@
 """Intelligence worker (Gate 6): event-driven risk checks from the `asseta.*` topics (receipt duplicates on expense
 submission, linking alerts / meter exceptions / segregation-of-duties attempts to cases) plus a periodic sweep of
 every tenant, each in its own RLS scope. Detection is idempotent, so redelivery and re-sweeps are harmless. The
-worker never blocks jobs, payments or tracking: it only reads facts and writes signals and cases.
+worker never blocks machine reports, payments or tracking: it only reads facts and writes signals and cases.
 
 Gate 6D: every `ML_EVERY_SECONDS` the ML cycle refreshes the recent weekly snapshots of tenants with a deployed
 model, runs bounded inference (`inference.run_inference_cycle`) and the daily drift check. Every step catches its

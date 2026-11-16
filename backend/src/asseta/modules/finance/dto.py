@@ -11,12 +11,10 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_vali
 from asseta.modules.finance.deposit_models import RemittanceMethod
 from asseta.modules.finance.models import (
     CustodyEntryType,
-    HireInvoiceStatus,
     HirePaymentMethod,
     SettlementStatus,
 )
-from asseta.modules.jobs.charges import ChargeKind
-from asseta.modules.platform_billing.dto import CurrencyCode, Money, Reason
+from asseta.modules.platform_billing.dto import CurrencyCode, Money
 
 
 class RemittanceEvidenceStatus(StrEnum):
@@ -36,68 +34,7 @@ class Dto(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# --- invoices -----------------------------------------------------------------------------------------------
-class HireInvoiceDraftIn(BaseModel):
-    customer_id: uuid.UUID
-    job_ids: list[uuid.UUID] = Field(min_length=1, max_length=100)
-    notes: Note | None = None
-
-
-class HireInvoiceIssueIn(BaseModel):
-    due_date: date | None = Field(default=None, description="Defaults to issue date + customer payment terms")
-
-
-class HireInvoiceVoidIn(BaseModel):
-    reason: Reason
-    reason_code_id: uuid.UUID | None = None  # tenant reason list (kind REVERSAL), when the tenant requires one
-    evidence_attachment_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
-
-
-class HireInvoiceLineDto(Dto):
-    line_no: int
-    kind: ChargeKind
-    job_id: uuid.UUID
-    machine_id: uuid.UUID
-    description: str
-    quantity: Decimal
-    unit_price: Money
-    amount: Money
-
-
-class HireInvoiceDto(BaseModel):
-    id: uuid.UUID
-    customer_id: uuid.UUID
-    invoice_number: str | None
-    status: HireInvoiceStatus
-    currency: str
-    subtotal: Money
-    discount_total: Money
-    tax_total: Money
-    total: Money
-    amount_paid: Money  # verified allocations only
-    balance: Money
-    payment_state: Literal["UNPAID", "PARTIALLY_PAID", "PAID"] | None  # None unless ISSUED
-    due_date: date | None
-    notes: str | None
-    created_at: datetime
-    issued_at: datetime | None
-    voided_at: datetime | None
-    void_reason: str | None
-    pending_void_request_id: uuid.UUID | None = None  # a void awaiting a second person's decision (DEC-032 B1)
-    job_ids: list[uuid.UUID]
-    lines: list[HireInvoiceLineDto]
-
-
 # --- customer payments --------------------------------------------------------------------------------------
-class HireAllocationIn(BaseModel):
-    invoice_id: uuid.UUID
-    amount: PositiveAmount
-
-
-class HireAllocateIn(BaseModel):
-    allocations: list[HireAllocationIn] = Field(min_length=1, max_length=50)
-
-
 class CustomerPaymentIn(BaseModel):
     customer_id: uuid.UUID
     amount: PositiveAmount
@@ -108,7 +45,6 @@ class CustomerPaymentIn(BaseModel):
     received_by_staff_id: uuid.UUID | None = None
     note: Note | None = None
     client_id: uuid.UUID | None = Field(default=None, description="Device/client id (offline idempotency)")
-    allocations: list[HireAllocationIn] = Field(default_factory=list, max_length=50)
 
     @model_validator(mode="after")
     def _reference(self) -> "CustomerPaymentIn":
@@ -128,7 +64,6 @@ class CashCollectionIn(BaseModel):
     staff_member_id: uuid.UUID | None = Field(default=None, description="Defaults to the caller's staff record")
     reference: Ref | None = None
     note: Note | None = None
-    allocations: list[HireAllocationIn] = Field(default_factory=list, max_length=50)
     purchase_id: uuid.UUID | None = Field(
         default=None,
         description="The hours purchase this cash pays for: its id, or its offline client id (DEC-032). Links up to "
@@ -142,15 +77,6 @@ class PurchaseLinkDto(BaseModel):
     purchase_id: uuid.UUID
     purchase_number: str
     amount: Money
-
-
-class HireAllocationDto(Dto):
-    id: uuid.UUID
-    invoice_id: uuid.UUID
-    amount: Money
-    created_at: datetime
-    released_at: datetime | None
-    release_reason: str | None
 
 
 class CustomerPaymentDto(Dto):
@@ -177,7 +103,6 @@ class CustomerPaymentDto(Dto):
     decision_note: str | None
     reversed_at: datetime | None = None  # a verified payment taken back by an approved reversal (DEC-032 B4)
     reversal_id: uuid.UUID | None = None  # the adjustment request that reversed it
-    allocations: list[HireAllocationDto] = []
     collection_number: str | None = None
     purchase_links: list[PurchaseLinkDto] | None = None
     # CUSTOMER_HOURS cash_activation: how the system verified this cash payment of an hours sale (null when a person
@@ -198,23 +123,21 @@ class SettlementDecisionIn(BaseModel):
 
 
 class CustomerBalanceDto(BaseModel):
-    """Positive balance = customer owes; negative = customer credit (deposits/advances/overpayment)."""
+    """What the customer owes on credit invoices (ADR-008 §1): invoiced minus verified payments of those invoices."""
 
     customer_id: uuid.UUID
     currency: str
-    invoiced: Money
-    reversed: Money
-    verified_payments: Money
-    payment_reversals_and_refunds: Money = Decimal(0)  # debits: verified payments reversed, refunds paid out
+    invoiced: Money = Field(description="Credit invoices (orders not cancelled)")
+    verified_payments: Money = Field(description="Verified, not reversed, payments of those invoices")
     balance: Money
-    unallocated_credit: Money
+    unallocated_credit: Money = Field(description="Verified money linked to no order (deposits, overpayment)")
     claimed_unverified: Money  # shown separately; never reduces the balance
     open_invoices: int
 
 
 class StatementLineDto(BaseModel):
     at: datetime
-    kind: Literal["INVOICE", "REVERSAL", "PAYMENT", "ADJUSTMENT"]
+    kind: Literal["INVOICE", "PAYMENT"]
     reference: str
     description: str
     debit: Money
@@ -428,8 +351,7 @@ class ProfitabilityRowDto(BaseModel):
     group_key: uuid.UUID | None  # None = costs not attributable to this grouping
     label: str
     currency: str
-    revenue: Money  # issued invoice lines excl. tax, net of discounts
-    reversed_revenue: Money  # voided in the period
+    revenue: Money  # customer hours used in approved machine reports x their order's effective price
     net_revenue: Money
     expense_cost: Money
     fuel_cost: Money
@@ -439,7 +361,7 @@ class ProfitabilityRowDto(BaseModel):
 
 
 class ProfitabilityDto(BaseModel):
-    group_by: Literal["MACHINE", "JOB", "CUSTOMER"]
+    group_by: Literal["MACHINE", "CUSTOMER"]
     period_from: date
     period_to: date
     timezone: str

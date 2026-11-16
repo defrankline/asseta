@@ -7,7 +7,7 @@ Expiry is FIFO over activation lots: deductions use the earliest-expiring lots f
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from decimal import ROUND_FLOOR, Decimal
 from enum import StrEnum
 from typing import Any
@@ -19,6 +19,7 @@ from asseta.modules.finance.models import CustomerPayment, SettlementStatus
 from asseta.modules.hours.models import (
     SIGN,
     ActivationSource,
+    CreditInvoice,
     HoursLedgerEntry,
     HoursPaymentAllocation,
     HoursPurchase,
@@ -66,11 +67,6 @@ class PurchaseTotals:
     @property
     def remaining(self) -> Decimal:
         return sum((m.remaining for m in self.machines.values()), ZERO)
-
-    @property
-    def provisional(self) -> Decimal:
-        """Hours currently held by running jobs under daily drawdown (drawn provisionally, not yet final)."""
-        return self.total(T.PROVISIONAL) - self.total(T.PROVISIONAL_REVERSED)
 
     def remaining_on(self, machine_id: uuid.UUID) -> Decimal:
         m = self.machines.get(machine_id)
@@ -138,6 +134,8 @@ class PurchaseQueue(StrEnum):
     AWAITING_ACTIVATION = "AWAITING_ACTIVATION"  # hours bought and not yet activated
     UNPAID = "UNPAID"  # awaiting activation with no payment waiting to be confirmed
     UNCONFIRMED = "UNCONFIRMED"  # awaiting activation with a claimed payment the office has not confirmed
+    # ADR-008 §1: awaiting activation and sold with a CREDIT line (credit invoice): the credit approvers' queue
+    CREDIT_TO_ACTIVATE = "CREDIT_TO_ACTIVATE"
 
 
 def purchase_queue_select() -> Any:
@@ -182,6 +180,8 @@ def purchase_queue_ids(queue: PurchaseQueue) -> Select[Any]:
         return stmt.where(sub.c.claimed <= 0)
     if queue is PurchaseQueue.UNCONFIRMED:
         return stmt.where(sub.c.claimed > 0)
+    if queue is PurchaseQueue.CREDIT_TO_ACTIVATE:
+        return stmt.where(sub.c.id.in_(select(CreditInvoice.purchase_id)))
     return stmt
 
 
@@ -223,7 +223,7 @@ def derived_status(purchase: HoursPurchase, totals: PurchaseTotals) -> str:
         return "PARTLY_ACTIVE"
     if totals.remaining > 0:
         return "ACTIVE"
-    used = totals.total(T.CONSUMED) + totals.provisional
+    used = totals.total(T.CONSUMED)
     return "EXPIRED" if totals.total(T.EXPIRED) > 0 and used <= 0 else "CONSUMED"
 
 
@@ -241,14 +241,11 @@ class LedgerWriter:
         source: ActivationSource | None = None,
         expires_at: datetime | None = None,
         payment_id: uuid.UUID | None = None,
-        job_id: uuid.UUID | None = None,
-        allocation_id: uuid.UUID | None = None,
         transfer_id: uuid.UUID | None = None,
         cancellation_id: uuid.UUID | None = None,
         adjustment_request_id: uuid.UUID | None = None,
         reason: str | None = None,
         policy_version: str | None = None,
-        usage_day: date | None = None,
         machine_report_id: uuid.UUID | None = None,
     ) -> HoursLedgerEntry:
         entry = HoursLedgerEntry(
@@ -263,14 +260,11 @@ class LedgerWriter:
             activation_source=source,
             expires_at=expires_at,
             payment_id=payment_id,
-            job_id=job_id,
-            allocation_id=allocation_id,
             transfer_id=transfer_id,
             cancellation_id=cancellation_id,
             adjustment_request_id=adjustment_request_id,
             reason=reason,
             policy_version=policy_version,
-            usage_day=usage_day,
             machine_report_id=machine_report_id,
             created_by=self._actor,
             created_at=self._now,
@@ -303,7 +297,6 @@ def due_to_expire(session: Session, purchase: HoursPurchase, totals: PurchaseTot
         + totals.total(T.EXPIRED)
         + totals.total(T.CORRECTION_DEDUCT)
         - totals.total(T.CORRECTION_ADD)
-        + totals.provisional
     )
     return min(max(ZERO, lots_due - used), max(ZERO, totals.remaining))
 

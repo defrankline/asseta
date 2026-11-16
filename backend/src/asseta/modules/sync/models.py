@@ -130,4 +130,4 @@ class BlobChunk(Base):
 
 
 # Tables delivered to devices by delta pull; each carries a server-monotonic `sync_revision` maintained by trigger.
-SYNCED_TABLES = ("job", "machine", "job_site", "customer", "rental_contract", "staff_member", "machine_assignment")
+SYNCED_TABLES = ("machine", "job_site", "customer", "staff_member", "machine_assignment")

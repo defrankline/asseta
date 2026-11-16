@@ -121,8 +121,8 @@ def update_machine(
 def deactivate_machine(
     machine_id: uuid.UUID, body: LifecycleChangeIn, session: DbSession, now: Now, ctx: Write
 ) -> MachineDto:
-    """Retire (status DISPOSED). Refused while the machine has open jobs, an assigned tracker or an active billing
-    enrollment; open staff assignments are ended."""
+    """Retire (status DISPOSED). Refused while a machine report on it waits for a decision, it has an assigned tracker
+    or an active billing enrollment; open staff assignments are ended."""
     dto = FleetLifecycleService(session, ctx, now).set_machine_active(machine_id, False, body.reason, body.version)
     return machine_dto(session, dto, now)
 
@@ -245,7 +245,7 @@ def update_staff(staff_id: uuid.UUID, body: StaffUpdateIn, session: DbSession, n
 def deactivate_staff(
     staff_id: uuid.UUID, body: LifecycleChangeIn, session: DbSession, now: Now, ctx: StaffWrite
 ) -> StaffDto:
-    """Refused while supervising an approved/running job or holding company cash; open machine assignments end."""
+    """Refused while holding company cash; open machine assignments end."""
     return FleetLifecycleService(session, ctx, now).set_staff_active(staff_id, False, body.reason, body.version)
 
 

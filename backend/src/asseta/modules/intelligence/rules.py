@@ -2,12 +2,11 @@
 whose evidence holds facts and thresholds only — never a conclusion about a person. Deterministic and identical for
 the periodic sweep and event-driven runs; the dedupe key makes every run idempotent."""
 
-import itertools
 import uuid
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -29,7 +28,6 @@ class SignalFinding:
     evidence: dict[str, Any]
     policy_version: str
     machine_id: uuid.UUID | None = None
-    job_id: uuid.UUID | None = None
     staff_member_id: uuid.UUID | None = None
     involved_user_ids: tuple[uuid.UUID, ...] = ()
     involved_staff_ids: tuple[uuid.UUID, ...] = ()
@@ -43,264 +41,10 @@ def _ids(values: Iterable[uuid.UUID | None]) -> tuple[uuid.UUID, ...]:
     return tuple(sorted({v for v in values if v is not None}, key=str))
 
 
-# --- UNREPORTED_ENGINE_ACTIVITY --------------------------------------------------------------------------------
-@dataclass(frozen=True)
-class EngineState:
-    at: datetime
-    on: bool
-
-
-@dataclass(frozen=True)
-class EngineHoursSample:
-    at: datetime
-    engine_hours: Decimal
-
-
-@dataclass(frozen=True)
-class EngineRun:
-    start: datetime
-    end: datetime
-    ongoing: bool  # still running when observed (end = observation time)
-    detail: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class JobWindow:
-    """When a job was IN_PROGRESS: [started_at, completed_at), open-ended while still running."""
-
-    job_id: uuid.UUID
-    job_number: str
-    start: datetime
-    end: datetime | None
-
-
-def runs_from_states(states: Sequence[EngineState], now: datetime) -> list[EngineRun]:
-    """Engine-on runs from event-time ordered ENGINE ON/OFF states (include the last state before the window so a
-    run's start is its real ON transition and stays stable across sweeps)."""
-    runs, start = [], None
-    for s in sorted(states, key=lambda x: x.at):
-        if s.on and start is None:
-            start = s.at
-        elif not s.on and start is not None:
-            runs.append(EngineRun(start, s.at, False, {"basis": "IGNITION"}))
-            start = None
-    if start is not None:
-        runs.append(EngineRun(start, now, True, {"basis": "IGNITION"}))
-    return runs
-
-
-def runs_from_engine_hours(samples: Sequence[EngineHoursSample], window_start: datetime) -> list[EngineRun]:
-    """Runs where consecutive engine-hour readings increase. A run that already began before the window is skipped:
-    an earlier sweep evaluated it (keeps its dedupe key stable)."""
-    ordered = sorted(samples, key=lambda x: x.at)
-    runs: list[EngineRun] = []
-    first: EngineHoursSample | None = None
-    last: EngineHoursSample | None = None
-    for a, b in itertools.pairwise(ordered):
-        if b.engine_hours > a.engine_hours:
-            if first is None:
-                first = a
-            last = b
-            continue
-        if first is not None and last is not None:
-            runs.append(_hours_run(first, last))
-        first = last = None
-    if first is not None and last is not None:
-        runs.append(_hours_run(first, last))
-    return [r for r in runs if r.start >= window_start]
-
-
-def _hours_run(first: EngineHoursSample, last: EngineHoursSample) -> EngineRun:
-    detail = {
-        "basis": "ENGINE_HOURS",
-        "engine_hours_start": str(first.engine_hours),
-        "engine_hours_end": str(last.engine_hours),
-    }
-    return EngineRun(first.at, last.at, False, detail)
-
-
-def uncovered(start: datetime, end: datetime, jobs: Sequence[JobWindow]) -> list[tuple[datetime, datetime]]:
-    """Parts of [start, end) not covered by any running job."""
-    segments, cursor = [], start
-    for j in sorted(jobs, key=lambda x: x.start):
-        job_end = j.end or end
-        if job_end <= cursor or j.start >= end:
-            continue
-        if j.start > cursor:
-            segments.append((cursor, j.start))
-        cursor = max(cursor, job_end)
-        if cursor >= end:
-            break
-    if cursor < end:
-        segments.append((cursor, end))
-    return segments
-
-
-def unreported_engine_activity(
-    machine_id: uuid.UUID,
-    runs: Sequence[EngineRun],
-    jobs: Sequence[JobWindow],
-    verified_since: datetime,
-    min_minutes: int,
-    policy_version: str,
-    supervisors: Sequence[uuid.UUID] = (),
-) -> list[SignalFinding]:
-    """Verified engine activity (ignition on / engine hours rising) of at least `min_minutes` while no job on the
-    machine was IN_PROGRESS. Only time after the capability was first verified counts."""
-    out = []
-    for run in runs:
-        start = max(run.start, verified_since)
-        if start >= run.end:
-            continue
-        for seg_start, seg_end in uncovered(start, run.end, jobs):
-            minutes = (seg_end - seg_start).total_seconds() / 60
-            if minutes < min_minutes:
-                continue
-            out.append(
-                SignalFinding(
-                    RuleCode.UNREPORTED_ENGINE_ACTIVITY,
-                    SignalSeverity.WARNING,
-                    SubjectType.MACHINE,
-                    machine_id,
-                    seg_start,
-                    seg_end,
-                    f"UEA:{machine_id}:{seg_start.isoformat()}",
-                    {
-                        **run.detail,
-                        "engine_on_from": _iso(run.start),
-                        "engine_on_until": _iso(run.end),
-                        "still_running_when_observed": run.ongoing,
-                        "uncovered_from": _iso(seg_start),
-                        "uncovered_until": _iso(seg_end),
-                        "uncovered_minutes": round(minutes, 1),
-                        "capability_verified_since": _iso(verified_since),
-                        "running_jobs_nearby": [
-                            {
-                                "job_id": str(j.job_id),
-                                "job_number": j.job_number,
-                                "from": _iso(j.start),
-                                "to": _iso(j.end),
-                            }
-                            for j in jobs
-                        ],
-                        "threshold_minutes": min_minutes,
-                    },
-                    policy_version=policy_version,
-                    machine_id=machine_id,
-                    involved_staff_ids=_ids(supervisors),
-                )
-            )
-    return out
-
-
-# --- ENGINE_RUNNING_WITHOUT_WORK (DEC-031 S1) -------------------------------------------------------------------
-@dataclass(frozen=True)
-class TrackerGap:
-    """Verified engine-on time (tracker) with no running job, clipped to one day."""
-
-    start: datetime
-    end: datetime
-    basis: str  # IGNITION | ENGINE_HOURS
-
-
-@dataclass(frozen=True)
-class MeterGap:
-    """An unexplained meter interval outside jobs; `hours_in_day` is its wall-clock share of the day."""
-
-    start_ref: uuid.UUID
-    end_ref: uuid.UUID
-    start_at: datetime
-    end_at: datetime
-    start_reading: Decimal
-    end_reading: Decimal
-    hours: Decimal
-    hours_in_day: Decimal
-
-
-@dataclass(frozen=True)
-class MovementAlert:
-    alert_id: uuid.UUID
-    at: datetime
-    title: str
-
-
-@dataclass(frozen=True)
-class EngineDay:
-    machine_id: uuid.UUID
-    day: date  # tenant-local
-    start: datetime
-    end: datetime
-    tracker: tuple[TrackerGap, ...] = ()
-    meter: tuple[MeterGap, ...] = ()
-    movements: tuple[MovementAlert, ...] = ()
-    related_signal_ids: tuple[uuid.UUID, ...] = ()
-    supervisors: tuple[uuid.UUID, ...] = ()
-
-
-def engine_running_without_work(d: EngineDay, min_minutes: int | None, policy_version: str) -> SignalFinding | None:
-    """One summary per machine and tenant-local day: engine time without work from the tracker (engine on, no job)
-    or the meter (unexplained hours outside jobs) — the larger of the two, never added together since both may
-    describe the same running — of at least `min_minutes`. After-hours movements of the day are attached as
-    evidence. Off when `min_minutes` is None."""
-    if min_minutes is None:
-        return None
-    tracker_minutes = sum((g.end - g.start).total_seconds() for g in d.tracker) / 60
-    meter_hours = sum((g.hours_in_day for g in d.meter), Decimal(0))
-    meter_minutes = float(meter_hours * 60)
-    minutes = max(tracker_minutes, meter_minutes)
-    if minutes < min_minutes:
-        return None
-    return SignalFinding(
-        RuleCode.ENGINE_RUNNING_WITHOUT_WORK,
-        SignalSeverity.WARNING,
-        SubjectType.MACHINE,
-        d.machine_id,
-        d.start,
-        d.end,
-        f"EWW:{d.machine_id}:{d.day.isoformat()}",
-        {
-            "day": d.day.isoformat(),
-            "minutes_without_work": round(minutes, 1),
-            "tracker_minutes_without_job": round(tracker_minutes, 1),
-            "meter_unexplained_hours": str(meter_hours.quantize(Decimal("0.01"))),
-            "after_hours_movements": len(d.movements),
-            "threshold_minutes": min_minutes,
-            "tracker_periods": [
-                {
-                    "from": _iso(g.start),
-                    "until": _iso(g.end),
-                    "minutes": round((g.end - g.start).total_seconds() / 60, 1),
-                    "basis": g.basis,
-                }
-                for g in d.tracker
-            ],
-            "meter_intervals": [
-                {
-                    "start_ref": str(g.start_ref),
-                    "end_ref": str(g.end_ref),
-                    "from": _iso(g.start_at),
-                    "until": _iso(g.end_at),
-                    "start_reading": str(g.start_reading),
-                    "end_reading": str(g.end_reading),
-                    "hours": str(g.hours),
-                    "hours_in_day": str(g.hours_in_day.quantize(Decimal("0.01"))),
-                }
-                for g in d.meter
-            ],
-            "movement_alerts": [{"alert_id": str(m.alert_id), "at": _iso(m.at), "title": m.title} for m in d.movements],
-            "related_signal_ids": [str(i) for i in d.related_signal_ids],
-        },
-        policy_version=policy_version,
-        machine_id=d.machine_id,
-        involved_staff_ids=_ids(d.supervisors),
-    )
-
-
 # --- MACHINE_FUEL_ABOVE_NORM (DEC-031 S2) ----------------------------------------------------------------------
 @dataclass(frozen=True)
 class MachineFuelPeriod:
-    """All fuel issued or purchased into a machine in one tenant-local period vs its engine hours (meter ledger,
-    inside and outside jobs)."""
+    """All fuel issued or purchased into a machine in one tenant-local period vs its engine hours (meter ledger)."""
 
     machine_id: uuid.UUID
     period_kind: str  # DAY | WEEK
@@ -309,10 +53,8 @@ class MachineFuelPeriod:
     end: datetime
     litres_into_machine: Decimal
     engine_hours: Decimal
-    engine_hours_in_jobs: Decimal
     fuel_event_ids: tuple[uuid.UUID, ...]
     recorded_by: tuple[uuid.UUID, ...]
-    job_numbers: tuple[str, ...] = ()
 
 
 def machine_fuel_above_norm(
@@ -326,7 +68,6 @@ def machine_fuel_above_norm(
     if rate <= norm:
         return None
     hours = p.engine_hours.quantize(Decimal("0.01"))
-    in_jobs = p.engine_hours_in_jobs.quantize(Decimal("0.01"))
     return SignalFinding(
         RuleCode.MACHINE_FUEL_ABOVE_NORM,
         SignalSeverity.WARNING,
@@ -340,12 +81,9 @@ def machine_fuel_above_norm(
             "period": p.period_key,
             "litres_into_machine": str(p.litres_into_machine),
             "engine_hours": str(hours),
-            "engine_hours_in_jobs": str(in_jobs),
-            "engine_hours_outside_jobs": str(hours - in_jobs),
             "litres_per_engine_hour": str(rate),
             "norm_litres_per_engine_hour": str(norm),
             "norm_source": norm_source,
-            "job_numbers": list(p.job_numbers),
             "fuel_event_ids": [str(i) for i in p.fuel_event_ids],
         },
         policy_version=policy_version,
@@ -364,7 +102,6 @@ class ReceiptUse:
     submitted_by: uuid.UUID | None
     custodian_staff_id: uuid.UUID | None
     machine_id: uuid.UUID | None
-    job_id: uuid.UUID | None
     amount: Decimal
     currency: str
 
@@ -419,7 +156,6 @@ def duplicate_receipts(
                     },
                     policy_version=policy_version,
                     machine_id=cur.machine_id,
-                    job_id=cur.job_id,
                     staff_member_id=cur.custodian_staff_id,
                     involved_user_ids=_ids(u.submitted_by for u in [*earlier, cur]),
                     involved_staff_ids=_ids(u.custodian_staff_id for u in [*earlier, cur]),
@@ -431,11 +167,11 @@ def duplicate_receipts(
 # --- FUEL_ALLOWANCE_EXCEEDED -----------------------------------------------------------------------------------
 @dataclass(frozen=True)
 class FuelWindow:
-    """Fuel recorded on a machine between a job's opening and closing meter readings."""
+    """Fuel recorded on a machine over an approved machine report (its previous reading to its reading)."""
 
     machine_id: uuid.UUID
-    job_id: uuid.UUID
-    job_number: str
+    report_id: uuid.UUID
+    report_number: str
     opening_reading: Decimal
     closing_reading: Decimal
     opening_at: datetime
@@ -464,9 +200,9 @@ def fuel_allowance_exceeded(w: FuelWindow, allowance: Decimal | None, policy_ver
         w.machine_id,
         w.opening_at,
         w.closing_at,
-        f"FUEL:{w.job_id}",
+        f"FUEL:MR:{w.report_id}",
         {
-            "job_number": w.job_number,
+            "machine_report_number": w.report_number,
             "opening_reading": str(w.opening_reading),
             "closing_reading": str(w.closing_reading),
             "meter_hours": str(hours),
@@ -479,7 +215,6 @@ def fuel_allowance_exceeded(w: FuelWindow, allowance: Decimal | None, policy_ver
         },
         policy_version=policy_version,
         machine_id=w.machine_id,
-        job_id=w.job_id,
         involved_user_ids=_ids(w.recorded_by),
     )
 
@@ -574,67 +309,3 @@ def cash_not_handed_over(
         )
         for reason, severity in reasons
     ]
-
-
-# --- WORK_WITHOUT_AUTHORIZATION --------------------------------------------------------------------------------
-@dataclass(frozen=True)
-class WorkRecord:
-    kind: str  # JOB_ACTIVITY | METER_CAPTURE | EXPENSE
-    record_id: uuid.UUID
-    job_id: uuid.UUID
-    job_number: str
-    machine_id: uuid.UUID
-    occurred_at: datetime  # when the work/reading/spend happened (device time)
-    received_at: datetime
-    job_status: str
-    approved_at: datetime | None
-    completed_at: datetime | None
-    recorded_by: uuid.UUID | None
-    recorder_staff_id: uuid.UUID | None  # set when the recorder is a supervisor staff member
-    recorder_assigned: bool | None  # supervisor assignment to the machine at `occurred_at` (None: not a supervisor)
-
-
-def work_without_authorization(rec: WorkRecord, tolerance_minutes: int, policy_version: str) -> SignalFinding | None:
-    """Work, readings or spend attributed to a job outside its authorized period [approved_at, completed_at] (plus
-    clock tolerance), or recorded by a supervisor who was not assigned to the machine at the time. The online API
-    refuses activity/readings on jobs that are not approved/running *at receipt*, so this catches what still
-    happens: offline records synced later with an earlier device time, activity logged on a completed job after
-    completion, expenses attributed to any job (no status check), and records by unassigned supervisors."""
-    tol = timedelta(minutes=tolerance_minutes)
-    reasons = []
-    if rec.approved_at is None or rec.occurred_at < rec.approved_at - tol:
-        reasons.append("BEFORE_JOB_AUTHORIZED")
-    elif rec.completed_at is not None and rec.occurred_at > rec.completed_at + tol:
-        reasons.append("AFTER_JOB_COMPLETED")
-    if rec.recorder_assigned is False:
-        reasons.append("SUPERVISOR_NOT_ASSIGNED_TO_MACHINE")
-    if not reasons:
-        return None
-    return SignalFinding(
-        RuleCode.WORK_WITHOUT_AUTHORIZATION,
-        SignalSeverity.WARNING,
-        SubjectType.JOB,
-        rec.job_id,
-        rec.occurred_at,
-        rec.received_at,
-        f"WWA:{rec.kind}:{rec.record_id}",
-        {
-            "record_type": rec.kind,
-            "record_id": str(rec.record_id),
-            "job_number": rec.job_number,
-            "occurred_at": _iso(rec.occurred_at),
-            "received_at": _iso(rec.received_at),
-            "job_status_now": rec.job_status,
-            "job_approved_at": _iso(rec.approved_at),
-            "job_completed_at": _iso(rec.completed_at),
-            "tolerance_minutes": tolerance_minutes,
-            "recorder_supervisor_assigned": rec.recorder_assigned,
-            "reasons": reasons,
-        },
-        policy_version=policy_version,
-        machine_id=rec.machine_id,
-        job_id=rec.job_id,
-        staff_member_id=rec.recorder_staff_id,
-        involved_user_ids=_ids([rec.recorded_by]),
-        involved_staff_ids=_ids([rec.recorder_staff_id]),
-    )

@@ -26,18 +26,12 @@ from asseta.modules.finance.custody_models import (
     CustodyAdjustment,
     VarianceStatus,
 )
-from asseta.modules.finance.invoice_service import verified_paid
-from asseta.modules.finance.models import (
-    CashHandover,
-    CustomerPayment,
-    HireInvoiceStatus,
-    SettlementStatus,
-    TenantHireInvoice,
-)
+from asseta.modules.finance.models import CashHandover, CustomerPayment, SettlementStatus
+from asseta.modules.hours.credit_invoices import derive_status, paid_figures
 from asseta.modules.hours.ledger import allocated_amounts, purchase_totals
-from asseta.modules.hours.models import HoursCancellation, HoursPurchase, HoursTransfer, RequestStatus
+from asseta.modules.hours.models import CreditInvoice, HoursCancellation, HoursPurchase, HoursTransfer, RequestStatus
 from asseta.modules.intelligence.models import AnomalyCase
-from asseta.modules.jobs.models import Job, RentalContract
+from asseta.modules.machine_reports.models import MachineReport
 from asseta.modules.meter.allocation_models import DailyOperationalReport
 from asseta.modules.meter.engine_models import EngineHourClassification, MeterCorrection
 from asseta.modules.meter.models import MeterResetEvent
@@ -51,7 +45,6 @@ from asseta.modules.pettycash.models import (
     PettyCashFund,
     PettyCashMovement,
 )
-from asseta.modules.revenue.models import NonRevenueApproval, RevenueDifference, RevenueDifferenceStatus
 
 ZERO = Decimal(0)
 MONEY, HOURS = "MONEY", "HOURS"
@@ -104,31 +97,31 @@ def _purchase(s: Session, p: HoursPurchase) -> dict[str, Any]:
     }
 
 
-def _invoice(s: Session, i: TenantHireInvoice) -> dict[str, Any]:
-    issued = i.status is HireInvoiceStatus.ISSUED
+def _credit_invoice(s: Session, i: CreditInvoice) -> dict[str, Any]:
+    order = s.get(HoursPurchase, i.purchase_id)
+    paid = paid_figures(s, [i.id]).get(i.id, (ZERO, ZERO))[0]
+    open_ = order is not None and order.cancelled_at is None
     return {
         "recorded_by": i.created_by,
-        "recorded_at": i.created_at,
-        "decided_by": i.issued_by,
-        "decided_at": i.issued_at,
+        "recorded_at": i.issued_at,
         "customer_id": i.customer_id,
-        "amount": i.total,
+        "machine_id": i.machine_id,
+        "amount": i.amount,
         "currency": i.currency,
-        "balance_outstanding": i.total - verified_paid(s, i.id) if issued else ZERO,
+        "balance_outstanding": max(ZERO, i.amount - paid) if open_ else ZERO,
         "balance_unit": MONEY,
+        "status": derive_status(i.amount, paid, not open_),  # derived: a credit invoice has no status column
     }
 
 
-def _job(s: Session, j: Job) -> dict[str, Any]:
-    contract = s.get(RentalContract, j.contract_id)
+def _machine_report(_: Session, r: MachineReport) -> dict[str, Any]:
     return {
-        "recorded_at": j.created_at,
-        "decided_by": j.approved_by,
-        "decided_at": j.approved_at,
-        "customer_id": contract.customer_id if contract else None,
-        "machine_id": j.machine_id,
-        "staff_member_id": j.supervisor_id,
-        "currency": j.currency,
+        "recorded_by": r.submitted_by,
+        "recorded_at": r.submitted_at,
+        "decided_by": r.decided_by,
+        "decided_at": r.decided_at,
+        "machine_id": r.machine_id,
+        "amount": r.hours,
     }
 
 
@@ -291,7 +284,7 @@ def _report(_: Session, d: DailyOperationalReport) -> dict[str, Any]:
 
 
 def _proposal(_: Session, m: Any) -> dict[str, Any]:
-    """Meter corrections, classifications and non-revenue approvals share these columns."""
+    """Meter corrections and classifications share these columns."""
     return {
         "recorded_by": m.proposed_by,
         "recorded_at": m.proposed_at,
@@ -309,21 +302,6 @@ def _reset(_: Session, m: MeterResetEvent) -> dict[str, Any]:
         "decided_by": m.decided_by,
         "decided_at": m.decided_at,
         "machine_id": m.machine_id,
-    }
-
-
-def _difference(_: Session, d: RevenueDifference) -> dict[str, Any]:
-    final = d.status not in (RevenueDifferenceStatus.OPEN, RevenueDifferenceStatus.EXPLANATION_PROPOSED)
-    return {
-        "recorded_by": d.explained_by,
-        "recorded_at": d.opened_at,
-        "decided_by": d.decided_by,
-        "decided_at": d.decided_at,
-        "machine_id": d.machine_id,
-        "amount": d.difference,
-        "currency": d.currency,
-        "balance_outstanding": ZERO if final else abs(d.difference),
-        "balance_unit": MONEY,
     }
 
 
@@ -448,8 +426,8 @@ class Target:
 
 TARGETS = (
     Target("hours_purchase", HoursPurchase, _purchase, HoursPurchase.purchase_number),
-    Target("hire_invoice", TenantHireInvoice, _invoice, TenantHireInvoice.invoice_number),
-    Target("job", Job, _job, Job.job_number),
+    Target("credit_invoice", CreditInvoice, _credit_invoice, CreditInvoice.invoice_number),
+    Target("machine_report", MachineReport, _machine_report, MachineReport.report_number),
     Target("customer_payment", CustomerPayment, _payment, CustomerPayment.collection_number, CustomerPayment.reference),
     Target("cash_handover", CashHandover, _handover, CashHandover.remittance_number, CashHandover.reference),
     Target("cash_transfer", CashTransfer, _transfer, CashTransfer.transfer_number),
@@ -472,9 +450,7 @@ TARGETS = (
     Target("daily_report", DailyOperationalReport, _report),
     Target("meter_correction", MeterCorrection, _proposal),
     Target("classification", EngineHourClassification, _proposal),
-    Target("non_revenue_approval", NonRevenueApproval, _proposal),
     Target("meter_reset", MeterResetEvent, _reset),
-    Target("revenue_difference", RevenueDifference, _difference),
     Target("hours_cancellation", HoursCancellation, _cancellation),
     Target("approval_request", ApprovalRequest, _expense_approval),
     Target("expense", Expense, _expense),

@@ -5,7 +5,7 @@ Usage (from backend/, with the stack's API and workers stopped):
 
 - Keycloak realm `asseta`: deletes every user except the `--keep` emails, every `/tenants/*` role group, and leftover
   throwaway clients (`smoke-*`, `field-e2e-*`). Platform role groups and the realm's own clients are kept.
-- Application DB: empties every business table (tenants, fleet, telemetry, jobs, billing, audit, outbox, mandates...)
+- Application DB: empties every business table (tenants, fleet, telemetry, billing, audit, outbox, mandates...)
   while keeping reference data: currencies, the permission/menu catalog and the platform-default entitlement and
   policy versions (re-seeded from the same source the tests use). Run `docker compose run --rm migrate` afterwards to
   re-bootstrap the telemetry gateway, then start the API (its startup sync rebuilds the Keycloak role mirror).

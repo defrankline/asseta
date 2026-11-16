@@ -1,5 +1,6 @@
 """IDOR sweep (prompt.md §10 #11, check v): tenant B owns a populated data set (machines, trackers, sites, geofences,
-customers, contracts, jobs, meter evidence, hire invoices, payments, expenses + receipts, cases, notifications…);
+customers, orders, credit invoices, machine reports, meter evidence, payments, expenses + receipts, cases,
+notifications…);
 tenant A's OWNER — the most privileged tenant role — addresses B's real ids under A's own tenant context.
 
 * every tenant GET route whose path ids can be filled with B's ids -> 404 (never B's data, never an empty 200);
@@ -19,23 +20,20 @@ from fastapi import FastAPI
 from asseta.core.db import get_sessionmaker
 from asseta.modules.dataprotection.export_worker_core import run_pending
 from asseta.modules.finance.remittance_cutoff import run_remittance_cutoff
-from asseta.modules.revenue.reconciliation import run_revenue_reconciliation
 from tests.support.api import Actor, Api
 from tests.support.finance import (
     FinCtx,
     cash_policy,
     category,
-    complete_job,
     expense_policy,
-    issue_invoice,
     role,
     setup_finance,
     tenant_sql,
 )
 from tests.support.intelligence import cases, expense, feed_events, receipt
-from tests.support.jobs import capture, photo, unique_jpeg
 from tests.support.machine_reports import baseline, cust, idle, report_body
 from tests.support.machine_reports import submit as submit_report
+from tests.support.meter import capture, photo, unique_jpeg
 from tests.support.notify import drain, sql
 from tests.support.routes import Kind, RouteSpec, concrete, inventory, params
 
@@ -63,8 +61,6 @@ def _populate_b(api: Api) -> tuple[FinCtx, dict[tuple[str, str], str]]:
         ("/staff/", "staff_id"): f.sup_staff_id,
         ("/trackers/", "tracker_id"): f.c.t.tracker_id,
         ("/customers/", "customer_id"): f.customer_id,
-        ("/contracts/", "contract_id"): f.c.contract_id,
-        ("/jobs/", "job_id"): f.c.job_id,
     }
     ids[("/operating-areas/", "area_id")] = o.post(f"{T}/operating-areas", {"code": "BAR", "name": "B area"}).json()[
         "id"
@@ -83,10 +79,12 @@ def _populate_b(api: Api) -> tuple[FinCtx, dict[tuple[str, str], str]]:
     )
     ids[("/photos/", "photo_id")] = ph.json()["id"]
     ids[("/attachments/", "attachment_id")] = photo(api, o)
-    # Completed job -> issued invoice -> claimed payment.
-    complete_job(api, f, f.c.job_id, "100.0", "108.0", 8)
-    inv = issue_invoice(f, [f.c.job_id])
-    ids[("/hire-invoices/", "invoice_id")] = inv["id"]
+    # Two readings of the machine (8 hours apart), then a claimed payment.
+    first = o.post(f"{T}/meter-captures", capture(f.c.t.machine_id, "100.0", api.clock.now, mode="MANUAL"))
+    assert first.status_code == 201, first.text
+    api.clock.set_at(api.clock.now + timedelta(hours=8))
+    second = o.post(f"{T}/meter-captures", capture(f.c.t.machine_id, "108.0", api.clock.now, mode="MANUAL"))
+    assert second.status_code == 201, second.text
     pay = f.accountant.post(
         f"{T}/customer-payments",
         {
@@ -117,7 +115,6 @@ def _populate_b(api: Api) -> tuple[FinCtx, dict[tuple[str, str], str]]:
     drain(api)
     ids.update(_customer_hours_b(api, f))
     ids.update(_cash_chain_b(api, f))
-    ids.update(_revenue_b(api, f))
     ids.update(_oversight_b(api, f))
     ids.update(_petty_cash_b(f))
     ids.update(_data_protection_b(api, f, ids[("/attachments/", "attachment_id")]))
@@ -181,7 +178,8 @@ def cust_idle(f: FinCtx, hours: str) -> dict[str, Any]:
 
 def _customer_hours_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
     """B's customer hours records: a reason code, discount and credit proposals, a verified purchase with a pending
-    transfer, a pending cancellation, payment evidence and a work execution allocation."""
+    transfer, a pending cancellation, payment evidence, a low-balance alert, adjustments, a credit invoice and a
+    machine report."""
     o = f.owner
     reason = o.post(f"{T}/hours-reason-codes", {"kind": "TRANSFER", "code": "BRK", "label": "Breakdown"})
     assert reason.status_code == 201, reason.text
@@ -224,16 +222,6 @@ def _customer_hours_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
     assert (
         f.accountant.post(f"{T}/customer-payments/{pay}/evidence", {"attachment_ids": [up.json()["id"]]}).status_code
         == 201
-    )
-    allocation = str(uuid.uuid4())
-    sql(
-        "INSERT INTO work_execution_allocation (id, tenant_id, job_id, customer_id, machine_id, billable_hours,"
-        " policy_version, created_at) VALUES (:i, :t, :j, :c, :m, 0, 'test', now())",
-        i=allocation,
-        t=f.tid,
-        j=f.c.job_id,
-        c=f.customer_id,
-        m=f.c.t.machine_id,
     )
     alert = str(uuid.uuid4())
     sql(
@@ -288,7 +276,6 @@ def _customer_hours_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
         ("/hours-purchases/", "purchase_id"): bought.json()["id"],
         ("/hours-transfers/", "transfer_id"): transfer.json()["id"],
         ("/hours-cancellations/", "cancellation_id"): cancel.json()["id"],
-        ("/work-execution-allocations/", "allocation_id"): allocation,
         ("/customer-payments/", "payment_id"): pay,
         ("/evidence/", "attachment_id"): up.json()["id"],
     }
@@ -362,63 +349,12 @@ def _cash_chain_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
     }
 
 
-def _revenue_policy(owner: Actor) -> None:
-    r = owner.post(
-        f"{T}/policies/REVENUE_RECONCILIATION/versions",
-        {
-            "scope": "TENANT",
-            "values": {
-                "enabled": True,
-                "period": "DAY",
-                "deduct_non_revenue_from_working_hours": True,
-                "unexplained_hours_treatment": "EXPECT_REVENUE",
-            },
-            "reason": "Revenue checks on",
-        },
-    )
-    assert r.status_code == 201, r.text
-
-
-def _revenue_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
-    """B's revenue records (DEC-031): a reason, a non-revenue approval proposal and a revenue difference (the
-    unexplained engine hours after the job are expected revenue), plus a machine-day of the daily sheet."""
-    o = f.owner
-    _revenue_policy(o)
-    job = o.get(f"{T}/jobs/{f.c.job_id}").json()["job"]
-    start = datetime.fromisoformat(job["started_at"])
-    move = o.post(
-        f"{T}/jobs/{f.c.job_id}/activities",
-        {
-            "client_id": str(uuid.uuid4()),
-            "activity_type": "MOBILIZATION",
-            "started_at": start.isoformat(),
-            "ended_at": (start + timedelta(minutes=30)).isoformat(),
-        },
-    )
-    assert move.status_code == 201, move.text
-    reason = o.post(f"{T}/revenue-reasons", {"code": "MOVE", "name": "B move"}).json()["id"]
-    approval = f.accountant.post(
-        f"{T}/non-revenue-approvals",
-        {"activity_id": move.json()["id"], "reason_id": reason, "note": "B moved to site"},
-    )
-    assert approval.status_code == 201, approval.text
-    assert run_revenue_reconciliation(get_sessionmaker(), api.clock.now + timedelta(days=2)).opened >= 1
-    diff = o.get(f"{T}/revenue-differences").json()["items"][0]["id"]
-    return {
-        ("/revenue-reasons/", "reason_id"): reason,
-        ("/non-revenue-approvals/", "approval_id"): approval.json()["id"],
-        ("/revenue-differences/", "difference_id"): diff,
-        ("/daily-machine-sheet/", "machine_id"): f.c.t.machine_id,
-        ("{machine_id}/", "day"): start.astimezone(ZoneInfo("Africa/Dar_es_Salaam")).date().isoformat(),
-    }
-
-
 def _oversight_policy(owner: Actor) -> None:
     r = owner.post(
         f"{T}/policies/OVERSIGHT/versions",
         {
             "scope": "TENANT",
-            "values": {"scorecard_enabled": True, "site_checkin_required": True, "site_checkin_times": ["09:00"]},
+            "values": {"scorecard_enabled": True},
             "reason": "Oversight on",
         },
     )
@@ -472,18 +408,11 @@ def _petty_cash_b(f: FinCtx) -> dict[tuple[str, str], str]:
 
 
 def _oversight_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
-    """B's oversight records (DEC-031 Phase 5): a person's scorecard and a site check-in."""
+    """B's oversight records (DEC-031 Phase 5): a person's scorecard."""
     _oversight_policy(f.owner)
-    now = api.clock.now.isoformat()
-    checkin = f.supervisor.post(
-        f"{T}/site-checkins",
-        {"client_id": str(uuid.uuid4()), "captured_at": now, "gps": {"status": "NO_FIX"}},
-    )
-    assert checkin.status_code == 201, checkin.text
     return {
         ("/scorecard/", "staff_member_id"): f.sup_staff_id,
         ("/employees/", "staff_member_id"): f.sup_staff_id,
-        ("/site-checkins/", "checkin_id"): checkin.json()["id"],
     }
 
 
@@ -500,9 +429,7 @@ def _engine_hours_records(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
     assert ok.status_code == 200, ok.text
     reason = o.post(f"{T}/engine-hour-reasons", {"kind": "NON_CUSTOMER_CATEGORY", "code": "MAINT", "name": "Service"})
     api.clock.set_at(api.clock.now + timedelta(hours=3))
-    daily = capture("", "DAILY", "110.0", api.clock.now, mode="MANUAL")
-    daily.pop("job_id")
-    daily["machine_id"] = machine
+    daily = capture(machine, "110.0", api.clock.now, mode="MANUAL")
     assert o.post(f"{T}/meter-captures", daily).status_code == 201
     seg = o.get(f"{T}/engine-hours/unallocated").json()["items"][0]
     cls = o.post(
@@ -610,7 +537,6 @@ def world(api: Api) -> tuple[Actor, FinCtx, dict[tuple[str, str], str]]:
     f, ids = _populate_b(api)
     a = api.onboard("Idor Alpha", price="1000")
     api.activate(a)
-    _revenue_policy(a["owner"])  # A has the capability too: B's revenue records are still not found
     _oversight_policy(a["owner"])
     _petty_policy(a["owner"])  # A has petty cash too: B's petty cash records are still not found
     return a["owner"], f, ids
@@ -681,54 +607,38 @@ def test_crafted_cross_tenant_writes_are_not_found(
 ) -> None:
     owner_a, f, ids = world
     now = api.clock.now.isoformat()
-    b_job, b_machine = ids[("/jobs/", "job_id")], ids[("/machines/", "machine_id")]
-    job_before = f.owner.get(f"{T}/jobs/{b_job}").json()
+    b_report, b_machine = ids[("/machine-reports/", "report_id")], ids[("/machines/", "machine_id")]
+    b_customer = ids[("/customers/", "customer_id")]
+    report_before = f.owner.get(f"{T}/machine-reports/{b_report}").json()
     m = f.owner.get(f"{T}/machines/{b_machine}").json()
     keys = ("name", "operating_area_id", "manufacturer", "model", "serial_number", "category_id", "status", "version")
     attempts: list[tuple[str, str, dict[str, Any]]] = [
         ("PUT", f"{T}/machines/{b_machine}", {k: m[k] for k in keys}),
-        ("POST", f"{T}/jobs/{b_job}/transitions", {"action": "CANCEL", "reason": "hostile cancel"}),
-        (
-            "POST",
-            f"{T}/jobs/{b_job}/activities",
-            {"client_id": str(uuid.uuid4()), "activity_type": "NOTE", "started_at": now, "note": "x"},
-        ),
+        ("POST", f"{T}/machine-reports/{b_report}/approve", {"note": "hostile approval"}),
+        ("POST", f"{T}/machine-reports/{b_report}/reject", {"reason": "hostile rejection"}),
         (
             "POST",
             f"{T}/trackers/{ids[('/trackers/', 'tracker_id')]}/unassign",
             {"effective_to": now, "reason": "hostile"},
         ),
-        ("POST", f"{T}/hire-invoices/{ids[('/hire-invoices/', 'invoice_id')]}/void", {"reason": "hostile void"}),
         ("POST", f"{T}/customer-payments/{ids[('/customer-payments/', 'payment_id')]}/decision", {"verified": True}),
         ("POST", f"{T}/cases/{ids[('/cases/', 'case_id')]}/notes", {"body": "hostile note"}),
         ("POST", f"{T}/customers/{ids[('/customers/', 'customer_id')]}/deactivate", {"reason": "hostile"}),
         # Body references to B's records from A's context (cross-tenant foreign keys).
-        ("POST", f"{T}/meter-captures", capture(b_job, "OPENING", "1.0", api.clock.now, mode="MANUAL")),
+        ("POST", f"{T}/meter-captures", capture(b_machine, "1.0", api.clock.now, mode="MANUAL")),
+        ("POST", f"{T}/machine-reports", report_body(b_machine, "1.0", api.clock.now, [cust(b_customer, "1")])),
         ("POST", f"{T}/billing/enrollments", {"machine_id": b_machine, "effective_from": now[:10]}),
-        ("POST", f"{T}/hire-invoices", {"customer_id": ids[("/customers/", "customer_id")], "job_ids": [b_job]}),
-        (
-            "POST",
-            f"{T}/jobs",
-            {
-                "contract_id": ids[("/contracts/", "contract_id")],
-                "job_number": "X-1",
-                "machine_id": b_machine,
-                "planned_start": now,
-            },
-        ),
+        ("POST", f"{T}/hours-purchases", {"customer_id": b_customer, "machine_id": b_machine, "hours": "1"}),
         (
             "POST",
             f"{T}/customer-payments",
-            {"customer_id": ids[("/customers/", "customer_id")], "amount": "1", "method": "CASH", "received_at": now},
+            {"customer_id": b_customer, "amount": "1", "method": "CASH", "received_at": now},
         ),
     ]
-    # Indistinguishable from a non-existent id (same code + message as for a random UUID) is acceptable too.
-    not_found_equivalent = {(422, "CONTRACT_NOT_ACTIVE")}
     failures = []
     for method, url, body in attempts:
         r = api.client.request(method, url, headers=owner_a.headers(True, None), json=body)
-        code = r.json().get("error", {}).get("code") if r.status_code >= 400 else None
-        if r.status_code != 404 and (r.status_code, code) not in not_found_equivalent:
+        if r.status_code != 404:
             failures.append(f"{method} {url} -> {r.status_code} {r.text[:200]}")
     assert not failures, "\n".join(failures)
-    assert f.owner.get(f"{T}/jobs/{b_job}").json() == job_before
+    assert f.owner.get(f"{T}/machine-reports/{b_report}").json() == report_before

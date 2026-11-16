@@ -14,7 +14,7 @@ One cycle (`run_inference_cycle`, called by the intelligence worker after snapsh
    BELOW_THRESHOLD; too few features or no calibrated score, INSUFFICIENT_DATA.
 4. Every model attempt writes an `inference_audit` row (latency, input rows, OK / SKIPPED / ERROR + reason). Each
    model runs in its own transaction with a time budget (statement timeout + checks between steps); any failure is
-   rolled back, recorded as ERROR in a fresh transaction and never propagates — deterministic detection, jobs,
+   rolled back, recorded as ERROR in a fresh transaction and never propagates — deterministic detection, reports,
    payments and tracking are unaffected.
 """
 

@@ -93,7 +93,7 @@ class RequestPosting:
             payment = self._s.get(CustomerPayment, row.original_id)
             assert payment is not None
             plan = self.reversals.plan_payment(payment, lock=False)
-            out = {**plan.summary(), "treatment": self.engine.policy.reversal_used_hours_treatment.value}
+            out = {**plan.summary(), "treatment": "CASE"}
             if payment.method is HirePaymentMethod.CASH and payment.received_by_staff_id is not None:
                 held = custody_outstanding(
                     self._s, self._ctx, self._now, payment.received_by_staff_id, payment.currency
@@ -109,14 +109,14 @@ class RequestPosting:
                 "unused_hours_removed": str(sum(plan_p.unused.values(), ZERO)),
                 "used_hours": str(plan_p.used_hours),
                 "money_owed": str(plan_p.money_owed),
-                "treatment": self.engine.policy.reversal_used_hours_treatment.value,
+                "treatment": "CASE",
             }
         if t is AdjustmentRequestType.ZERO_AMOUNT_ACTIVATION:
             purchase = self._s.get(HoursPurchase, row.original_id)
             assert purchase is not None
             totals = purchase_totals(self._s, purchase)
             return {"hours_to_activate": str(purchase.hours - totals.net_activated)}
-        return {"invoice_id": str(row.original_id)}
+        return {"original_id": str(row.original_id)}
 
     def post(self, row: AdjustmentRequest, note: str | None, result: dict[str, Any]) -> None:
         approved = row.status is AdjustmentRequestStatus.APPROVED

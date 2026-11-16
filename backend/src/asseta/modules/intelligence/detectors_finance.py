@@ -28,12 +28,11 @@ from asseta.modules.intelligence.rules import (
     expense_threshold_exceeded,
     fuel_allowance_exceeded,
 )
-from asseta.modules.jobs.models import Job
-from asseta.modules.meter.models import CaptureAttachment, CaptureState, MeterCapture, ReadingKind
+from asseta.modules.machine_reports.models import MachineReport, MachineReportStatus
+from asseta.modules.meter.models import CaptureAttachment
 from asseta.modules.policy.schemas import FraudControlsPolicy
 from asseta.modules.policy.service import EffectivePolicy, PolicyService
 
-ACTIVE_CAPTURE = (CaptureState.ACCEPTED, CaptureState.PROVISIONAL)
 COUNTED_SPEND = (ExpenseStatus.APPROVED, ExpenseStatus.PENDING_APPROVAL)
 
 
@@ -54,7 +53,6 @@ def _receipt_uses(s: Session, shas: set[str]) -> list[ReceiptUse]:
             e.submitted_by,
             e.custodian_staff_id,
             e.machine_id,
-            e.job_id,
             e.amount,
             e.currency,
         )
@@ -88,49 +86,39 @@ def detect_duplicate_receipts(
 
 # --- FUEL_ALLOWANCE_EXCEEDED -----------------------------------------------------------------------------------
 def detect_fuel_allowance(s: Session, tenant_id: uuid.UUID, since: datetime) -> list[SignalFinding]:
-    """Per job: fuel on the machine between its opening and closing readings vs the meter hours of that job."""
+    """Per approved machine report: fuel on the machine over the report's period (previous reading to its reading)
+    vs the meter hours it reports."""
     policies, out = PolicyService(s), []
-    closings = s.execute(
-        select(MeterCapture, Job)
-        .join(Job, Job.id == MeterCapture.job_id)
-        .where(
-            MeterCapture.kind == ReadingKind.CLOSING,
-            MeterCapture.state.in_(ACTIVE_CAPTURE),
-            MeterCapture.received_at >= since,
+    reports = s.execute(
+        select(MachineReport).where(
+            MachineReport.status == MachineReportStatus.APPROVED,
+            MachineReport.hours > 0,
+            MachineReport.decided_at >= since,
         )
-    ).all()
-    for closing, job in closings:
-        opening = s.execute(
-            select(MeterCapture).where(
-                MeterCapture.job_id == job.id,
-                MeterCapture.kind == ReadingKind.OPENING,
-                MeterCapture.state.in_(ACTIVE_CAPTURE),
-            )
-        ).scalar_one_or_none()
-        if opening is None:
-            continue  # meter hours unknown: no signal
-        eff = policies.fraud_controls(tenant_id, job.machine_id, at=closing.captured_at)
+    ).scalars()
+    for report in reports:
+        eff = policies.fraud_controls(tenant_id, report.machine_id, at=report.end_at)
         if eff.policy.fuel_max_litres_per_meter_hour is None:
             continue
         fuel = list(
             s.execute(
                 select(FuelEvent).where(
-                    FuelEvent.machine_id == job.machine_id,
-                    FuelEvent.occurred_at >= opening.captured_at,
-                    FuelEvent.occurred_at <= closing.captured_at,
+                    FuelEvent.machine_id == report.machine_id,
+                    FuelEvent.occurred_at >= report.start_at,
+                    FuelEvent.occurred_at <= report.end_at,
                 )
             ).scalars()
         )
         into = sum((f.litres for f in fuel if f.event_type is not FuelEventType.USAGE), Decimal(0))
         used = sum((f.litres for f in fuel if f.event_type is FuelEventType.USAGE), Decimal(0))
         window = FuelWindow(
-            job.machine_id,
-            job.id,
-            job.job_number,
-            opening.reading,
-            closing.reading,
-            opening.captured_at,
-            closing.captured_at,
+            report.machine_id,
+            report.id,
+            report.report_number,
+            report.start_reading,
+            report.end_reading,
+            report.start_at,
+            report.end_at,
             into,
             used,
             tuple(f.id for f in fuel),

@@ -16,9 +16,9 @@ from asseta.modules.intelligence.inference import SURFACED_TITLE, clear_bundle_c
 from asseta.modules.intelligence.ml_monitoring import run_drift_cycle
 from asseta.workers.intelligence_worker import run_ml_cycle
 from tests.support.api import Actor, Api
-from tests.support.finance import complete_job, setup_finance
 from tests.support.idp import InMemoryObjectStore
 from tests.support.intelligence import fraud_policy, signals, sweep
+from tests.support.machine_reports import T, idle, later, ok, report_body, setup_reports, submit
 from tests.support.ml import LENIENT, act, fleet_for, infer, last_week_end, model, shifted_week, store, train
 from tests.support.notify import sql
 
@@ -155,9 +155,11 @@ def test_hard_switch_off_means_no_inference_and_one_skipped_audit(api: Api) -> N
 
 
 def test_artifact_failures_are_audited_and_deterministic_rules_keep_running(api: Api) -> None:
-    f = setup_finance(api, "Fail Co", "FAIL-1")
-    t0 = api.clock.now
-    complete_job(api, f, f.c.job_id, "500.0", "508.0", 9)
+    ctx = setup_reports(api, "Fail Co", "FAIL-1")
+    f, t0 = ctx.f, api.clock.now
+    at = later(api, 9)
+    rep = submit(f.supervisor, report_body(ctx.machine_id, "1008.0", at, [idle(ctx.reasons["IDLE_ON_SITE"], 8)]))
+    ok(f.manager.post(f"{T}/machine-reports/{rep['id']}/approve", {}))
     body = {"event_type": "USAGE", "litres": "120", "machine_id": f.c.t.machine_id, "unit_price": "3000"}
     assert f.supervisor.post("/api/v1/tenant/fuel-events", body | {"occurred_at": t0.isoformat()}).status_code == 201
     fraud_policy(f.owner, fuel_max_litres_per_meter_hour="10")

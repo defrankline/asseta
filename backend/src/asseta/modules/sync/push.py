@@ -31,9 +31,6 @@ from asseta.modules.hours.credit_invoices import CreditInvoiceService
 from asseta.modules.hours.dto import CreditInvoicePaymentIn, HoursPurchaseIn, PurchasePaymentIn, TransferIn
 from asseta.modules.hours.service import HoursService
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.dto import AcknowledgementIn, ActivityIn, JobRequestIn
-from asseta.modules.jobs.models import Job
-from asseta.modules.jobs.service import JobService
 from asseta.modules.machine_reports.dto import MachineReportIn
 from asseta.modules.machine_reports.service import MachineReportService
 from asseta.modules.meter.allocation_dto import DailyReportIn
@@ -42,8 +39,6 @@ from asseta.modules.meter.dto import MeterCaptureIn, ResetIn
 from asseta.modules.meter.engine_dto import BaselineIn, CorrectionIn
 from asseta.modules.meter.engine_service import EngineHoursService
 from asseta.modules.meter.service import MeterService
-from asseta.modules.oversight.checkins import SiteCheckinService
-from asseta.modules.oversight.dto import SiteCheckinIn
 from asseta.modules.pettycash.dto import (
     PettyCashAcknowledgementIn,
     PettyCashAdvanceClearIn,
@@ -59,7 +54,6 @@ from asseta.modules.policy.capabilities import (
     ENGINE_HOURS,
     FUEL,
     PETTY_CASH,
-    SITE_CHECKIN,
     require_capability,
 )
 from asseta.modules.policy.service import PolicyService
@@ -68,8 +62,8 @@ from asseta.modules.sync.dto import OperationIn, OperationResultDto, PushIn, Pus
 from asseta.modules.sync.models import BlobUploadSession, ClientOperation, DeviceSession, OperationStatus
 from asseta.modules.sync.service import SyncService
 
-# Operations that belong to a tenant capability (sync capabilities: dto.TENANT_CAPABILITY_OF). A DAILY meter capture
-# is refused by the meter service itself (same code). Customer-hours operations keep their service refusal.
+# Operations that belong to a tenant capability (sync capabilities: dto.TENANT_CAPABILITY_OF). DAILY meter captures
+# and machine reports never depend on one (ADR-008). Customer-hours operations keep their service refusal.
 OP_CAPABILITY = {
     "METER_BASELINE": ENGINE_HOURS,
     "METER_CORRECTION": ENGINE_HOURS,
@@ -77,7 +71,6 @@ OP_CAPABILITY = {
     "CASH_TRANSFER_ACKNOWLEDGEMENT": CASH_CUSTODY,
     "CASH_FLOAT_ACKNOWLEDGEMENT": CASH_CUSTODY,
     "CASH_RETENTION_REQUEST": CASH_CUSTODY,
-    "SITE_CHECKIN": SITE_CHECKIN,
     "DAILY_REPORT": ENGINE_HOURS,
     "PETTY_CASH_ACKNOWLEDGEMENT": PETTY_CASH,
     "PETTY_CASH_TOP_UP_REQUEST": PETTY_CASH,
@@ -90,15 +83,11 @@ OP_CAPABILITY = {
 }
 REQUIRED_PERMISSION = {
     "METER_CAPTURE": "tenant.meter.capture",
-    "JOB_ACTIVITY": "tenant.job.log",
-    "JOB_ACKNOWLEDGEMENT": "tenant.job.log",
-    "JOB_TRANSITION": "tenant.job.log",
     "EXPENSE": "tenant.expense.write",
     "FUEL_EVENT": "tenant.expense.write",
     "CASH_COLLECTION": "tenant.collection.record",
     "CASH_HANDOVER": "tenant.collection.record",
     "METER_RESET_REQUEST": "tenant.meter.capture",
-    "JOB_REQUEST": "tenant.job.request",
     "METER_BASELINE": "tenant.meter.capture",
     "METER_CORRECTION": "tenant.meter.capture",
     "CASH_TRANSFER": "tenant.collection.record",
@@ -107,7 +96,6 @@ REQUIRED_PERMISSION = {
     "HOURS_PURCHASE": "tenant.hours.purchase",
     "HOURS_TRANSFER_REQUEST": "tenant.hours.transfer",
     "CASH_RETENTION_REQUEST": "tenant.collection.record",
-    "SITE_CHECKIN": "tenant.site_checkin.record",
     "DAILY_REPORT": "tenant.meter.capture",
     "PETTY_CASH_ACKNOWLEDGEMENT": "tenant.pettycash.read",
     "PETTY_CASH_TOP_UP_REQUEST": "tenant.pettycash.read",
@@ -132,11 +120,6 @@ UPLOAD_FIELDS = {
     "MACHINE_REPORT": "photo_upload_id",
     "CREDIT_INVOICE_PAYMENT": "evidence_upload_ids",
 }
-
-
-class JobTransitionOp(BaseModel):
-    job_id: uuid.UUID
-    action: str
 
 
 class ExpenseOp(ExpenseIn):
@@ -399,13 +382,6 @@ class PushService:
             "METER_CAPTURE": lambda: MeterService(self._s, self._ctx, self._now).submit(
                 MeterCaptureIn.model_validate(op.payload), device_session_id=device.id
             ),
-            "JOB_ACTIVITY": lambda: JobService(self._s, self._ctx).add_activity(
-                uuid.UUID(str(op.payload["job_id"])), ActivityIn.model_validate(op.payload)
-            ),
-            "JOB_ACKNOWLEDGEMENT": lambda: JobService(self._s, self._ctx).acknowledge(
-                uuid.UUID(str(op.payload["job_id"])), AcknowledgementIn.model_validate(op.payload)
-            ),
-            "JOB_TRANSITION": lambda: self._transition(JobTransitionOp.model_validate(op.payload)),
             "EXPENSE": lambda: self._expense(ExpenseOp.model_validate(op.payload)),
             "FUEL_EVENT": lambda: ExpenseService(self._s, self._ctx, self._now).record_fuel(
                 FuelEventOp.model_validate(op.payload), "SYNC"
@@ -415,7 +391,6 @@ class PushService:
             ),
             "CASH_HANDOVER": lambda: self._handover(CashHandoverOp.model_validate(op.payload)),
             "METER_RESET_REQUEST": lambda: self._meter_reset(MeterResetOp.model_validate(op.payload)),
-            "JOB_REQUEST": lambda: JobService(self._s, self._ctx).request_job(JobRequestIn.model_validate(op.payload)),
             "METER_BASELINE": lambda: EngineHoursService(self._s, self._ctx, self._now).propose_baseline(
                 BaselineIn.model_validate({"id": op.id, **op.payload})
             ),
@@ -434,9 +409,6 @@ class PushService:
                 HoursPurchaseOp.model_validate(
                     {"client_id": op.id, **op.payload, "client_created_at": op.created_at_device}
                 )
-            ),
-            "SITE_CHECKIN": lambda: SiteCheckinService(self._s, self._ctx, self._now).record(
-                SiteCheckinIn.model_validate(op.payload), "SYNC", device_session_id=device.id
             ),
             "DAILY_REPORT": lambda: self._daily_report(DailyReportOp.model_validate({"id": op.id, **op.payload})),
             "HOURS_TRANSFER_REQUEST": lambda: self._hours_transfer(
@@ -662,18 +634,13 @@ class PushService:
         ack = CashAcknowledgementIn.model_validate(body.model_dump(exclude={"entry_id"}))
         return CashCustodyControls(self._s, self._ctx, self._now).acknowledge_float(body.entry_id, ack, op_id, "SYNC")
 
-    def _transition(self, body: JobTransitionOp) -> BaseModel:
-        if body.action not in ("START", "COMPLETE"):
-            raise ValueError("devices may only START or COMPLETE jobs")
-        return JobService(self._s, self._ctx).transition(body.job_id, body.action, None)
-
     def _state(self, op: OperationIn) -> dict[str, Any]:
-        job_id = op.payload.get("job_id")
-        if not job_id:
+        """The server state a CONFLICT carries back: for a machine report, the machine's report state now."""
+        machine_id = op.payload.get("machine_id") if op.op_type == "MACHINE_REPORT" else None
+        if not machine_id:
             return {}
-        job = self._s.get(Job, uuid.UUID(str(job_id)))
-        return {
-            "job_id": str(job_id),
-            "job_status": job.status.value if job else "NOT_FOUND",
-            "job_version": job.version if job else None,
-        }
+        try:
+            states = MachineReportService(self._s, self._ctx, self._now).statuses([uuid.UUID(str(machine_id))])
+        except (AppError, ValueError):
+            return {}
+        return {"machine_report_state": states[0].model_dump(mode="json")} if states else {}

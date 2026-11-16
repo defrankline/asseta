@@ -22,8 +22,21 @@ from sqlalchemy import Engine
 from asseta.core.config import get_settings
 from asseta.tools.gps_simulator import Fix
 from tests.support.api import Actor, Api
-from tests.support.finance import category, complete_job, expense_policy, issue_invoice, setup_finance
-from tests.support.jobs import unique_jpeg
+from tests.support.finance import category, expense_policy
+from tests.support.hours import RATE
+from tests.support.machine_reports import (
+    ReportCtx,
+    T,
+    bought,
+    cust,
+    idle,
+    later,
+    ok,
+    report_body,
+    setup_reports,
+    submit,
+)
+from tests.support.meter import capture, unique_jpeg
 from tests.support.telemetry import Telemetry
 
 SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "reset_tenant_data.py"
@@ -83,13 +96,32 @@ def _h(actor: Actor) -> dict[str, str]:
     return {**actor.headers(True, None), "X-Device-Id": DEVICE}
 
 
+def _worked(api: Api, ctx: ReportCtx) -> None:
+    """Customer hours across the modules: a paid order, a credit sale (its credit invoice) and an approved machine
+    report that used 7 of the hours (8 meter hours, 1 non-productive)."""
+    f = ctx.f
+    bought(api, f, 10)
+    sale = {
+        "machine_id": ctx.machine_id,
+        "customer_id": f.customer_id,
+        "hours": "2",
+        "client_id": str(uuid.uuid4()),
+        "payments": [{"amount": str(2 * RATE), "method": "CREDIT"}],
+    }
+    assert ok(f.accountant.post(f"{T}/hours-purchases", sale), 201)["credit_invoice"]
+    at = later(api, 9)
+    lines = [cust(f.customer_id, 7), idle(ctx.reasons["IDLE_ON_SITE"], 1)]
+    rep = submit(f.supervisor, report_body(ctx.machine_id, "1008.0", at, lines))
+    ok(f.manager.post(f"{T}/machine-reports/{rep['id']}/approve", {}))
+
+
 def _seed_tenant(api: Api) -> dict[str, Any]:
-    """Data across the modules: fleet + tracker + telemetry, jobs with readings and work logs, hire invoice and
-    payment, expenses and cash custody, policies, platform invoice over enrolled machines, a phone in sync."""
-    f = setup_finance(api, "Demo Hire", "DEMO-1")
+    """Data across the modules: fleet + tracker + telemetry, readings and machine reports, orders, a credit invoice
+    and payments, expenses and cash custody, policies, platform invoice over enrolled machines, a phone in sync."""
+    ctx = setup_reports(api, "Demo Hire", "DEMO-1")
+    f = ctx.f
     owner, tid = f.owner, f.tid
-    complete_job(api, f, f.c.job_id, "500.0", "508.0", 9, downtime_h=1)
-    issue_invoice(f, [f.c.job_id])
+    _worked(api, ctx)
     assert (
         f.accountant.post(
             "/api/v1/tenant/customer-payments",
@@ -158,7 +190,7 @@ def _seed_tenant(api: Api) -> dict[str, Any]:
 
 
 def _telemetry(api: Api) -> Telemetry:
-    """The helper of the tracker model setup_job already registered, with a gateway key of its own."""
+    """The helper of the tracker model setup_machine already registered, with a gateway key of its own."""
     tel = Telemetry.__new__(Telemetry)
     tel.api = api
     tel.model_id = api.platform.get("/api/v1/platform/tracker-models").json()[0]["id"]
@@ -192,7 +224,7 @@ def test_reset_erases_one_tenant_keeps_the_rest_and_phones_start_afresh(
     theirs = counts(conn, rt, "<>", tid)
     populated = {t for t in rt.DELETE if mine.get(t)}
     assert len(populated) >= 30, sorted(populated)  # really across the modules
-    for must in ("machine", "tracker", "machine_position_event", "job", "meter_capture", "hire_invoice_line",
+    for must in ("machine", "tracker", "machine_position_event", "machine_report", "meter_capture", "credit_invoice",
                  "customer_payment", "expense", "supervisor_cash_custody", "policy_version", "job_site",
                  "subscription_asset_enrollment", "capture_attachment", "blob_upload_session", "outbox_event"):  # fmt: skip
         assert mine.get(must, 0) > 0, must
@@ -267,8 +299,8 @@ def test_reset_erases_one_tenant_keeps_the_rest_and_phones_start_afresh(
     # An app that registered but still holds the old cursor (Android registers first) is told to wipe ...
     demo_op = {
         "id": str(uuid.uuid4()),
-        "op_type": "JOB_TRANSITION",
-        "payload": {"job_id": f.c.job_id, "action": "START"},
+        "op_type": "METER_CAPTURE",
+        "payload": capture(f.c.t.machine_id, "1010.0", api.clock.now, mode="MANUAL"),
         "created_at_device": api.clock.now.isoformat(),
         "depends_on": [],
     }
@@ -283,7 +315,7 @@ def test_reset_erases_one_tenant_keeps_the_rest_and_phones_start_afresh(
         assert r.status_code == 403 and r.json()["error"]["code"] == "DEVICE_REVOKED", r.text
     # ... and after the wipe it bootstraps afresh, then syncs normally.
     boot = api.client.get("/api/v1/sync/bootstrap", headers=_h(sup))
-    assert boot.status_code == 200 and boot.json()["data"]["machines"] == [] and boot.json()["data"]["jobs"] == []
+    assert boot.status_code == 200 and boot.json()["data"]["machines"] == [] and boot.json()["data"]["customers"] == []
     delta = api.client.get("/api/v1/sync/changes", headers=_h(sup), params={"cursor": boot.json()["cursor"]})
     assert delta.status_code == 200, delta.text
 

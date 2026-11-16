@@ -166,11 +166,12 @@ def list_requests(
 )
 @named
 def propose_adjustment(body: AdjustmentRequestIn, session: DbSession, now: Now, ctx: Proposer) -> AdjustmentRequestDto:
-    """Propose a correction, refund, reversal or invoice void; someone else decides it. HOURS_CORRECTION: `purchase_id`,
-    optional `machine_id` (the purchase's machine by default), signed `hours`, optional `job_id` / `consumed_entry_id`.
+    """Propose a correction, refund or reversal; someone else decides it. HOURS_CORRECTION: `purchase_id`,
+    optional `machine_id` (the purchase's machine by default), signed `hours`, optional `machine_report_id` /
+    `consumed_entry_id`.
     HOURS_REFUND: `purchase_id`, `machine_id`, positive `hours`, `settlement` (CREDIT | PAY_OUT, with `payout`).
     PAYMENT_REVERSAL / COLLECTION_REVERSAL: `payment_id`. PURCHASE_REVERSAL: `purchase_id`.
-    INVOICE_VOID: `invoice_id`."""
+    INVOICE_VOID is refused (REQUEST_TYPE_RETIRED)."""
     return AdjustmentRequests(session, ctx, now).propose(body)
 
 

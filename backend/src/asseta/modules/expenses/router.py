@@ -48,11 +48,11 @@ from asseta.modules.expenses.service import (
     own_fuel_filter,
 )
 from asseta.modules.fleet.photos import PhotoUrlDto, get_object_store
+from asseta.modules.fleet.scope import EXPENSE_OVERSIGHT, own_staff, restricted_to_own
 from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.dependencies import gated, requires
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.scope import EXPENSE_OVERSIGHT, own_staff, restricted_to_own
 from asseta.modules.meter.dto import AttachmentDto
 from asseta.modules.meter.models import CaptureAttachment
 from asseta.modules.meter.router import save_attachment
@@ -230,16 +230,13 @@ def list_expenses(
     paging: Annotated[PageParams, Depends(page_params)],
     status: ExpenseStatus | None = None,
     machine_id: uuid.UUID | None = None,
-    job_id: uuid.UUID | None = None,
     custodian_staff_id: uuid.UUID | None = None,
     paid_from: ExpensePaidFrom | None = None,
     petty_cash_fund_id: uuid.UUID | None = None,
     control_flag: Annotated[ExpenseFlag | None, Query(description="Only expenses carrying this control flag")] = None,
     mine: Mine = False,
 ) -> Page[ExpenseDto]:
-    stmt = expense_list_query(
-        status, machine_id, job_id, custodian_staff_id, paid_from, petty_cash_fund_id, control_flag
-    )
+    stmt = expense_list_query(status, machine_id, custodian_staff_id, paid_from, petty_cash_fund_id, control_flag)
     if restricted_to_own(ctx, EXPENSE_OVERSIGHT, mine):
         stmt = stmt.where(own_expense_filter(ctx, own_staff(session, ctx)))
     rows, total = paginate(session, stmt, paging)
@@ -278,7 +275,6 @@ def list_fuel(
     paging: Annotated[PageParams, Depends(page_params)],
     event_type: FuelEventType | None = None,
     machine_id: uuid.UUID | None = None,
-    job_id: uuid.UUID | None = None,
     mine: Mine = False,
 ) -> Page[FuelEventDto]:
     stmt = select(FuelEvent).order_by(FuelEvent.occurred_at.desc())
@@ -288,8 +284,6 @@ def list_fuel(
         stmt = stmt.where(FuelEvent.event_type == event_type)
     if machine_id:
         stmt = stmt.where(FuelEvent.machine_id == machine_id)
-    if job_id:
-        stmt = stmt.where(FuelEvent.job_id == job_id)
     rows, total = paginate(session, stmt, paging)
     return Page(
         items=[FuelEventDto.model_validate(f) for f in rows], total=total, page=paging.page, page_size=paging.page_size

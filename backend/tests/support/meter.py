@@ -1,4 +1,4 @@
-"""Gate 3 helpers: a priced, approved job on a tracked machine, plus capture payload builders."""
+"""Meter helpers: a priced, tracked machine with a customer (rate card, category), plus reading payload builders."""
 
 import uuid
 from dataclasses import dataclass
@@ -10,12 +10,11 @@ from tests.support.telemetry import DAR, Telemetry, Tracked
 
 
 @dataclass
-class JobCtx:
+class MachineCtx:
     t: Tracked
     owner: Actor
-    job_id: str
     category_id: str
-    contract_id: str
+    customer_id: str
 
 
 def unique_jpeg() -> bytes:
@@ -33,25 +32,8 @@ def photo(api: Api, actor: Actor) -> str:
     return str(r.json()["id"])
 
 
-def new_job(api: Api, ctx: JobCtx, number: str, machine_id: str | None = None, rate: str | None = None) -> str:
-    body: dict[str, Any] = {
-        "contract_id": ctx.contract_id,
-        "job_number": number,
-        "machine_id": machine_id or ctx.t.machine_id,
-        "planned_start": api.clock.now.isoformat(),
-    }
-    if rate is not None:
-        body["hourly_rate"] = rate  # negotiated price (no rate card for this category)
-    r = ctx.owner.post("/api/v1/tenant/jobs", body)
-    assert r.status_code == 201, r.text
-    job_id = str(r.json()["id"])
-    for action in ("SUBMIT", "APPROVE"):
-        a = ctx.owner.post(f"/api/v1/tenant/jobs/{job_id}/transitions", {"action": action})
-        assert a.status_code == 200, a.text
-    return job_id
-
-
-def setup_job(api: Api, name: str = "Hire Co", device: str = "HIRE-1") -> JobCtx:
+def setup_machine(api: Api, name: str = "Hire Co", device: str = "HIRE-1") -> MachineCtx:
+    """A tracked machine in an "Excavators" category priced by the rate card (85,000 / hour), and one customer."""
     tel = Telemetry(api)
     t = tel.tracked_machine(name, device)
     o = t.owner
@@ -80,20 +62,12 @@ def setup_job(api: Api, name: str = "Hire Co", device: str = "HIRE-1") -> JobCtx
         {"machine_category_id": cat, "hourly_rate": "85000", "minimum_hours": "4", "reason": "2026 rate card"},
     )
     cust = o.post("/api/v1/tenant/customers", {"code": "C1", "name": "Road Builders Ltd"}).json()["id"]
-    contract = o.post(
-        "/api/v1/tenant/contracts",
-        {"customer_id": cust, "contract_number": "CT-001", "starts_on": api.clock.now.isoformat()},
-    ).json()["id"]
-    engine_hours_policy(o, baseline_required_before_start=False, daily_report_required=False)
-    ctx = JobCtx(t, o, "", cat, contract)
-    ctx.job_id = new_job(api, ctx, "J-001")
-    return ctx
+    engine_hours_policy(o, daily_report_required=False)
+    return MachineCtx(t, o, cat, cust)
 
 
 def engine_hours_policy(owner: Actor, scope: str = "TENANT", ref: str | None = None, **values: Any) -> None:
-    """Version the tenant's ENGINE_HOURS policy. Job-flow tests run with the baseline gate and daily-report
-    requirement switched off (the behaviour before engine-hour accountability); tests/api/test_engine_hours.py
-    exercises them on (the platform default)."""
+    """Version the tenant's ENGINE_HOURS policy (tests switch the daily-report requirement off unless they test it)."""
     body: dict[str, Any] = {"scope": scope, "values": values, "reason": "Engine-hour controls for this test"}
     if ref is not None:
         body["scope_ref_id"] = ref
@@ -102,8 +76,7 @@ def engine_hours_policy(owner: Actor, scope: str = "TENANT", ref: str | None = N
 
 
 def capture(
-    job_id: str,
-    kind: str,
+    machine_id: str,
     reading: str,
     at: datetime,
     *,
@@ -115,10 +88,11 @@ def capture(
     snapshot: list[str] | None = None,
     capture_id: str | None = None,
 ) -> dict[str, Any]:
+    """A DAILY reading of the machine (POST /meter-captures or a machine report's `capture`)."""
     return {
         "id": capture_id or str(uuid.uuid4()),
-        "job_id": job_id,
-        "kind": kind,
+        "machine_id": machine_id,
+        "kind": "DAILY",
         "capture_mode": mode,
         "reading": reading,
         "ocr_value": ocr if ocr is not None else (reading if mode == "AUTOMATIC" else None),

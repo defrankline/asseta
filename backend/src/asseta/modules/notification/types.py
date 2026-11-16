@@ -107,11 +107,6 @@ _TYPES = (
     NotificationType("APPROVAL_REQUESTED", "Approval requested", Category.ACTION, Severity.INFO, T),
     NotificationType("APPROVAL_PENDING_AGING", "Approval waiting", Category.REMINDER, Severity.WARNING, T, True),
     NotificationType("EXPENSE_DECIDED", "Expense decision", Category.INFO, Severity.INFO, T, low_priority=True),
-    NotificationType("JOB_AWAITING_APPROVAL", "Job awaiting approval", Category.ACTION, Severity.INFO, T),
-    NotificationType("JOB_ASSIGNED", "Job assigned to you", Category.ACTION, Severity.INFO, T),
-    NotificationType("JOB_REQUEST_APPROVED", "Job request approved", Category.ACTION, Severity.INFO, T),
-    NotificationType("JOB_AUTO_APPROVAL_HELD", "Paid job needs approval", Category.ACTION, Severity.INFO, T),
-    NotificationType("JOB_CANCELLED", "Job declined or cancelled", Category.INFO, Severity.WARNING, T),
     NotificationType("CUSTOMER_PAYMENT_TO_VERIFY", "Customer payment to verify", Category.ACTION, Severity.INFO, T),
     NotificationType("CASH_HANDOVER_TO_VERIFY", "Cash handover to verify", Category.ACTION, Severity.INFO, T),
     # Cash custody chain (accountability design C)
@@ -154,13 +149,6 @@ _TYPES = (
         "PETTY_CASH_ADVANCE_OVERDUE", "Cash advance not cleared", Category.REMINDER, Severity.WARNING, T, True
     ),
     NotificationType("EXPENSE_FLAGGED", "Expense flagged for review", Category.ANOMALY, Severity.WARNING, T),
-    # Revenue reconciliation (DEC-031 R3): engine hours not matched by money, or an explanation awaiting a decision
-    NotificationType(
-        "REVENUE_DIFFERENCE", "Revenue difference to explain", Category.ANOMALY, Severity.WARNING, T, True
-    ),
-    NotificationType(
-        "NON_REVENUE_APPROVAL_REQUESTED", "Non-revenue hours to approve", Category.ACTION, Severity.INFO, T
-    ),
     NotificationType("HOURS_APPROVAL_REQUESTED", "Customer hours approval", Category.ACTION, Severity.INFO, T),
     NotificationType(
         "HOURS_APPROVAL_DECIDED", "Customer hours decision", Category.INFO, Severity.INFO, T, low_priority=True
@@ -182,15 +170,9 @@ _TYPES = (
     NotificationType("HOURS_EXPIRED", "Customer hours expired", Category.INFO, Severity.INFO, T, low_priority=True),
     # Operations: reminders
     NotificationType("CASH_NOT_HANDED_OVER", "Cash not handed over", Category.REMINDER, Severity.WARNING, T, True),
-    # DEC-031 M2: completed, billing-ready work not on an issued invoice after the tenant's days (once per job)
-    NotificationType("UNBILLED_WORK", "Work not yet invoiced", Category.REMINDER, Severity.WARNING, T),
-    NotificationType(
-        "HIRE_INVOICE_OVERDUE", "Customer invoice overdue", Category.REMINDER, Severity.INFO, T, low_priority=True
-    ),
     NotificationType(
         "TRACKERS_STALE", "Trackers not reporting", Category.REMINDER, Severity.WARNING, T, low_priority=True
     ),
-    NotificationType("JOB_MISSING_READINGS", "Job missing readings", Category.REMINDER, Severity.WARNING, T, True),
     NotificationType("MISSING_DAILY_REPORT", "Daily report missing", Category.REMINDER, Severity.WARNING, T, True),
     NotificationType("METER_APPROVAL_REQUESTED", "Meter approval requested", Category.ACTION, Severity.INFO, T),
     NotificationType("DAILY_REPORT_SUBMITTED", "Daily report to review", Category.ACTION, Severity.INFO, T),
@@ -200,7 +182,6 @@ _TYPES = (
     NotificationType(
         "METER_EXCEPTION", "Meter reading exception", Category.ANOMALY, Severity.WARNING, T, low_priority=True
     ),
-    NotificationType("HOURS_OVERRUN", "Hours used beyond purchase", Category.ANOMALY, Severity.WARNING, T, True),
     NotificationType(
         "UNEXPLAINED_ENGINE_HOURS", "Engine hours to explain", Category.ANOMALY, Severity.WARNING, T, low_priority=True
     ),

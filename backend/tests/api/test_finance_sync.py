@@ -9,7 +9,7 @@ from typing import Any
 
 from tests.support.api import Actor, Api
 from tests.support.finance import FinCtx, category, expense_policy, gps, setup_finance, tenant_sql
-from tests.support.jobs import unique_jpeg
+from tests.support.meter import unique_jpeg
 
 DEVICE = "android-cash-0001"
 
@@ -84,7 +84,7 @@ def test_offline_expense_collection_handover_exactly_once(api: Api) -> None:
             "supplier": "Roadside spares",
             "amount": "40000",
             "incurred_at": t0.isoformat(),
-            "job_id": f.c.job_id,
+            "machine_id": f.c.t.machine_id,
             "paid_from": "CASH_CUSTODY",
             "gps": gps(t0),
             "device_id": DEVICE,
@@ -124,7 +124,7 @@ def test_offline_expense_collection_handover_exactly_once(api: Api) -> None:
             "client_id": str(uuid.uuid4()),
             "event_type": "USAGE",
             "litres": "12.5",
-            "job_id": f.c.job_id,
+            "machine_id": f.c.t.machine_id,
             "occurred_at": t0.isoformat(),
         },
     )

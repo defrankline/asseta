@@ -43,7 +43,6 @@ from asseta.modules.finance.common import currency_or_default, insert, resolve_c
 from asseta.modules.finance.custody_rules import cash_policy, own_staff
 from asseta.modules.fleet.models import Machine, StaffMember
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.models import Job
 from asseta.modules.meter.models import CaptureAttachment, GpsStatus
 from asseta.modules.platform_billing.models_commercial import Currency
 from asseta.modules.policy.capabilities import FUEL, require_capability
@@ -81,7 +80,6 @@ def own_fuel_filter(ctx: RequestContext) -> Any:
 def expense_list_query(
     status: ExpenseStatus | None = None,
     machine_id: uuid.UUID | None = None,
-    job_id: uuid.UUID | None = None,
     custodian_staff_id: uuid.UUID | None = None,
     paid_from: ExpensePaidFrom | None = None,
     petty_cash_fund_id: uuid.UUID | None = None,
@@ -92,7 +90,6 @@ def expense_list_query(
     for col, val in (
         (Expense.status, status),
         (Expense.machine_id, machine_id),
-        (Expense.job_id, job_id),
         (Expense.custodian_staff_id, custodian_staff_id),
         (Expense.paid_from, paid_from),
         (Expense.petty_cash_fund_id, petty_cash_fund_id),
@@ -179,14 +176,7 @@ class ExpenseService:
         )
         return ExpenseCategoryDto.model_validate(row)
 
-    def _attribution(self, machine_id: uuid.UUID | None, job_id: uuid.UUID | None) -> uuid.UUID | None:
-        if job_id is not None:
-            job = self._s.get(Job, job_id)
-            if job is None:
-                raise NotFound("Job not found")
-            if machine_id is not None and machine_id != job.machine_id:
-                raise BusinessRuleViolation("machine_id does not match the job's machine", code="ATTRIBUTION_MISMATCH")
-            return job.machine_id
+    def _attribution(self, machine_id: uuid.UUID | None) -> uuid.UUID | None:
         if machine_id is not None and self._s.get(Machine, machine_id) is None:
             raise NotFound("Machine not found")
         return machine_id
@@ -229,7 +219,7 @@ class ExpenseService:
                     "petty_cash_fund_id applies to PETTY_CASH only", code="PETTY_CASH_FUND_NOT_ALLOWED"
                 )
             currency = currency_or_default(self._s, self._tid, body.currency)
-        machine_id = self._attribution(body.machine_id, body.job_id)
+        machine_id = self._attribution(body.machine_id)
         custodian = None
         if body.paid_from is ExpensePaidFrom.CASH_CUSTODY:
             custodian = resolve_custodian(self._s, self._ctx, body.custodian_staff_id).id
@@ -276,7 +266,6 @@ class ExpenseService:
             currency=currency,
             incurred_at=body.incurred_at,
             machine_id=machine_id,
-            job_id=body.job_id,
             paid_from=body.paid_from,
             custodian_staff_id=custodian,
             status=ExpenseStatus.APPROVED if auto else ExpenseStatus.PENDING_APPROVAL,
@@ -464,7 +453,7 @@ class ExpenseService:
                 return FuelEventDto.model_validate(existing)
         require_capability(self._s, self._tid, FUEL, self._now)  # ADR-008 §3: refused while fuel is off
         currency = currency_or_default(self._s, self._tid, body.currency)
-        machine_id = self._attribution(body.machine_id, body.job_id)
+        machine_id = self._attribution(body.machine_id)
         if body.expense_id is not None:
             linked = self._s.get(Expense, body.expense_id)
             if linked is None:
@@ -486,7 +475,6 @@ class ExpenseService:
             attributed_cost=cost,
             currency=currency,
             machine_id=machine_id,
-            job_id=body.job_id,
             expense_id=body.expense_id,
             meter_reading=body.meter_reading,
             supplier=body.supplier,

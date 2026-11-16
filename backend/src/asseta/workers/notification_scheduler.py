@@ -1,5 +1,5 @@
 """Reminder scheduler: periodically evaluates the reminder rules for every tenant (idempotent per tenant-local day),
-runs the policy sweeps (customer hours expiry, remittance cut-off, revenue reconciliation) and refreshes the Keycloak
+runs the policy sweeps (customer hours expiry and low balance, remittance cut-off) and refreshes the Keycloak
 membership mirror that notification audiences resolve against."""
 
 import signal
@@ -13,8 +13,8 @@ from asseta.core.db import get_sessionmaker
 from asseta.core.logging import configure_logging
 from asseta.modules.dataprotection.verification import run_balance_verification_sweep
 from asseta.modules.finance.remittance_cutoff import run_remittance_cutoff
-from asseta.modules.hours.drawdown import run_hours_drawdown
 from asseta.modules.hours.expiry import run_hours_expiry
+from asseta.modules.hours.low_balance import run_low_balance
 from asseta.modules.hours.variance_sweep import run_hour_variances
 from asseta.modules.identity.authz_sync import AuthzSyncService
 from asseta.modules.meter.allocation_writer import run_work_allocations
@@ -22,7 +22,6 @@ from asseta.modules.notification.realtime import RedisBroker, SafePublisher
 from asseta.modules.notification.reminders import run_reminders
 from asseta.modules.notification.settings import get_notification_settings
 from asseta.modules.pettycash.sweep import run_petty_cash_sweep
-from asseta.modules.revenue.reconciliation import run_revenue_reconciliation
 
 log = structlog.get_logger()
 
@@ -58,10 +57,10 @@ def run() -> None:
             run_hours_expiry(get_sessionmaker(), system_clock())
         except Exception:
             log.exception("hours_expiry_cycle_failed")
-        try:  # prepaid hours daily drawdown and low-balance warnings (tenant policy CUSTOMER_HOURS; default off)
-            run_hours_drawdown(get_sessionmaker(), system_clock())
+        try:  # low-balance warnings (tenant policy CUSTOMER_HOURS.low_balance_hours; default off)
+            run_low_balance(get_sessionmaker(), system_clock())
         except Exception:
-            log.exception("hours_drawdown_cycle_failed")
+            log.exception("low_balance_cycle_failed")
         try:  # work allocation ledger, day by day from readings (DEC-032 A1; idempotent)
             run_work_allocations(get_sessionmaker(), system_clock())
         except Exception:
@@ -74,10 +73,6 @@ def run() -> None:
             run_remittance_cutoff(get_sessionmaker(), system_clock())
         except Exception:
             log.exception("remittance_cutoff_cycle_failed")
-        try:  # hours-to-money reconciliation of closed periods (tenant policy REVENUE_RECONCILIATION; off = skipped)
-            run_revenue_reconciliation(get_sessionmaker(), system_clock())
-        except Exception:
-            log.exception("revenue_reconciliation_cycle_failed")
         try:  # petty cash: counts due, funds running low, advances not cleared (tenant policy PETTY_CASH; default off)
             run_petty_cash_sweep(get_sessionmaker(), system_clock())
         except Exception:

@@ -1,10 +1,12 @@
-"""Basic profitability by machine / job / customer for a tenant-local period, per currency (never mixed).
+"""Basic profitability by machine / customer for a tenant-local period, per currency (never mixed) (ADR-008).
 
-Recognized revenue = issued hire-invoice lines excluding tax (discounts included as negative lines), dated at
-issue; a voided invoice reverses its lines at the void date. Direct costs = APPROVED expenses (by category, dated
-`incurred_at`) + attributed fuel cost (ISSUE events, and PURCHASE events straight into a machine). To avoid double
-counting, an expense that paid for a fuel PURCHASE is costed through the fuel event, and such a purchase counts
-only while its expense is APPROVED. Rejected and pending expenses never count."""
+Recognized revenue = customer hours used in approved machine reports, valued at the effective hourly price of the
+order each hour came from, dated when the report was approved and attributed to the machine that did the work and to
+the customer. Direct costs = APPROVED expenses (by category, dated `incurred_at`) + attributed fuel cost (ISSUE events,
+and PURCHASE events straight into a machine), attributed to their machine; grouped by customer they are not
+attributable and show as one "Unattributed" row. To avoid double counting, an expense that paid for a fuel PURCHASE is
+costed through the fuel event, and such a purchase counts only while its expense is APPROVED. Rejected and pending
+expenses never count."""
 
 import uuid
 from collections import defaultdict
@@ -16,16 +18,18 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from asseta.core.db import utcnow
+from asseta.core.money import quantize
+from asseta.modules.customers.models import Customer
 from asseta.modules.expenses.models import Expense, ExpenseCategory, ExpenseStatus, FuelEvent, FuelEventType
 from asseta.modules.finance.common import ZERO, local_bounds, tenant_settings
 from asseta.modules.finance.dto import ProfitabilityDto, ProfitabilityRowDto
-from asseta.modules.finance.models import HireInvoiceLine, TenantHireInvoice
 from asseta.modules.fleet.models import Machine
-from asseta.modules.jobs.charges import ChargeKind
-from asseta.modules.jobs.models import Customer, Job, RentalContract
+from asseta.modules.hours.models import HoursLedgerEntry, HoursPurchase, LedgerEntryType
+from asseta.modules.machine_reports.models import MachineReport
+from asseta.modules.platform_billing.models_commercial import Currency
 from asseta.modules.policy.capabilities import FUEL, capability_on
 
-GroupBy = Literal["MACHINE", "JOB", "CUSTOMER"]
+GroupBy = Literal["MACHINE", "CUSTOMER"]
 Key = tuple[uuid.UUID | None, str]  # (group key, currency)
 
 
@@ -33,55 +37,35 @@ class ProfitabilityService:
     def __init__(self, session: Session, tenant_id: uuid.UUID):
         self._s, self._tid = session, tenant_id
 
-    def _revenue(self, group_by: GroupBy, start: datetime, end: datetime) -> dict[Key, list[Decimal]]:
-        key = {
-            "MACHINE": HireInvoiceLine.machine_id,
-            "JOB": HireInvoiceLine.job_id,
-            "CUSTOMER": TenantHireInvoice.customer_id,
-        }[group_by]
-        out: dict[Key, list[Decimal]] = defaultdict(lambda: [ZERO, ZERO])
+    def _revenue(self, group_by: GroupBy, start: datetime, end: datetime) -> dict[Key, Decimal]:
+        key = MachineReport.machine_id if group_by == "MACHINE" else HoursLedgerEntry.customer_id
+        units = dict(self._s.execute(select(Currency.code, Currency.minor_units)).tuples().all())
+        out: dict[Key, Decimal] = defaultdict(lambda: ZERO)
         rows = self._s.execute(
-            select(
-                key,
-                TenantHireInvoice.currency,
-                HireInvoiceLine.amount,
-                TenantHireInvoice.issued_at,
-                TenantHireInvoice.voided_at,
-            )
-            .join(TenantHireInvoice, TenantHireInvoice.id == HireInvoiceLine.invoice_id)
+            select(key, HoursPurchase.currency, HoursLedgerEntry.hours, HoursPurchase.effective_rate)
+            .join(MachineReport, MachineReport.id == HoursLedgerEntry.machine_report_id)
+            .join(HoursPurchase, HoursPurchase.id == HoursLedgerEntry.purchase_id)
             .where(
-                HireInvoiceLine.kind != ChargeKind.TAX,
-                TenantHireInvoice.issued_at.is_not(None),
-                or_(
-                    and_(TenantHireInvoice.issued_at >= start, TenantHireInvoice.issued_at < end),
-                    and_(TenantHireInvoice.voided_at >= start, TenantHireInvoice.voided_at < end),
-                ),
+                HoursLedgerEntry.entry_type == LedgerEntryType.CONSUMED,
+                HoursLedgerEntry.occurred_at >= start,
+                HoursLedgerEntry.occurred_at < end,
             )
         ).tuples()
-        for k, currency, amount, issued_at, voided_at in rows:
-            if issued_at is not None and start <= issued_at < end:
-                out[(k, currency)][0] += amount
-            if voided_at is not None and start <= voided_at < end:
-                out[(k, currency)][1] += amount
+        for k, currency, hours, rate in rows:
+            out[(k, currency)] += quantize(hours * rate, int(units.get(currency, 2)))
         return out
-
-    def _cost_key(self, group_by: GroupBy, machine_col: Any, job_col: Any, customer_col: Any) -> Any:
-        return {"MACHINE": machine_col, "JOB": job_col, "CUSTOMER": customer_col}[group_by]
 
     def _costs(self, group_by: GroupBy, start: datetime, end: datetime) -> dict[Key, dict[str, Decimal]]:
         out: dict[Key, dict[str, Decimal]] = defaultdict(lambda: defaultdict(Decimal))
-        job, contract = aliased(Job), aliased(RentalContract)
+        by_machine = group_by == "MACHINE"
+
+        def key(machine_col: Any) -> Any:
+            return machine_col if by_machine else None
+
         fuel_paid = select(FuelEvent.expense_id).where(FuelEvent.expense_id.is_not(None))
         expenses = self._s.execute(
-            select(
-                self._cost_key(group_by, Expense.machine_id, Expense.job_id, contract.customer_id),
-                Expense.currency,
-                ExpenseCategory.code,
-                Expense.amount,
-            )
+            select(Expense.machine_id, Expense.currency, ExpenseCategory.code, Expense.amount)
             .join(ExpenseCategory, ExpenseCategory.id == Expense.category_id)
-            .outerjoin(job, job.id == Expense.job_id)
-            .outerjoin(contract, contract.id == job.contract_id)
             .where(
                 Expense.status == ExpenseStatus.APPROVED,
                 Expense.incurred_at >= start,
@@ -89,19 +73,13 @@ class ProfitabilityService:
                 Expense.id.not_in(fuel_paid),
             )
         ).tuples()
-        for k, currency, code, amount in expenses:
-            out[(k, currency)][code] += amount
+        for machine_id, currency, code, amount in expenses:
+            out[(key(machine_id), currency)][code] += amount
         if not capability_on(self._s, self._tid, FUEL, utcnow()):
             return out  # ADR-008 §3: no fuel line while the company has fuel switched off
         paying = aliased(Expense)
         fuel = self._s.execute(
-            select(
-                self._cost_key(group_by, FuelEvent.machine_id, FuelEvent.job_id, contract.customer_id),
-                FuelEvent.currency,
-                FuelEvent.attributed_cost,
-            )
-            .outerjoin(job, job.id == FuelEvent.job_id)
-            .outerjoin(contract, contract.id == job.contract_id)
+            select(FuelEvent.machine_id, FuelEvent.currency, FuelEvent.attributed_cost)
             .outerjoin(paying, paying.id == FuelEvent.expense_id)
             .where(
                 FuelEvent.occurred_at >= start,
@@ -116,8 +94,8 @@ class ProfitabilityService:
                 ),
             )
         ).tuples()
-        for k, currency, cost in fuel:
-            out[(k, currency)]["FUEL"] += cost
+        for machine_id, currency, cost in fuel:
+            out[(key(machine_id), currency)]["FUEL"] += cost
         return out
 
     def _labels(self, group_by: GroupBy, keys: set[uuid.UUID]) -> dict[uuid.UUID, str]:
@@ -126,8 +104,6 @@ class ProfitabilityService:
         if group_by == "MACHINE":
             rows = self._s.execute(select(Machine.id, Machine.asset_code, Machine.name).where(Machine.id.in_(keys)))
             return {i: f"{code} {name}" for i, code, name in rows.tuples()}
-        if group_by == "JOB":
-            return dict(self._s.execute(select(Job.id, Job.job_number).where(Job.id.in_(keys))).tuples().all())
         return dict(self._s.execute(select(Customer.id, Customer.name).where(Customer.id.in_(keys))).tuples().all())
 
     def report(self, group_by: GroupBy, first: date, last: date) -> ProfitabilityDto:
@@ -137,23 +113,21 @@ class ProfitabilityService:
         labels = self._labels(group_by, {k for k, _ in (*revenue, *costs) if k is not None})
         rows = []
         for key in sorted({*revenue, *costs}, key=lambda k: (k[1], k[0] is None, labels.get(k[0], "") if k[0] else "")):
-            gross, reversed_ = revenue.get(key, [ZERO, ZERO])
+            earned = revenue.get(key, ZERO)
             cats = dict(costs.get(key, {}))
             fuel = cats.get("FUEL", ZERO)
             expense = sum((v for c, v in cats.items() if c != "FUEL"), ZERO)
-            net = gross - reversed_
             rows.append(
                 ProfitabilityRowDto(
                     group_key=key[0],
                     label=labels.get(key[0], "") if key[0] else "Unattributed",
                     currency=key[1],
-                    revenue=gross,
-                    reversed_revenue=reversed_,
-                    net_revenue=net,
+                    revenue=earned,
+                    net_revenue=earned,
                     expense_cost=expense,
                     fuel_cost=fuel,
                     direct_cost=expense + fuel,
-                    margin=net - expense - fuel,
+                    margin=earned - expense - fuel,
                     cost_by_category=dict(sorted(cats.items())),
                 )
             )

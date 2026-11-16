@@ -23,7 +23,7 @@ def customer_hours(
     for b in balances(session, customer_id=customer_id):
         row = acc[b.customer_id]
         row["activated"] += b.activated
-        row["used"] += b.consumed + b.provisional
+        row["used"] += b.consumed
         row["left"] += b.remaining
         row["awaiting"] += b.awaiting_activation
     stmt = (

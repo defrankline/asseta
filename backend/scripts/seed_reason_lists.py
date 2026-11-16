@@ -1,16 +1,15 @@
 #!/usr/bin/env python
-"""Add one company's starter reason lists (customer hours, engine hours, cash, revenue) from a JSON file.
+"""Add one company's starter reason lists (customer hours, engine hours, cash) from a JSON file.
 
 Run through scripts/seed-reason-lists.sh. Without --yes it only prints what would be added. Entries already there are
-skipped, active or not: customer-hour, engine-hour and revenue reasons by list and code (any capitals), cash reasons by
+skipped, active or not: customer-hour and engine-hour reasons by list and code (any capitals), cash reasons by
 list and label (they have no code). A second run adds nothing. Each new entry gets an audit event, all in one
 transaction. Nothing existing is changed or deactivated.
 
 File format (deploy/reason-lists.example.json; every section is optional):
     {"customer_hours": {"DISCOUNT": [{"code": "LOYAL_CUSTOMER", "label": "Long-standing customer"}], ...},
      "engine_hours": {"NON_CUSTOMER_CATEGORY": [{"code": "MAINTENANCE", "label": "Maintenance and servicing"}], ...},
-     "cash": {"VARIANCE": [{"label": "Counting error"}], ...},
-     "revenue": [{"code": "ON_CREDIT", "label": "On credit, not yet paid", "description": "optional"}]}
+     "cash": {"VARIANCE": [{"label": "Counting error"}], ...}}
 """
 
 import argparse
@@ -31,11 +30,10 @@ from asseta.core.db import utcnow
 from asseta.modules.finance.custody_models import CashReason, CashReasonKind
 from asseta.modules.hours.models import HoursReasonCode, ReasonKind
 from asseta.modules.meter.engine_models import EngineHourReason, EngineHourReasonKind
-from asseta.modules.revenue.models import RevenueReason
 
 NIL_TENANT = uuid.UUID(int=0)
 CODE_MAX, DESCRIPTION_MAX = 32, 500
-LABEL_MAX = {"customer_hours": 200, "engine_hours": 120, "cash": 120, "revenue": 120}
+LABEL_MAX = {"customer_hours": 200, "engine_hours": 120, "cash": 120}
 KINDS: dict[str, frozenset[str]] = {
     "customer_hours": frozenset(k.value for k in ReasonKind),
     "engine_hours": frozenset(k.value for k in EngineHourReasonKind),
@@ -45,8 +43,11 @@ TITLES = {
     "customer_hours": "Customer-hours reasons",
     "engine_hours": "Engine-hour reasons",
     "cash": "Cash reasons",
-    "revenue": "Revenue reasons",
 }
+
+
+# Lists that no longer exist (revenue reasons went with job revenue differences, ADR-008): skipped, never refused.
+RETIRED = frozenset({"revenue"})
 
 
 class Refuse(Exception):
@@ -56,7 +57,7 @@ class Refuse(Exception):
 @dataclass(frozen=True)
 class Entry:
     section: str
-    kind: str | None  # None for revenue reasons (one list)
+    kind: str | None
     code: str | None  # None for cash reasons (matched by label)
     label: str
     description: str | None
@@ -97,7 +98,7 @@ def read_file(path: Path) -> list[Entry]:
         raise Refuse(f"{path} is not valid JSON: {exc}") from exc
     if not isinstance(raw, dict):
         raise Refuse("the file must be a JSON object")
-    unknown = set(raw) - {*TITLES, "_comment"}
+    unknown = set(raw) - {*TITLES, *RETIRED, "_comment"}
     if unknown:
         raise Refuse(f"unknown section(s): {', '.join(sorted(unknown))}; known: {', '.join(TITLES)}")
     out: list[Entry] = []
@@ -111,8 +112,6 @@ def read_file(path: Path) -> list[Entry]:
             if kind not in kinds:
                 raise Refuse(f"{section}: unknown list {kind}; known: {', '.join(sorted(kinds))}")
             out += _entries(section, kind, items)
-    if "revenue" in raw:
-        out += _entries("revenue", None, raw["revenue"])
     if not out:
         raise Refuse("the file holds no reasons")
     seen: set[tuple[str, str | None, str]] = set()
@@ -152,8 +151,6 @@ def existing_keys(session: Session) -> set[tuple[str, str | None, str]]:
         keys.add(("engine_hours", str(kind), str(code).casefold()))
     for kind, label in session.execute(text("SELECT kind, label FROM cash_reason")).all():
         keys.add(("cash", str(kind), str(label).casefold()))
-    for (code,) in session.execute(text("SELECT code FROM revenue_reason")).all():
-        keys.add(("revenue", None, str(code).casefold()))
     return keys
 
 
@@ -176,14 +173,11 @@ def add(session: Session, audit: AuditService, actor: AuditActor, tid: uuid.UUID
             is_active=True,
         )
         action, entity = "meter.reason.created", "engine_hour_reason"
-    elif e.section == "cash":
+    else:
         row = CashReason(
             id=uuid.uuid4(), tenant_id=tid, kind=CashReasonKind(kind), label=e.label, description=e.description
         )
         action, entity = "finance.cash_reason.created", "cash_reason"
-    else:
-        row = RevenueReason(id=uuid.uuid4(), tenant_id=tid, code=code, name=e.label, description=e.description)
-        action, entity = "revenue.reason.created", "revenue_reason"
     session.add(row)
     session.flush()
     after = {"list": e.kind, "code": e.code, "label": e.label, "description": e.description}

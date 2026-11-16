@@ -47,7 +47,7 @@ def last_approved(session: Session, machine_id: uuid.UUID) -> MachineReport | No
     ).scalar_one_or_none()
 
 
-def _epoch(session: Session, machine_id: uuid.UUID, at: datetime) -> int:
+def meter_epoch(session: Session, machine_id: uuid.UUID, at: datetime) -> int:
     return int(
         session.execute(
             select(func.count()).where(
@@ -60,7 +60,8 @@ def _epoch(session: Session, machine_id: uuid.UUID, at: datetime) -> int:
 
 
 def start_point(session: Session, machine_id: uuid.UUID) -> StartPoint | None:
-    """The reading a new report on the machine starts from (None: no approved report and no approved baseline)."""
+    """The reading a new report on the machine starts from (None: no approved report and no approved baseline: the
+    next report is an opening report)."""
     report = last_approved(session, machine_id)
     point: tuple[StartSource, uuid.UUID, Decimal, datetime] | None = None
     if report is not None:
@@ -88,7 +89,7 @@ def start_point(session: Session, machine_id: uuid.UUID) -> StartPoint | None:
     ).scalar_one_or_none()
     if reset is not None:
         point = (StartSource.RESET, reset.id, reset.new_reading, reset.effective_at)
-    return StartPoint(point[0], point[1], point[2], point[3], _epoch(session, machine_id, point[3]))
+    return StartPoint(point[0], point[1], point[2], point[3], meter_epoch(session, machine_id, point[3]))
 
 
 def tracker_hours(

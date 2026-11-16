@@ -21,6 +21,7 @@ from asseta.core.audit import AuditService
 from asseta.core.errors import BusinessRuleViolation, NotFound, PermissionDenied
 from asseta.core.outbox import OutboxWriter
 from asseta.core.search import ilike_any
+from asseta.modules.customers.models import Customer
 from asseta.modules.finance.common import tenant_settings
 from asseta.modules.finance.models import CustomerPayment, HirePaymentMethod, SettlementStatus
 from asseta.modules.hours.dto import (
@@ -34,7 +35,6 @@ from asseta.modules.hours.ledger import ZERO
 from asseta.modules.hours.models import CreditInvoice, CreditInvoicePayment, HoursPurchase
 from asseta.modules.hours.numbering import next_number
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.models import Customer
 
 TOPIC = "asseta.hours"
 SERIES = "CI"

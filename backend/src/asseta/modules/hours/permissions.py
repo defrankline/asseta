@@ -39,7 +39,6 @@ for _key, _label, _path, _order, _perm in (
     ("tenant.hours.balances", "Balances", "/tenant/hours/balances", 72, "tenant.hours.read"),
     ("tenant.hours.credit_invoices", "Credit invoices", "/tenant/hours/credit-invoices", 73, "tenant.hours.read"),
     ("tenant.hours.ledger", "Hours ledger", "/tenant/hours/ledger", 74, "tenant.hours.read"),
-    ("tenant.hours.allocations", "Prepaid hours used", "/tenant/hours/allocations", 75, "tenant.hours.read"),
     ("tenant.hours.transfers", "Transfers", "/tenant/hours/transfers", 76, "tenant.hours.read"),
     ("tenant.hours.cancellations", "Cancellations", "/tenant/hours/cancellations", 77, "tenant.hours.read"),
     ("tenant.hours.discounts", "Customer discounts", "/tenant/hours/discounts", 78, "tenant.hours.read"),

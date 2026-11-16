@@ -8,7 +8,7 @@ are skipped, so a second run changes nothing.
 
 File format (policy types and field names are the "Key" column of the Policies page):
     {"reason": "Go-live settings agreed with the company",
-     "policies": {"CUSTOMER_HOURS": {"default_billing_mode": "PREPAID_HOURS", "expiry_days": 365}}}
+     "policies": {"CUSTOMER_HOURS": {"field_credit_sales": true, "expiry_days": 365}}}
 """
 
 import argparse

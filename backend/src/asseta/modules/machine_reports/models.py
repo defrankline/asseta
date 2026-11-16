@@ -11,7 +11,19 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -40,6 +52,7 @@ class StartSource(StrEnum):
     REPORT = "REPORT"  # the end reading of the machine's last approved report
     BASELINE = "BASELINE"  # the machine's approved meter baseline
     RESET = "RESET"  # the new reading of an approved meter reset (after the last approved reading)
+    OPENING = "OPENING"  # an opening report: the machine had no starting reading; this reading becomes it
 
 
 class MachineReport(UuidPk, Base):
@@ -63,7 +76,11 @@ class MachineReport(UuidPk, Base):
         ),
         Index("ix_machine_report_machine", "tenant_id", "machine_id", "submitted_at"),
         Index("ix_machine_report_status", "tenant_id", "status"),
-        CheckConstraint("hours > 0 AND end_reading - start_reading = hours", name="ck_machine_report_range"),
+        CheckConstraint(
+            "(opening AND hours = 0 AND start_reading = end_reading) OR "
+            "(NOT opening AND hours > 0 AND end_reading - start_reading = hours)",
+            name="ck_machine_report_range",
+        ),
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False)
@@ -78,6 +95,9 @@ class MachineReport(UuidPk, Base):
     end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     meter_epoch: Mapped[int] = mapped_column(Integer, nullable=False)  # approved resets at or before start_at
     hours: Mapped[Decimal] = mapped_column(READING, nullable=False)
+    # An opening report (no lines, 0 hours): the machine had no approved reading or baseline yet; once approved its
+    # reading is where the next report starts.
+    opening: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
     status: Mapped[MachineReportStatus] = mapped_column(_enum(MachineReportStatus, 16), nullable=False)
     corrects_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("machine_report.id"), index=True)
     note: Mapped[str | None] = mapped_column(Text)

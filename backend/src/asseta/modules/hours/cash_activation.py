@@ -24,7 +24,6 @@ from asseta.core.outbox import OutboxWriter
 from asseta.modules.finance.models import (
     CashHandover,
     CustomerPayment,
-    HirePaymentAllocation,
     HirePaymentMethod,
     SettlementStatus,
 )
@@ -38,7 +37,7 @@ FINANCE_TOPIC = "asseta.finance"
 
 
 def hours_cash(session: Session, payment: CustomerPayment) -> bool:
-    """A claimed cash payment that pays hours purchases only (no invoice allocation): the policy may verify it."""
+    """A claimed cash payment linked to hours purchases (orders): the policy may verify it."""
     if (
         payment.method is not HirePaymentMethod.CASH
         or payment.status is not SettlementStatus.CLAIMED
@@ -50,12 +49,7 @@ def hours_cash(session: Session, payment: CustomerPayment) -> bool:
         .where(HoursPaymentAllocation.payment_id == payment.id, HoursPaymentAllocation.released_at.is_(None))
         .limit(1)
     ).first()
-    invoiced = session.execute(
-        select(HirePaymentAllocation.id)
-        .where(HirePaymentAllocation.payment_id == payment.id, HirePaymentAllocation.released_at.is_(None))
-        .limit(1)
-    ).first()
-    return linked is not None and invoiced is None
+    return linked is not None
 
 
 def verified_by_handover(session: Session, payment: CustomerPayment, at: datetime) -> bool:

@@ -22,7 +22,6 @@ from asseta.modules.policy.capabilities import (
     CUSTOMER_HOURS,
     DEPOSIT_ACCOUNTS,
     ENGINE_HOURS,
-    REVENUE_RECONCILIATION,
     TRACKING,
     disabled_capabilities,
 )
@@ -30,8 +29,8 @@ from asseta.modules.policy.capabilities import (
 SETUP_READ_PERMISSION = "tenant.setup.read"
 
 # Generic permission semantics (catalog codes, not role names): who records in the field and who approves.
-FIELD_PERMISSION = "tenant.job.log"
-APPROVER_PERMISSION = "tenant.job.approve"
+FIELD_PERMISSION = "tenant.machine_report.submit"
+APPROVER_PERMISSION = "tenant.machine_report.approve"
 MIN_APPROVERS = 2  # proposer != approver needs a second person who can decide
 
 
@@ -49,13 +48,13 @@ class StepKey(StrEnum):
     MACHINES = "MACHINES"
     TRACKERS = "TRACKERS"
     SITES = "SITES"
-    CUSTOMERS_AND_CONTRACTS = "CUSTOMERS_AND_CONTRACTS"
+    CUSTOMERS = "CUSTOMERS"
     CONTROLS_CHOSEN = "CONTROLS_CHOSEN"
     REASON_LISTS = "REASON_LISTS"
     DEPOSIT_ACCOUNTS = "DEPOSIT_ACCOUNTS"
     METER_BASELINES = "METER_BASELINES"
     FIELD_APP_SIGNED_IN = "FIELD_APP_SIGNED_IN"
-    FIRST_JOB = "FIRST_JOB"
+    FIRST_MACHINE_REPORT = "FIRST_MACHINE_REPORT"
 
 
 @dataclass(frozen=True)
@@ -202,15 +201,15 @@ def _trackers(f: Facts, off: frozenset[str], _c: bool) -> Evaluation:
 
 def _sites(f: Facts, off: frozenset[str], _c: bool) -> Evaluation:
     sites = Check(
-        "JOB_SITES",
-        "At least one job site",
+        "SITES",
+        "At least one site",
         f["sites"] > 0,
         "/tenant/geofences?tab=sites",
         "tenant.geofence.write",
         min(f["sites"], 1),
         1,
     )
-    if TRACKING in off:  # no geofences: the job sites remain
+    if TRACKING in off:  # no geofences: the sites remain
         return _from_checks((sites,))
     checks = (
         sites,
@@ -229,7 +228,7 @@ def _sites(f: Facts, off: frozenset[str], _c: bool) -> Evaluation:
 
 
 def _customers(f: Facts, _off: frozenset[str], _c: bool) -> Evaluation:
-    n = f["customers_with_contract"]
+    n = f["customers"]
     return Evaluation(done=n > 0, done_count=min(n, 1), total_count=1)
 
 
@@ -263,14 +262,6 @@ REASON_LISTS: tuple[tuple[str, str, str, str, str, str], ...] = (
         "/tenant/finance/cash?tab=reasons",
         "tenant.finance.reason_manage",
     ),
-    (
-        "REVENUE_REASONS",
-        "Revenue reasons (explaining revenue differences)",
-        "revenue_reasons",
-        REVENUE_RECONCILIATION,
-        "/tenant/revenue-reasons",
-        "tenant.revenue.decide",
-    ),
 )
 
 
@@ -301,8 +292,9 @@ def _devices(f: Facts, _off: frozenset[str], _c: bool) -> Evaluation:
     return Evaluation(done=f["field_devices"] > 0, done_count=min(f["field_devices"], 1), total_count=1)
 
 
-def _first_job(f: Facts, _off: frozenset[str], _c: bool) -> Evaluation:
-    return Evaluation(done=f["jobs_started"] > 0, done_count=min(f["jobs_started"], 1), total_count=1)
+def _first_report(f: Facts, _off: frozenset[str], _c: bool) -> Evaluation:
+    n = f["machine_reports_approved"]
+    return Evaluation(done=n > 0, done_count=min(n, 1), total_count=1)
 
 
 def _from_checks(checks: tuple[Check, ...], n: int | None = None, total: int | None = None) -> Evaluation:
@@ -366,7 +358,7 @@ STEPS: tuple[StepDef, ...] = (
     ),
     StepDef(
         StepKey.SITES,
-        "Job sites",
+        "Sites",
         "Add the sites where your machines work. Drawing a boundary (geofence) around a site is optional; it lets "
         "the system tell you when a machine leaves the site.",
         "/tenant/geofences?tab=sites",
@@ -375,9 +367,9 @@ STEPS: tuple[StepDef, ...] = (
         _sites,
     ),
     StepDef(
-        StepKey.CUSTOMERS_AND_CONTRACTS,
-        "Customers and contracts",
-        "Add at least one customer with an active contract, so jobs can be priced and billed.",
+        StepKey.CUSTOMERS,
+        "Customers",
+        "Add at least one customer, so hours can be sold to them.",
         "/tenant/customers",
         "tenant.customer.write",
         True,
@@ -386,7 +378,7 @@ STEPS: tuple[StepDef, ...] = (
     StepDef(
         StepKey.CONTROLS_CHOSEN,
         "Choose your controls",
-        "Review the rules the system applies (approvals, cash, engine hours, revenue checks) and change any that do "
+        "Review the rules the system applies (approvals, cash, engine hours, customer hours) and change any that do "
         "not fit your business, or confirm that the defaults are fine.",
         "/tenant/policies",
         "tenant.policy.manage",
@@ -431,13 +423,13 @@ STEPS: tuple[StepDef, ...] = (
         _devices,
     ),
     StepDef(
-        StepKey.FIRST_JOB,
-        "First job",
-        "Approve or start your first job. From then on the system checks work, hours and money every day.",
-        "/tenant/jobs",
-        "tenant.job.approve",
+        StepKey.FIRST_MACHINE_REPORT,
+        "First machine report",
+        "Approve your first machine report. From then on the system checks work, hours and money every day.",
+        "/tenant/machine-reports",
+        "tenant.machine_report.approve",
         False,
-        _first_job,
+        _first_report,
     ),
 )
 STEP_BY_KEY = {s.key: s for s in STEPS}
@@ -495,21 +487,18 @@ SELECT
     AS machines_tracked_enrolled,
   (SELECT count(*) FROM job_site js WHERE js.tenant_id = :tid AND js.is_active) AS sites,
   (SELECT count(*) FROM geofence g WHERE g.tenant_id = :tid AND g.is_active) AS geofences,
-  (SELECT count(DISTINCT rc.customer_id) FROM rental_contract rc
-     JOIN customer cu ON cu.id = rc.customer_id AND cu.is_active
-    WHERE rc.tenant_id = :tid AND rc.status = 'ACTIVE') AS customers_with_contract,
+  (SELECT count(*) FROM customer cu WHERE cu.tenant_id = :tid AND cu.is_active) AS customers,
   (SELECT count(*) FROM policy_version pv WHERE pv.tenant_id = :tid) AS tenant_policy_versions,
   (SELECT count(*) FROM hours_reason_code x WHERE x.tenant_id = :tid AND x.is_active) AS hours_reasons,
   (SELECT count(*) FROM engine_hour_reason x WHERE x.tenant_id = :tid AND x.is_active) AS engine_reasons,
   (SELECT count(*) FROM cash_reason x WHERE x.tenant_id = :tid AND x.is_active) AS cash_reasons,
-  (SELECT count(*) FROM revenue_reason x WHERE x.tenant_id = :tid AND x.is_active) AS revenue_reasons,
   (SELECT count(*) FROM company_deposit_account d WHERE d.tenant_id = :tid AND d.is_active) AS deposit_accounts,
   (SELECT count(*) FROM active_machines m WHERE EXISTS (
       SELECT 1 FROM machine_meter_baseline b WHERE b.tenant_id = :tid AND b.machine_id = m.id
          AND b.status = 'APPROVED')) AS machines_baselined,
   (SELECT count(*) FROM device_session ds WHERE ds.tenant_id = :tid AND ds.status = 'ACTIVE') AS field_devices,
-  (SELECT count(*) FROM job j WHERE j.tenant_id = :tid
-      AND j.status IN ('APPROVED', 'IN_PROGRESS', 'COMPLETED')) AS jobs_started
+  (SELECT count(*) FROM machine_report r WHERE r.tenant_id = :tid
+      AND r.status = 'APPROVED') AS machine_reports_approved
 """)
 
 

@@ -66,7 +66,7 @@ def test_user_deletes_own_account(api: Api) -> None:
     assert user.is_active is False and user.deleted_at is not None
     assert not sql("SELECT 1 FROM tenant_membership WHERE user_id = :u AND effective_to IS NULL", u=uid)
     # A token issued before the deletion is refused and does not bring the name back.
-    refused = sup.get("/api/v1/tenant/jobs")
+    refused = sup.get("/api/v1/tenant/machine-reports")
     assert refused.status_code == 403 and refused.json()["error"]["code"] == "USER_INACTIVE"
     assert sup.get("/api/v1/me").json()["error"]["code"] == "USER_INACTIVE"
     assert sql("SELECT display_name FROM app_user WHERE id = :u", u=uid)[0][0].startswith("Former user ")

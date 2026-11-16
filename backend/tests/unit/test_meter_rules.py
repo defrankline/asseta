@@ -8,7 +8,6 @@ from asseta.modules.meter.models import GpsStatus
 from asseta.modules.meter.rules import (
     GpsEvidence,
     PriorReading,
-    billable_hours,
     capture_findings,
     gps_findings,
     location_findings,
@@ -18,7 +17,6 @@ from asseta.modules.meter.rules import (
 from asseta.modules.policy.schemas import (
     SEED_DEFAULTS,
     CaptureMode,
-    HireBillingPolicy,
     MeterCapturePolicy,
     PolicyType,
 )
@@ -74,13 +72,14 @@ def test_gps_no_fix_soft_vs_hard_and_accuracy_age() -> None:
     assert gps_findings(policy(), GpsEvidence(GpsStatus.FIX, 8.0, NOW - timedelta(seconds=5)), NOW) == ([], False)
 
 
-def test_sequence_decrease_impossible_increment_continuity_and_reset() -> None:
-    prior = PriorReading(Decimal("1000.0"), NOW - timedelta(hours=10), "job-a", "CLOSING")
-    assert types(sequence_findings(policy(), Decimal("990.0"), NOW, prior, None, True)) == {X.METER_DECREASE}
-    assert sequence_findings(policy(), Decimal("12.0"), NOW, prior, Decimal("10.0"), True)  # reset: 10 -> 12 in 10h
-    assert types(sequence_findings(policy(), Decimal("1020.0"), NOW, prior, None, False)) == {X.IMPOSSIBLE_INCREMENT}
-    assert types(sequence_findings(policy(), Decimal("1003.0"), NOW, prior, None, True)) == {X.CONTINUITY_GAP}
-    assert sequence_findings(policy(), Decimal("1000.3"), NOW, prior, None, True) == []
+def test_sequence_decrease_impossible_increment_and_reset() -> None:
+    prior = PriorReading(Decimal("1000.0"), NOW - timedelta(hours=10))
+    assert types(sequence_findings(policy(), Decimal("990.0"), NOW, prior, None)) == {X.METER_DECREASE}
+    assert sequence_findings(policy(), Decimal("12.0"), NOW, prior, Decimal("10.0")) == []  # reset: 10 -> 12 in 10h
+    assert types(sequence_findings(policy(), Decimal("1020.0"), NOW, prior, None)) == {X.IMPOSSIBLE_INCREMENT}
+    assert sequence_findings(policy(), Decimal("1003.0"), NOW, prior, None) == []  # no continuity rule any more
+    assert sequence_findings(policy(), Decimal("1000.3"), NOW, prior, None) == []
+    assert sequence_findings(policy(), Decimal("5.0"), NOW, None, None) == []  # first reading: nothing to compare
 
 
 def test_location_compares_only_same_time_positions() -> None:
@@ -91,9 +90,7 @@ def test_location_compares_only_same_time_positions() -> None:
     assert location_findings(policy(), 120.0, 10, 5, NOW, NOW)[0] == []
 
 
-def test_telemetry_and_billable_hours() -> None:
+def test_telemetry_mismatch() -> None:
     assert types(telemetry_findings(policy(), Decimal("8.0"), Decimal("6.9"))) == {X.TELEMETRY_MISMATCH}
+    assert telemetry_findings(policy(), Decimal("8.0"), Decimal("7.9")) == []
     assert telemetry_findings(policy(), Decimal("8.0"), None) == []
-    hb = HireBillingPolicy.model_validate(SEED_DEFAULTS[PolicyType.HIRE_BILLING])
-    assert billable_hours(Decimal("7.96"), Decimal("1.50"), Decimal("4"), hb) == Decimal("6.5")
-    assert billable_hours(Decimal("2.0"), Decimal("0"), Decimal("4"), hb) == Decimal("4")  # contract minimum

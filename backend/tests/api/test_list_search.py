@@ -18,25 +18,15 @@ def created(r: Any) -> dict[str, Any]:
     return dict(r.json())
 
 
-def test_contracts_q_matches_number_or_reference_and_combines_with_customer_and_paging(api: Api) -> None:
+def test_customers_q_matches_code_or_name_and_combines_with_paging(api: Api) -> None:
     o = owner(api)
-    c1 = created(o.post("/api/v1/tenant/customers", {"code": "C1", "name": "Road Builders"}))["id"]
-    c2 = created(o.post("/api/v1/tenant/customers", {"code": "C2", "name": "Dam Makers"}))["id"]
-    start = api.clock.now.isoformat()
-    for cust, number, ref in ((c1, "CT-001", "Bridge works"), (c2, "CT-002", "Bridge repairs"), (c1, "CT-003", "Road")):
-        created(
-            o.post(
-                "/api/v1/tenant/contracts",
-                {"customer_id": cust, "contract_number": number, "starts_on": start, "reference": ref},
-            )
-        )
-    body = o.get("/api/v1/tenant/contracts", q="bRIDGE").json()
-    assert body["total"] == 2 and {c["contract_number"] for c in body["items"]} == {"CT-001", "CT-002"}
-    body = o.get("/api/v1/tenant/contracts", q="bridge", customer_id=c1).json()
-    assert body["total"] == 1 and [c["contract_number"] for c in body["items"]] == ["CT-001"]
-    body = o.get("/api/v1/tenant/contracts", q="ct-00", page_size=1).json()
+    for code, name in (("C1", "Bridge Builders"), ("C2", "Bridge Repairs Ltd"), ("C3", "Road Makers")):
+        created(o.post("/api/v1/tenant/customers", {"code": code, "name": name}))
+    body = o.get("/api/v1/tenant/customers", q="bRIDGE").json()
+    assert body["total"] == 2 and {c["code"] for c in body["items"]} == {"C1", "C2"}
+    body = o.get("/api/v1/tenant/customers", q="c", page_size=1).json()
     assert body["total"] == 3 and len(body["items"]) == 1
-    assert o.get("/api/v1/tenant/contracts", q="   ").json()["total"] == 3  # blank q = no filter
+    assert o.get("/api/v1/tenant/customers", q="   ").json()["total"] == 3  # blank q = no filter
 
 
 def test_machine_categories_q_on_name(api: Api) -> None:

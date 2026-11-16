@@ -9,7 +9,7 @@ from typing import Any
 from tests.support.api import Actor, Api
 from tests.support.finance import category, expense_policy, gps, role, setup_finance
 from tests.support.intelligence import expense
-from tests.support.jobs import capture, new_job, photo, setup_job
+from tests.support.meter import capture, photo, setup_machine
 from tests.support.ml import fleet_for, last_week_end, shifted_week, store
 
 OVERRIDES = "/api/v1/tenant/insights/manual-overrides"
@@ -96,22 +96,35 @@ def test_cash_flow_trend_from_verified_receipts_and_approved_expenses(api: Api) 
     assert all(Decimal(w["net"]) == Decimal(w["receipts"]) - Decimal(w["expenses"]) for w in flow["weeks"])
 
 
+def _assign(api: Api, owner: Actor, staff_id: str, machine_id: str) -> None:
+    r = owner.post(
+        f"/api/v1/tenant/machines/{machine_id}/assignments",
+        {"staff_member_id": staff_id, "role": "SUPERVISOR", "effective_from": api.clock.now.isoformat()},
+    )
+    assert r.status_code == 201, r.text
+
+
 def test_manual_override_audit_lists_ocr_vs_entered_and_is_tenant_isolated(api: Api) -> None:
-    c = setup_job(api, "Ocr Co", "OCR-1")
+    c = setup_machine(api, "Ocr Co", "OCR-1")
     o, now, tid = c.owner, api.clock.now, c.t.tenant["tenant"]["id"]
     sup = Actor(api, "sup-ocr", [f"/tenants/{tid}/supervisor"], tid, email="sup-ocr@example.com")
-    corrected = capture(c.job_id, "OPENING", "70.0", now, photo_id=photo(api, sup), confidence=0.4, ocr="78.0")
+    staff = o.post(
+        "/api/v1/tenant/staff", {"full_name": "Ocr Supervisor", "kind": "SUPERVISOR", "keycloak_subject": sup.subject}
+    )
+    assert staff.status_code == 201, staff.text
+    _assign(api, o, staff.json()["id"], c.t.machine_id)  # supervisors read the machines assigned to them
+    corrected = capture(c.t.machine_id, "70.0", now, photo_id=photo(api, sup), confidence=0.4, ocr="78.0")
     assert sup.post("/api/v1/tenant/meter-captures", corrected).status_code == 201
-    policy = {"opening_mode": "MANUAL", "closing_mode": "MANUAL", "manual_photo_required": False}
+    policy = {"capture_mode": "MANUAL", "manual_photo_required": False}
     r = o.post(
         "/api/v1/tenant/policies/METER_CAPTURE/versions",
         {"scope": "TENANT", "values": policy, "reason": "Manual entry"},
     )
     assert r.status_code == 201, r.text
     other_machine = o.post("/api/v1/tenant/machines", {"asset_code": "OCR-2", "name": "Loader"}).json()["id"]
-    job2 = new_job(api, c, "J-002", machine_id=other_machine, rate="90000")
+    _assign(api, o, staff.json()["id"], other_machine)
     later = now + timedelta(hours=1)
-    manual = capture(job2, "OPENING", "120.5", later, mode="MANUAL", ocr="120.5")
+    manual = capture(other_machine, "120.5", later, mode="MANUAL", ocr="120.5")
     assert sup.post("/api/v1/tenant/meter-captures", manual).status_code == 201
 
     report = get(o, OVERRIDES)
@@ -123,11 +136,11 @@ def test_manual_override_audit_lists_ocr_vs_entered_and_is_tenant_isolated(api: 
         "exceptions_open": 1,
     }
     first, second = report["items"]  # newest first
-    assert (second["capture_id"], second["kind"], second["capture_mode"]) == (corrected["id"], "OPENING", "AUTOMATIC")
+    assert (second["capture_id"], second["kind"], second["capture_mode"]) == (corrected["id"], "DAILY", "AUTOMATIC")
     assert Decimal(second["ocr_value"]) == 78 and Decimal(second["entered_value"]) == 70
     assert Decimal(second["difference"]) == -8 and second["ocr_confidence"] == 0.4 and second["manually_corrected"]
     assert second["exception_id"] and second["exception_status"] == "OPEN" and second["captured_by_user_id"]
-    assert second["machine_id"] == c.t.machine_id and second["job_number"] == "J-001" and second["asset_code"]
+    assert second["machine_id"] == c.t.machine_id and second["asset_code"]
     assert (first["capture_mode"], first["manually_corrected"], first["machine_id"]) == ("MANUAL", False, other_machine)
     assert Decimal(first["difference"]) == 0 and first["exception_id"] is None
 

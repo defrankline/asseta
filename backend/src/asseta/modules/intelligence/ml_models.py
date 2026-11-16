@@ -53,7 +53,6 @@ SNAPSHOT_SOURCES = (SOURCE_OBSERVED, SOURCE_SYNTHETIC)
 
 class FeatureEntityType(StrEnum):
     MACHINE = "MACHINE"
-    JOB = "JOB"
     STAFF = "STAFF"
 
 

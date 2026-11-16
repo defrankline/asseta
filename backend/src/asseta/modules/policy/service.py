@@ -24,18 +24,18 @@ from asseta.modules.policy.data_protection import DataProtectionPolicy
 from asseta.modules.policy.engine_hours import EngineHoursPolicy
 from asseta.modules.policy.models import PolicyVersion
 from asseta.modules.policy.petty_cash import PettyCashPolicy
-from asseta.modules.policy.revenue import RevenueReconciliationPolicy
 from asseta.modules.policy.schemas import (
     OVERRIDABLE,
     PLATFORM_ONLY_FIELDS,
+    RENAMED_FIELDS,
     RETIRED_FIELDS,
+    RETIRED_VALUES,
     SCHEMAS,
     CashCustodyPolicy,
     CustomerHoursPolicy,
     DeviceSyncPolicy,
     ExpenseCapturePolicy,
     FraudControlsPolicy,
-    HireBillingPolicy,
     MeterCapturePolicy,
     OversightPolicy,
     PolicyScope,
@@ -65,10 +65,21 @@ LAYER_ORDER = (
 OPT_IN_SCOPES = (PolicyScope.STAFF, PolicyScope.MACHINE_CATEGORY)
 
 
-def _drop_retired(ptype: PolicyType, values: dict[str, Any]) -> None:
-    """Settings the schema no longer has, kept in versions written before they were retired, are ignored."""
+def _current(ptype: PolicyType, values: dict[str, Any]) -> dict[str, Any]:
+    """One stored version's values in today's schema: settings stored under an older name are read under the new one,
+    and settings (or list values) the schema no longer has, kept in versions written before they were retired, are
+    ignored."""
+    out = dict(values)
+    for old, new in RENAMED_FIELDS.get(ptype, {}).items():
+        if old in out:
+            value = out.pop(old)
+            out.setdefault(new, value)
     for key in RETIRED_FIELDS.get(ptype, frozenset()):
-        values.pop(key, None)
+        out.pop(key, None)
+    for key, retired in RETIRED_VALUES.get(ptype, {}).items():
+        if isinstance(out.get(key), list):
+            out[key] = [v for v in out[key] if v not in retired]
+    return out
 
 
 @dataclass(frozen=True)
@@ -154,8 +165,7 @@ class PolicyService:
             raise BusinessRuleViolation(f"No {ptype.value} policy configured", code="POLICY_NOT_CONFIGURED")
         merged: dict[str, Any] = {}
         for row in rows:
-            merged.update(row.values)
-        _drop_retired(ptype, merged)
+            merged.update(_current(ptype, row.values))
         stamp = ".".join(f"{_ABBR[r.scope]}{r.version}" for r in rows)
         schema = SCHEMAS[ptype]
         self._validate(schema, merged)
@@ -172,7 +182,7 @@ class PolicyService:
     ) -> PolicyScope | None:
         """The most specific scope whose version sets `key` (where an effective value comes from)."""
         rows = self._layers(ptype, tenant_id, machine_id, None, None, None, at or utcnow())
-        return next((r.scope for r in reversed(rows) if key in r.values), None)
+        return next((r.scope for r in reversed(rows) if key in _current(ptype, r.values)), None)
 
     def tracking(
         self,
@@ -197,9 +207,6 @@ class PolicyService:
             EffectivePolicy[MeterCapturePolicy],
             self.resolve(PolicyType.METER_CAPTURE, tenant_id, machine_id=machine_id, site_id=site_id, at=at),
         )
-
-    def hire_billing(self, tenant_id: uuid.UUID, at: datetime | None = None) -> EffectivePolicy[HireBillingPolicy]:
-        return cast(EffectivePolicy[HireBillingPolicy], self.resolve(PolicyType.HIRE_BILLING, tenant_id, at=at))
 
     def device_sync(self, tenant_id: uuid.UUID, at: datetime | None = None) -> EffectivePolicy[DeviceSyncPolicy]:
         return cast(EffectivePolicy[DeviceSyncPolicy], self.resolve(PolicyType.DEVICE_SYNC, tenant_id, at=at))
@@ -236,14 +243,6 @@ class PolicyService:
     def oversight(self, tenant_id: uuid.UUID, at: datetime | None = None) -> EffectivePolicy[OversightPolicy]:
         return cast(EffectivePolicy[OversightPolicy], self.resolve(PolicyType.OVERSIGHT, tenant_id, at=at))
 
-    def revenue_reconciliation(
-        self, tenant_id: uuid.UUID, at: datetime | None = None
-    ) -> EffectivePolicy[RevenueReconciliationPolicy]:
-        return cast(
-            EffectivePolicy[RevenueReconciliationPolicy],
-            self.resolve(PolicyType.REVENUE_RECONCILIATION, tenant_id, at=at),
-        )
-
     def data_protection(
         self, tenant_id: uuid.UUID, at: datetime | None = None
     ) -> EffectivePolicy[DataProtectionPolicy]:
@@ -273,8 +272,7 @@ class PolicyService:
             raise BusinessRuleViolation("Unknown policy snapshot", code="POLICY_SNAPSHOT_UNKNOWN")
         merged: dict[str, Any] = {}
         for row in sorted(rows.values(), key=lambda r: LAYER_ORDER.index(r.scope)):
-            merged.update(row.values)
-        _drop_retired(ptype, merged)
+            merged.update(_current(ptype, row.values))
         return merged
 
     def create_version(
@@ -314,6 +312,14 @@ class PolicyService:
         unknown = set(values) - set(schema.model_fields)
         if unknown:
             raise BusinessRuleViolation(f"Unknown fields {sorted(unknown)}", code="POLICY_UNKNOWN_FIELD")
+        for key, retired in RETIRED_VALUES.get(ptype, {}).items():
+            # Retired list values are only tolerated in versions stored before they were retired.
+            if isinstance(values.get(key), list) and (used := set(values[key]) & retired):
+                raise BusinessRuleViolation(
+                    "Invalid policy values",
+                    code="POLICY_INVALID",
+                    details=[ErrorDetail(field=key, issue=f"No longer supported: {sorted(used)}")],
+                )
         if scope is PolicyScope.PLATFORM:
             self._validate(schema, values)  # platform layer must be complete
         version = (

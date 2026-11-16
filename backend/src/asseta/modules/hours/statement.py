@@ -1,11 +1,9 @@
-"""Customer hours statement (DEC-031 P3): what a customer bought, had activated, used (per day and job), transferred,
-lost to expiry or cancellation, and has left — for a tenant-local period, optionally for one machine. A read model
-over the hours ledger (nothing stored); the PDF is the same statement on the report layout.
+"""Customer hours statement (DEC-031 P3): what a customer bought, had activated, used (per day and machine report),
+transferred, lost to expiry or cancellation, and has left — for a tenant-local period, optionally for one machine. A
+read model over the hours ledger (nothing stored); the PDF is the same statement on the report layout.
 
-Days: a daily-drawdown entry (PROVISIONAL) counts on the day of use it was drawn for; every other entry on the
-tenant-local day it was written. Usage lines: DAILY = drawn day by day while the job ran (net of corrections);
-FINAL = the final allocation at completion less what was drawn daily (all of a job's hours when it was allocated at
-completion). Their sum is the period's use, so opening + movements = closing always holds."""
+Every entry counts on the tenant-local day it was written. Usage lines: the hours each approved machine report took,
+per day; their sum is the period's use, so opening + movements = closing always holds."""
 
 import uuid
 from collections import defaultdict
@@ -19,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from asseta.core.errors import BusinessRuleViolation, NotFound
 from asseta.modules.accountability.names import fill_names
+from asseta.modules.customers.models import Customer
 from asseta.modules.fleet.models import Machine
 from asseta.modules.hours.dto import (
     HoursStatementDto,
@@ -29,13 +28,11 @@ from asseta.modules.hours.dto import (
 )
 from asseta.modules.hours.ledger import ZERO, derived_status, due_to_expire, next_expiry, purchase_totals
 from asseta.modules.hours.models import SIGN, HoursLedgerEntry, HoursPurchase, LedgerEntryType
-from asseta.modules.jobs.models import Customer, Job, JobStatus
 from asseta.modules.reports.definitions import ReportEnv, format_value
 from asseta.modules.reports.render import PdfColumn, PdfSection, document_pdf
 
 T = LedgerEntryType
 MAX_DAYS = 366
-USED = (T.CONSUMED, T.PROVISIONAL, T.PROVISIONAL_REVERSED)
 
 
 @dataclass(frozen=True)
@@ -51,8 +48,6 @@ def default_period(today: date) -> tuple[date, date]:
 
 
 def _day(e: HoursLedgerEntry, tz: ZoneInfo) -> date:
-    if e.entry_type is T.PROVISIONAL and e.usage_day is not None:
-        return e.usage_day
     return e.occurred_at.astimezone(tz).date()
 
 
@@ -80,11 +75,8 @@ def build_statement(s: Session, tz: ZoneInfo, q: StatementQuery, now: datetime, 
     by_type: dict[LedgerEntryType, Decimal] = defaultdict(lambda: ZERO)
     for e in inside:
         by_type[e.entry_type] += e.hours
-    used = by_type[T.CONSUMED] + by_type[T.PROVISIONAL] - by_type[T.PROVISIONAL_REVERSED]
+    used = by_type[T.CONSUMED]
     upto = [e for e in entries if _day(e, tz) <= q.date_to]
-    provisional_at_close = sum(
-        (e.hours * -SIGN[e.entry_type] for e in upto if e.entry_type in (T.PROVISIONAL, T.PROVISIONAL_REVERSED)), ZERO
-    )
 
     lines: list[HoursStatementLineDto] = []
     balance = opening
@@ -105,37 +97,20 @@ def build_statement(s: Session, tz: ZoneInfo, q: StatementQuery, now: datetime, 
                 purchase_id=e.purchase_id,
                 purchase_number=purchase_numbers.get(e.purchase_id),
                 machine_id=e.machine_id,
-                job_id=e.job_id,
+                machine_report_id=e.machine_report_id,
                 hours=signed,
                 balance_after=balance,
                 reason=e.reason,
             )
         )
 
-    job_ids = {e.job_id for e in inside if e.job_id is not None}
-    running = (
-        set(s.execute(select(Job.id).where(Job.id.in_(job_ids), Job.status == JobStatus.IN_PROGRESS)).scalars())
-        if job_ids
-        else set()
-    )
-    usage: dict[tuple[date, uuid.UUID | None, uuid.UUID, str], Decimal] = defaultdict(lambda: ZERO)
+    usage: dict[tuple[date, uuid.UUID | None, uuid.UUID], Decimal] = defaultdict(lambda: ZERO)
     for e in inside:
-        if e.entry_type not in USED:
-            continue
-        daily = e.entry_type is T.PROVISIONAL or (e.entry_type is T.PROVISIONAL_REVERSED and e.allocation_id is None)
-        usage[(_day(e, tz), e.job_id, e.machine_id, "DAILY" if daily else "FINAL")] += -SIGN[e.entry_type] * e.hours
+        if e.entry_type is T.CONSUMED:
+            usage[(_day(e, tz), e.machine_report_id, e.machine_id)] += e.hours
     usage_lines = [
-        HoursStatementUsageDto(
-            day=day,
-            job_id=job_id,
-            machine_id=machine_id,
-            hours=hours,
-            basis="DAILY" if basis == "DAILY" else "FINAL",
-            job_running=job_id in running,
-        )
-        for (day, job_id, machine_id, basis), hours in sorted(
-            usage.items(), key=lambda kv: (kv[0][0], str(kv[0][1]), kv[0][3])
-        )
+        HoursStatementUsageDto(day=day, machine_report_id=report_id, machine_id=machine_id, hours=hours)
+        for (day, report_id, machine_id), hours in sorted(usage.items(), key=lambda kv: (kv[0][0], str(kv[0][1])))
         if hours != 0
     ]
 
@@ -194,7 +169,6 @@ def build_statement(s: Session, tz: ZoneInfo, q: StatementQuery, now: datetime, 
             refunded=by_type[T.REFUNDED],
             corrected=by_type[T.CORRECTION_ADD] - by_type[T.CORRECTION_DEDUCT],
             closing_balance=closing,
-            provisional_at_close=provisional_at_close,
             awaiting_activation=awaiting,
         ),
         purchases=purchase_rows,
@@ -225,7 +199,6 @@ def statement_pdf(dto: HoursStatementDto, env: ReportEnv) -> bytes:
         ("Bought in the period", _h(t.bought)),
         ("Activated (paid or on credit)", _h(t.activated)),
         ("Used", _h(t.used)),
-        ("  of which still provisional (jobs running)", _h(t.provisional_at_close)),
         ("Transferred in", _h(t.transferred_in)),
         ("Transferred out", _h(t.transferred_out)),
         ("Expired", _h(t.expired)),
@@ -264,21 +237,18 @@ def statement_pdf(dto: HoursStatementDto, env: ReportEnv) -> bytes:
             ],
         ),
         PdfSection(
-            "Hours used per day and job",
+            "Hours used per day and machine report",
             (
-                PdfColumn("Day", 12),
-                PdfColumn("Job", 14),
-                PdfColumn("Machine", 22),
-                PdfColumn("Basis", 18),
+                PdfColumn("Day", 14),
+                PdfColumn("Machine report", 18),
+                PdfColumn("Machine", 32),
                 PdfColumn("Hours", 10, True),
             ),
             [
                 [
                     u.day.isoformat(),
-                    u.job_number or "-",
+                    u.machine_report_number or "-",
                     machine(u.machine_code, u.machine_name),
-                    ("Daily drawdown" if u.basis == "DAILY" else "Final allocation")
-                    + (" (job running)" if u.job_running else ""),
                     _h(u.hours),
                 ]
                 for u in dto.usage
@@ -291,7 +261,7 @@ def statement_pdf(dto: HoursStatementDto, env: ReportEnv) -> bytes:
                 PdfColumn("Movement", 18),
                 PdfColumn("Purchase", 14),
                 PdfColumn("Machine", 16),
-                PdfColumn("Job", 11),
+                PdfColumn("Report", 11),
                 PdfColumn("Hours", 9, True),
                 PdfColumn("Balance", 9, True),
             ),
@@ -301,7 +271,7 @@ def statement_pdf(dto: HoursStatementDto, env: ReportEnv) -> bytes:
                     line.entry_type.value.replace("_", " ").capitalize(),
                     line.purchase_number or "-",
                     machine(line.machine_code, line.machine_name),
-                    line.job_number or "-",
+                    line.machine_report_number or "-",
                     _h(line.hours),
                     _h(line.balance_after),
                 ]

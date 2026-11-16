@@ -21,9 +21,9 @@ from asseta.core.signals import sod_violation
 from asseta.modules.adjustments.models import AdjustmentEntryStatus, AdjustmentType, AdjustmentUnit
 from asseta.modules.adjustments.posting import AdjustmentPosting, post_adjustment
 from asseta.modules.fleet.models import Machine
+from asseta.modules.fleet.scope import METER_OVERSIGHT, assigned_machine_ids, own_staff, restricted_to_own
 from asseta.modules.identity.models import AppUser
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.scope import METER_OVERSIGHT, assigned_machine_ids, own_staff, restricted_to_own
 from asseta.modules.meter.allocation_writer import sync_allocations
 from asseta.modules.meter.dto import MeterCaptureIn
 from asseta.modules.meter.engine_dto import (
@@ -39,7 +39,6 @@ from asseta.modules.meter.engine_dto import (
     EngineHourReasonIn,
     EngineHourReasonUpdateIn,
     IntervalDto,
-    JobOverlapDto,
     LedgerPointDto,
     MachineEngineHoursDto,
     MachineEngineHoursSummaryDto,
@@ -81,8 +80,8 @@ from asseta.modules.meter.models import (
     CaptureState,
     ExceptionStatus,
     ExceptionType,
-    JobException,
     MeterCapture,
+    MeterException,
     MeterResetEvent,
 )
 from asseta.modules.meter.service import FUTURE_SKEW, MeterService
@@ -100,7 +99,7 @@ def _names(s: Session, ids: set[uuid.UUID | None]) -> dict[uuid.UUID, str]:
 
 
 def _point(p: LedgerPoint) -> LedgerPointDto:
-    return LedgerPointDto(ref=p.ref, source=p.source, at=p.at, reading=p.reading, job_id=p.job_id)
+    return LedgerPointDto(ref=p.ref, source=p.source, at=p.at, reading=p.reading)
 
 
 def _ref(c: ClassificationFact | None) -> ClassificationRefDto | None:
@@ -480,47 +479,16 @@ class EngineHoursService:
             review=i.review,
             opened_at=i.opened_at,
             age_days=max((self._now - i.opened_at).days, 0),
-            overlapping_job_ids=i.overlapping_job_ids,
             segments=[
                 SegmentDto(
                     kind=i.kind,
-                    hours=i.customer_work_hours if i.kind is SegmentKind.CUSTOMER_WORK else i.hours,
-                    classification=i.classification
-                    if i.kind is SegmentKind.UNALLOCATED
-                    else SegmentClassification.NOT_APPLICABLE,
-                    job_id=i.job_id,
-                    job_number=i.job_number,
+                    hours=i.hours,
+                    classification=i.classification,
+                    report_id=i.report_id,
+                    report_number=i.report_number,
                     approved=_ref(i.approved) if i.kind is SegmentKind.UNALLOCATED else None,
                     proposal=_ref(i.proposal) if i.kind is SegmentKind.UNALLOCATED else None,
-                ),
-                *(
-                    [
-                        SegmentDto(
-                            kind=SegmentKind.UNALLOCATED,
-                            hours=i.in_job_unexplained,
-                            classification=i.classification,
-                            job_id=i.job_id,
-                            job_number=i.job_number,
-                            approved=_ref(i.approved),
-                            proposal=_ref(i.proposal),
-                        )
-                    ]
-                    if i.in_job_unexplained > 0
-                    else []
-                ),
-                *(
-                    SegmentDto(
-                        kind=SegmentKind.NON_REVENUE,
-                        hours=hours,
-                        classification=SegmentClassification.NOT_APPLICABLE,
-                        job_id=i.job_id,
-                        job_number=i.job_number,
-                        approved=None,
-                        proposal=None,
-                        activity_type=activity,
-                    )
-                    for activity, hours in i.non_revenue.items()
-                ),
+                )
             ],
         )
 
@@ -546,7 +514,6 @@ class EngineHoursService:
             policy_version=ml.policy.version_stamp,
             totals=_totals(ml, intervals),
             intervals=[self._interval_dto(ml, i) for i in intervals],
-            overlaps=[JobOverlapDto(**o.__dict__) for o in ml.ledger.overlaps],
         )
 
     def _machines(self, q: str | None) -> list[Machine]:
@@ -772,11 +739,11 @@ class EngineHoursService:
     def _close_flag(self, row: EngineHourClassification) -> None:
         """The segment's UNEXPLAINED_HOURS flag is reviewed by the classification decision (a person's decision)."""
         flag = self._s.execute(
-            select(JobException)
+            select(MeterException)
             .where(
-                JobException.dedupe_key == unexplained_dedupe(row.machine_id, row.start_ref, row.end_ref),
-                JobException.exception_type == ExceptionType.UNEXPLAINED_HOURS,
-                JobException.status == ExceptionStatus.OPEN,
+                MeterException.dedupe_key == unexplained_dedupe(row.machine_id, row.start_ref, row.end_ref),
+                MeterException.exception_type == ExceptionType.UNEXPLAINED_HOURS,
+                MeterException.status == ExceptionStatus.OPEN,
             )
             .with_for_update()
         ).scalar_one_or_none()
@@ -849,22 +816,8 @@ class EngineHoursService:
         )
 
     def _revenue_recompute(self, row: EngineHourClassification) -> None:
-        """DEC-031 (owner rule): approved hours stop counting as expected revenue; recorded revenue differences of
-        the affected periods are recomputed (decided ones get an adjustment entry)."""
+        """Approved hours become authorised activity in the work allocation ledger."""
         sync_allocations(self._s, self._tid, row.machine_id, self._now)
-        from asseta.modules.revenue.reconciliation import recompute_after_change  # lazy: revenue builds on meter
-
-        recompute_after_change(
-            self._s,
-            self._tid,
-            row.machine_id,
-            row.start_at,
-            row.end_at,
-            "engine_hour_classification",
-            row.id,
-            self._ctx.user_id,
-            self._now,
-        )
 
     # --- corrections -------------------------------------------------------------------------------------------
     def _correction_dtos(self, rows: list[MeterCorrection]) -> list[CorrectionDto]:
@@ -933,9 +886,9 @@ class EngineHoursService:
         if old.state not in LIVE:
             raise Conflict("Only a live reading can be corrected", code="CAPTURE_NOT_ACTIVE")
         rep = body.replacement
-        if rep.kind is not old.kind or rep.job_id != old.job_id or (rep.machine_id or old.machine_id) != old.machine_id:
+        if rep.kind is not old.kind or (rep.machine_id or old.machine_id) != old.machine_id:
             raise BusinessRuleViolation(
-                "The replacement must be the same kind of reading for the same job and machine",
+                "The replacement must be the same kind of reading of the same machine",
                 code="CORRECTION_MISMATCH",
             )
         if self._s.get(MeterCapture, rep.id) is not None:
@@ -946,7 +899,6 @@ class EngineHoursService:
             id=uuid.uuid4(),
             tenant_id=self._tid,
             machine_id=old.machine_id,
-            job_id=old.job_id,
             superseded_capture_id=old.id,
             replacement_capture_id=rep.id,
             replacement=payload.model_dump(mode="json"),
@@ -1074,7 +1026,7 @@ class EngineHoursService:
                 approved_by=row.decided_by,
                 approved_at=row.decided_at,
                 decision_note=row.decision_note,
-                details={"job_id": str(row.job_id) if row.job_id else None},
+                details={},
                 policy_version=row.policy_version,
             ),
         )

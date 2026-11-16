@@ -2,11 +2,9 @@
   "reason": "Go-live settings agreed with the company",
   "policies": {
     "CUSTOMER_HOURS": {
-      "default_billing_mode": "PREPAID_HOURS",
       "expiry_days": 365
     },
     "ENGINE_HOURS": {
-      "baseline_required_before_start": true,
       "daily_report_required": true,
       "daily_report_cutoff_hour": 18
     },
@@ -28,9 +26,6 @@
     "DEVICE_SYNC": {
       "offline_grant_hours": 336,
       "snapshot_validity_hours": 336
-    },
-    "REVENUE_RECONCILIATION": {
-      "enabled": true
     }
   }
 }

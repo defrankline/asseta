@@ -88,8 +88,6 @@ class ManualOverrideItemDto(BaseModel):
     machine_id: uuid.UUID
     asset_code: str
     machine_name: str
-    job_id: uuid.UUID
-    job_number: str | None
     kind: str
     capture_mode: str
     manually_corrected: bool

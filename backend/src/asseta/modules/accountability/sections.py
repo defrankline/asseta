@@ -17,8 +17,6 @@ from asseta.modules.accountability.models import SecurityEvent, SecurityEventKin
 from asseta.modules.accountability.sections_dto import (
     AttemptsFigureDto,
     CashSectionDto,
-    ChangeoverJobDto,
-    ChangeoverJobsDto,
     CountFigureDto,
     CustomerHoursSectionDto,
     CustomerRemainingDto,
@@ -62,22 +60,18 @@ from asseta.modules.meter.allocation_models import (
     WorkAllocation,
 )
 from asseta.modules.meter.engine_hours import missing_daily_reports
-from asseta.modules.meter.models import ExceptionStatus, ExceptionType, JobException
-from asseta.modules.oversight.unbilled import changeovers_awaiting_approval
-from asseta.modules.policy.capabilities import ENGINE_HOURS, REVENUE_RECONCILIATION
-from asseta.modules.revenue.models import RevenueDifference, RevenueDifferenceStatus
+from asseta.modules.meter.models import ExceptionStatus, ExceptionType, MeterException
+from asseta.modules.policy.capabilities import ENGINE_HOURS
 
 ZERO = Decimal(0)
 TOP = 200  # most customers listed; the total says how many there are
 OLDEST = 20  # records shown under a queue; its route lists them all
-UNRESOLVED_REVENUE = (RevenueDifferenceStatus.OPEN, RevenueDifferenceStatus.EXPLANATION_PROPOSED)
 # Reading problems: what the meter says does not add up (evidence-quality flags are reviewed under exceptions).
 METER_DISCREPANCIES = (
     ExceptionType.METER_DECREASE,
     ExceptionType.IMPOSSIBLE_INCREMENT,
     ExceptionType.CONTINUITY_GAP,
     ExceptionType.TELEMETRY_MISMATCH,
-    ExceptionType.OVERLAPPING_ALLOCATION,
 )
 KIND_ROUTES: dict[str, str] = {
     "adjustment_requests": list_route("/tenant/finance/adjustments/requests", status="PROPOSED"),
@@ -88,7 +82,6 @@ KIND_ROUTES: dict[str, str] = {
     "meter_corrections": list_route("/tenant/meter-corrections", status="PROPOSED"),
     "allocation_corrections": "/tenant/work-allocations/corrections",
     "classifications": list_route("/tenant/engine-hours/classifications", status="PROPOSED"),
-    "non_revenue_approvals": list_route("/tenant/non-revenue-approvals", status="PROPOSED"),
     "custody_adjustments": list_route(f"{CASH}/adjustments", status="PENDING"),
     "write_offs": list_route(f"{CASH}/variances", status="WRITE_OFF_PROPOSED"),
     "variance_closures": list_route(f"{CASH}/variances", status="CLOSURE_PROPOSED"),
@@ -99,10 +92,9 @@ KIND_ROUTES: dict[str, str] = {
     "approval_requests": list_route("/tenant/approvals", status="PENDING"),
     "payments_to_verify": list_route("/tenant/customer-payments", status="CLAIMED"),
     "remittances_to_verify": list_route(f"{CASH}/remittances", status="CLAIMED"),
-    "jobs_awaiting_approval": list_route("/tenant/jobs", status="PENDING_APPROVAL"),
+    "machine_reports": list_route("/tenant/machine-reports", status="SUBMITTED"),
     "daily_reports_to_review": list_route("/tenant/daily-reports", status="SUBMITTED"),
     "case_closures": list_route("/tenant/cases", closure_proposed="true"),
-    "revenue_decisions": list_route("/tenant/revenue-differences", status="EXPLANATION_PROPOSED"),
     # DEC-033: fundings and top-ups waiting for an approver or returns waiting for the office; fund adjustments.
     "petty_cash_movements": list_route("/tenant/finance/petty-cash/movements"),
     "petty_cash_adjustments": list_route("/tenant/finance/petty-cash/adjustments"),
@@ -324,7 +316,7 @@ class ManagementSections:
             for machine, by in self._allocation_rows().items()
         ]
         rows.sort(key=lambda r: (-r.operating_hours, str(r.machine_id)))
-        x = JobException
+        x = MeterException
         types = self._s.execute(
             select(x.exception_type, func.count())
             .where(x.status == ExceptionStatus.OPEN, x.exception_type.in_(METER_DISCREPANCIES))
@@ -466,7 +458,7 @@ class ManagementSections:
         )
 
     def _unresolved_variances(self) -> UnresolvedVariancesDto:
-        v, rd = CashVariance, RevenueDifference
+        v = CashVariance
         rows: dict[tuple[str, str], list[Any]] = {}
         for source, unit, currency, n, amount in self._s.execute(
             select(v.source_type, v.unit, v.currency, func.count(), func.sum(func.abs(v.amount)))
@@ -487,23 +479,6 @@ class ManagementSections:
             )
             for (source, unit), (n, lines) in sorted(rows.items())
         ]
-        if REVENUE_RECONCILIATION not in self._disabled:
-            revenue = self._s.execute(
-                select(rd.currency, func.count(), func.sum(func.abs(rd.difference)))
-                .where(rd.status.in_(UNRESOLVED_REVENUE))
-                .group_by(rd.currency)
-                .order_by(rd.currency)
-            ).all()
-            if revenue:
-                out.append(
-                    VarianceSourceDto(
-                        source="REVENUE_DIFFERENCE",
-                        unit=VarianceUnit.MONEY.value,
-                        count=sum(int(n) for _, n, _ in revenue),
-                        amounts=[MoneyLineDto(currency=c, count=int(n), amount=a) for c, n, a in revenue],
-                        route="/tenant/revenue-differences",
-                    )
-                )
         return UnresolvedVariancesDto(total=sum(r.count for r in out), by_source=out)
 
     def _overdue(self) -> OverdueReportsDto:
@@ -529,25 +504,6 @@ class ManagementSections:
             permission_denied=int(counts.get(SecurityEventKind.PERMISSION_DENIED, 0)),
             segregation_of_duties=int(counts.get(SecurityEventKind.SEGREGATION_OF_DUTIES, 0)),
             route="/tenant/security-events",
-        )
-
-    def _changeovers(self) -> ChangeoverJobsDto:
-        rows = changeovers_awaiting_approval(self._s, self._now) if ENGINE_HOURS not in self._disabled else []
-        return ChangeoverJobsDto(
-            count=len(rows),
-            oldest_days=max((r["days_waiting"] for r in rows), default=None),
-            items=[
-                ChangeoverJobDto(
-                    job_id=r["job_id"],
-                    job_number=r["job_number"],
-                    machine_id=r["machine_id"],
-                    customer_id=r["customer_id"],
-                    changed_over_at=r["changed_over_at"],
-                    days_waiting=r["days_waiting"],
-                    route=record_route("job", r["job_id"]) or "",
-                )
-                for r in rows[:OLDEST]
-            ],
         )
 
     def exceptions(self, counts: dict[str, PendingCount], window_days: int) -> ExceptionsSectionDto:
@@ -582,5 +538,4 @@ class ManagementSections:
             ),
             overdue_reports=self._overdue(),
             unresolved_variances=self._unresolved_variances(),
-            changeover_jobs_awaiting_approval=self._changeovers(),
         )

@@ -1,4 +1,4 @@
-"""Operational report definitions: fleet, jobs, meter readings, alerts and utilisation. Each row source calls the
+"""Operational report definitions: fleet, meter readings, alerts and utilisation. Each row source calls the
 list endpoint's own query builder / service with the same filters and sort, then adds display names."""
 
 import uuid
@@ -18,8 +18,6 @@ from asseta.modules.geospatial.models import AlertSeverity, AlertStatus, AlertTy
 from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.intelligence.insights import machine_insights
-from asseta.modules.jobs.lifecycle import job_list_query
-from asseta.modules.jobs.models import Customer, Job, JobStatus, RentalContract
 from asseta.modules.meter.models import CaptureState, ReadingKind
 from asseta.modules.meter.service import capture_list_query
 from asseta.modules.reports.definitions import ReportColumn as C
@@ -36,13 +34,6 @@ def machine_codes(session: Session, ids: Iterable[uuid.UUID | None]) -> dict[uui
         return {}
     rows = session.execute(select(Machine.id, Machine.asset_code).where(Machine.id.in_(wanted))).tuples()
     return dict(rows.all())
-
-
-def job_numbers(session: Session, ids: Iterable[uuid.UUID | None]) -> dict[uuid.UUID, str]:
-    wanted = {i for i in ids if i is not None}
-    if not wanted:
-        return {}
-    return dict(session.execute(select(Job.id, Job.job_number).where(Job.id.in_(wanted))).tuples().all())
 
 
 def _tid(ctx: RequestContext) -> uuid.UUID:
@@ -94,70 +85,8 @@ FLEET = ReportDefinition(
 )
 
 
-# --- jobs -------------------------------------------------------------------------------------------------------
-class JobsReportFilters(_Filters):
-    q: str | None = Field(default=None, max_length=100, description="Job number contains")
-    status: JobStatus | None = None
-    machine_id: uuid.UUID | None = None
-
-
-def _jobs(session: Session, ctx: RequestContext, now: datetime, f: BaseModel, limit: int) -> list[dict[str, Any]]:
-    assert isinstance(f, JobsReportFilters)
-    jobs = list(session.execute(job_list_query(f.q, f.status, f.machine_id).limit(limit + 1)).scalars())
-    machines = machine_codes(session, (j.machine_id for j in jobs))
-    customers = dict(
-        session.execute(
-            select(RentalContract.id, Customer.name)
-            .join(Customer, Customer.id == RentalContract.customer_id)
-            .where(RentalContract.id.in_({j.contract_id for j in jobs}))
-        )
-        .tuples()
-        .all()
-    )
-    return [
-        {
-            "job_number": j.job_number,
-            "status": j.status,
-            "machine": machines.get(j.machine_id),
-            "customer": customers.get(j.contract_id),
-            "planned_start": j.planned_start,
-            "started_at": j.started_at,
-            "completed_at": j.completed_at,
-            "hourly_rate": j.hourly_rate,
-            "currency": j.currency,
-            "rate_source": j.rate_source,
-        }
-        for j in jobs
-    ]
-
-
-JOBS = ReportDefinition(
-    code="jobs",
-    title="Jobs",
-    description="Jobs with status, machine, customer, schedule and agreed rate",
-    scope=S.TENANT,
-    permission="tenant.job.read",
-    columns=(
-        C("job_number", "Job"),
-        C("status", "Status"),
-        C("machine", "Machine"),
-        C("customer", "Customer", width=1.6),
-        C("planned_start", "Planned start", "instant", 1.2),
-        C("started_at", "Started", "instant", 1.2),
-        C("completed_at", "Completed", "instant", 1.2),
-        C("hourly_rate", "Hourly rate", "money"),
-        C("currency", "Currency", width=0.6),
-        C("rate_source", "Rate source", width=1.2),
-    ),
-    source=_jobs,
-    filters=JobsReportFilters,
-    list_operation="listJobs",
-)
-
-
 # --- meter readings ---------------------------------------------------------------------------------------------
 class ReadingsReportFilters(_Filters):
-    job_id: uuid.UUID | None = None
     machine_id: uuid.UUID | None = None
     kind: ReadingKind | None = None
     state: CaptureState | None = None
@@ -167,15 +96,13 @@ class ReadingsReportFilters(_Filters):
 
 def _readings(session: Session, ctx: RequestContext, now: datetime, f: BaseModel, limit: int) -> list[dict[str, Any]]:
     assert isinstance(f, ReadingsReportFilters)
-    stmt = capture_list_query(f.job_id, f.machine_id, f.kind, f.state, f.captured_from, f.captured_to)
+    stmt = capture_list_query(f.machine_id, f.kind, f.state, f.captured_from, f.captured_to)
     captures = list(session.execute(stmt.limit(limit + 1)).scalars())
     machines = machine_codes(session, (c.machine_id for c in captures))
-    jobs = job_numbers(session, (c.job_id for c in captures))
     return [
         {
             "captured_at": c.captured_at,
             "machine": machines.get(c.machine_id),
-            "job": jobs.get(c.job_id) if c.job_id else None,  # DAILY readings may have no job
             "kind": c.kind,
             "reading": c.reading,
             "capture_mode": c.capture_mode,
@@ -194,13 +121,12 @@ def _readings(session: Session, ctx: RequestContext, now: datetime, f: BaseModel
 READINGS = ReportDefinition(
     code="readings",
     title="Meter readings",
-    description="Opening/closing hour-meter readings with OCR, GPS evidence status and review state",
+    description="Hour-meter readings with OCR, GPS evidence status and review state",
     scope=S.TENANT,
     permission="tenant.meter.read",
     columns=(
         C("captured_at", "Captured", "instant", 1.2),
         C("machine", "Machine"),
-        C("job", "Job"),
         C("kind", "Kind", width=0.8),
         C("reading", "Reading", "decimal"),
         C("capture_mode", "Mode", width=0.8),

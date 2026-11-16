@@ -57,10 +57,7 @@ def test_menus_follow_the_tenant_capability_policy(api: Api) -> None:
     assert nav["disabled_capabilities"] == [
         "IDLE_MACHINES",
         "PETTY_CASH",
-        "REVENUE_RECONCILIATION",
         "SCORECARD",
-        "SITE_CHECKIN",
-        "UNBILLED_WORK",
     ]  # off by default (DEC-031)
 
     hours_policy(f, enabled=False)  # the tenant switches customer hours off: its navigation goes with it
@@ -69,10 +66,7 @@ def test_menus_follow_the_tenant_capability_policy(api: Api) -> None:
         "CUSTOMER_HOURS",
         "IDLE_MACHINES",
         "PETTY_CASH",
-        "REVENUE_RECONCILIATION",
         "SCORECARD",
-        "SITE_CHECKIN",
-        "UNBILLED_WORK",
     ]
     assert "tenant.hours" not in {g["key"] for g in nav["menu_groups"]}
     keys = {m["key"] for m in nav["menus"]}
@@ -150,7 +144,6 @@ def test_cash_records_carry_names_and_open_by_id(api: Api) -> None:
 
 def test_hours_approvals_carry_customer_machine_and_people_names(api: Api) -> None:
     f = setup_finance(api)
-    f.owner.post(f"/api/v1/tenant/jobs/{f.c.job_id}/transitions", {"action": "CANCEL", "reason": "Not needed"})
     body = {"customer_id": f.customer_id, "percent": "10", "effective_from": "2026-01-01", "reason": "Volume customer"}
     d = _ok(f.manager.post("/api/v1/tenant/customer-discounts", body))
     listed = _ok(f.owner.get("/api/v1/tenant/customer-discounts"), 200)["items"]

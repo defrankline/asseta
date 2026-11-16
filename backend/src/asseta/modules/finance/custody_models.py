@@ -259,7 +259,6 @@ class CashVariance(UuidPk, Base):
     customer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("customer.id"), index=True)
     machine_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("machine.id"))
     purchase_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("hours_purchase.id"), index=True)
-    job_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("job.id"))
     # DEC-033: the petty cash fund a PETTY_CASH_* variance belongs to (staff_member_id is null on them).
     petty_cash_fund_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("petty_cash_fund.id"), index=True)
 

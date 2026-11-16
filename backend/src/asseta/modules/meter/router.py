@@ -17,19 +17,17 @@ from asseta.core.paging import Page, PageParams, page_params, paginate
 from asseta.core.signals import sod_violation
 from asseta.core.storage import ObjectStore, sha256_hex, sniff_image
 from asseta.modules.fleet.photos import PhotoUrlDto, get_object_store
-from asseta.modules.identity.catalog import CATALOG, MenuDef
-from asseta.modules.identity.catalog import PermissionScope as S
-from asseta.modules.identity.dependencies import requires, requires_any
-from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.models import Job
-from asseta.modules.jobs.scope import (
+from asseta.modules.fleet.scope import (
     EXPENSE_OVERSIGHT,
     METER_OVERSIGHT,
     assigned_machine_ids,
     own_staff,
     restricted_to_own,
-    scoped_job_ids,
 )
+from asseta.modules.identity.catalog import CATALOG, MenuDef
+from asseta.modules.identity.catalog import PermissionScope as S
+from asseta.modules.identity.dependencies import requires, requires_any
+from asseta.modules.identity.principal import RequestContext
 from asseta.modules.meter.dto import (
     AttachmentDto,
     CaptureResultDto,
@@ -45,8 +43,8 @@ from asseta.modules.meter.models import (
     CaptureState,
     ExceptionStatus,
     ExceptionType,
-    JobException,
     MeterCapture,
+    MeterException,
     MeterResetEvent,
     ReadingKind,
 )
@@ -61,7 +59,7 @@ from asseta.modules.meter.service import (
 CAPTURE = requires("tenant.meter.capture", S.TENANT, "Capture hour-meter readings and evidence")
 # Who may attach supporting evidence (each flow still enforces its own permission on the record it evidences).
 EVIDENCE_READ = requires_any(
-    ("tenant.meter.read", "tenant.adjustment.read", "tenant.finance.read", "tenant.hours.read", "tenant.revenue.read"),
+    ("tenant.meter.read", "tenant.adjustment.read", "tenant.finance.read", "tenant.hours.read"),
     S.TENANT,
 )
 EVIDENCE_UPLOAD = requires_any(
@@ -74,7 +72,7 @@ EVIDENCE_UPLOAD = requires_any(
         "tenant.collection.record",
         "tenant.hours.transfer",
         "tenant.hours.credit",
-        "tenant.revenue.explain",
+        "tenant.machine_report.submit",
     ),
     S.TENANT,
 )
@@ -108,7 +106,6 @@ for menu in (
     CATALOG.register_menu(menu)
 PURPOSES = {
     "METER_PHOTO",
-    "SIGNATURE",
     "RESET_EVIDENCE",
     "EXPENSE_RECEIPT",
     "DAILY_REPORT_EVIDENCE",
@@ -121,8 +118,8 @@ Store = Annotated[ObjectStore, Depends(get_object_store)]
 Mine = Annotated[
     bool,
     Query(
-        description="Only the caller's own records (or their jobs/machines). Always applied for callers without "
-        "meter review/approval or job management permission."
+        description="Only the caller's own records (or their machines). Always applied for callers without "
+        "meter review/approval or machine-report approval permission."
     ),
 ]
 
@@ -172,22 +169,17 @@ def save_attachment(
 
 def attachment_visible(session: Session, ctx: RequestContext, att: CaptureAttachment) -> bool:
     """Office roles see any tenant attachment; a field user only attachments they uploaded or that belong to their own
-    records (readings and acknowledgements on their jobs, resets on their machines, their expenses). Hidden ones are
-    reported as not found."""
+    records (readings of their machines, resets on their machines, their expenses). Hidden ones are reported as not
+    found."""
     if not restricted_to_own(ctx, METER_OVERSIGHT) or not restricted_to_own(ctx, EXPENSE_OVERSIGHT):
         return True
     if att.uploaded_by == ctx.user_id:
         return True
     from asseta.modules.expenses.models import Expense, ExpenseAttachment  # local: expenses imports meter
-    from asseta.modules.jobs.models import CustomerAcknowledgement
 
     staff = own_staff(session, ctx)
-    jobs = scoped_job_ids(staff)
     checks = [
-        select(MeterCapture.id).where(MeterCapture.photo_attachment_id == att.id, MeterCapture.job_id.in_(jobs)),
-        select(CustomerAcknowledgement.id).where(
-            CustomerAcknowledgement.signature_attachment_id == att.id, CustomerAcknowledgement.job_id.in_(jobs)
-        ),
+        select(MeterCapture.id).where(MeterCapture.photo_attachment_id == att.id, own_capture_filter(ctx, staff)),
         select(ExpenseAttachment.id)
         .join(Expense, Expense.id == ExpenseAttachment.expense_id)
         .where(ExpenseAttachment.attachment_id == att.id, Expense.submitted_by == ctx.user_id),
@@ -223,24 +215,11 @@ def submit(
     return MeterService(session, ctx, now).submit(body)
 
 
-@router.get("/jobs/{job_id}/meter-captures", response_model=list[MeterCaptureDto], operation_id="listJobCaptures")
-def captures(
-    job_id: uuid.UUID, session: DbSession, ctx: Annotated[RequestContext, Depends(METER_READ)], mine: Mine = False
-) -> list[MeterCaptureDto]:
-    if session.get(Job, job_id) is None:  # RLS-scoped: another tenant's job is "not found", like every by-id read
-        raise NotFound("Job not found")
-    stmt = select(MeterCapture).where(MeterCapture.job_id == job_id).order_by(MeterCapture.captured_at)
-    if _own(ctx, mine):
-        stmt = stmt.where(own_capture_filter(ctx, own_staff(session, ctx)))
-    return [MeterCaptureDto.model_validate(c) for c in session.execute(stmt).scalars()]
-
-
 @router.get("/meter-captures", response_model=Page[MeterCaptureDto], operation_id="listMeterCaptures")
 def list_captures(
     session: DbSession,
     ctx: Annotated[RequestContext, Depends(METER_READ)],
     paging: Annotated[PageParams, Depends(page_params)],
-    job_id: uuid.UUID | None = None,
     machine_id: uuid.UUID | None = None,
     kind: ReadingKind | None = None,
     state: CaptureState | None = None,
@@ -248,9 +227,9 @@ def list_captures(
     captured_to: datetime | None = None,
     mine: Mine = False,
 ) -> Page[MeterCaptureDto]:
-    """Meter readings across jobs, latest captured first (`captured_to` exclusive). Field users see only their own
-    readings and those on jobs they supervise."""
-    stmt = capture_list_query(job_id, machine_id, kind, state, captured_from, captured_to)
+    """Meter readings, latest captured first (`captured_to` exclusive). Field users see only their own readings and
+    those of the machines assigned to them."""
+    stmt = capture_list_query(machine_id, kind, state, captured_from, captured_to)
     if _own(ctx, mine):
         stmt = stmt.where(own_capture_filter(ctx, own_staff(session, ctx)))
     rows, total = paginate(session, stmt, paging)
@@ -266,7 +245,7 @@ def list_captures(
 def get_capture(
     capture_id: uuid.UUID, session: DbSession, ctx: Annotated[RequestContext, Depends(METER_READ)]
 ) -> MeterCaptureDto:
-    """One reading. Field users open only their own and those on jobs they supervise, as in the list."""
+    """One reading. Field users open only their own and those of their machines, as in the list."""
     stmt = select(MeterCapture).where(MeterCapture.id == capture_id)
     if _own(ctx, False):
         stmt = stmt.where(own_capture_filter(ctx, own_staff(session, ctx)))
@@ -316,40 +295,37 @@ def decide_reset(
     return ResetDto.model_validate(row)
 
 
-@router.get("/exceptions", response_model=Page[ExceptionDto], operation_id="listJobExceptions")
+@router.get("/exceptions", response_model=Page[ExceptionDto], operation_id="listMeterExceptions")
 def exceptions(
     session: DbSession,
     ctx: Annotated[RequestContext, Depends(METER_READ)],
     paging: Annotated[PageParams, Depends(page_params)],
     status: ExceptionStatus | None = None,
     exception_type: ExceptionType | None = None,
-    job_id: uuid.UUID | None = None,
     meter_capture_id: uuid.UUID | None = None,
     mine: Mine = False,
 ) -> Page[ExceptionDto]:
-    stmt = select(JobException).order_by(JobException.created_at.desc())
+    stmt = select(MeterException).order_by(MeterException.created_at.desc())
     if _own(ctx, mine):
         stmt = stmt.where(own_exception_filter(ctx, own_staff(session, ctx)))
     if status:
-        stmt = stmt.where(JobException.status == status)
+        stmt = stmt.where(MeterException.status == status)
     if exception_type:
-        stmt = stmt.where(JobException.exception_type == exception_type)
-    if job_id:
-        stmt = stmt.where(JobException.job_id == job_id)
+        stmt = stmt.where(MeterException.exception_type == exception_type)
     if meter_capture_id:
-        stmt = stmt.where(JobException.meter_capture_id == meter_capture_id)
+        stmt = stmt.where(MeterException.meter_capture_id == meter_capture_id)
     rows, total = paginate(session, stmt, paging)
     return Page(
         items=[ExceptionDto.model_validate(e) for e in rows], total=total, page=paging.page, page_size=paging.page_size
     )
 
 
-@router.get("/exceptions/{exception_id}", response_model=ExceptionDto, operation_id="getJobException")
+@router.get("/exceptions/{exception_id}", response_model=ExceptionDto, operation_id="getMeterException")
 def get_exception(
     exception_id: uuid.UUID, session: DbSession, ctx: Annotated[RequestContext, Depends(METER_READ)]
 ) -> ExceptionDto:
     """One exception, under the same rule as the list for field users."""
-    stmt = select(JobException).where(JobException.id == exception_id)
+    stmt = select(MeterException).where(MeterException.id == exception_id)
     if _own(ctx, False):
         stmt = stmt.where(own_exception_filter(ctx, own_staff(session, ctx)))
     row = session.execute(stmt).scalar_one_or_none()
@@ -358,12 +334,12 @@ def get_exception(
     return ExceptionDto.model_validate(row)
 
 
-@router.post("/exceptions/{exception_id}/review", response_model=ExceptionDto, operation_id="reviewJobException")
+@router.post("/exceptions/{exception_id}/review", response_model=ExceptionDto, operation_id="reviewMeterException")
 def review(
     exception_id: uuid.UUID, body: ReviewIn, session: DbSession, ctx: Annotated[RequestContext, Depends(REVIEW)]
 ) -> ExceptionDto:
     row = session.execute(
-        select(JobException).where(JobException.id == exception_id).with_for_update()
+        select(MeterException).where(MeterException.id == exception_id).with_for_update()
     ).scalar_one_or_none()
     if row is None:
         raise NotFound("Exception not found")
@@ -374,7 +350,7 @@ def review(
     AuditService(session).record(
         actor=ctx.audit_actor(),
         action="meter.exception.reviewed",
-        entity_type="job_exception",
+        entity_type="meter_exception",
         entity_id=row.id,
         tenant_id=ctx.tenant_id,
         before={"status": "OPEN"},

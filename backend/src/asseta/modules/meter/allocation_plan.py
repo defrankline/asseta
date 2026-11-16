@@ -1,8 +1,9 @@
 """Turns a machine's engine-hour ledger into work-allocation pieces (DEC-032 A1), as a pure function of plain facts.
 
-Each ledger interval is laid out on a line of its engine hours. The line is cut two ways: by meter base and
-tenant-local day (wall-clock share, cumulative rounding, so pieces abut exactly) and by allocation (customer work,
-then non-revenue activity, then unexplained). Each intersection is one entry with its own meter range. Hours whose
+Each unallocated ledger interval is laid out on a line of its engine hours, cut by meter base and tenant-local day
+(wall-clock share, cumulative rounding, so pieces abut exactly). Each piece is one entry with its own meter range:
+an approved explanation (authorised activity) or UNEXPLAINED. Intervals inside a machine report are not planned:
+the approved report writes its own entries (ADR-008). Hours whose
 meter range was already allocated (a reading went down and no reset was approved) are not allocated twice: they stay
 in the day's total and show as a difference until someone corrects the reading or approves a reset."""
 
@@ -34,11 +35,8 @@ class PlannedEntry:
     hours: Decimal
     kind: AllocationKind
     customer_id: uuid.UUID | None
-    job_id: uuid.UUID | None
-    activity_type: str | None
     reason_id: uuid.UUID | None
     classification_id: uuid.UUID | None
-    changeover_id: uuid.UUID | None
     reading_review: str
     approval_ref_type: str | None = None
     approval_ref_ids: list[uuid.UUID] = field(default_factory=list)
@@ -78,11 +76,8 @@ class _Bucket:
     size: Decimal
     kind: AllocationKind
     customer_id: uuid.UUID | None = None
-    job_id: uuid.UUID | None = None
-    activity_type: str | None = None
     reason_id: uuid.UUID | None = None
     classification_id: uuid.UUID | None = None
-    changeover_id: uuid.UUID | None = None
     approval_ref_type: str | None = None
     approval_ref_ids: tuple[uuid.UUID, ...] = ()
 
@@ -130,7 +125,7 @@ def _days(base: _Base, tz: ZoneInfo) -> list[_Piece]:
 
 
 def _explained(i: LedgerInterval, size: Decimal) -> _Bucket:
-    """The bucket for hours that are not customer work: an approved explanation, else UNEXPLAINED."""
+    """An approved explanation, else UNEXPLAINED."""
     if i.approved is not None and i.classification in (
         SegmentClassification.APPROVED_NON_CUSTOMER,
         SegmentClassification.IDENTIFIED_VARIANCE,
@@ -138,42 +133,18 @@ def _explained(i: LedgerInterval, size: Decimal) -> _Bucket:
         return _Bucket(
             size,
             AllocationKind.AUTHORIZED_ACTIVITY,
-            job_id=i.job_id,
             reason_id=i.approved.reason_id,
             classification_id=i.approved.id,
             approval_ref_type="engine_hour_classification",
             approval_ref_ids=(i.approved.id,),
         )
-    return _Bucket(size, AllocationKind.UNEXPLAINED, job_id=i.job_id)
+    return _Bucket(size, AllocationKind.UNEXPLAINED)
 
 
 def _buckets(i: LedgerInterval) -> list[_Bucket]:
-    if i.kind is not SegmentKind.CUSTOMER_WORK:
-        return [_explained(i, i.hours)]
-    out = [
-        _Bucket(
-            i.customer_work_hours,
-            AllocationKind.CUSTOMER_WORK,
-            customer_id=i.changeover_customer_id or i.job_customer_id,
-            job_id=i.billed_to_job_id or i.job_id,  # the job that bills these hours
-            changeover_id=i.changeover_id,
-        )
-    ]
-    for activity, hours in sorted(i.non_revenue.items()):
-        approvals = tuple(i.non_revenue_approvals.get(activity, ()))
-        out.append(
-            _Bucket(
-                hours,
-                AllocationKind.AUTHORIZED_ACTIVITY,
-                job_id=i.job_id,
-                activity_type=activity,
-                approval_ref_type="non_revenue_approval" if approvals else None,
-                approval_ref_ids=approvals,
-            )
-        )
-    if i.in_job_unexplained > ZERO:
-        out.append(_explained(i, i.in_job_unexplained))
-    return [b for b in out if b.size > ZERO]
+    if i.kind is SegmentKind.REPORTED:
+        return []  # the machine report's approval writes these entries
+    return [_explained(i, i.hours)]
 
 
 def _entry(i: LedgerInterval, b: _Bucket, n: int, p: _Piece, m: int, lo: Decimal, hi: Decimal) -> PlannedEntry:
@@ -192,11 +163,8 @@ def _entry(i: LedgerInterval, b: _Bucket, n: int, p: _Piece, m: int, lo: Decimal
         hours=hi - lo,
         kind=b.kind,
         customer_id=b.customer_id,
-        job_id=b.job_id,
-        activity_type=b.activity_type,
         reason_id=b.reason_id,
         classification_id=b.classification_id,
-        changeover_id=b.changeover_id,
         reading_review=i.review.value,
         approval_ref_type=b.approval_ref_type,
         approval_ref_ids=list(b.approval_ref_ids),
@@ -211,6 +179,10 @@ def plan_allocations(intervals: Sequence[LedgerInterval], resets: Sequence[Reset
         if i.hours <= ZERO or i.inconsistent:
             continue
         pieces = [p for base in _bases(i, resets) for p in _days(base, tz)]
+        if i.kind is SegmentKind.REPORTED:  # counted in the day's engine hours; the report holds the entries
+            for piece in pieces:
+                totals[piece.day] += piece.hi - piece.lo
+            continue
         offset = ZERO
         for n, bucket in enumerate(_buckets(i)):
             top = offset + bucket.size

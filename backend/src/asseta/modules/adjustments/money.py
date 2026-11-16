@@ -9,14 +9,12 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from asseta.core.audit import AuditService
 from asseta.modules.finance.cash_service import CashCustodyService
 from asseta.modules.finance.custody_models import CashDecisionStatus, CustodyAdjustment, CustodyAdjustmentKind
 from asseta.modules.finance.models import (
     AdjustmentKind,
     CustomerPayment,
     FinancialAdjustment,
-    HirePaymentAllocation,
     SettlementStatus,
 )
 from asseta.modules.finance.receivables import ReceivablesService
@@ -154,30 +152,4 @@ def release_money(
             session.flush()
         left -= take
         released += take
-    return released
-
-
-def release_hire_allocations(
-    session: Session, ctx: RequestContext, now: datetime, payment_id: uuid.UUID, reason: str
-) -> Decimal:
-    """Every invoice this payment settled opens again: the allocations are released, never edited."""
-    released = ZERO
-    for alloc in session.execute(
-        select(HirePaymentAllocation)
-        .where(HirePaymentAllocation.payment_id == payment_id, HirePaymentAllocation.released_at.is_(None))
-        .with_for_update()
-    ).scalars():
-        alloc.released_at, alloc.release_reason = now, reason
-        released += alloc.amount
-    session.flush()
-    if released > 0:
-        AuditService(session).record(
-            actor=ctx.audit_actor(),
-            action="finance.payment.allocations_released",
-            entity_type="customer_payment",
-            entity_id=payment_id,
-            tenant_id=ctx.tenant_id,
-            after={"released": str(released)},
-            reason=reason,
-        )
     return released

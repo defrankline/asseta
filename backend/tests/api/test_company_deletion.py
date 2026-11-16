@@ -21,8 +21,20 @@ from asseta.modules.dataprotection.tenant_tables import CLOSURE_AUDIT_KEEP, CLOS
 from asseta.modules.identity.role_templates import APPROVER_CONTROL_PERMISSIONS, TENANT_TEMPLATES, template_permissions
 from asseta.workers.billing_scheduler import run_billing_cycle
 from tests.support.api import Actor, Api
-from tests.support.finance import complete_job, issue_invoice, setup_finance
+from tests.support.hours import RATE
 from tests.support.idp import InMemoryObjectStore
+from tests.support.machine_reports import (
+    ReportCtx,
+    T,
+    bought,
+    cust,
+    idle,
+    later,
+    ok,
+    report_body,
+    setup_reports,
+    submit,
+)
 from tests.support.notify import drain, member, platform_owner, sql, user_id
 
 CLOSE = "/api/v1/tenant/company/deletion-request"
@@ -215,10 +227,29 @@ def test_waiting_period_is_a_platform_only_setting(api: Api) -> None:
     assert req["scheduled_for"][:10] == (api.clock.now + timedelta(days=14)).date().isoformat()
 
 
+def _worked(api: Api, ctx: ReportCtx) -> None:
+    """Customer hours across the modules: a paid order, a credit sale (its credit invoice) and an approved machine
+    report that used 7 of the hours (8 meter hours, 1 non-productive)."""
+    f = ctx.f
+    bought(api, f, 10)
+    sale = {
+        "machine_id": ctx.machine_id,
+        "customer_id": f.customer_id,
+        "hours": "2",
+        "client_id": str(uuid.uuid4()),
+        "payments": [{"amount": str(2 * RATE), "method": "CREDIT"}],
+    }
+    assert ok(f.accountant.post(f"{T}/hours-purchases", sale), 201)["credit_invoice"]
+    at = later(api, 9)
+    lines = [cust(f.customer_id, 7), idle(ctx.reasons["IDLE_ON_SITE"], 1)]
+    rep = submit(f.supervisor, report_body(ctx.machine_id, "1008.0", at, lines))
+    ok(f.manager.post(f"{T}/machine-reports/{rep['id']}/approve", {}))
+
+
 def _seed(api: Api) -> dict[str, Any]:
-    f = setup_finance(api, "Gone Hire", "GONE-1")
-    complete_job(api, f, f.c.job_id, "500.0", "508.0", 9, downtime_h=1)
-    issue_invoice(f, [f.c.job_id])
+    ctx = setup_reports(api, "Gone Hire", "GONE-1")
+    f = ctx.f
+    _worked(api, ctx)
     sid = f.c.t.tenant["subscription_id"]
     api.generate(sid, api.clock.now.date())  # a platform invoice: kept
     return {"f": f, "tid": f.tid, "owner": f.owner, "sid": sid}
@@ -244,7 +275,12 @@ def test_due_sweep_deletes_everything_and_keeps_platform_billing(api: Api) -> No
         }
     )
     before_mine = _counts(tid)
-    assert before_mine["machine"] and before_mine["job"] and before_mine["staff_member"] and before_mine["tracker"]
+    assert (
+        before_mine["machine"]
+        and before_mine["machine_report"]
+        and before_mine["staff_member"]
+        and before_mine["tracker"]
+    )
     assert before_mine["platform_invoice"] >= 1
 
     req = _request(owner, "Gone Hire")

@@ -20,13 +20,10 @@ from asseta.modules.adjustments.money import (
     custody_outstanding,
     customer_balance,
     money_record,
-    release_hire_allocations,
 )
-from asseta.modules.finance.invoice_service import HireInvoiceService, RecoveryLine
 from asseta.modules.finance.models import (
     AdjustmentKind,
     CustomerPayment,
-    HirePaymentAllocation,
     HirePaymentMethod,
     SettlementStatus,
 )
@@ -34,7 +31,6 @@ from asseta.modules.hours.engine import HoursEngine, minor_units
 from asseta.modules.hours.ledger import LedgerWriter, PurchaseTotals, allocated_amounts, floor_to, purchase_totals
 from asseta.modules.hours.models import (
     HoursCancellation,
-    HoursLedgerEntry,
     HoursPaymentAllocation,
     HoursPurchase,
     HoursTransfer,
@@ -44,7 +40,6 @@ from asseta.modules.hours.models import (
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.intelligence.linking import CaseItem, CaseLinker
 from asseta.modules.intelligence.models import CaseSourceType, SignalSeverity, SubjectType
-from asseta.modules.policy.schemas import UsedHoursTreatment
 from asseta.modules.policy.service import PolicyService
 
 T = LedgerEntryType
@@ -63,7 +58,6 @@ class PurchasePlan:
 @dataclass
 class ReversalPlan:
     purchases: list[PurchasePlan]
-    hire_released: Decimal = ZERO
 
     @property
     def unused_hours(self) -> Decimal:
@@ -82,7 +76,6 @@ class ReversalPlan:
             "unused_hours_removed": str(self.unused_hours),
             "used_hours": str(self.used_hours),
             "money_owed": str(self.money_owed),
-            "hire_allocations_released": str(self.hire_released),
             "purchases": [
                 {
                     "purchase_id": str(p.purchase.id),
@@ -97,7 +90,7 @@ class ReversalPlan:
 
 
 def used_hours_of(totals: PurchaseTotals) -> Decimal:
-    return totals.total(T.CONSUMED) + totals.provisional
+    return totals.total(T.CONSUMED)
 
 
 def _unused_by_machine(totals: PurchaseTotals, take: Decimal) -> dict[uuid.UUID, Decimal]:
@@ -144,15 +137,7 @@ class ReversalEngine:
             plan = self._plan_purchase(purchase, amount)
             plan.allocations = rows
             plans.append(plan)
-        hire = sum(
-            self._s.execute(
-                select(HirePaymentAllocation.amount).where(
-                    HirePaymentAllocation.payment_id == payment.id, HirePaymentAllocation.released_at.is_(None)
-                )
-            ).scalars(),
-            ZERO,
-        )
-        return ReversalPlan(plans, hire)
+        return ReversalPlan(plans)
 
     def _plan_purchase(self, purchase: HoursPurchase, money_removed: Decimal) -> PurchasePlan:
         totals = purchase_totals(self._s, purchase)
@@ -208,80 +193,16 @@ class ReversalEngine:
                 policy_version=self.engine.eff.version_stamp,
             )
 
-    def _recovery_lines(self, plan: PurchasePlan) -> list[RecoveryLine]:
-        """Who used the hours: newest jobs first, one line per job, summing to the plan's used hours and money."""
-        rows = self._s.execute(
-            select(
-                HoursLedgerEntry.job_id,
-                HoursLedgerEntry.machine_id,
-                HoursLedgerEntry.entry_type,
-                HoursLedgerEntry.hours,
-            )
-            .where(
-                HoursLedgerEntry.purchase_id == plan.purchase.id,
-                HoursLedgerEntry.job_id.is_not(None),
-                HoursLedgerEntry.entry_type.in_([T.CONSUMED, T.PROVISIONAL, T.PROVISIONAL_REVERSED]),
-            )
-            .order_by(HoursLedgerEntry.occurred_at.desc(), HoursLedgerEntry.id)
-        ).all()
-        by_job: dict[tuple[uuid.UUID, uuid.UUID], Decimal] = {}
-        for job_id, machine_id, entry_type, hours in rows:
-            sign = 1 if entry_type in (T.CONSUMED, T.PROVISIONAL) else -1
-            assert job_id is not None
-            key = (job_id, machine_id)
-            by_job[key] = by_job.get(key, ZERO) + sign * hours
-        lines, left, money_left = [], plan.used_hours, plan.money_owed
-        units = minor_units(self._s, plan.purchase.currency)
-        number = plan.purchase.purchase_number
-        for (job_id, machine_id), hours in by_job.items():
-            if left <= 0:
-                break
-            take = min(hours, left)
-            if take <= 0:
-                continue
-            amount = quantize(take * plan.purchase.effective_rate, units)
-            amount = min(amount, money_left)
-            lines.append(
-                RecoveryLine(
-                    job_id,
-                    machine_id,
-                    f"Hours used from {number} whose payment was reversed",
-                    take,
-                    plan.purchase.effective_rate,
-                    amount,
-                )
-            )
-            left -= take
-            money_left -= amount
-        if lines and money_left > 0:
-            last = lines[-1]
-            lines[-1] = RecoveryLine(
-                last.job_id, last.machine_id, last.description, last.quantity, last.unit_price, last.amount + money_left
-            )
-        return lines
-
     def _owed(
         self, req: AdjustmentRequest, customer_id: uuid.UUID, currency: str, plans: list[PurchasePlan]
     ) -> dict[str, Any]:
-        """Used hours that money no longer covers: a receivable or an investigation case (tenant policy)."""
+        """Used hours that money no longer covers: an investigation case about the money owed."""
         owed = [p for p in plans if p.money_owed > 0]
         if not owed:
             return {}
         total = sum((p.money_owed for p in owed), ZERO)
         hours = sum((p.used_hours for p in owed), ZERO)
-        if self.engine.policy.reversal_used_hours_treatment is UsedHoursTreatment.CASE:
-            return self._owed_case(req, customer_id, currency, total, hours)
-        lines = [line for p in owed for line in self._recovery_lines(p)]
-        inv = HireInvoiceService(self._s, self._ctx, self._now).issue_recovery(
-            customer_id, currency, lines, f"Prepaid hours used; payment reversed (request {req.id}): {req.reason}"
-        )
-        return {
-            "treatment": UsedHoursTreatment.RECEIVABLE.value,
-            "recovery_invoice_id": str(inv.id),
-            "recovery_invoice_number": inv.invoice_number,
-            "money_owed": str(total),
-            "used_hours": str(hours),
-        }
+        return self._owed_case(req, customer_id, currency, total, hours)
 
     def _owed_case(
         self, req: AdjustmentRequest, customer_id: uuid.UUID, currency: str, total: Decimal, hours: Decimal
@@ -311,7 +232,7 @@ class ReversalEngine:
             )
         )
         return {
-            "treatment": UsedHoursTreatment.CASE.value,
+            "treatment": "CASE",
             "case_id": str(case.id) if case else None,
             "money_owed": str(total),
             "used_hours": str(hours),
@@ -333,7 +254,6 @@ class ReversalEngine:
         reason = f"Payment reversed (request {req.id}): {req.reason}"[:1000]
         payment.reversed_at, payment.reversal_id = self._now, req.id
         self._s.flush()
-        hire = release_hire_allocations(self._s, self._ctx, self._now, payment.id, reason)
         for p in plan.purchases:
             for a in p.allocations:
                 a.released_at, a.release_reason = self._now, reason
@@ -352,7 +272,6 @@ class ReversalEngine:
         )
         out: dict[str, Any] = {
             **plan.summary(),
-            "hire_allocations_released": str(hire),
             "money_record_id": str(record.id),
             "payment_amount": str(payment.amount),
         }

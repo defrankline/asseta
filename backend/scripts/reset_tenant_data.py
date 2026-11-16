@@ -13,10 +13,10 @@ subscriptions, status/entitlement events, platform invoices, payments, credits, 
 tenant memberships (Keycloak accounts and their groups are never touched), staff records with their login links,
 managed-service mandates, push-device registrations and the platform-level audit events (`platform.%`, `billing.%`).
 DELETED: every other row of the tenant in every tenant-scoped table (fleet, trackers, telemetry, sites, customers,
-contracts, rate cards, jobs, readings, work logs, exceptions, expenses, fuel, receipts, cash, invoices, payments,
-customer hours, engine hours, revenue reconciliation, deposit accounts, cases/signals, notifications, site check-ins,
-reason lists, the tenant's own policy versions (platform defaults remain), number counters, the tenant's business
-audit and security events, ML models trained on its data) plus its objects in the object store (`tenants/<id>/`,
+rate cards, readings, machine reports, exceptions, expenses, fuel, receipts, cash, credit invoices, payments, customer
+hours, engine hours, deposit accounts, cases/signals, notifications, reason lists, the tenant's own policy versions
+(platform defaults remain), number counters, the tenant's business audit and security events, ML models trained on
+its data) plus its objects in the object store (`tenants/<id>/`,
 `platform/ml-models/<id>/`). Per-machine billing enrollments and their un-invoiced charges go with the machines (an
 open enrollment of a deleted machine would keep billing it); an issued platform invoice line that pointed at such a
 charge keeps every printed field, only that internal pointer is cleared.

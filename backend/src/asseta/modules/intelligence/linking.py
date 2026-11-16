@@ -1,15 +1,12 @@
 """Attach signals of any source to investigation cases. A signal for a subject that already has an OPEN/IN_REVIEW
 case whose last signal is within the policy grouping window joins that case (severity = max); otherwise a new case
-is opened. Engine-running-without-work evidence (tracker engine-on without a job, the machine-day summary, after-hours
-movement) of one machine and tenant-local day joins ONE case keyed by that machine-day when the machine's
-`engine_without_work_case_min_minutes` is set (DEC-031 S1); such a case takes no other signals. Opening and
-escalating publish the `AnomalyDetected` notification seam. Idempotent: a source links once."""
+is opened. Cases grouped by a key (`group_key`, from before ADR-008) are kept as they are and take no new signals.
+Opening and escalating publish the `AnomalyDetected` notification seam. Idempotent: a source links once."""
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, func, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -17,7 +14,6 @@ from sqlalchemy.orm import Session
 
 from asseta.core.audit import AuditActor, AuditService
 from asseta.core.outbox import OutboxWriter
-from asseta.modules.fleet.models import Machine
 from asseta.modules.intelligence.models import (
     ACTIVE_CASE_STATUSES,
     SEVERITY_RANK,
@@ -30,24 +26,10 @@ from asseta.modules.intelligence.models import (
     SubjectType,
 )
 from asseta.modules.policy.capabilities import INVESTIGATIONS, capability_on
-from asseta.modules.policy.service import PolicyService
-from asseta.modules.tenancy.models import TenantSettings
 
 TOPIC = "asseta.intelligence"
 SYSTEM_ACTOR = AuditActor(None, [], "intelligence")
 CASE_AUDIENCE = "tenant.case.manage"
-# Evidence of a machine running without work, grouped per machine-day when the tenant switches S1 on.
-ENGINE_DAY_CODES = frozenset({"UNREPORTED_ENGINE_ACTIVITY", "ENGINE_RUNNING_WITHOUT_WORK", "UNAUTHORIZED_MOVEMENT"})
-ENGINE_DAY_PREFIX = "engine-day"
-
-
-def engine_day_key(machine_id: uuid.UUID, day: date) -> str:
-    return f"{ENGINE_DAY_PREFIX}:{machine_id}:{day.isoformat()}"
-
-
-def engine_day_title(machine: Machine | None, day: date) -> str:
-    who = f"{machine.asset_code} " if machine is not None else ""
-    return f"Engine running without work: {who}on {day.isoformat()}"
 
 
 @dataclass(frozen=True)
@@ -63,7 +45,6 @@ class CaseItem:
     subject_id: uuid.UUID
     policy_version: str
     machine_id: uuid.UUID | None = None
-    job_id: uuid.UUID | None = None
     staff_member_id: uuid.UUID | None = None
     involved_user_ids: tuple[uuid.UUID, ...] = ()
     involved_staff_ids: tuple[uuid.UUID, ...] = ()
@@ -87,7 +68,6 @@ class CaseLinker:
         self._window = timedelta(hours=grouping_hours)
         self._audit = AuditService(session)
         self.stats = LinkStats()
-        self._tz: ZoneInfo | None = None
         self._cases_on: bool | None = None
 
     def already_linked(self, source_type: CaseSourceType, source_id: uuid.UUID) -> bool:
@@ -108,16 +88,12 @@ class CaseLinker:
         self._s.execute(text("SELECT pg_advisory_xact_lock(hashtext(:k))"), {"k": lock})
         if self.already_linked(item.source_type, item.source_id):
             return None
-        group = self._group(item)
-        if group is not None:
-            match = AnomalyCase.group_key == group[0]
-        else:
-            match = and_(
-                AnomalyCase.subject_type == item.subject_type,
-                AnomalyCase.subject_id == item.subject_id,
-                AnomalyCase.group_key.is_(None),
-                AnomalyCase.last_signal_at >= item.observed_at - self._window,
-            )
+        match = and_(
+            AnomalyCase.subject_type == item.subject_type,
+            AnomalyCase.subject_id == item.subject_id,
+            AnomalyCase.group_key.is_(None),
+            AnomalyCase.last_signal_at >= item.observed_at - self._window,
+        )
         case = self._s.execute(
             select(AnomalyCase)
             .where(match, AnomalyCase.status.in_(ACTIVE_CASE_STATUSES))
@@ -126,7 +102,7 @@ class CaseLinker:
             .with_for_update()
         ).scalar_one_or_none()
         if case is None:
-            case = self._open(item, group)
+            case = self._open(item)
         else:
             self._join(case, item)
         self._s.add(
@@ -149,19 +125,6 @@ class CaseLinker:
         self.stats.linked += 1
         return case
 
-    def _group(self, item: CaseItem) -> tuple[str, str] | None:
-        """(group key, case title) for engine-running-without-work evidence when the machine's S1 switch is on."""
-        if item.code not in ENGINE_DAY_CODES or item.machine_id is None:
-            return None
-        eff = PolicyService(self._s).fraud_controls(self._tid, item.machine_id, at=self._now)
-        if eff.policy.engine_without_work_case_min_minutes is None:
-            return None
-        if self._tz is None:
-            ts = self._s.get(TenantSettings, self._tid)
-            self._tz = ZoneInfo(ts.timezone if ts else "UTC")
-        day = item.observed_at.astimezone(self._tz).date()
-        return engine_day_key(item.machine_id, day), engine_day_title(self._s.get(Machine, item.machine_id), day)
-
     def _number(self) -> str:
         year = self._now.year
         n = self._s.execute(
@@ -174,17 +137,16 @@ class CaseLinker:
         ).scalar_one()
         return f"CASE-{year}-{n:05d}"
 
-    def _open(self, item: CaseItem, group: tuple[str, str] | None = None) -> AnomalyCase:
+    def _open(self, item: CaseItem) -> AnomalyCase:
         case = AnomalyCase(
             id=uuid.uuid4(),
             tenant_id=self._tid,
             case_number=self._number(),
-            title=group[1] if group else item.title,
-            group_key=group[0] if group else None,
+            title=item.title,
+            group_key=None,
             subject_type=item.subject_type,
             subject_id=item.subject_id,
             machine_id=item.machine_id,
-            job_id=item.job_id,
             staff_member_id=item.staff_member_id,
             severity=item.severity,
             status=CaseStatus.OPEN,

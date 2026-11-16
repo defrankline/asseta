@@ -20,6 +20,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import ColumnElement, Select, false, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -27,6 +28,7 @@ from asseta.core.audit import AuditService
 from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
 from asseta.core.outbox import OutboxWriter
 from asseta.core.signals import sod_violation
+from asseta.modules.customers.models import Customer
 from asseta.modules.finance.common import tenant_settings
 from asseta.modules.fleet.models import AssignmentRole, Machine, MachineAssignment, StaffMember
 from asseta.modules.hours.engine import HoursEngine
@@ -34,7 +36,6 @@ from asseta.modules.hours.ledger import ZERO
 from asseta.modules.hours.models import HoursLedgerEntry, HoursPurchase, LedgerEntryType
 from asseta.modules.hours.numbering import next_number
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.models import Customer
 from asseta.modules.machine_reports.dto import (
     AvailableHoursDto,
     LotDto,
@@ -54,15 +55,25 @@ from asseta.modules.machine_reports.models import (
     MachineReportLine,
     MachineReportStatus,
     ReportLineKind,
+    StartSource,
 )
 from asseta.modules.machine_reports.permissions import APPROVE_PERMISSION
-from asseta.modules.machine_reports.readings import last_approved, start_point, tracker_hours, write_allocations
+from asseta.modules.machine_reports.readings import (
+    StartPoint,
+    last_approved,
+    meter_epoch,
+    start_point,
+    tracker_hours,
+    write_allocations,
+)
 from asseta.modules.meter.dto import FindingDto
 from asseta.modules.meter.engine_models import EngineHourReason, EngineHourReasonKind
-from asseta.modules.meter.models import CaptureState, JobException, MeterCapture
+from asseta.modules.meter.models import CaptureState, ExceptionStatus, ExceptionType, MeterCapture, MeterException
+from asseta.modules.meter.rules import telemetry_findings
 from asseta.modules.meter.service import MeterService
 from asseta.modules.policy.capabilities import CUSTOMER_HOURS, require_capability
 from asseta.modules.policy.schemas import ReportHoursScope
+from asseta.modules.policy.service import PolicyService
 
 TOPIC = "asseta.machine_reports"
 SERIES = "MR"
@@ -216,6 +227,7 @@ class MachineReportService:
                 report_number=r.report_number,
                 machine_id=r.machine_id,
                 capture_id=r.capture_id,
+                opening=r.opening,
                 start_source=r.start_source,
                 start_ref=r.start_ref,
                 start_reading=r.start_reading,
@@ -260,7 +272,7 @@ class MachineReportService:
                 dto.findings = [
                     FindingDto(type=f.exception_type, severity=f.severity, blocking=f.blocking, evidence=f.evidence)
                     for f in self._s.execute(
-                        select(JobException).where(JobException.meter_capture_id == r.capture_id)
+                        select(MeterException).where(MeterException.meter_capture_id == r.capture_id)
                     ).scalars()
                 ]
                 dto.tracker = self.tracker_check(r)
@@ -326,6 +338,7 @@ class MachineReportService:
             previous_reading=point.reading if point else None,
             previous_at=point.at if point else None,
             previous_source=point.source if point else None,
+            opening_required=point is None,
             meter_epoch=point.epoch if point else 0,
             pending_report_id=pending.id if pending else None,
             last_report_at=last,
@@ -367,6 +380,7 @@ class MachineReportService:
                     previous_reading=point.reading if point else None,
                     previous_at=point.at if point else None,
                     previous_source=point.source if point else None,
+                    opening_required=point is None,
                     last_approved_reading=approved.end_reading if approved else None,
                     last_approved_at=approved.end_at if approved else None,
                     last_report_at=latest.submitted_at if latest else None,
@@ -463,9 +477,7 @@ class MachineReportService:
     def _reading(self, body: MachineReportIn, machine: Machine, device_session_id: uuid.UUID | None) -> MeterCapture:
         if body.capture is not None:
             reading = body.capture.model_copy(update={"machine_id": machine.id})
-            MeterService(self._s, self._ctx, self._now).submit(
-                reading, device_session_id=device_session_id, for_machine_report=True
-            )
+            MeterService(self._s, self._ctx, self._now).submit(reading, device_session_id=device_session_id)
             capture_id = reading.id
         else:
             assert body.capture_id is not None
@@ -488,6 +500,35 @@ class MachineReportService:
         if live is not None:
             raise BusinessRuleViolation(f"This reading is already reported in {live}", code="CAPTURE_ALREADY_REPORTED")
         return capture
+
+    def _telemetry_finding(self, machine: Machine, capture: MeterCapture, point: StartPoint) -> None:
+        """Meter vs tracker over the report's period: a TELEMETRY_MISMATCH finding on the report's reading when the
+        meter moved more or less than the tracker's engine-hour counter beyond the tenant's tolerance (evidence for
+        the approver; it does not hold the reading). No tracker counter at either end: no comparison, no claim."""
+        found = tracker_hours(self._s, machine.id, point.at, capture.captured_at)
+        if found is None:
+            return
+        policy = PolicyService(self._s).meter_capture(self._tid, machine.id, at=capture.captured_at)
+        meter = capture.reading - point.reading
+        for f in telemetry_findings(policy.policy, meter, found[0]):
+            self._s.execute(
+                pg_insert(MeterException)
+                .values(
+                    id=uuid.uuid4(),
+                    tenant_id=self._tid,
+                    machine_id=machine.id,
+                    meter_capture_id=capture.id,
+                    exception_type=f.type,
+                    severity=f.severity,
+                    blocking=False,
+                    dedupe_key=f"{capture.id}:{f.type.value}",
+                    evidence={**f.evidence, "from_at": point.at.isoformat(), "to_at": capture.captured_at.isoformat()},
+                    policy_version=policy.version_stamp,
+                    status=ExceptionStatus.OPEN,
+                    created_at=self._now,
+                )
+                .on_conflict_do_nothing()
+            )
 
     def _check_corrects(self, body: MachineReportIn, capture: MeterCapture) -> None:
         if body.corrects_report_id is None:
@@ -584,21 +625,38 @@ class MachineReportService:
         capture = self._reading(body, machine, device_session_id)
         self._check_corrects(body, capture)
         point = start_point(self._s, machine.id)
-        if point is None:
+        if point is None and not body.opening:
             raise BusinessRuleViolation(
-                "The machine has no approved starting reading (meter baseline) yet", code="BASELINE_REQUIRED"
+                "The machine has no starting reading yet: send this reading as an opening report (no lines)",
+                code="OPENING_REPORT_REQUIRED",
             )
-        difference = capture.reading - point.reading
-        if difference < 0:
+        if point is not None and body.opening:
             raise BusinessRuleViolation(
-                f"The new reading {capture.reading} is below the last approved reading {point.reading}",
-                code="READING_NOT_HIGHER",
+                f"The machine already starts from {point.reading}: report the hours since then",
+                code="OPENING_NOT_ALLOWED",
             )
-        if difference == 0:
-            raise BusinessRuleViolation(
-                "The meter has not moved since the last approved reading", code="NOTHING_TO_REPORT"
+        if point is None:  # an opening report: its own reading is its start (0 hours, no lines)
+            point = StartPoint(
+                StartSource.OPENING,
+                capture.id,
+                capture.reading,
+                capture.captured_at,
+                meter_epoch(self._s, machine.id, capture.captured_at),
             )
-        wanted = self._check_lines(body, machine, difference)
+            difference = ZERO
+        else:
+            difference = capture.reading - point.reading
+            if difference < 0:
+                raise BusinessRuleViolation(
+                    f"The new reading {capture.reading} is below the last approved reading {point.reading}",
+                    code="READING_NOT_HIGHER",
+                )
+            if difference == 0:
+                raise BusinessRuleViolation(
+                    "The meter has not moved since the last approved reading", code="NOTHING_TO_REPORT"
+                )
+            self._telemetry_finding(machine, capture, point)
+        wanted = self._check_lines(body, machine, difference) if not body.opening else {}
         customers: dict[uuid.UUID, Customer] = {}
         if wanted:
             require_capability(self._s, self._tid, CUSTOMER_HOURS, self._now)
@@ -619,6 +677,7 @@ class MachineReportService:
             end_at=capture.captured_at,
             meter_epoch=point.epoch,
             hours=difference,
+            opening=body.opening,
             status=MachineReportStatus.SUBMITTED,
             corrects_id=body.corrects_report_id,
             note=body.note,
@@ -665,6 +724,7 @@ class MachineReportService:
                 "start_reading": str(point.reading),
                 "end_reading": str(capture.reading),
                 "hours": str(difference),
+                "opening": body.opening,
                 "lines": [
                     {
                         "kind": line.kind.value,
@@ -698,7 +758,11 @@ class MachineReportService:
         report = self._decidable(report_id, "machine_report_approve")
         machine = self._machine(report.machine_id, lock=True)
         point = start_point(self._s, machine.id)
-        if point is None or point.ref != report.start_ref or point.reading != report.start_reading:
+        if report.opening:
+            changed = point is not None  # the machine got a starting reading meanwhile
+        else:
+            changed = point is None or point.ref != report.start_ref or point.reading != report.start_reading
+        if changed:
             raise BusinessRuleViolation(
                 "The machine's previous reading changed since this report was submitted; reject it so the supervisor "
                 "reports again",
@@ -729,6 +793,7 @@ class MachineReportService:
         report.decided_by, report.decided_at, report.decision_note = self._ctx.user_id, self._now, body.note
         self._s.flush()
         write_allocations(self._s, self._ctx.audit_actor(), report, lines, lots)
+        self._close_unexplained_flags(report)
         for customer_id, machine_id in sorted(touched, key=str):
             self.engine.check_low_balance(customer_id, machine_id)
         self._audit.record(
@@ -747,6 +812,31 @@ class MachineReportService:
         )
         self._emit("MachineReportApproved", report)
         return self.dto(report)
+
+    def _close_unexplained_flags(self, report: MachineReport) -> None:
+        """UNEXPLAINED_HOURS flags raised on engine-hour segments inside the approved report's period (e.g. by its own
+        reading, recorded before the report) are explained by the approver's decision on the report."""
+        flags = self._s.execute(
+            select(MeterException)
+            .where(
+                MeterException.machine_id == report.machine_id,
+                MeterException.exception_type == ExceptionType.UNEXPLAINED_HOURS,
+                MeterException.status == ExceptionStatus.OPEN,
+            )
+            .with_for_update()
+        ).scalars()
+        for flag in flags:
+            start, end = flag.evidence.get("start_at"), flag.evidence.get("end_at")
+            if not start or not end:
+                continue
+            if report.start_at <= datetime.fromisoformat(start) and datetime.fromisoformat(end) <= report.end_at:
+                flag.status, flag.reviewed_by, flag.reviewed_at = (
+                    ExceptionStatus.EXPLAINED,
+                    report.decided_by,
+                    self._now,
+                )
+                flag.review_note = f"Accounted for by machine report {report.report_number}"
+        self._s.flush()
 
     def reject(self, report_id: uuid.UUID, body: MachineReportRejectIn) -> MachineReportDto:
         report = self._decidable(report_id, "machine_report_reject")

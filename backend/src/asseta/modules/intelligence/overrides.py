@@ -20,8 +20,7 @@ from asseta.modules.intelligence.insights_dto import (
     ManualOverrideReportDto,
     ManualOverrideSummaryDto,
 )
-from asseta.modules.jobs.models import Job
-from asseta.modules.meter.models import ExceptionStatus, ExceptionType, JobException, MeterCapture
+from asseta.modules.meter.models import ExceptionStatus, ExceptionType, MeterCapture, MeterException
 
 
 def _filtered(
@@ -49,8 +48,8 @@ def _filtered(
 
 def _exception_join() -> Any:
     return and_(
-        JobException.meter_capture_id == MeterCapture.id,
-        JobException.exception_type == ExceptionType.MANUAL_CORRECTION,
+        MeterException.meter_capture_id == MeterCapture.id,
+        MeterException.exception_type == ExceptionType.MANUAL_CORRECTION,
     )
 
 
@@ -73,29 +72,28 @@ def manual_override_report(
                 MeterCapture.capture_mode == "MANUAL", MeterCapture.manually_corrected.is_(False)
             ),
             func.count(MeterCapture.id.distinct()).filter(MeterCapture.reading != MeterCapture.ocr_value),
-            func.count(JobException.id.distinct()).filter(JobException.status == ExceptionStatus.OPEN),
+            func.count(MeterException.id.distinct()).filter(MeterException.status == ExceptionStatus.OPEN),
         )
         .select_from(MeterCapture)
-        .outerjoin(JobException, _exception_join())
+        .outerjoin(MeterException, _exception_join())
         .where(*conds)
     ).one()
     members = select(TenantMembership.user_id).where(TenantMembership.tenant_id == tenant_id)
     stmt = (
-        select(MeterCapture, Machine.asset_code, Machine.name, Job.job_number, AppUser.display_name, JobException)
+        select(MeterCapture, Machine.asset_code, Machine.name, AppUser.display_name, MeterException)
         .join(Machine, Machine.id == MeterCapture.machine_id)
-        .join(Job, Job.id == MeterCapture.job_id)
         .outerjoin(
             AppUser,
             and_(AppUser.id == MeterCapture.supervisor_user_id, AppUser.id.in_(members)),
         )
-        .outerjoin(JobException, _exception_join())
+        .outerjoin(MeterException, _exception_join())
         .where(*conds)
         .order_by(MeterCapture.captured_at.desc(), MeterCapture.id)
         .limit(paging.page_size)
         .offset((paging.page - 1) * paging.page_size)
     )
     items = []
-    for cap, asset_code, machine_name, job_number, user_name, exc in session.execute(stmt).all():
+    for cap, asset_code, machine_name, user_name, exc in session.execute(stmt).all():
         ocr: Decimal | None = cap.ocr_value
         items.append(
             ManualOverrideItemDto(
@@ -105,8 +103,6 @@ def manual_override_report(
                 machine_id=cap.machine_id,
                 asset_code=asset_code,
                 machine_name=machine_name,
-                job_id=cap.job_id,
-                job_number=job_number,
                 kind=cap.kind.value,
                 capture_mode=cap.capture_mode,
                 manually_corrected=cap.manually_corrected,

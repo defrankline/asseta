@@ -16,9 +16,6 @@ from asseta.core.search import ilike_any
 from asseta.modules.fleet.models import Machine
 from asseta.modules.geospatial.dto import GeofenceDto, GeofenceIn, GeoPoint, JobSiteDto, JobSiteIn, JobSiteUpdateIn
 from asseta.modules.geospatial.models import Geofence, GeofenceMachine, GeofenceShape, JobSite
-from asseta.modules.jobs.models import Job, JobStatus
-
-OPEN_JOB_STATES = (JobStatus.DRAFT, JobStatus.PENDING_APPROVAL, JobStatus.APPROVED, JobStatus.IN_PROGRESS)
 
 
 class SiteService:
@@ -90,18 +87,12 @@ class SiteService:
         return dto
 
     def set_site_active(self, site_id: uuid.UUID, active: bool, reason: str, version: int | None) -> JobSiteDto:
-        """Deactivation is refused while an open job (DRAFT..IN_PROGRESS) is at the site; geofences, contracts and
-        history keep referencing it."""
+        """Geofences, orders and history keep referencing a deactivated site; it leaves the pickers."""
         site = self.site(site_id, lock=True)
         check_version(site.version, version, "Job site")
         if active:
             mark_active(site, "Job site")
         else:
-            in_use = self._s.execute(
-                select(Job.id).where(Job.job_site_id == site.id, Job.status.in_(OPEN_JOB_STATES))
-            ).first()
-            if in_use is not None:
-                raise BusinessRuleViolation("Job site has open jobs; complete or move them first", code="SITE_IN_USE")
             mark_inactive(site, self._actor.user_id, reason, "Job site")
         flush_versioned(self._s, "Job site")
         self._s.refresh(site)

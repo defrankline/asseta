@@ -1,18 +1,18 @@
 """Versioned offline sync protocol DTOs (`/api/v1/sync`, protocol version 1)."""
 
 import uuid
-from datetime import date, datetime
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from asseta.modules.customers.dto import CustomerDto
 from asseta.modules.expenses.dto import ExpenseCategoryDto, ExpenseDto, FuelEventDto
 from asseta.modules.finance.deposit_accounts import SyncDepositAccountDto
 from asseta.modules.finance.dto import CashCustodyBalanceDto, CashHandoverDto, CustomerPaymentDto
 from asseta.modules.fleet.dto import MachineDto, StaffDto
 from asseta.modules.geospatial.dto import JobSiteDto
 from asseta.modules.hours.dto import CreditInvoiceDto, CustomerDiscountRateDto, HoursPriceDto
-from asseta.modules.jobs.dto import AcknowledgementDto, ActivityDto, ContractDto, CustomerDto, JobDto
 from asseta.modules.machine_reports.dto import (
     AvailableHoursDto,
     MachineReportDto,
@@ -27,35 +27,26 @@ from asseta.modules.pettycash.dto import (
     PettyCashMovementDto,
     PettyCashWitnessDto,
 )
-from asseta.modules.platform_billing.dto import Money
 
 PROTOCOL_VERSION = 1
 # Additive, optional features of protocol 1 (old clients ignore unknown fields; new clients check before relying).
 CAPABILITIES = [
     "SUPERVISOR_INBOX_V1",
     "OP_METER_RESET_REQUEST",
-    "OP_JOB_REQUEST",
     "OP_CASH_TRANSFER",  # CASH_TRANSFER, CASH_TRANSFER_ACKNOWLEDGEMENT, CASH_FLOAT_ACKNOWLEDGEMENT
     "OP_HOURS_PURCHASE",  # walk-in/registered customer hours purchase (+ payment claim and evidence uploads)
     "OP_HOURS_TRANSFER_REQUEST",
-    "METER_DAILY_READING",  # METER_CAPTURE accepts kind DAILY (job_id optional, machine_id instead)
+    "METER_DAILY_READING",  # METER_CAPTURE: a DAILY reading of a machine (machine_id)
     "OP_METER_BASELINE",
     "OP_METER_CORRECTION",
     "OP_CASH_RETENTION_REQUEST",  # CASH_RETENTION_REQUEST (ask to keep field cash; approved by another person)
     # CASH_HANDOVER accepts method, deposit_account_id, evidence_attachment_ids and evidence_upload_ids (purpose
     # REMITTANCE_EVIDENCE); SyncData.deposit_accounts carries the account picker (DEC-031 D2)
     "REMITTANCE_DETAILS_V1",
-    # SITE_CHECKIN {client_id, captured_at, gps, job_site_id?}: supervisor GPS check-in at the tenant's times
-    # (DEC-031 M3); announced only while the tenant switched site check-ins on (OVERSIGHT.site_checkin_required)
-    "OP_SITE_CHECKIN",
     # DAILY_REPORT {id, machine_id, report_date, opening_ref, closing_ref, billable_hours?, unbillable[], note?,
     # evidence_attachment_ids?, evidence_upload_ids? (purpose DAILY_REPORT_EVIDENCE), supersedes_id?, client_created_at}
     "OP_DAILY_REPORT",
-    # METER_CAPTURE kind DAILY on a running job accepts changeover_to_customer_id (and changeover_to_job_id)
-    "METER_CHANGEOVER",
-    "SYNC_CHANGEOVER_JOBS",  # SyncData.changeover_jobs: pending/approved jobs on the supervisor's machines
     "SYNC_UNBILLABLE_REASONS",  # SyncData.unbillable_reasons: tenant list for daily reports (capture permission)
-    "SYNC_OPEN_INVOICES",  # SyncData.open_invoices: current open invoices of the recorder's customers (full snapshot)
     # DEC-032 Phase 3: CASH_COLLECTION accepts purchase_id (the purchase's id or offline client id; refused with
     # COLLECTION_LINK_REQUIRED when the tenant requires a link and none is given); CASH_HANDOVER accepts
     # partial_reason + partial_reason_id (PARTIAL_REMITTANCE_REASON_REQUIRED when the balance is not fully remitted);
@@ -97,15 +88,11 @@ CAPABILITIES = [
 TENANT_CAPABILITY_OF = {
     "OP_HOURS_PURCHASE": "CUSTOMER_HOURS",
     "OP_HOURS_TRANSFER_REQUEST": "CUSTOMER_HOURS",
-    "METER_DAILY_READING": "ENGINE_HOURS",
     "OP_METER_BASELINE": "ENGINE_HOURS",
     "OP_METER_CORRECTION": "ENGINE_HOURS",
     "OP_CASH_TRANSFER": "CASH_CUSTODY",
     "OP_CASH_RETENTION_REQUEST": "CASH_CUSTODY",
-    "OP_SITE_CHECKIN": "SITE_CHECKIN",
     "OP_DAILY_REPORT": "ENGINE_HOURS",
-    "METER_CHANGEOVER": "ENGINE_HOURS",
-    "SYNC_CHANGEOVER_JOBS": "ENGINE_HOURS",
     "SYNC_UNBILLABLE_REASONS": "ENGINE_HOURS",
     "OP_PETTY_CASH": "PETTY_CASH",
     "OP_PETTY_CASH_ADVANCE": "PETTY_CASH",
@@ -172,22 +159,6 @@ class SyncMeterCaptureDto(MeterCaptureDto):
     findings: list[ExceptionDto] = Field(default_factory=list)
 
 
-class SyncJobActivityDto(ActivityDto):
-    job_id: uuid.UUID
-    duration_minutes: int | None = Field(default=None, description="ended_at - started_at; null while open")
-    recorded_by: uuid.UUID | None
-    received_at: datetime
-    sync_revision: int
-
-
-class SyncAcknowledgementDto(AcknowledgementDto):
-    job_id: uuid.UUID
-    client_id: uuid.UUID
-    recorded_by: uuid.UUID | None
-    received_at: datetime
-    sync_revision: int
-
-
 class SyncExpenseDto(ExpenseDto):
     sync_revision: int
 
@@ -210,19 +181,6 @@ class SyncMeterResetDto(ResetDto):
     sync_revision: int
 
 
-class SyncChangeoverJobDto(BaseModel):
-    """A job a changeover can move on to (DEC-032 A3). A delta may carry a job in another status: drop it from the
-    picker unless it is PENDING_APPROVAL or APPROVED. Only PENDING_APPROVAL can be named while another job runs."""
-
-    id: uuid.UUID
-    job_number: str
-    machine_id: uuid.UUID
-    customer_id: uuid.UUID
-    customer_name: str
-    status: str
-    sync_revision: int
-
-
 class SyncUnbillableReasonDto(BaseModel):
     """One entry of the tenant's unbillable-reason list for the daily report (DEC-032 A4)."""
 
@@ -236,47 +194,24 @@ class SyncUnbillableReasonDto(BaseModel):
     sync_revision: int
 
 
-class SyncOpenInvoiceDto(BaseModel):
-    """An issued invoice with money still owed, so a collection can be linked to it (DEC-032)."""
-
-    id: uuid.UUID
-    invoice_number: str
-    customer_id: uuid.UUID
-    customer_name: str
-    currency: str
-    total: Money
-    paid: Money
-    balance: Money
-    due_date: date | None
-    issued_at: datetime
-
-
 class SyncData(BaseModel):
-    jobs: list[JobDto] = []
+    # The machines assigned to the caller, the company's active sites and its active customers (bootstrap; deltas:
+    # changes since the cursor, deactivations included, is_active=false).
     machines: list[MachineDto] = []
     sites: list[JobSiteDto] = []
     customers: list[CustomerDto] = []
-    contracts: list[ContractDto] = []
     staff: list[StaffDto] = []
     expense_categories: list[ExpenseCategoryDto] = []
     cash_custody: list[CashCustodyBalanceDto] = []  # the signed-in supervisor's current custody (server-owned)
-    # SYNC_OPEN_INVOICES: open invoices of the customers on the caller's jobs (collection recorders only). A full
-    # snapshot on every bootstrap and delta, like cash_custody (invoices carry no sync revision): replace the local set.
-    open_invoices: list[SyncOpenInvoiceDto] = []
     # Company deposit accounts for the remittance picker (REMITTANCE_DETAILS_V1; cash recorders only). Bootstrap:
     # active accounts; deltas: changes since the cursor, deactivations included (is_active=false).
     deposit_accounts: list[SyncDepositAccountDto] = []
-    # SYNC_CHANGEOVER_JOBS: jobs a changeover can name on the machines the supervisor works on, office-created included.
-    # Bootstrap: PENDING_APPROVAL and APPROVED; deltas: changes since the cursor (status says whether it still applies).
-    changeover_jobs: list[SyncChangeoverJobDto] = []
     # SYNC_UNBILLABLE_REASONS: bootstrap: active entries; deltas: changes since the cursor, deactivations included.
     unbillable_reasons: list[SyncUnbillableReasonDto] = []
     # Supervisor inbox (SUPERVISOR_INBOX_V1): the caller's own field records, upsert by (id, sync_revision).
     # Bootstrap: last 30 days + everything still open; deltas: anything changed since the cursor.
     my_meter_captures: list[SyncMeterCaptureDto] = []
     my_meter_resets: list[SyncMeterResetDto] = []
-    my_job_activities: list[SyncJobActivityDto] = []
-    my_acknowledgements: list[SyncAcknowledgementDto] = []
     my_expenses: list[SyncExpenseDto] = []
     my_fuel_events: list[SyncFuelEventDto] = []
     my_cash_collections: list[SyncCashCollectionDto] = []
@@ -330,9 +265,6 @@ class ChangesDto(BaseModel):
 
 OpType = Literal[
     "METER_CAPTURE",
-    "JOB_ACTIVITY",
-    "JOB_ACKNOWLEDGEMENT",
-    "JOB_TRANSITION",
     "EXPENSE",
     "CASH_COLLECTION",
     "CASH_HANDOVER",
@@ -341,13 +273,11 @@ OpType = Literal[
     "CASH_FLOAT_ACKNOWLEDGEMENT",  # {entry_id, acknowledged, amount_received?, note?}
     "FUEL_EVENT",
     "METER_RESET_REQUEST",
-    "JOB_REQUEST",
     "HOURS_PURCHASE",  # customer hours purchase recorded in the field (payment stays CLAIMED until verified)
     "HOURS_TRANSFER_REQUEST",  # request to move remaining hours to another machine (approved per tenant policy)
     "METER_BASELINE",  # baseline proposal (engine-hour accountability)
     "METER_CORRECTION",  # reading correction proposal (approved by a second person)
     "CASH_RETENTION_REQUEST",  # payload CashRetentionIn, client_id required (tenant policy cash.retention_allowed)
-    "SITE_CHECKIN",  # payload SiteCheckinIn {client_id, captured_at, gps, job_site_id?} (OVERSIGHT site check-ins)
     "DAILY_REPORT",  # payload DailyReportIn (op id = report id) + evidence_upload_ids (DEC-032 A4)
     "PETTY_CASH_ACKNOWLEDGEMENT",  # {movement_id, acknowledged, amount_received?, note?} (DEC-033)
     "PETTY_CASH_TOP_UP_REQUEST",  # {fund_id, amount?, note?, above_cap_reason?} (op id = client id)
@@ -394,7 +324,6 @@ class BlobStartIn(BaseModel):
     size_bytes: int = Field(gt=0)
     purpose: Literal[
         "METER_PHOTO",
-        "SIGNATURE",
         "RESET_EVIDENCE",
         "EXPENSE_RECEIPT",
         "PAYMENT_EVIDENCE",

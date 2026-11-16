@@ -173,7 +173,6 @@ class MeterCorrection(UuidPk, Base):
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False)
     machine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("machine.id"), nullable=False, index=True)
-    job_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("job.id"))
     superseded_capture_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("meter_capture.id"), nullable=False)
     replacement_capture_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, unique=True)
     replacement: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)  # the replacement reading payload

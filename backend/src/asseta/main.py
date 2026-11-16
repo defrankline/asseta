@@ -19,6 +19,7 @@ from asseta.core.storage import ObjectStore, S3ObjectStore
 from asseta.modules.accountability import router as accountability_router
 from asseta.modules.adjustments import router as adjustments_router
 from asseta.modules.audit_log import router as audit_log_router
+from asseta.modules.customers import router as customers_router
 from asseta.modules.dataprotection import closure_router as dataprotection_closure_router
 from asseta.modules.dataprotection import router as dataprotection_router
 from asseta.modules.expenses import router as expenses_router
@@ -42,7 +43,6 @@ from asseta.modules.intelligence import insights_router as intelligence_insights
 from asseta.modules.intelligence import ml_monitoring_router as intelligence_ml_monitoring_router
 from asseta.modules.intelligence import ml_router as intelligence_ml_router
 from asseta.modules.intelligence import router as intelligence_router
-from asseta.modules.jobs import router as jobs_router
 from asseta.modules.machine_reports import router as machine_reports_router
 from asseta.modules.managed_service import router as managed_service_router
 from asseta.modules.meter import allocation_router as meter_allocation_router
@@ -61,7 +61,6 @@ from asseta.modules.platform_billing import router as platform_router
 from asseta.modules.platform_billing import tenant_router as tenant_billing_router
 from asseta.modules.policy import router as policy_router
 from asseta.modules.reports import router as reports_router
-from asseta.modules.revenue import router as revenue_router
 from asseta.modules.sync import router as sync_router
 from asseta.modules.telemetry import router as telemetry_router
 from asseta.modules.tenancy import router as tenancy_router
@@ -154,11 +153,10 @@ def create_app(
         fleet_photos.router,
         identity_access.router,
         identity_directory.router,
-        jobs_router.router,
+        customers_router.router,
         meter_router.router,
         meter_engine_router.router,
         meter_allocation_router.router,
-        revenue_router.router,
         oversight_router.router,
         onboarding_router.router,
         sync_router.router,

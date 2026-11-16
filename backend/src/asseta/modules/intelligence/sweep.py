@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from asseta.modules.geospatial.models import TrackingAlert
-from asseta.modules.intelligence.detectors_asset_safety import detect_engine_without_work, detect_machine_fuel
+from asseta.modules.intelligence.detectors_asset_safety import detect_machine_fuel
 from asseta.modules.intelligence.detectors_engine_hours import (
     detect_aged_unexplained_hours,
     refresh_engine_hour_flags,
@@ -22,8 +22,6 @@ from asseta.modules.intelligence.detectors_finance import (
     detect_expense_threshold,
     detect_fuel_allowance,
 )
-from asseta.modules.intelligence.detectors_telemetry import detect_engine_activity
-from asseta.modules.intelligence.detectors_work import detect_work_without_authorization
 from asseta.modules.intelligence.linking import CaseLinker
 from asseta.modules.intelligence.models import CaseSourceType
 from asseta.modules.intelligence.rules import SignalFinding
@@ -36,7 +34,7 @@ from asseta.modules.intelligence.sources import (
     store_findings,
     tracking_alert_item,
 )
-from asseta.modules.meter.models import JobException
+from asseta.modules.meter.models import MeterException
 from asseta.modules.policy.capabilities import FUEL, capability_on
 from asseta.modules.policy.service import PolicyService
 
@@ -65,16 +63,13 @@ def sweep_tenant(s: Session, tenant_id: uuid.UUID, now: datetime) -> Intelligenc
     since = now - timedelta(hours=eff.policy.detection_lookback_hours)
     fuel = capability_on(s, tenant_id, FUEL, now)
     findings = [
-        *detect_engine_activity(s, tenant_id, now, since),
         *detect_duplicate_receipts(s, eff, since),
         *(detect_fuel_allowance(s, tenant_id, since) if fuel else []),
         *detect_expense_threshold(s, tenant_id, now, since),
         *detect_cash_not_handed_over(s, tenant_id, now, eff),
-        *detect_work_without_authorization(s, eff, since),
     ]
     refresh_engine_hour_flags(s, tenant_id, now)
     findings += detect_aged_unexplained_hours(s, tenant_id, now)
-    findings += detect_engine_without_work(s, tenant_id, now, since)
     if fuel:  # ADR-008 §3: no fuel checks while the company has fuel switched off
         findings += detect_machine_fuel(s, tenant_id, now, since)
     findings += _person_patterns(s, tenant_id, now)
@@ -107,17 +102,14 @@ def handle_event(
     since = now - timedelta(hours=eff.policy.detection_lookback_hours)
     added = 0
     if event_type == "ExpenseSubmitted" and (expense_id := _uuid(payload.get("expense_id"))):
-        findings = [
-            *detect_duplicate_receipts(s, eff, since, {expense_id}),
-            *detect_work_without_authorization(s, eff, since, {expense_id}),
-        ]
+        findings = detect_duplicate_receipts(s, eff, since, {expense_id})
         added = _finish(s, tenant_id, findings, linker, now)
     elif event_type == "TrackingAlertRaised" and (alert_id := _uuid(payload.get("alert_id"))):
         alert = s.get(TrackingAlert, alert_id)
         if alert and (item := tracking_alert_item(s, alert, eff.version_stamp)):
             linker.link(item)
     elif event_type == "MeterExceptionRaised" and (capture_id := _uuid(payload.get("capture_id"))):
-        for e in s.execute(select(JobException).where(JobException.meter_capture_id == capture_id)).scalars():
+        for e in s.execute(select(MeterException).where(MeterException.meter_capture_id == capture_id)).scalars():
             if item := meter_exception_item(s, e, eff.version_stamp):
                 linker.link(item)
     elif event_type == SOD_EVENT and not linker.already_linked(CaseSourceType.SOD_EVENT, event_id):

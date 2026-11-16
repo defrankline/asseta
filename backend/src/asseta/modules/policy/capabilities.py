@@ -20,11 +20,8 @@ Check = Callable[[PolicyService, uuid.UUID, datetime], bool]
 CUSTOMER_HOURS = "CUSTOMER_HOURS"
 ENGINE_HOURS = "ENGINE_HOURS"
 CASH_CUSTODY = "CASH_CUSTODY"
-REVENUE_RECONCILIATION = "REVENUE_RECONCILIATION"
 SCORECARD = "SCORECARD"
-UNBILLED_WORK = "UNBILLED_WORK"
 IDLE_MACHINES = "IDLE_MACHINES"
-SITE_CHECKIN = "SITE_CHECKIN"
 INSIGHTS = "INSIGHTS"
 INVESTIGATIONS = "INVESTIGATIONS"
 TRACKING = "TRACKING"
@@ -36,30 +33,25 @@ FUEL = "FUEL"
 CAPABILITIES: dict[str, Check] = {
     # Customer prepaid hours (CUSTOMER_HOURS.enabled): purchases, balances, approvals, reason lists.
     CUSTOMER_HOURS: lambda svc, tid, at: svc.customer_hours(tid, at=at).policy.enabled,
-    # Engine-hour accountability (ENGINE_HOURS.enabled): reconciliation, explanations, baselines, corrections, daily
-    # readings, reason lists, and the START gate / daily-report / unexplained-hours sweeps.
+    # Engine-hour accountability (ENGINE_HOURS.enabled): reconciliation, explanations, baselines, corrections, reason
+    # lists, and the daily-report / unexplained-hours sweeps. DAILY readings and machine reports (ADR-008) never depend
+    # on it.
     ENGINE_HOURS: lambda svc, tid, at: svc.engine_hours(tid, at=at).policy.enabled,
     # Cash custody chain controls (CASH_CUSTODY.enabled): transfers, acknowledgements, variances and write-offs,
     # retentions, custody adjustments, cash reasons, the remittance cut-off, partial-remittance flag and recording
     # for others. The cash basics (collections, floats, remittances, reconciliation) are not part of it.
     CASH_CUSTODY: lambda svc, tid, at: svc.cash_custody(tid, at=at).policy.enabled,
-    # Revenue reconciliation (REVENUE_RECONCILIATION.enabled, DEC-031 Phase 1; platform default OFF): the
-    # revenue-hour basis (non-revenue bucket), the daily machine sheet, revenue differences, their reasons and sweep.
-    REVENUE_RECONCILIATION: lambda svc, tid, at: svc.revenue_reconciliation(tid, at=at).policy.enabled,
     # DEC-031 Phase 5 oversight (OVERSIGHT policy; platform default OFF): the per-person scorecard and its
-    # repeat-pattern signals (scorecard_enabled), unbilled work (unbilled_after_days set), idle machines
-    # (idle_after_days set) and supervisors' site check-ins (site_checkin_required).
+    # repeat-pattern signals (scorecard_enabled) and idle machines (idle_after_days set).
     SCORECARD: lambda svc, tid, at: svc.oversight(tid, at=at).policy.scorecard_enabled,
-    UNBILLED_WORK: lambda svc, tid, at: svc.oversight(tid, at=at).policy.unbilled_after_days is not None,
     IDLE_MACHINES: lambda svc, tid, at: svc.oversight(tid, at=at).policy.idle_after_days is not None,
-    SITE_CHECKIN: lambda svc, tid, at: svc.oversight(tid, at=at).policy.site_checkin_required,
     # DEC-032 optional modules (platform default ON; a company turns off what it does not use). Each hides its menus,
     # refuses its endpoints and stops its background work; recorded business data is never touched.
     # Insights page: machine insights, cash trend, manual-override audit and model observations.
     INSIGHTS: lambda svc, tid, at: svc.oversight(tid, at=at).policy.insights_enabled,
     # Investigation cases: no case is opened or joined (variances, differences and signals are still recorded).
     INVESTIGATIONS: lambda svc, tid, at: svc.oversight(tid, at=at).policy.investigations_enabled,
-    # Trackers, geofences and tracking alerts. Machines, job sites, the fleet map and billing enrollment are not part
+    # Trackers, geofences and tracking alerts. Machines, sites, the fleet map and billing enrollment are not part
     # of it; messages from this tenant's trackers are ignored while it is off (TRACKING.enabled; tenant level only).
     TRACKING: lambda svc, tid, at: svc.tracking(tid, at=at).policy.enabled,
     # Company deposit accounts (CASH_CUSTODY.deposit_accounts_enabled); off, remittance_account_required reads off.
@@ -78,7 +70,7 @@ CAPABILITIES: dict[str, Check] = {
 }
 
 # Capabilities whose safe platform default is OFF (a tenant opts in): an unconfigured policy counts as off for them.
-OFF_BY_DEFAULT = frozenset({REVENUE_RECONCILIATION, SCORECARD, UNBILLED_WORK, IDLE_MACHINES, SITE_CHECKIN, PETTY_CASH})
+OFF_BY_DEFAULT = frozenset({SCORECARD, IDLE_MACHINES, PETTY_CASH})
 
 # How a request needing a switched-off capability is refused: 422 BUSINESS_RULE_VIOLATION envelope with this code
 # (CUSTOMER_HOURS keeps the code its services already used). Offline sync operations get the same code as CONFLICT.
@@ -86,14 +78,8 @@ REFUSALS: dict[str, tuple[str, str]] = {
     CUSTOMER_HOURS: ("HOURS_DISABLED", "Customer hours are switched off for this tenant"),
     ENGINE_HOURS: ("ENGINE_HOURS_DISABLED", "Engine-hour controls are switched off for this tenant"),
     CASH_CUSTODY: ("CASH_CUSTODY_DISABLED", "Cash custody controls are switched off for this tenant"),
-    REVENUE_RECONCILIATION: (
-        "REVENUE_RECONCILIATION_DISABLED",
-        "Revenue reconciliation is switched off for this tenant",
-    ),
     SCORECARD: ("SCORECARD_DISABLED", "The people scorecard is switched off for this tenant"),
-    UNBILLED_WORK: ("UNBILLED_WORK_DISABLED", "The unbilled-work check is switched off for this tenant"),
     IDLE_MACHINES: ("IDLE_MACHINES_DISABLED", "The idle-machine check is switched off for this tenant"),
-    SITE_CHECKIN: ("SITE_CHECKIN_DISABLED", "Site check-ins are switched off for this tenant"),
     INSIGHTS: ("INSIGHTS_DISABLED", "Insights are switched off for this tenant"),
     INVESTIGATIONS: ("INVESTIGATIONS_DISABLED", "Investigations are switched off for this tenant"),
     TRACKING: ("TRACKING_DISABLED", "Tracking is switched off for this tenant"),

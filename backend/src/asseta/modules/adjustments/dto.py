@@ -74,8 +74,9 @@ class PayoutIn(BaseModel):
 
 
 class AdjustmentRequestIn(BaseModel):
-    """Propose a correction, refund, reversal or invoice void. Which fields apply depends on `request_type`: see the
-    endpoint notes (hours/machine for corrections and refunds, a payment/purchase/invoice id for reversals)."""
+    """Propose a correction, refund or reversal. Which fields apply depends on `request_type`: see the endpoint notes
+    (hours/machine for corrections and refunds, a payment/purchase id for reversals). INVOICE_VOID is refused
+    (REQUEST_TYPE_RETIRED): hire invoices were removed."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -84,12 +85,11 @@ class AdjustmentRequestIn(BaseModel):
     purchase_id: uuid.UUID | None = None
     machine_id: uuid.UUID | None = None
     hours: Hours | None = None  # signed for HOURS_CORRECTION; positive for HOURS_REFUND
-    job_id: uuid.UUID | None = None  # HOURS_CORRECTION: the job whose consumption is being corrected
+    machine_report_id: uuid.UUID | None = None  # HOURS_CORRECTION: the machine report whose consumption is corrected
     consumed_entry_id: uuid.UUID | None = None  # HOURS_CORRECTION: the CONSUMED ledger entry being corrected
     settlement: RefundSettlement | None = None  # HOURS_REFUND
     payout: PayoutIn | None = None  # HOURS_REFUND with PAY_OUT
     payment_id: uuid.UUID | None = None  # PAYMENT_REVERSAL / COLLECTION_REVERSAL
-    invoice_id: uuid.UUID | None = None  # INVOICE_VOID
     reason: Reason
     reason_code_id: uuid.UUID | None = None  # tenant list (hours reason codes of the matching kind)
     evidence_attachment_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)

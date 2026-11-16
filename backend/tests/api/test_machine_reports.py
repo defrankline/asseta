@@ -13,6 +13,7 @@ from tests.support.finance import role, tenant_sql
 from tests.support.machine_reports import (
     ReportCtx,
     T,
+    baseline,
     bought,
     code,
     cust,
@@ -20,6 +21,7 @@ from tests.support.machine_reports import (
     idle,
     later,
     ok,
+    opening_body,
     reading,
     report_body,
     second_machine,
@@ -82,8 +84,8 @@ def test_a_reading_not_above_the_last_approved_one_is_refused(api: Api) -> None:
     assert r.status_code == 422 and code(r) == "VALIDATION_FAILED", r.text
 
 
-def test_a_machine_without_an_approved_baseline_cannot_be_reported(api: Api) -> None:
-    ctx = setup_reports(api)
+def _bare_machine(api: Api, ctx: ReportCtx) -> str:
+    """A machine assigned to the supervisor with no approved report, baseline or reset (no starting reading)."""
     f = ctx.f
     [bare] = api.add_machines(f.owner, 1, prefix="BARE")
     ok(
@@ -93,12 +95,84 @@ def test_a_machine_without_an_approved_baseline_cannot_be_reported(api: Api) -> 
         ),
         201,
     )
+    return str(bare)
+
+
+def test_a_machine_without_a_starting_reading_needs_an_opening_report_first(api: Api) -> None:
+    ctx = setup_reports(api)
+    f = ctx.f
+    bare = _bare_machine(api, ctx)
     context = ok(f.supervisor.get(f"{T}/machine-reports/context/{bare}"))
-    assert context["previous_reading"] is None
-    r = f.supervisor.post(
-        f"{T}/machine-reports", report_body(bare, "10", later(api, 1), [idle(ctx.reasons["TRANSIT"], 10)])
+    assert context["previous_reading"] is None and context["opening_required"] is True
+    status = next(s for s in ok(f.supervisor.get(f"{T}/machine-reports/status")) if s["machine_id"] == bare)
+    assert status["opening_required"] is True
+    at = later(api, 1)
+    r = f.supervisor.post(f"{T}/machine-reports", report_body(bare, "10", at, [idle(ctx.reasons["TRANSIT"], 10)]))
+    assert r.status_code == 422 and code(r) == "OPENING_REPORT_REQUIRED", r.text
+    # An opening report carries no lines; a normal report needs at least one.
+    r = f.supervisor.post(f"{T}/machine-reports", opening_body(bare, "10", at, lines=[idle(ctx.reasons["TRANSIT"], 1)]))
+    assert r.status_code == 422 and code(r) == "VALIDATION_FAILED", r.text
+    r = f.supervisor.post(f"{T}/machine-reports", report_body(bare, "10", at, []))
+    assert r.status_code == 422 and code(r) == "VALIDATION_FAILED", r.text
+
+    opening = submit(f.supervisor, opening_body(bare, "10", at))
+    assert opening["opening"] is True and opening["status"] == "SUBMITTED" and opening["start_source"] == "OPENING"
+    assert Decimal(opening["hours"]) == 0 and opening["lines"] == []
+    assert Decimal(opening["start_reading"]) == Decimal(opening["end_reading"]) == 10
+    # `submitted_by` is the caller's app user id, the one /me returns.
+    assert opening["submitted_by"] == ok(f.supervisor.get("/api/v1/me"))["user_id"]
+    done = ok(f.manager.post(f"{T}/machine-reports/{opening['id']}/approve", {}))
+    assert done["status"] == "APPROVED" and Decimal(done["customer_hours"]) == 0
+    context = ok(f.supervisor.get(f"{T}/machine-reports/context/{bare}"))
+    assert Decimal(context["previous_reading"]) == 10 and context["opening_required"] is False
+    assert context["previous_source"] == "REPORT"
+
+    # Now the machine starts from 10: a second opening report is refused; a normal one reports the difference.
+    at = later(api, 3)
+    r = f.supervisor.post(f"{T}/machine-reports", opening_body(bare, "13", at))
+    assert code(r) == "OPENING_NOT_ALLOWED", r.text
+    normal = submit(f.supervisor, report_body(bare, "13", at, [idle(ctx.reasons["TRANSIT"], 3)]))
+    assert normal["opening"] is False and Decimal(normal["start_reading"]) == 10 and Decimal(normal["hours"]) == 3
+
+
+def test_the_phone_sends_the_reading_first_then_the_report_naming_it(api: Api) -> None:
+    """The phones' two-step contract over REST: a DAILY reading (POST /meter-captures), then the report with
+    `capture_id` (opening report with no lines; later a normal report with lines)."""
+    ctx = setup_reports(api)
+    f = ctx.f
+    bare = _bare_machine(api, ctx)
+    at = later(api, 1)
+    first = reading(bare, "250", at)
+    assert ok(f.supervisor.post(f"{T}/meter-captures", first), 201)["capture"]["state"] == "ACCEPTED"
+    body = {"id": str(uuid.uuid4()), "machine_id": bare, "capture_id": first["id"], "opening": True, "lines": []}
+    opening = submit(f.supervisor, body)
+    assert opening["capture_id"] == first["id"] and opening["opening"] is True
+    ok(f.manager.post(f"{T}/machine-reports/{opening['id']}/approve", {}))
+
+    at = later(api, 2)
+    second = reading(bare, "252", at)
+    ok(f.supervisor.post(f"{T}/meter-captures", second), 201)
+    body = {
+        "id": str(uuid.uuid4()),
+        "machine_id": bare,
+        "capture_id": second["id"],
+        "lines": [idle(ctx.reasons["TRANSIT"], 2)],
+    }
+    normal = submit(f.supervisor, body)
+    assert normal["opening"] is False and Decimal(normal["start_reading"]) == 250 and Decimal(normal["hours"]) == 2
+
+
+def test_an_opening_report_is_not_approved_once_the_machine_got_a_start_meanwhile(api: Api) -> None:
+    ctx = setup_reports(api)
+    f = ctx.f
+    bare = _bare_machine(api, ctx)
+    opening = submit(f.supervisor, opening_body(bare, "40", later(api, 1)))
+    baseline(api, f, bare, "35")
+    r = f.manager.post(f"{T}/machine-reports/{opening['id']}/approve", {})
+    assert r.status_code == 422 and code(r) == "REPORT_READINGS_CHANGED", r.text
+    assert ok(f.manager.post(f"{T}/machine-reports/{opening['id']}/reject", {"reason": "Baseline set"}))["status"] == (
+        "REJECTED"
     )
-    assert code(r) == "BASELINE_REQUIRED", r.text
 
 
 # --- available hours, reservations ------------------------------------------------------------------------------

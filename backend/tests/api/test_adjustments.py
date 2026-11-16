@@ -11,9 +11,10 @@ from sqlalchemy.exc import DBAPIError
 
 from asseta.core.db import DbScope, apply_scope, get_sessionmaker
 from tests.support.api import Actor, Api
-from tests.support.finance import FinCtx, complete_job, issue_invoice, setup_finance
-from tests.support.hours import RATE, balance, get_purchase, hours_policy, prepaid_job, purchase, verify
-from tests.support.jobs import unique_jpeg
+from tests.support.finance import FinCtx, setup_finance
+from tests.support.hours import RATE, balance, get_purchase, hours_policy, purchase, verify
+from tests.support.machine_reports import baseline, cust, later, report_body, submit
+from tests.support.meter import unique_jpeg
 from tests.support.notify import drain
 
 T = "/api/v1/tenant"
@@ -22,8 +23,7 @@ A = f"{T}/adjustment-requests"
 
 def _setup(api: Api, **policy: Any) -> FinCtx:
     f = setup_finance(api)
-    r = f.owner.post(f"{T}/jobs/{f.c.job_id}/transitions", {"action": "CANCEL", "reason": "Not needed"})
-    assert r.status_code == 200, r.text
+    baseline(api, f, f.c.t.machine_id)
     hours_policy(f, adjustment_evidence_required=False, **policy)
     return f
 
@@ -63,10 +63,13 @@ def _balance_money(actor: Actor, customer_id: str) -> dict[str, Decimal]:
     return {k: Decimal(row[k]) for k in ("balance", "unallocated_credit", "verified_payments")}
 
 
-def _complete_prepaid(api: Api, f: FinCtx, number: str, hours: int) -> str:
-    job = prepaid_job(api, f, number)
-    complete_job(api, f, job, "500", str(500 + hours), hours)
-    return job
+def _use_hours(api: Api, f: FinCtx, hours: int) -> str:
+    """The customer's hours used on an approved machine report (supervisor submits, manager approves)."""
+    m = f.c.t.machine_id
+    prev = Decimal(_ok(f.supervisor.get(f"{T}/machine-reports/context/{m}"))["previous_reading"])
+    rep = submit(f.supervisor, report_body(m, str(prev + hours), later(api, hours), [cust(f.customer_id, hours)]))
+    _ok(f.manager.post(f"{T}/machine-reports/{rep['id']}/approve", {}))
+    return str(rep["id"])
 
 
 def test_scenario_11_every_flow_posts_with_original_kept_and_approval_history(api: Api) -> None:
@@ -136,12 +139,12 @@ def test_hours_correction_propose_approve_and_guards(api: Api) -> None:
     assert Decimal(e["amount"]) == Decimal("-2.5") and Decimal(e["resulting_balance"]) == Decimal("7.5")
     _err(_approve(f.owner, down["id"]), 409, "ALREADY_DECIDED")
 
-    # Correcting consumed hours: give back hours a job consumed, referencing the entry; cannot exceed the entry.
-    job = _complete_prepaid(api, f, "J-CORR", 3)
+    # Correcting consumed hours: give back hours a machine report consumed, referencing the entry; cannot exceed it.
+    report = _use_hours(api, f, 3)
     consumed = next(
         e
         for e in _ok(f.manager.get(f"{T}/hours-ledger", purchase_id=p["id"]))["items"]
-        if e["entry_type"] == "CONSUMED" and e["job_id"] == job
+        if e["entry_type"] == "CONSUMED" and e["machine_report_id"] == report
     )
     _err(
         _propose(
@@ -149,7 +152,7 @@ def test_hours_correction_propose_approve_and_guards(api: Api) -> None:
             request_type="HOURS_CORRECTION",
             purchase_id=p["id"],
             hours="5",
-            job_id=job,
+            machine_report_id=report,
             consumed_entry_id=consumed["id"],
         ),
         422,
@@ -161,7 +164,7 @@ def test_hours_correction_propose_approve_and_guards(api: Api) -> None:
             request_type="HOURS_CORRECTION",
             purchase_id=p["id"],
             hours="1",
-            job_id=job,
+            machine_report_id=report,
             consumed_entry_id=consumed["id"],
         ),
         201,
@@ -197,7 +200,8 @@ def test_refund_policy_credit_and_payout_with_balances(api: Api) -> None:
     assert Decimal(got["totals"]["remaining"]) == 6
     assert Decimal(got["totals"]["amount_verified"]) == 6 * RATE  # the kept part re-allocated, nothing edited
     money = _balance_money(f.owner, f.customer_id)
-    assert money["unallocated_credit"] == 4 * RATE and money["verified_payments"] == 10 * RATE
+    # Verified money not linked to an order is the customer's credit; no credit invoice is involved.
+    assert money["unallocated_credit"] == 4 * RATE and money["verified_payments"] == 0
     e = _ledger(f.owner, type="HOURS_REFUND")[0]
     assert Decimal(e["amount"]) == 4 and e["resulting_balance"] is not None
 
@@ -230,14 +234,14 @@ def test_refund_policy_credit_and_payout_with_balances(api: Api) -> None:
     )
     _ok(_approve(f.owner, r2["id"]))
     money2 = _balance_money(f.owner, f.customer_id)
-    assert money2["unallocated_credit"] == 4 * RATE  # 10 verified - 4 kept - 4 credit... - 2 paid out
-    assert money2["balance"] == -8 * RATE  # 10 verified minus 2 paid back: customer's net credit from hours
+    assert money2["unallocated_credit"] == 4 * RATE  # 10 verified - 4 still on the order - 2 paid out
+    assert money2["balance"] == 0  # no credit invoice: the customer owes nothing
 
 
-def test_bounced_payment_part_used_hours_become_receivable(api: Api) -> None:
+def test_bounced_payment_part_used_hours_open_a_case(api: Api) -> None:
     f = _setup(api)
     p = _paid_purchase(api, f)
-    _complete_prepaid(api, f, "J-USED", 4)
+    _use_hours(api, f, 4)
     payment_id = p["allocations"][0]["payment_id"]
 
     claimed = _propose(f.accountant, request_type="COLLECTION_REVERSAL", payment_id=payment_id)
@@ -254,8 +258,11 @@ def test_bounced_payment_part_used_hours_become_receivable(api: Api) -> None:
     _err(_approve(f.accountant, req["id"]), 422, "SEGREGATION_OF_DUTIES")
     done = _ok(_approve(f.owner, req["id"]))
     assert done["status"] == "APPROVED"
+    # The used hours that money no longer covers are investigated (a case), never billed automatically.
+    assert done["effects"]["treatment"] == "CASE" and done["effects"]["case_id"]
+    assert "recovery_invoice_id" not in done["effects"]
 
-    # Unused hours deactivated by offsetting entries; used hours billed; nothing edited.
+    # Unused hours deactivated by offsetting entries; nothing edited.
     got = get_purchase(f.manager, p["id"])
     assert Decimal(got["totals"]["remaining"]) == 0 and Decimal(got["totals"]["reversed"]) == 6
     assert Decimal(got["totals"]["consumed"]) == 4
@@ -264,18 +271,8 @@ def test_bounced_payment_part_used_hours_become_receivable(api: Api) -> None:
     payment = _ok(f.accountant.get(f"{T}/customer-payments/{payment_id}"))
     assert payment["status"] == "VERIFIED" and payment["reversed_at"] is not None  # original kept
     assert Decimal(payment["amount"]) == 10 * RATE
-    invoice_id = done["effects"]["recovery_invoice_id"]
-    inv = _ok(f.accountant.get(f"{T}/hire-invoices/{invoice_id}"))
-    assert inv["status"] == "ISSUED" and Decimal(inv["total"]) == 4 * RATE
-    assert inv["lines"][0]["kind"] == "HOURS_RECOVERY"
-
-    # Receivables correct: only the 400 of used hours is owed.
     money = _balance_money(f.owner, f.customer_id)
-    assert money["balance"] == 4 * RATE and money["unallocated_credit"] == 0
-    statement = _ok(
-        f.accountant.get(f"{T}/customers/{f.customer_id}/statement", **{"from": "2026-10-01", "to": "2026-12-31"})
-    )
-    assert {"PAYMENT", "ADJUSTMENT", "INVOICE"} <= {x["kind"] for x in statement["lines"]}
+    assert money["balance"] == 0 and money["unallocated_credit"] == 0  # under investigation, not billed
     # Reversed money cannot be re-used.
     _err(
         f.accountant.post(f"{T}/hours-purchases/{p['id']}/allocations", {"payment_id": payment_id, "amount": "1"}),
@@ -292,22 +289,8 @@ def test_bounced_payment_part_used_hours_become_receivable(api: Api) -> None:
 
     e = _ledger(f.owner, type="PAYMENT_REVERSAL")[0]
     assert Decimal(e["original_value"]) == 10 * RATE and Decimal(e["new_value"]) == 0
-    assert Decimal(e["resulting_balance"]) == 4 * RATE and e["details"]["treatment"] == "RECEIVABLE"
+    assert e["details"]["treatment"] == "CASE"
     assert e["original_reference"] == payment["reference"]
-
-
-def test_reversal_case_treatment_and_unused_only(api: Api) -> None:
-    f = _setup(api, reversal_used_hours_treatment="CASE")
-    p = _paid_purchase(api, f)
-    _complete_prepaid(api, f, "J-CASE", 2)
-    req = _ok(
-        _propose(f.accountant, request_type="PAYMENT_REVERSAL", payment_id=p["allocations"][0]["payment_id"]), 201
-    )
-    done = _ok(_approve(f.owner, req["id"]))
-    assert done["effects"]["treatment"] == "CASE" and done["effects"]["case_id"]
-    assert "recovery_invoice_id" not in done["effects"]
-    money = _balance_money(f.owner, f.customer_id)
-    assert money["balance"] == 0  # the difference is under investigation, not billed
 
 
 def test_cash_collection_reversal_reverses_custody(api: Api) -> None:
@@ -332,7 +315,7 @@ def test_cash_collection_reversal_reverses_custody(api: Api) -> None:
 def test_purchase_reversal_keeps_money_for_used_hours_and_stamps_purchase(api: Api) -> None:
     f = _setup(api)
     p = _paid_purchase(api, f)
-    _complete_prepaid(api, f, "J-PR", 4)
+    _use_hours(api, f, 4)
     req = _ok(_propose(f.accountant, request_type="PURCHASE_REVERSAL", purchase_id=p["id"]), 201)
     assert Decimal(req["effects"]["unused_hours_removed"]) == 6 and Decimal(req["effects"]["money_owed"]) == 0
     done = _ok(_approve(f.owner, req["id"]))
@@ -341,33 +324,18 @@ def test_purchase_reversal_keeps_money_for_used_hours_and_stamps_purchase(api: A
     assert got["cancelled_at"] is not None and got["status"] == "CANCELLED"
     assert Decimal(got["totals"]["remaining"]) == 0 and Decimal(got["totals"]["consumed"]) == 4
     money = _balance_money(f.owner, f.customer_id)
-    assert money["unallocated_credit"] == 6 * RATE and money["balance"] == -10 * RATE
+    assert money["unallocated_credit"] == 6 * RATE and money["balance"] == 0  # no credit invoices: nothing owed
     assert _ledger(f.owner, type="PURCHASE_REVERSAL")[0]["status"] == "APPROVED"
 
 
-def test_invoice_void_goes_through_approval_by_policy(api: Api) -> None:
-    f = setup_finance(api)
-    hours_policy(f, adjustment_evidence_required=False)
-    complete_job(api, f, f.c.job_id, "500", "510", 10)
-    inv = issue_invoice(f, [f.c.job_id])
-    pending = _ok(f.accountant.post(f"{T}/hire-invoices/{inv['id']}/void", {"reason": "Wrong customer on invoice"}))
-    assert pending["status"] == "ISSUED" and pending["pending_void_request_id"]
-    request_id = pending["pending_void_request_id"]
-    _err(f.accountant.post(f"{A}/{request_id}/decision", {"decision": "APPROVE"}), 422, "SEGREGATION_OF_DUTIES")
-    done = _ok(f.owner.post(f"{A}/{request_id}/decision", {"decision": "APPROVE", "note": "Confirmed"}))
-    assert done["status"] == "APPROVED"
-    voided = _ok(f.accountant.get(f"{T}/hire-invoices/{inv['id']}"))
-    assert voided["status"] == "VOIDED" and voided["pending_void_request_id"] is None
-    e = _ledger(f.owner, type="INVOICE_VOID")[0]
-    assert e["original_reference"] == inv["invoice_number"] and e["approved_by_name"]
-    assert e["status"] == "APPROVED" and Decimal(e["original_value"]) == Decimal(inv["total"])
-    assert e["evidence_attachment_ids"] == []
+def test_invoice_void_requests_are_retired(api: Api) -> None:
+    f = _setup(api)
+    _err(_propose(f.accountant, request_type="INVOICE_VOID"), 422, "REQUEST_TYPE_RETIRED")
+    assert _ledger(f.owner, type="INVOICE_VOID") == []
 
 
 def test_evidence_required_by_default_and_notifications_link_record(api: Api) -> None:
     f = setup_finance(api)
-    r = f.owner.post(f"{T}/jobs/{f.c.job_id}/transitions", {"action": "CANCEL", "reason": "Not needed"})
-    assert r.status_code == 200, r.text
     p = _paid_purchase(api, f)
     _err(
         _propose(f.accountant, request_type="PAYMENT_REVERSAL", payment_id=p["allocations"][0]["payment_id"]),

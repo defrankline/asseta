@@ -4,11 +4,7 @@ A CONFLICT is kept and reviewed, never applied: the right outcome whenever the r
 state moved on while the device was offline. REJECTED is for payloads that could never have been valid."""
 
 CONFLICT_CODES = {
-    "INVALID_JOB_TRANSITION",
-    "READING_NOT_ALLOWED",
-    "MACHINE_BUSY",
     "CAPTURE_ID_CONFLICT",
-    "JOB_NOT_ACTIVE",
     "STALE_VERSION",
     "DUPLICATE_PAYMENT_REFERENCE",
     "TRANSFER_ALREADY_DECIDED",  # cash custody: a second acknowledgement of the same transfer/float
@@ -16,10 +12,7 @@ CONFLICT_CODES = {
     # customer hours: two field users drawing on the same remaining hours are serialised; the loser sees a conflict
     "NO_AVAILABLE_HOURS",
     "EXCEEDS_REMAINING_HOURS",
-    # engine-hour controls: resolvable later (a baseline approved, the other job corrected), never silently applied
-    "BASELINE_REQUIRED",
-    "OVERLAPPING_ALLOCATION",
-    "OVERLAPPING_ACTIVITY",
+    # engine-hour controls: resolvable later (a baseline approved, a correction decided), never silently applied
     "BASELINE_PENDING",
     "CORRECTION_PENDING",
     # cash retention: the tenant switched retention off after the device's snapshot, or a concurrent duplicate
@@ -34,21 +27,13 @@ CONFLICT_CODES = {
     "REMITTANCE_EVIDENCE_REQUIRED",
     "REMITTANCE_ACCOUNT_REQUIRED",
     "DEPOSIT_ACCOUNT_INACTIVE",
-    # site check-ins (DEC-031 M3): switched off after the device queued it, or the same client id reused by another
-    # person (kept for review, never applied)
-    "SITE_CHECKIN_DISABLED",
-    "CHECKIN_ID_CONFLICT",
     # DEC-032: a daily report whose readings changed or arrived differently, a repeat of its id, a report replaced
-    # already, evidence newly required, or a changeover the job's state no longer allows (kept for review)
+    # already or evidence newly required (kept for review)
     "REPORT_READINGS_INVALID",
     "REPORT_HOURS_EXCEED_TOTAL",
     "REPORT_ID_CONFLICT",
     "REPORT_NOT_SUPERSEDABLE",
     "REPORT_EVIDENCE_REQUIRED",
-    "CHANGEOVER_NOT_ALLOWED",
-    "CHANGEOVER_SAME_CUSTOMER",
-    "CHANGEOVER_JOB_REQUIRED",  # billing split switched on after the device queued the changeover
-    "CHANGEOVER_JOB_INVALID",  # the follow-on job was approved, cancelled or changed since
     # DEC-032 Phase 3: the tenant now requires a collection link or supporting evidence, the balance left a partial
     # remittance without a reason, or the purchase a collection names changed (kept for review, never applied)
     "COLLECTION_LINK_REQUIRED",
@@ -58,7 +43,6 @@ CONFLICT_CODES = {
     "PURCHASE_CANCELLED",
     "OVER_ALLOCATION",
     "ALLOCATION_MISMATCH",
-    "INVOICE_NOT_OPEN",  # the invoice a collection names was voided or paid off before the upload
     # DEC-033 petty cash: switched off, the fund changed hands or was deactivated, the offline expense went above what
     # was available (with overspend offline not allowed), the office decided first, or evidence became required
     # after the device queued the operation (kept for review, never applied)
@@ -132,7 +116,7 @@ REPORT_CONFLICT_CODES = frozenset(
         "MACHINE_NOT_FOUND",
         "REPORT_PENDING",
         "REPORT_ID_CONFLICT",
-        "BASELINE_REQUIRED",
+        "OPENING_REPORT_REQUIRED",
         "READING_NOT_HIGHER",
         "NOTHING_TO_REPORT",
         "REPORT_SUM_MISMATCH",

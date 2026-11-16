@@ -11,7 +11,7 @@ from sqlalchemy.exc import DBAPIError
 
 from tests.support.api import Actor, Api
 from tests.support.finance import FinCtx, category, expense_policy, gps, setup_finance, tenant_sql
-from tests.support.jobs import unique_jpeg
+from tests.support.meter import unique_jpeg
 
 E = "/api/v1/tenant/expenses"
 
@@ -33,7 +33,7 @@ def _expense(api: Api, f: FinCtx, cat: str, amount: str, **kw: Any) -> dict[str,
         "supplier": "Kariakoo Spares",
         "amount": amount,
         "incurred_at": api.clock.now.isoformat(),
-        "job_id": f.c.job_id,
+        "machine_id": f.c.t.machine_id,
         "paid_from": "CASH_CUSTODY",
         "gps": gps(api.clock.now),
         **kw,
@@ -54,7 +54,7 @@ def test_expense_policy_receipts_gps_auto_approval_and_segregation(api: Api) -> 
     s = small.json()
     assert (s["status"], s["approval_request_id"], s["receipt_required"]) == ("APPROVED", None, False)
     assert s["policy_version"] == "EXPENSE_CAPTURE@P1.T1" and s["custodian_staff_id"] == f.sup_staff_id
-    assert s["machine_id"] == f.c.t.machine_id  # attributed through the job
+    assert s["machine_id"] == f.c.t.machine_id
 
     no_receipt = sup.post(E, _expense(api, f, repair, "80000"))
     assert no_receipt.status_code == 422 and no_receipt.json()["error"]["code"] == "RECEIPT_REQUIRED"
@@ -69,8 +69,8 @@ def test_expense_policy_receipts_gps_auto_approval_and_segregation(api: Api) -> 
     assert ok["status"] == "APPROVED" and ok["receipt_attachment_ids"] == [rec] and ok["latitude"] == -6.8
     url = f.accountant.get(f"{E}/{ok['id']}/receipts/{rec}/url")
     assert url.status_code == 200 and url.json()["url"]
-    mismatch = sup.post(E, _expense(api, f, repair, "100", machine_id=str(uuid.uuid4())))
-    assert mismatch.json()["error"]["code"] == "ATTRIBUTION_MISMATCH"
+    unknown = sup.post(E, _expense(api, f, repair, "100", machine_id=str(uuid.uuid4())))
+    assert unknown.status_code == 404
 
     big = sup.post(E, _expense(api, f, repair, "250000", receipt_attachment_ids=[_receipt(api, sup)])).json()
     assert big["status"] == "PENDING_APPROVAL" and big["approval_request_id"]
@@ -114,11 +114,11 @@ def test_expense_policy_receipts_gps_auto_approval_and_segregation(api: Api) -> 
             tenant_sql(f.tid, sql, i=ok["id"], r=big["id"])
 
 
-def test_fuel_events_attribute_cost_to_machine_and_job(api: Api) -> None:
+def test_fuel_events_attribute_cost_to_machine(api: Api) -> None:
     f = setup_finance(api)
     fuel_cat = category(f, "FUEL", "Fuel")
     expense_policy(f, receipt_required_above="100000000", gps_required=False, auto_approve_limit="100000000")
-    bulk = f.owner.post(E, _expense(api, f, fuel_cat, "3000000", job_id=None, paid_from="COMPANY")).json()
+    bulk = f.owner.post(E, _expense(api, f, fuel_cat, "3000000", machine_id=None, paid_from="COMPANY")).json()
     now = api.clock.now.isoformat()
     fe = "/api/v1/tenant/fuel-events"
     stock = f.owner.post(
@@ -139,7 +139,7 @@ def test_fuel_events_attribute_cost_to_machine_and_job(api: Api) -> None:
         "event_type": "ISSUE",
         "litres": "200",
         "unit_price": "3000",
-        "job_id": f.c.job_id,
+        "machine_id": f.c.t.machine_id,
         "meter_reading": "1002.5",
         "occurred_at": now,
     }
@@ -151,9 +151,8 @@ def test_fuel_events_attribute_cost_to_machine_and_job(api: Api) -> None:
     ).json()
     assert (usage["unit_price"], usage["attributed_cost"]) == (None, "0.0000")
     bad = f.supervisor.post(fe, {"event_type": "ISSUE", "litres": "10", "unit_price": "3000", "occurred_at": now})
-    assert bad.status_code == 422  # ISSUE needs a machine or job
+    assert bad.status_code == 422  # ISSUE needs a machine
     listed = f.accountant.get(fe, machine_id=f.c.t.machine_id).json()
     assert {x["event_type"] for x in listed["items"]} == {"ISSUE", "USAGE"}
-    assert [x["id"] for x in f.accountant.get(fe, job_id=f.c.job_id).json()["items"]] == [issued["id"]]
     with pytest.raises(DBAPIError, match=r"asseta: |permission denied"):
         tenant_sql(f.tid, "UPDATE fuel_event SET litres = 1 WHERE id = :i", i=issued["id"])

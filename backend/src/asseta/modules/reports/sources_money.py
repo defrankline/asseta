@@ -26,7 +26,7 @@ from asseta.modules.platform_billing.repository import (
 )
 from asseta.modules.reports.definitions import ReportColumn as C
 from asseta.modules.reports.definitions import ReportDefinition
-from asseta.modules.reports.sources_ops import job_numbers, machine_codes
+from asseta.modules.reports.sources_ops import machine_codes
 from asseta.modules.tenancy.models import Tenant
 
 
@@ -91,7 +91,6 @@ CASH = ReportDefinition(
 class ExpensesReportFilters(_Filters):
     status: ExpenseStatus | None = None
     machine_id: uuid.UUID | None = None
-    job_id: uuid.UUID | None = None
     custodian_staff_id: uuid.UUID | None = None
     paid_from: ExpensePaidFrom | None = None
     petty_cash_fund_id: uuid.UUID | None = None
@@ -101,7 +100,7 @@ class ExpensesReportFilters(_Filters):
 def _expenses(session: Session, ctx: RequestContext, now: datetime, f: BaseModel, limit: int) -> list[dict[str, Any]]:
     assert isinstance(f, ExpensesReportFilters)
     stmt = expense_list_query(
-        f.status, f.machine_id, f.job_id, f.custodian_staff_id, f.paid_from, f.petty_cash_fund_id, f.control_flag
+        f.status, f.machine_id, f.custodian_staff_id, f.paid_from, f.petty_cash_fund_id, f.control_flag
     )
     expenses = list(session.execute(stmt.limit(limit + 1)).scalars())
     categories = dict(
@@ -123,7 +122,6 @@ def _expenses(session: Session, ctx: RequestContext, now: datetime, f: BaseModel
         .all()
     )
     machines = machine_codes(session, (e.machine_id for e in expenses))
-    jobs = job_numbers(session, (e.job_id for e in expenses))
     return [
         {
             "incurred_at": e.incurred_at,
@@ -135,7 +133,6 @@ def _expenses(session: Session, ctx: RequestContext, now: datetime, f: BaseModel
             "paid_from": e.paid_from,
             "custodian": staff.get(e.custodian_staff_id) if e.custodian_staff_id else None,
             "machine": machines.get(e.machine_id) if e.machine_id else None,
-            "job": jobs.get(e.job_id) if e.job_id else None,
             "status": e.status,
             "flags": ", ".join(e.control_flags) or None,
             "decided_at": e.decided_at,
@@ -147,7 +144,7 @@ def _expenses(session: Session, ctx: RequestContext, now: datetime, f: BaseModel
 EXPENSES = ReportDefinition(
     code="expenses",
     title="Expenses",
-    description="Expenses with category, amount, how paid, custodian, machine/job and approval status",
+    description="Expenses with category, amount, how paid, custodian, machine and approval status",
     scope=S.TENANT,
     permission="tenant.expense.read",
     columns=(
@@ -160,7 +157,6 @@ EXPENSES = ReportDefinition(
         C("paid_from", "Paid from", width=1.1),
         C("custodian", "Custodian", width=1.2),
         C("machine", "Machine"),
-        C("job", "Job"),
         C("status", "Status", width=1.2),
         C("flags", "Flags", width=1.2),
         C("decided_at", "Decided", "instant", 1.2),

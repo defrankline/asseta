@@ -1,15 +1,14 @@
 """Supervisor visibility after sync (R1): the sync pull carries the caller's own field records (inbox) by delta,
-assigned machines and recently closed jobs; REST lists are least-privilege scoped for field users ("mine"); the
+assigned machines; REST lists are least-privilege scoped for field users ("mine"); the
 supervisor's own cash views; offline meter reset requests (METER_RESET_REQUEST) are idempotent."""
 
 import hashlib
 import uuid
-from datetime import timedelta
 from typing import Any
 
 from tests.support.api import Actor, Api
 from tests.support.finance import FinCtx, category, expense_policy, gps, role, setup_finance, tenant_sql
-from tests.support.jobs import capture, photo, unique_jpeg
+from tests.support.meter import capture, photo, unique_jpeg
 
 DEVICE = "android-inbox-0001"
 
@@ -100,10 +99,10 @@ def _expense(api: Api, actor: Actor, cat: str, amount: str) -> dict[str, Any]:
     return out
 
 
-def _fuel(api: Api, actor: Actor, job_id: str) -> dict[str, Any]:
+def _fuel(api: Api, actor: Actor, machine_id: str) -> dict[str, Any]:
     r = actor.post(
         "/api/v1/tenant/fuel-events",
-        {"event_type": "USAGE", "litres": "10", "job_id": job_id, "occurred_at": api.clock.now.isoformat()},
+        {"event_type": "USAGE", "litres": "10", "machine_id": machine_id, "occurred_at": api.clock.now.isoformat()},
     )
     assert r.status_code == 201, r.text
     out: dict[str, Any] = r.json()
@@ -116,26 +115,15 @@ def test_sync_inbox_bootstrap_and_deltas(api: Api) -> None:
     spares = category(f, "SPARES", "Spares")
     expense_policy(f, receipt_required_above="100000000", auto_approve_limit="0")  # every expense needs approval
     spare_machine, later_machine = api.add_machines(f.owner, 2, prefix="SPR")
-    _assign(api, f, spare_machine, f.sup_staff_id)  # assigned, but no job on it
+    _assign(api, f, spare_machine, f.sup_staff_id)  # assigned, nothing recorded on it
     _register(api, sup)
     t0 = api.clock.now
 
-    # Offline day: opening reading without GPS (finding for review), start, work log, expense, fuel, cash.
+    # Offline day: a reading without GPS (finding for review), expense, fuel, cash.
+    machine = f.c.t.machine_id
     cap = _op(
         "METER_CAPTURE",
-        capture(f.c.job_id, "OPENING", "800.0", t0, mode="MANUAL", gps={"status": "PERMISSION_DENIED"}),
-    )
-    start = _op("JOB_TRANSITION", {"job_id": f.c.job_id, "action": "START"}, [cap["id"]])
-    work = _op(
-        "JOB_ACTIVITY",
-        {
-            "job_id": f.c.job_id,
-            "client_id": str(uuid.uuid4()),
-            "activity_type": "DOWNTIME",
-            "started_at": (t0 + timedelta(hours=1)).isoformat(),
-            "ended_at": (t0 + timedelta(hours=2, minutes=30)).isoformat(),
-        },
-        [start["id"]],
+        capture(machine, "800.0", t0, mode="MANUAL", gps={"status": "PERMISSION_DENIED"}),
     )
     expense = _op(
         "EXPENSE",
@@ -145,7 +133,7 @@ def test_sync_inbox_bootstrap_and_deltas(api: Api) -> None:
             "description": "Hydraulic hose",
             "amount": "40000",
             "incurred_at": t0.isoformat(),
-            "job_id": f.c.job_id,
+            "machine_id": machine,
             "paid_from": "CASH_CUSTODY",
             "gps": gps(t0),
         },
@@ -156,7 +144,7 @@ def test_sync_inbox_bootstrap_and_deltas(api: Api) -> None:
             "client_id": str(uuid.uuid4()),
             "event_type": "USAGE",
             "litres": "12.5",
-            "job_id": f.c.job_id,
+            "machine_id": machine,
             "occurred_at": t0.isoformat(),
         },
     )
@@ -174,29 +162,27 @@ def test_sync_inbox_bootstrap_and_deltas(api: Api) -> None:
         {"client_id": str(uuid.uuid4()), "amount": "250000", "handed_at": t0.isoformat()},
         [collection["id"]],
     )
-    results = _push(api, sup, [cap, start, work, expense, fuel, collection, handover])
-    assert [r["status"] for r in results] == ["ACKED"] * 7, results
+    results = _push(api, sup, [cap, expense, fuel, collection, handover])
+    assert [r["status"] for r in results] == ["ACKED"] * 5, results
 
     # Other people's records never reach this supervisor's inbox.
     other, _ = _second_supervisor(api, f)
     _expense(api, other, spares, "999")
-    _fuel(api, f.owner, f.c.job_id)  # office-recorded fuel is not the supervisor's own record
+    _fuel(api, f.owner, machine)  # office-recorded fuel is not the supervisor's own record
 
     boot = _bootstrap(api, sup)
-    assert {"SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST", "OP_JOB_REQUEST"} <= set(boot["capabilities"])
+    assert {"SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST", "OP_MACHINE_REPORT"} <= set(boot["capabilities"])
     d = boot["data"]
     assert {m["id"] for m in d["machines"]} == {f.c.t.machine_id, spare_machine}
     [c] = d["my_meter_captures"]
     assert (c["id"], c["kind"], c["capture_mode"], c["gps_status"]) == (
         cap["payload"]["id"],
-        "OPENING",
+        "DAILY",
         "MANUAL",
         "PERMISSION_DENIED",
     )
     assert c["review_status"] == "PENDING_REVIEW" and c["findings"]
     assert {x["exception_type"] for x in c["findings"]} >= {"GPS_UNAVAILABLE"}
-    [a] = d["my_job_activities"]
-    assert (a["activity_type"], a["duration_minutes"], a["job_id"]) == ("DOWNTIME", 90, f.c.job_id)
     [e] = d["my_expenses"]
     assert (e["status"], e["paid_from"], e["amount"], e["currency"]) == (
         "PENDING_APPROVAL",
@@ -206,12 +192,12 @@ def test_sync_inbox_bootstrap_and_deltas(api: Api) -> None:
     )
     assert e["approval_request_id"] and e["sync_revision"] > 0
     [fe] = d["my_fuel_events"]
-    assert (fe["id"], fe["litres"]) == (results[4]["result"]["entity"]["id"], "12.500")
+    assert (fe["id"], fe["litres"]) == (results[2]["result"]["entity"]["id"], "12.500")
     [col] = d["my_cash_collections"]
     assert (col["status"], col["amount"]) == ("CLAIMED", "300000.0000")
     [ho] = d["my_cash_handovers"]
     assert (ho["status"], ho["decision_note"]) == ("CLAIMED", None)
-    assert d["my_acknowledgements"] == [] and d["my_meter_resets"] == []
+    assert d["my_meter_resets"] == []
 
     # Nothing changed: an empty delta (the lookback may repeat rows, but nothing is newer than the cursor).
     quiet = _changes(api, sup, boot["cursor"])
@@ -251,15 +237,6 @@ def test_sync_inbox_bootstrap_and_deltas(api: Api) -> None:
     assert td["my_meter_captures"] == td["my_cash_collections"] == td["my_cash_handovers"] == []
 
 
-def test_bootstrap_includes_recently_closed_jobs(api: Api) -> None:
-    f = setup_finance(api)
-    _register(api, f.supervisor)
-    r = f.owner.post(f"/api/v1/tenant/jobs/{f.c.job_id}/transitions", {"action": "CANCEL", "reason": "postponed"})
-    assert r.status_code == 200, r.text
-    boot = _bootstrap(api, f.supervisor)
-    assert [(j["id"], j["status"]) for j in boot["data"]["jobs"]] == [(f.c.job_id, "CANCELLED")]
-
-
 def test_rest_lists_scoped_to_own_records_for_supervisors(api: Api) -> None:
     f = setup_finance(api)
     spares = category(f, "SPARES", "Spares")
@@ -268,11 +245,11 @@ def test_rest_lists_scoped_to_own_records_for_supervisors(api: Api) -> None:
     mine = _expense(api, f.supervisor, spares, "1000")
     theirs = _expense(api, other, spares, "2000")
     office = _expense(api, f.accountant, spares, "3000")
-    my_fuel, their_fuel = _fuel(api, f.supervisor, f.c.job_id), _fuel(api, other, f.c.job_id)
+    my_fuel, their_fuel = _fuel(api, f.supervisor, f.c.t.machine_id), _fuel(api, other, f.c.t.machine_id)
     t0 = api.clock.now
     r = f.supervisor.post(
         "/api/v1/tenant/meter-captures",
-        capture(f.c.job_id, "OPENING", "500.0", t0, mode="MANUAL", gps={"status": "PERMISSION_DENIED"}),
+        capture(f.c.t.machine_id, "500.0", t0, mode="MANUAL", gps={"status": "PERMISSION_DENIED"}),
     )
     assert r.status_code == 201, r.text
     cap = r.json()["capture"]["id"]
@@ -296,10 +273,9 @@ def test_rest_lists_scoped_to_own_records_for_supervisors(api: Api) -> None:
     assert ids(other, "/api/v1/tenant/fuel-events") == {their_fuel["id"]}
     assert ids(f.accountant, "/api/v1/tenant/fuel-events") == {my_fuel["id"], their_fuel["id"]}
 
-    # Meter: the first supervisor captured on their job; the second supervisor has no jobs and captured nothing.
+    # Meter: the first supervisor read their machine; the second supervisor has no machine and captured nothing.
     assert ids(f.supervisor, "/api/v1/tenant/meter-captures") == {cap}
     assert ids(other, "/api/v1/tenant/meter-captures") == set()
-    assert ids(other, f"/api/v1/tenant/jobs/{f.c.job_id}/meter-captures") == set()
     assert ids(f.owner, "/api/v1/tenant/meter-captures") == {cap}
     assert ids(f.owner, "/api/v1/tenant/meter-captures", mine="true") == set()
     exceptions = ids(f.owner, "/api/v1/tenant/exceptions")
@@ -429,7 +405,7 @@ def test_inbox_streams_are_paged_by_revision(api: Api, monkeypatch: Any) -> None
     f = setup_finance(api)
     sup = f.supervisor
     _register(api, sup)
-    fuel = {_fuel(api, sup, f.c.job_id)["id"] for _ in range(5)}
+    fuel = {_fuel(api, sup, f.c.t.machine_id)["id"] for _ in range(5)}
     boot = _bootstrap(api, sup)
     seen = [x["id"] for x in boot["data"]["my_fuel_events"]]
     assert len(seen) == 2
@@ -451,7 +427,7 @@ def test_attachment_urls_scoped_to_own_records_for_supervisors(api: Api) -> None
     pic = photo(api, f.supervisor)
     r = f.supervisor.post(
         "/api/v1/tenant/meter-captures",
-        capture(f.c.job_id, "OPENING", "500.0", api.clock.now, photo_id=pic, gps={"status": "PERMISSION_DENIED"}),
+        capture(f.c.t.machine_id, "500.0", api.clock.now, photo_id=pic, gps={"status": "PERMISSION_DENIED"}),
     )
     assert r.status_code == 201, r.text
     stray = photo(api, other)  # uploaded by the second supervisor, attached to nothing
@@ -459,7 +435,7 @@ def test_attachment_urls_scoped_to_own_records_for_supervisors(api: Api) -> None
     def url(actor: Actor, att: str) -> int:
         return int(actor.get(f"/api/v1/tenant/attachments/{att}/url").status_code)
 
-    assert url(f.supervisor, pic) == 200  # own upload on own job
+    assert url(f.supervisor, pic) == 200  # own upload on own machine
     assert url(other, pic) == 404  # another supervisor's reading photo: hidden, not forbidden
     assert url(other, stray) == 200 and url(f.supervisor, stray) == 404
     assert url(f.owner, pic) == 200 and url(f.owner, stray) == 200  # office roles see the tenant

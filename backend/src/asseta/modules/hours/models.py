@@ -66,17 +66,11 @@ class RequestStatus(StrEnum):
 
 class LedgerEntryType(StrEnum):
     ACTIVATED = "ACTIVATED"  # + hours become usable (verified payment or authorised credit)
-    CONSUMED = "CONSUMED"  # - work execution allocation of a completed job
+    CONSUMED = "CONSUMED"  # - hours used: an approved machine report (`machine_report_id`; ADR-008)
     TRANSFER_OUT = "TRANSFER_OUT"  # - approved move to another machine
     TRANSFER_IN = "TRANSFER_IN"  # + the receiving machine
     EXPIRED = "EXPIRED"  # - unused activated hours past the tenant expiry period
     REVERSAL = "REVERSAL"  # - activated hours withdrawn (approved cancellation)
-    # Daily drawdown (DEC-031 P1, policy CUSTOMER_HOURS.drawdown = DAILY): a running prepaid job's customer-work hours
-    # of one tenant-local day (`usage_day`), drawn provisionally; PROVISIONAL_REVERSED gives them back (a corrected
-    # reading, a cancelled job, or the final work execution allocation at completion, which then consumes the job's
-    # billable hours as CONSUMED). Provisional minus reversed is what running jobs currently hold.
-    PROVISIONAL = "PROVISIONAL"  # -
-    PROVISIONAL_REVERSED = "PROVISIONAL_REVERSED"  # +
     # DEC-032 B2/B3: an approved correction of a lot (+ give back, - take away; never below zero) and an approved
     # refund of unused activated hours. Corrections adjust the lot and leave activation history untouched.
     CORRECTION_ADD = "CORRECTION_ADD"  # +
@@ -96,8 +90,6 @@ SIGN: dict[LedgerEntryType, int] = {
     LedgerEntryType.TRANSFER_OUT: -1,
     LedgerEntryType.EXPIRED: -1,
     LedgerEntryType.REVERSAL: -1,
-    LedgerEntryType.PROVISIONAL: -1,
-    LedgerEntryType.PROVISIONAL_REVERSED: 1,
     LedgerEntryType.CORRECTION_ADD: 1,
     LedgerEntryType.CORRECTION_DEDUCT: -1,
     LedgerEntryType.REFUNDED: -1,
@@ -280,27 +272,6 @@ class PaymentAutoVerification(UuidPk, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
-class WorkExecutionAllocation(UuidPk, Base):
-    """One per prepaid job, written on COMPLETE: the job's billable hours. What was actually consumed is the sum of
-    its CONSUMED ledger entries; the rest is the overrun (HOURS_OVERRUN exception) until covered or reviewed."""
-
-    __tablename__ = "work_execution_allocation"
-    __table_args__ = (
-        UniqueConstraint("job_id", name="uq_work_execution_allocation_job"),
-        CheckConstraint("billable_hours >= 0", name="ck_wea_hours"),
-    )
-
-    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
-    job_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("job.id"), nullable=False)
-    customer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("customer.id"), nullable=False, index=True)
-    machine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("machine.id"), nullable=False, index=True)
-    billable_hours: Mapped[Decimal] = mapped_column(HOURS, nullable=False)
-    exception_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("job_exception.id"))
-    policy_version: Mapped[str] = mapped_column(String(80), nullable=False)
-    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
-
-
 class HoursTransfer(UuidPk, Base):
     """Move remaining hours of a purchase from one machine to another (the purchase keeps its original machine)."""
 
@@ -368,7 +339,6 @@ class HoursLedgerEntry(UuidPk, Base):
         ),
         Index("ix_hours_ledger_purchase", "purchase_id", "occurred_at"),
         Index("ix_hours_ledger_customer_machine", "tenant_id", "customer_id", "machine_id"),
-        Index("ix_hours_ledger_job_type", "job_id", "entry_type"),
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False)
@@ -381,14 +351,11 @@ class HoursLedgerEntry(UuidPk, Base):
     activation_source: Mapped[ActivationSource | None] = mapped_column(_enum(ActivationSource, 16))
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # ACTIVATED lots only
     payment_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("customer_payment.id"))
-    job_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("job.id"), index=True)
-    allocation_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("work_execution_allocation.id"), index=True)
     transfer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("hours_transfer.id"))
     cancellation_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("hours_cancellation.id"))
     adjustment_request_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("adjustment_request.id"), index=True)
     reason: Mapped[str | None] = mapped_column(Text)
     policy_version: Mapped[str | None] = mapped_column(String(80))
-    usage_day: Mapped[date | None] = mapped_column(Date)  # PROVISIONAL / PROVISIONAL_REVERSED: the tenant-local day
     # ADR-008 §2: CONSUMED by an approved machine report (the machine the work was on is the report's)
     machine_report_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("machine_report.id"), index=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))

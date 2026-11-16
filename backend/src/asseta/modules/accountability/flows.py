@@ -33,7 +33,7 @@ from asseta.modules.hours.models import (
     RequestStatus,
 )
 from asseta.modules.intelligence.models import AnomalyCase
-from asseta.modules.jobs.models import Job, JobStatus
+from asseta.modules.machine_reports.models import MachineReport, MachineReportStatus
 from asseta.modules.meter.allocation_models import (
     AllocationStatus,
     DailyOperationalReport,
@@ -54,13 +54,6 @@ from asseta.modules.policy.capabilities import (
     ENGINE_HOURS,
     INVESTIGATIONS,
     PETTY_CASH,
-    REVENUE_RECONCILIATION,
-)
-from asseta.modules.revenue.models import (
-    NonRevenueApproval,
-    NonRevenueApprovalStatus,
-    RevenueDifference,
-    RevenueDifferenceStatus,
 )
 
 
@@ -117,15 +110,14 @@ _g = _correction_groups.c
 
 _r, _t, _c, _d, _a = AdjustmentRequest, HoursTransfer, HoursCancellation, CustomerDiscount, CreditArrangement
 _mc, _cl, _mb, _mr = MeterCorrection, EngineHourClassification, MachineMeterBaseline, MeterResetEvent
-_nr, _rt, _ca, _v, _pr = NonRevenueApproval, CashRetention, CustodyAdjustment, CashVariance, PartialRemittanceApproval
-_ap, _p, _h, _j, _dr, _ac, _rd = (
+_rt, _ca, _v, _pr = CashRetention, CustodyAdjustment, CashVariance, PartialRemittanceApproval
+_ap, _p, _h, _mrp, _dr, _ac = (
     ApprovalRequest,
     CustomerPayment,
     CashHandover,
-    Job,
+    MachineReport,
     DailyOperationalReport,
     AnomalyCase,
-    RevenueDifference,
 )
 
 _pm, _pa = PettyCashMovement, PettyCashAdjustment
@@ -174,13 +166,6 @@ FLOWS: tuple[Flow, ...] = (
         _cl.proposed_by, _cl.proposed_at, _cl.decided_by, _cl.decided_at,
         amount=_cl.hours, unit="HOURS", machine_id=_cl.machine_id,
         adjustment=True, capability=ENGINE_HOURS,
-    ),
-    Flow(
-        "non_revenue_approvals", "non_revenue_approval", _nr.id, _nr.status,
-        _nr.status == NonRevenueApprovalStatus.PROPOSED,
-        _nr.proposed_by, _nr.proposed_at, _nr.decided_by, _nr.decided_at,
-        amount=_nr.hours, unit="HOURS", machine_id=_nr.machine_id,
-        adjustment=True, capability=REVENUE_RECONCILIATION,
     ),
     Flow(
         "custody_adjustments", "custody_adjustment", _ca.id, _ca.status, _ca.status == CashDecisionStatus.PENDING,
@@ -261,9 +246,9 @@ FLOWS: tuple[Flow, ...] = (
         staff_member_id=_h.staff_member_id,
     ),
     Flow(
-        "jobs_awaiting_approval", "job", _j.id, _j.status, _j.status == JobStatus.PENDING_APPROVAL,
-        None, _j.created_at, _j.approved_by, _j.approved_at,
-        reference=_j.job_number, machine_id=_j.machine_id, staff_member_id=_j.requested_by_staff_id,
+        "machine_reports", "machine_report", _mrp.id, _mrp.status, _mrp.status == MachineReportStatus.SUBMITTED,
+        _mrp.submitted_by, _mrp.submitted_at, _mrp.decided_by, _mrp.decided_at,
+        reference=_mrp.report_number, amount=_mrp.hours, unit="HOURS", machine_id=_mrp.machine_id,
     ),
     Flow(
         "daily_reports_to_review", "daily_report", _dr.id, _dr.status, _dr.status == DailyReportStatus.SUBMITTED,
@@ -275,13 +260,6 @@ FLOWS: tuple[Flow, ...] = (
         _ac.closure_proposed_by, _ac.closure_proposed_at, _ac.resolved_by, _ac.resolved_at,
         reference=_ac.case_number, machine_id=_ac.machine_id, staff_member_id=_ac.staff_member_id,
         capability=INVESTIGATIONS,
-    ),
-    Flow(
-        "revenue_decisions", "revenue_difference", _rd.id, _rd.status,
-        _rd.status == RevenueDifferenceStatus.EXPLANATION_PROPOSED,
-        _rd.explained_by, _rd.explained_at, _rd.decided_by, _rd.decided_at,
-        amount=_rd.difference, unit="MONEY", currency=_rd.currency, machine_id=_rd.machine_id,
-        capability=REVENUE_RECONCILIATION,
     ),
 )  # fmt: skip
 

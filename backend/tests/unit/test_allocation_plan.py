@@ -7,15 +7,7 @@ from zoneinfo import ZoneInfo
 
 from asseta.modules.meter.allocation_models import AllocationKind
 from asseta.modules.meter.allocation_plan import Plan, plan_allocations
-from asseta.modules.meter.ledger import (
-    ActivitySpan,
-    ChangeoverPoint,
-    JobSpan,
-    Ledger,
-    LedgerPoint,
-    ResetPoint,
-    build_ledger,
-)
+from asseta.modules.meter.ledger import Ledger, LedgerPoint, ReportSpan, ResetPoint, build_ledger
 
 T0 = datetime(2026, 11, 3, 6, 0, tzinfo=UTC)
 TZ = ZoneInfo("UTC")
@@ -39,7 +31,7 @@ def test_an_interval_over_midnight_splits_by_share_and_ranges_abut() -> None:
     assert plan.total_by_day[entries[0].work_date] == D("3.00")
 
 
-def test_unexplained_interval_outside_a_job_is_one_entry() -> None:
+def test_unexplained_interval_outside_a_report_is_one_entry() -> None:
     plan, _ = _plan([_p("100", 0), _p("101", 1)])
     [entry] = plan.entries
     assert entry.kind is AllocationKind.UNEXPLAINED and entry.hours == D(1) and entry.customer_id is None
@@ -62,29 +54,13 @@ def test_an_approved_reset_starts_a_new_meter_base() -> None:
     ]
 
 
-def test_a_job_interval_with_uncovered_time_splits_into_customer_and_unexplained() -> None:
-    job = uuid.uuid4()
-    a, b = _p("100", 0, "OPENING"), _p("103", 3, "CLOSING")
-    span = JobSpan(job, "J", a.at, b.at, a.reading, b.reading, uuid.uuid4(), requires_cover=True)
-    cover = [ActivitySpan(job, "WORK", a.at, a.at + timedelta(hours=2))]
-    ledger = build_ledger([a, b], [], [span], [], (), cover)
+def test_reported_interval_counts_in_the_day_but_writes_no_entries() -> None:
+    a, b, c = _p("100", 0), _p("103", 3), _p("104", 4)
+    span = ReportSpan(uuid.uuid4(), "MR-2026-00001", a.at, b.at)
+    ledger = build_ledger([a, b, c], [], [span], [])
     plan = plan_allocations(ledger.intervals, [], TZ)
-    assert [(e.kind, e.hours) for e in plan.entries] == [
-        (AllocationKind.CUSTOMER_WORK, D("2.00")),
-        (AllocationKind.UNEXPLAINED, D("1.00")),
-    ]
-    assert plan.entries[1].job_id == job and plan.entries[1].customer_id is None
+    [entry] = plan.entries  # only the unallocated hour after the report
+    assert (entry.kind, entry.start_reading, entry.end_reading) == (AllocationKind.UNEXPLAINED, D(103), D(104))
+    assert plan.total_by_day[entry.work_date] == D(4)
     t = ledger.totals()
-    assert (t.customer_work_hours, t.unexplained_hours, t.unallocated_hours) == (D("2.00"), D("1.00"), D("1.00"))
-
-
-def test_changeover_moves_only_billable_hours_to_the_named_job() -> None:
-    job, next_job, other = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
-    a, b, c = _p("100", 0, "OPENING"), _p("106", 6), _p("110", 10, "CLOSING")
-    span = JobSpan(job, "J", a.at, c.at, a.reading, c.reading, uuid.uuid4(), splits_billing=True)
-    change = ChangeoverPoint(uuid.uuid4(), b.at, job, other, next_job)
-    downtime = ActivitySpan(job, "DOWNTIME", b.at + timedelta(hours=1), b.at + timedelta(hours=2))
-    ledger = build_ledger([a, b, c], [], [span], [], (), (), [change], [downtime])
-    moved = ledger.intervals[1]
-    assert (moved.billed_to_job_id, moved.changeover_cut, moved.billing_cut) == (next_job, D("3.00"), D("3.00"))
-    assert ledger.intervals[0].billing_cut == 0  # hours before the changeover stay on the job
+    assert (t.reported_hours, t.unexplained_hours, t.unallocated_hours) == (D(3), D(1), D(1))

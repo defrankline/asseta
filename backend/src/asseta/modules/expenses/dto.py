@@ -48,7 +48,6 @@ class ExpenseIn(BaseModel):
     currency: CurrencyCode | None = Field(default=None, description="Defaults to the tenant currency")
     incurred_at: datetime
     machine_id: uuid.UUID | None = None
-    job_id: uuid.UUID | None = Field(default=None, description="Attributes the cost to a job (and its machine)")
     paid_from: ExpensePaidFrom
     custodian_staff_id: uuid.UUID | None = Field(
         default=None, description="Whose cash custody paid (CASH_CUSTODY); defaults to the caller's staff record"
@@ -74,7 +73,6 @@ class ExpenseDto(Dto):
     currency: str
     incurred_at: datetime
     machine_id: uuid.UUID | None
-    job_id: uuid.UUID | None
     paid_from: ExpensePaidFrom
     custodian_staff_id: uuid.UUID | None
     status: ExpenseStatus
@@ -107,7 +105,6 @@ class FuelEventIn(BaseModel):
     unit_price: Annotated[Decimal, Field(ge=0, max_digits=18, decimal_places=4)] | None = None
     currency: CurrencyCode | None = None
     machine_id: uuid.UUID | None = None
-    job_id: uuid.UUID | None = None
     expense_id: uuid.UUID | None = Field(default=None, description="The expense that paid for this PURCHASE")
     meter_reading: Annotated[Decimal, Field(ge=0, max_digits=14, decimal_places=2)] | None = None
     supplier: Text200 | None = None
@@ -116,8 +113,8 @@ class FuelEventIn(BaseModel):
 
     @model_validator(mode="after")
     def _shape(self) -> "FuelEventIn":
-        if self.event_type is not FuelEventType.PURCHASE and self.machine_id is None and self.job_id is None:
-            raise ValueError("ISSUE and USAGE events need machine_id or job_id")
+        if self.event_type is not FuelEventType.PURCHASE and self.machine_id is None:
+            raise ValueError("ISSUE and USAGE events need machine_id")
         if self.event_type is not FuelEventType.USAGE and self.unit_price is None:
             raise ValueError("PURCHASE and ISSUE events need unit_price")
         if self.event_type is not FuelEventType.PURCHASE and self.expense_id is not None:
@@ -134,7 +131,6 @@ class FuelEventDto(Dto):
     attributed_cost: Money
     currency: str
     machine_id: uuid.UUID | None
-    job_id: uuid.UUID | None
     expense_id: uuid.UUID | None
     meter_reading: Decimal | None
     supplier: str | None

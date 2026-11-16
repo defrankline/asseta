@@ -14,9 +14,10 @@ from asseta.modules.finance.custody_models import CashVariance
 from asseta.modules.hours.variance_sweep import run_hour_variances
 from tests.api.test_managed_service import assign, grant, refreshed, staff
 from tests.support.api import PLATFORM_SUBJECT, Actor, Api
-from tests.support.finance import allow_direct_void, cash_policy, setup_finance, tenant_sql
+from tests.support.finance import cash_policy, setup_finance, tenant_sql
 from tests.support.hours import RATE, get_purchase, hours_policy, purchase, verify
-from tests.support.jobs import unique_jpeg
+from tests.support.machine_reports import bought, cust, idle, later, report_body, setup_reports, submit
+from tests.support.meter import unique_jpeg
 from tests.support.notify import member
 
 T = "/api/v1/tenant"
@@ -156,7 +157,7 @@ def test_zero_amount_purchase_needs_approval_before_activating(api: Api) -> None
 
 
 # --- 3. per-type evidence policies -------------------------------------------------------------------------------
-def test_evidence_policies_transfer_credit_custody_adjustment_void(api: Api) -> None:
+def test_evidence_policies_transfer_credit_custody_adjustment(api: Api) -> None:
     f = _setup(api)
     evidence = _attach(api, f.owner)
     p = purchase(api, f.accountant, f, "10", pay=str(10 * RATE))
@@ -179,42 +180,6 @@ def test_evidence_policies_transfer_credit_custody_adjustment_void(api: Api) -> 
     _err(f.accountant.post(f"{C}/adjustments", adj), 422, "EVIDENCE_REQUIRED")
     made = _ok(f.accountant.post(f"{C}/adjustments", {**adj, "evidence_attachment_ids": [evidence]}))
     assert made["adjustment_number"].startswith("CADJ-") and made["evidence_attachment_ids"] == [evidence]
-
-
-def test_void_of_an_issued_invoice_enforces_adjustment_evidence(api: Api) -> None:
-    from tests.support.finance import complete_job, issue_invoice
-
-    f = _setup(api)
-    complete_job(api, f, f.c.job_id, "1000", "1008", 8)
-    invoice = issue_invoice(f, [f.c.job_id])
-    url = f"{T}/hire-invoices/{invoice['id']}/void"
-    _err(f.accountant.post(url, {"reason": "Wrong customer"}), 422, "EVIDENCE_REQUIRED")
-    evidence = _attach(api, f.owner)
-    pending = _ok(f.accountant.post(url, {"reason": "Wrong customer", "evidence_attachment_ids": [evidence]}), 200)
-    assert pending["status"] == "ISSUED" and pending["pending_void_request_id"]
-
-
-def test_direct_void_also_enforces_evidence_unless_relaxed(api: Api) -> None:
-    from tests.support.finance import complete_job, issue_invoice
-
-    f = _setup(api)
-    complete_job(api, f, f.c.job_id, "1000", "1008", 8)
-    invoice = issue_invoice(f, [f.c.job_id])
-    r = f.owner.post(
-        f"{T}/policies/HIRE_BILLING/versions",
-        {"scope": "TENANT", "values": {"invoice_void_requires_approval": False}, "reason": "Direct voids"},
-    )
-    assert r.status_code == 201, r.text
-    _err(
-        f.accountant.post(f"{T}/hire-invoices/{invoice['id']}/void", {"reason": "Wrong customer"}),
-        422,
-        "EVIDENCE_REQUIRED",
-    )
-    allow_direct_void(f)  # also relaxes the evidence requirement for the plain void path
-    assert (
-        _ok(f.accountant.post(f"{T}/hire-invoices/{invoice['id']}/void", {"reason": "Wrong customer"}), 200)["status"]
-        == "VOIDED"
-    )
 
 
 # --- 4/6/10. partial remittance, evidence status, partial confirmation --------------------------------------------
@@ -563,6 +528,31 @@ def test_customer_hour_variance_swept_assigned_and_closed(api: Api) -> None:
     # Off: the sweep stops (the capability check) and CUSTOMER_HOUR listing follows the hours capability.
     hours_policy(f, variance_sweep_enabled=False)
     assert run_hour_variances(get_sessionmaker(), api.clock.now) == 0
+
+
+def test_customer_hour_variance_checks_approved_machine_reports(api: Api) -> None:
+    ctx = setup_reports(api, "Report Variance", "RV-1")
+    f = ctx.f
+    bought(api, f, 10)
+    lines = [cust(f.customer_id, 4), idle(ctx.reasons["IDLE_ON_SITE"], 1)]
+    rep = submit(f.supervisor, report_body(ctx.machine_id, "1005", later(api, 6), lines))
+    _ok(f.manager.post(f"{T}/machine-reports/{rep['id']}/approve", {}), 200)
+    assert run_hour_variances(get_sessionmaker(), api.clock.now) == 0  # the report's 4 h = the 4 h consumed
+
+    # A second consumption booked against the same report (the records must be wrong somewhere).
+    tenant_sql(
+        f.tid,
+        "INSERT INTO hours_ledger_entry (id, tenant_id, purchase_id, customer_id, machine_id, entry_type, hours,"
+        " occurred_at, reason, activation_source, policy_version, created_at, machine_report_id)"
+        " SELECT gen_random_uuid(), tenant_id, purchase_id, customer_id, machine_id, entry_type, hours, occurred_at,"
+        " 'Injected for the test', activation_source, policy_version, now(), machine_report_id"
+        " FROM hours_ledger_entry WHERE machine_report_id = :r AND entry_type = 'CONSUMED' RETURNING id",
+        r=rep["id"],
+    )
+    assert run_hour_variances(get_sessionmaker(), api.clock.now) >= 1
+    items = _ok(f.owner.get(f"{C}/variances", source_type="CUSTOMER_HOUR"), 200)["items"]
+    [v] = [x for x in items if x["check_code"] == "CONSUMPTION_MISMATCH"]
+    assert v["unit"] == "HOURS" and v["customer_id"] == f.customer_id
 
 
 def test_variance_tables_are_append_only(api: Api) -> None:

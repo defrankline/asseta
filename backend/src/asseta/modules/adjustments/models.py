@@ -2,7 +2,7 @@
 financial balance. `adjustment_ledger_entry` is append-only: one row per decided adjustment (the original transaction,
 the type, original/new value or amount, reason, evidence, requester, approver, timestamps, resulting balance).
 `adjustment_request` is the uniform propose/decide flow for the new reversible actions (customer-hour corrections,
-refunds, reversals of posted transactions, invoice voids); the existing approval flows keep their own request tables
+refunds, reversals of posted transactions); the existing approval flows keep their own request tables
 and post to the ledger when decided."""
 
 import uuid
@@ -41,7 +41,7 @@ class AdjustmentType(StrEnum):
     CASH_WRITE_OFF = "CASH_WRITE_OFF"
     CASH_VARIANCE_RESOLUTION = "CASH_VARIANCE_RESOLUTION"
     CUSTODY_ADJUSTMENT = "CUSTODY_ADJUSTMENT"
-    INVOICE_VOID = "INVOICE_VOID"
+    INVOICE_VOID = "INVOICE_VOID"  # hire invoices (removed by ADR-008): older entries only
     PAYMENT_REVERSAL = "PAYMENT_REVERSAL"
     COLLECTION_REVERSAL = "COLLECTION_REVERSAL"
     PURCHASE_REVERSAL = "PURCHASE_REVERSAL"
@@ -58,6 +58,7 @@ class AdjustmentRequestType(StrEnum):
     PAYMENT_REVERSAL = "PAYMENT_REVERSAL"
     COLLECTION_REVERSAL = "COLLECTION_REVERSAL"
     PURCHASE_REVERSAL = "PURCHASE_REVERSAL"
+    # Voids of hire invoices, which ADR-008 removed: kept so older requests stay readable; new ones are refused.
     INVOICE_VOID = "INVOICE_VOID"
     ZERO_AMOUNT_ACTIVATION = "ZERO_AMOUNT_ACTIVATION"  # a purchase that costs nothing needs a second person
 

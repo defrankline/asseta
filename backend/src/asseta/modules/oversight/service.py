@@ -3,18 +3,17 @@ person's cash held now (cash custody service) and repeat-pattern signals about t
 
 import uuid
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from asseta.core.errors import NotFound
+from asseta.core.errors import BusinessRuleViolation, NotFound
 from asseta.modules.finance.cash_service import CashCustodyService
 from asseta.modules.fleet.models import StaffMember
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.intelligence.models import CaseSignal, CaseSourceType, RiskSignal, RuleCode
-from asseta.modules.oversight.checkins import period
 from asseta.modules.oversight.dto import (
     AmountByCurrencyDto,
     CashHeldDto,
@@ -22,11 +21,21 @@ from asseta.modules.oversight.dto import (
     ScorecardRecordDto,
     ScorecardRowDto,
 )
-from asseta.modules.oversight.models import SiteCheckin
 from asseta.modules.oversight.scorecard import HOURS, ScorecardBuilder, ScoreRecord, day_bounds
 from asseta.modules.policy.schemas import ScorecardItem as I
 
 DEFAULT_DAYS = 30
+MAX_DAYS = 93
+
+
+def period(tz_now: date, day_from: date | None, day_to: date | None, default_days: int) -> tuple[date, date]:
+    last = day_to or tz_now
+    first = day_from or last - timedelta(days=default_days - 1)
+    if first > last:
+        raise BusinessRuleViolation("day_from must not be after day_to", code="INVALID_PERIOD")
+    if (last - first).days + 1 > MAX_DAYS:
+        raise BusinessRuleViolation(f"At most {MAX_DAYS} days", code="PERIOD_TOO_LONG")
+    return first, last
 
 
 def _totals(records: list[ScoreRecord]) -> list[AmountByCurrencyDto]:
@@ -45,10 +54,6 @@ class ScorecardService:
 
     def _period(self, day_from: date | None, day_to: date | None) -> tuple[date, date]:
         return period(self._now.astimezone(self._b.tz).date(), day_from, day_to, DEFAULT_DAYS)
-
-    def _checkins_required(self, first: date, last: date) -> bool:
-        start, end = day_bounds(self._b.tz, first, last)
-        return any(p.site_checkin_required for _, _, p in self._b.segments(start, min(end, max(self._now, start))))
 
     def _patterns(self, start: datetime, end: datetime) -> dict[uuid.UUID, list[RiskSignal]]:
         out: dict[uuid.UUID, list[RiskSignal]] = defaultdict(list)
@@ -69,8 +74,6 @@ class ScorecardService:
         first: date,
         last: date,
         records: list[ScoreRecord],
-        checkins_required: bool,
-        checkins_made: int,
         patterns: int,
         with_cash: bool,
     ) -> ScorecardRowDto:
@@ -81,7 +84,6 @@ class ScorecardService:
         acks = [r.hours for r in alerts if r.hours is not None]
         machines = {r.machine_id for r in records if r.machine_id is not None}
         machines |= self._b.machines_of(staff.id)
-        missed = len(by[I.MISSED_CHECKIN])
         return ScorecardRowDto(
             staff_member_id=staff.id,
             staff_member_name=staff.full_name,
@@ -105,11 +107,7 @@ class ScorecardService:
             cash_differences=len(by[I.CASH_DIFFERENCE]),
             cash_difference_totals=_totals(by[I.CASH_DIFFERENCE]),
             cash_differences_near_threshold=sum(1 for r in by[I.CASH_DIFFERENCE] if r.near_threshold),
-            revenue_differences=len(by[I.REVENUE_DIFFERENCE]),
-            revenue_difference_totals=_totals(by[I.REVENUE_DIFFERENCE]),
             refused_attempts=len(by[I.REFUSED_ATTEMPT]),
-            checkins_missed=missed if checkins_required else None,
-            checkins_made=checkins_made,
             pattern_signals=patterns,
             items_total=len([r for r in records if r.item is not I.ALERT or r.status == "OPEN"]) + patterns,
         )
@@ -130,14 +128,6 @@ class ScorecardService:
                 )
         return out
 
-    def _made(self, start: datetime, end: datetime) -> dict[uuid.UUID, int]:
-        out: dict[uuid.UUID, int] = defaultdict(int)
-        for staff_id in self._s.execute(
-            select(SiteCheckin.staff_member_id).where(SiteCheckin.captured_at >= start, SiteCheckin.captured_at < end)
-        ).scalars():
-            out[staff_id] += 1
-        return out
-
     def rows(
         self,
         day_from: date | None,
@@ -155,20 +145,13 @@ class ScorecardService:
         if q and q.strip():
             people = people.where(StaffMember.full_name.ilike(f"%{q.strip()}%"))
         at_site = self._b.people_at_site(site_id, start, end) if site_id else None
-        required = self._checkins_required(first, last)
-        made = self._made(start, end)
         patterns = self._patterns(start, end)
         staff = [
             p
             for p in self._s.execute(people).scalars()
             if (p.is_active or per.get(p.id)) and (at_site is None or p.id in at_site)
         ]
-        rows = [
-            self._row(
-                p, first, last, per.get(p.id, []), required, made.get(p.id, 0), len(patterns.get(p.id, [])), False
-            )
-            for p in staff
-        ]
+        rows = [self._row(p, first, last, per.get(p.id, []), len(patterns.get(p.id, [])), False) for p in staff]
         rows.sort(key=lambda r: (-r.items_total, r.staff_member_name or "", str(r.staff_member_id)))
         return rows
 
@@ -198,16 +181,7 @@ class ScorecardService:
         start, end = day_bounds(self._b.tz, first, last)
         records = self._b.collect(first, last).get(staff.id, [])
         patterns = self._patterns(start, end).get(staff.id, [])
-        row = self._row(
-            staff,
-            first,
-            last,
-            records,
-            self._checkins_required(first, last),
-            self._made(start, end).get(staff.id, 0),
-            len(patterns),
-            True,
-        )
+        row = self._row(staff, first, last, records, len(patterns), True)
         out = [
             ScorecardRecordDto(
                 item=r.item,
@@ -216,7 +190,6 @@ class ScorecardService:
                 at=r.at,
                 day=r.day,
                 machine_id=r.machine_id,
-                job_id=r.job_id,
                 currency=r.currency,
                 amount=r.amount,
                 hours=r.hours,

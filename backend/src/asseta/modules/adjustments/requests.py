@@ -1,5 +1,5 @@
 """The uniform propose/decide flow (DEC-032 T7, B1-B4): customer-hour corrections, refunds, reversals of posted
-transactions and invoice voids. One person proposes, another decides (always; never relaxable); the original stays
+transactions. One person proposes, another decides (always; never relaxable); the original stays
 visible and the outcome is posted to Ledger 6. Decisions are re-validated against the ledgers at that moment."""
 
 import uuid
@@ -32,9 +32,7 @@ from asseta.modules.adjustments.models import (
 from asseta.modules.adjustments.permissions import DECIDE_PERMISSION
 from asseta.modules.adjustments.request_posting import RequestPosting
 from asseta.modules.adjustments.reversals import ReversalEngine, used_hours_of
-from asseta.modules.finance.dto import HireInvoiceVoidIn
-from asseta.modules.finance.invoice_service import HireInvoiceService
-from asseta.modules.finance.models import CustomerPayment, HireInvoiceStatus, HirePaymentMethod, TenantHireInvoice
+from asseta.modules.finance.models import CustomerPayment, HirePaymentMethod
 from asseta.modules.finance.references import ADJUSTMENT_REQUEST, reference
 from asseta.modules.fleet.models import StaffMember
 from asseta.modules.hours.engine import TOPIC as HOURS_TOPIC
@@ -43,12 +41,10 @@ from asseta.modules.hours.ledger import purchase_totals
 from asseta.modules.hours.models import HoursPurchase, HoursReasonCode, ReasonKind
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.meter.evidence_check import require_evidence
-from asseta.modules.policy.service import PolicyService
 
 ORIGINALS = {
     "payment": "customer_payment",
     "purchase": "hours_purchase",
-    "invoice": "tenant_hire_invoice",
 }
 REASON_KINDS: dict[AdjustmentRequestType, ReasonKind] = {
     AdjustmentRequestType.HOURS_CORRECTION: ReasonKind.CORRECTION,
@@ -56,7 +52,6 @@ REASON_KINDS: dict[AdjustmentRequestType, ReasonKind] = {
     AdjustmentRequestType.PAYMENT_REVERSAL: ReasonKind.REVERSAL,
     AdjustmentRequestType.COLLECTION_REVERSAL: ReasonKind.REVERSAL,
     AdjustmentRequestType.PURCHASE_REVERSAL: ReasonKind.REVERSAL,
-    AdjustmentRequestType.INVOICE_VOID: ReasonKind.REVERSAL,
     AdjustmentRequestType.ZERO_AMOUNT_ACTIVATION: ReasonKind.REVERSAL,
 }
 
@@ -133,6 +128,10 @@ class AdjustmentRequests:
             ).scalar_one_or_none()
             if existing is not None:
                 return self.dto(existing)
+        if body.request_type not in REASON_KINDS:
+            raise BusinessRuleViolation(
+                "Hire invoices were removed; credit invoices are settled by payments", code="REQUEST_TYPE_RETIRED"
+            )
         require_evidence(self._s, self.engine.policy.adjustment_evidence_required, body.evidence_attachment_ids)
         reason_code = self._reason_code(REASON_KINDS[body.request_type], body.reason_code_id)
         row = self._build(body, reason_code)
@@ -266,7 +265,9 @@ class AdjustmentRequests:
         elif t is AdjustmentRequestType.ZERO_AMOUNT_ACTIVATION:
             original_type, original_id, reference = self._zero_amount_fields(body, fields)
         else:
-            original_type, original_id, reference = self._invoice_fields(body, fields)
+            raise BusinessRuleViolation(
+                "Hire invoices were removed; credit invoices are settled by payments", code="REQUEST_TYPE_RETIRED"
+            )
         return AdjustmentRequest(
             id=uuid.uuid4(),
             tenant_id=self._tid,
@@ -334,8 +335,8 @@ class AdjustmentRequests:
         if t is AdjustmentRequestType.HOURS_CORRECTION:
             if body.hours == 0:
                 raise BusinessRuleViolation("A correction changes the hours", code="HOURS_CORRECTION_INVALID")
-            if body.job_id is not None:
-                fields["params"]["job_id"] = str(body.job_id)
+            if body.machine_report_id is not None:
+                fields["params"]["machine_report_id"] = str(body.machine_report_id)
             if body.consumed_entry_id is not None:
                 fields["params"]["consumed_entry_id"] = str(body.consumed_entry_id)
             self.hours.check_correction(purchase, machine_id, body.hours, totals, body.consumed_entry_id)
@@ -389,61 +390,6 @@ class AdjustmentRequests:
         )
         return "hours_purchase", purchase.id, purchase.purchase_number
 
-    def _invoice_fields(self, body: AdjustmentRequestIn, fields: dict[str, Any]) -> tuple[str, uuid.UUID, str]:
-        if body.invoice_id is None:
-            raise BusinessRuleViolation("Name the invoice", code="ADJUSTMENT_FIELDS_MISSING")
-        inv = self._invoice(body.invoice_id, lock=True)
-        if inv.status is not HireInvoiceStatus.ISSUED or inv.invoice_number is None:
-            raise BusinessRuleViolation("Only an issued invoice needs a void request", code="INVOICE_NOT_ISSUED")
-        fields.update(customer_id=inv.customer_id, amount=inv.total if inv.total > 0 else None, currency=inv.currency)
-        return "tenant_hire_invoice", inv.id, inv.invoice_number
-
-    def propose_void(self, invoice_id: uuid.UUID, body: HireInvoiceVoidIn) -> AdjustmentRequestDto:
-        """The void of an issued invoice, when the tenant requires a second person (legacy void endpoint)."""
-        inv = self._invoice(invoice_id, lock=True)
-        if inv.status is not HireInvoiceStatus.ISSUED or inv.invoice_number is None:
-            raise Conflict(f"Invoice is {inv.status.value}", code="INVOICE_NOT_ISSUED")
-        require_evidence(self._s, self.engine.policy.adjustment_evidence_required, body.evidence_attachment_ids)
-        code = self._reason_code(ReasonKind.REVERSAL, body.reason_code_id)
-        fields: dict[str, Any] = {
-            "params": {},
-            "hours": None,
-            "amount": inv.total if inv.total > 0 else None,
-            "currency": inv.currency,
-            "settlement": None,
-            "customer_id": inv.customer_id,
-            "machine_id": None,
-            "purchase_id": None,
-        }
-        row = AdjustmentRequest(
-            id=uuid.uuid4(),
-            tenant_id=self._tid,
-            client_id=None,
-            request_type=AdjustmentRequestType.INVOICE_VOID,
-            status=AdjustmentRequestStatus.PROPOSED,
-            original_type="tenant_hire_invoice",
-            original_id=inv.id,
-            original_reference=inv.invoice_number,
-            reason=body.reason,
-            reason_code_id=code,
-            evidence_attachment_ids=body.evidence_attachment_ids,
-            proposed_by=self._ctx.user_id,
-            proposed_at=self._now,
-            policy_version=self.engine.eff.version_stamp[:80],
-            request_number=reference(self._s, self._tid, ADJUSTMENT_REQUEST, self._now),
-            **fields,
-        )
-        try:
-            with self._s.begin_nested():
-                self._s.add(row)
-                self._s.flush()
-        except IntegrityError as exc:
-            raise Conflict("A void of this invoice awaits a decision", code="REVERSAL_EXISTS") from exc
-        return self._submitted(row)
-
-    def requires_void_approval(self) -> bool:
-        return PolicyService(self._s).hire_billing(self._tid, at=self._now).policy.invoice_void_requires_approval
-
     # --- deciding ---------------------------------------------------------------------------------------------
     def withdraw(self, request_id: uuid.UUID, reason: str) -> AdjustmentRequestDto:
         row = self.row(request_id, lock=True)
@@ -494,8 +440,7 @@ class AdjustmentRequests:
             after={"status": row.status.value, "result": result},
             reason=body.note,
         )
-        if row.request_type is not AdjustmentRequestType.INVOICE_VOID or not approve:
-            self.posting.post(row, body.note, result)  # an approved void posts from the invoice service
+        self.posting.post(row, body.note, result)
         self._notify_decided(row)
         return self.dto(row)
 
@@ -513,24 +458,15 @@ class AdjustmentRequests:
             purchase = self.engine.lock_purchase(row.original_id)
             activated = self.engine.activate_from_payments(purchase, approved=True)
             return {"hours_activated": str(activated)}
-        label = self.posting.reason_label(row.reason_code_id)
-        HireInvoiceService(self._s, self._ctx, self._now).void(
-            row.original_id, row.reason, request=row, reason_label=label
+        raise BusinessRuleViolation(
+            "Hire invoices were removed; this request can no longer be applied", code="REQUEST_TYPE_RETIRED"
         )
-        return {"invoice_id": str(row.original_id)}
 
     def _payment(self, payment_id: uuid.UUID, lock: bool = False) -> CustomerPayment:
         stmt = select(CustomerPayment).where(CustomerPayment.id == payment_id)
         row = self._s.execute(stmt.with_for_update() if lock else stmt).scalar_one_or_none()
         if row is None:
             raise NotFound("Payment not found", code="PAYMENT_NOT_FOUND")
-        return row
-
-    def _invoice(self, invoice_id: uuid.UUID, lock: bool = False) -> TenantHireInvoice:
-        stmt = select(TenantHireInvoice).where(TenantHireInvoice.id == invoice_id)
-        row = self._s.execute(stmt.with_for_update() if lock else stmt).scalar_one_or_none()
-        if row is None:
-            raise NotFound("Hire invoice not found")
         return row
 
 

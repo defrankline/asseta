@@ -1,6 +1,6 @@
 """Customer hours (accountability design A, controls 3.1): walk-ins, purchases priced only by the rate card and an
 approved discount, claimed vs verified payments, activation only from verified money or authorised credit, the
-append-only ledger with derived balances, work execution allocation with overrun handling, transfers,
+append-only ledger with derived balances, consumption by approved machine reports (oldest order first), transfers,
 cancellations, expiry and the tenant policy switches. Every rule is tenant configuration."""
 
 import hashlib
@@ -15,16 +15,14 @@ from sqlalchemy.exc import DBAPIError
 from asseta.core.db import get_sessionmaker
 from asseta.modules.hours.expiry import run_hours_expiry
 from tests.support.api import Api
-from tests.support.finance import FinCtx, complete_job, setup_finance, tenant_sql
-from tests.support.hours import RATE, balance, get_purchase, hours_policy, prepaid_job, purchase, verify
-from tests.support.jobs import capture, unique_jpeg
+from tests.support.finance import FinCtx, setup_finance, tenant_sql
+from tests.support.hours import RATE, balance, get_purchase, hours_policy, purchase, verify
+from tests.support.machine_reports import baseline, cust, idle, later, ok, report_body, submit
+from tests.support.meter import unique_jpeg
 
 
 def _setup(api: Api) -> FinCtx:
-    f = setup_finance(api)
-    r = f.owner.post(f"/api/v1/tenant/jobs/{f.c.job_id}/transitions", {"action": "CANCEL", "reason": "Not needed"})
-    assert r.status_code == 200, r.text  # frees the machine for prepaid jobs
-    return f
+    return setup_finance(api)
 
 
 def _code(r: Any) -> str:
@@ -74,7 +72,7 @@ def test_walk_in_cash_purchase_activates_only_after_independent_verification(api
     assert [e["entry_type"] for e in ledger["items"]] == ["ACTIVATED"]
     assert ledger["items"][0]["payment_id"] == pay_id
     assert ledger["items"][0]["purchase_number"] == p["purchase_number"]  # names, not ids
-    assert ledger["items"][0]["job_id"] is None and ledger["items"][0]["job_number"] is None
+    assert ledger["items"][0]["machine_report_id"] is None and ledger["items"][0]["machine_report_number"] is None
 
     # Upgrade the walk-in later (audited); history stays on the same customer.
     reg = f.owner.post(
@@ -217,68 +215,34 @@ def test_credit_activation_within_an_approved_limit_and_payments_settle_it(api: 
     assert Decimal(bal["unallocated_credit"]) == 0
 
 
-def test_prepaid_job_start_gate_work_execution_allocation_and_overrun(api: Api) -> None:
+def test_approved_machine_report_consumes_the_oldest_purchase_first(api: Api) -> None:
     f = _setup(api)
-    job = prepaid_job(api, f, "P-1")
-    t0 = api.clock.now
-    r = f.owner.post("/api/v1/tenant/meter-captures", capture(job, "OPENING", "1000", t0, mode="MANUAL"))
-    assert r.status_code == 201, r.text
-    blocked = f.owner.post(f"/api/v1/tenant/jobs/{job}/transitions", {"action": "START"})
-    assert blocked.status_code == 422 and _code(blocked) == "NO_AVAILABLE_HOURS"
+    m = f.c.t.machine_id
+    baseline(api, f, m)
+    # No verified hours yet: a report may not give the customer hours they do not have.
+    at = later(api, 7)
+    r = f.supervisor.post("/api/v1/tenant/machine-reports", report_body(m, "1007", at, [cust(f.customer_id, 7)]))
+    assert r.status_code == 422 and _code(r) == "HOURS_NOT_AVAILABLE", r.text
     first = purchase(api, f.accountant, f, "4", pay=str(4 * RATE))
     second = purchase(api, f.accountant, f, "3", pay=str(3 * RATE))
     for p in (first, second):
         verify(f.accountant2, p["payment"]["id"])
-    # Start, work 10 h, close, acknowledge, complete.
-    assert f.owner.post(f"/api/v1/tenant/jobs/{job}/transitions", {"action": "START"}).status_code == 200
-    t1 = t0 + timedelta(hours=10)
-    api.clock.set_at(t1)
-    assert (
-        f.owner.post("/api/v1/tenant/meter-captures", capture(job, "CLOSING", "1010", t1, mode="MANUAL")).status_code
-        == 201
-    )
-    ack = f.owner.post(
-        f"/api/v1/tenant/jobs/{job}/acknowledgements",
-        {
-            "client_id": first["id"],
-            "method": "NAME_CONFIRMATION",
-            "signer_name": "Engineer",
-            "captured_at": t1.isoformat(),
-        },
-    )
-    assert ack.status_code == 201, ack.text
-    done = f.owner.post(f"/api/v1/tenant/jobs/{job}/transitions", {"action": "COMPLETE"})
-    assert done.status_code == 200, done.text
-
-    wea = f.owner.get("/api/v1/tenant/work-execution-allocations", job_id=job).json()["items"][0]
-    assert Decimal(wea["billable_hours"]) == 10 and Decimal(wea["consumed_hours"]) == 7
-    assert Decimal(wea["overrun_hours"]) == 3 and wea["exception_status"] == "OPEN"
-    assert [(line["purchase_number"], Decimal(line["hours"])) for line in wea["lines"]] == [
+    rep = submit(f.supervisor, report_body(m, "1007", at, [cust(f.customer_id, 7)]))
+    done = ok(f.manager.post(f"/api/v1/tenant/machine-reports/{rep['id']}/approve", {}))
+    assert [(lot["purchase_number"], Decimal(lot["hours"])) for lot in done["lines"][0]["lots"]] == [
         (first["purchase_number"], Decimal(4)),
         (second["purchase_number"], Decimal(3)),
     ]  # FIFO: the oldest purchase first
-    used = f.owner.get("/api/v1/tenant/hours-ledger", job_id=job).json()["items"]
-    job_number = f.owner.get(f"/api/v1/tenant/jobs/{job}").json()["job"]["job_number"]
-    assert used and {(e["purchase_number"], e["job_number"]) for e in used} == {
-        (first["purchase_number"], job_number),
-        (second["purchase_number"], job_number),
+    used = f.owner.get("/api/v1/tenant/hours-ledger", machine_report_id=rep["id"]).json()["items"]
+    assert used and {(e["purchase_number"], e["machine_report_number"]) for e in used} == {
+        (first["purchase_number"], rep["report_number"]),
+        (second["purchase_number"], rep["report_number"]),
     }
     assert get_purchase(f.owner, first["id"])["status"] == "CONSUMED"
-    summary = f.owner.get(f"/api/v1/tenant/jobs/{job}").json()
-    assert summary["blocking_exceptions"] == 1 and summary["billing_ready"] is False
-    # Prepaid work is never invoiced again.
-    inv = f.accountant.post("/api/v1/tenant/hire-invoices", {"customer_id": f.customer_id, "job_ids": [job]})
-    assert inv.status_code == 422 and _code(inv) == "JOB_PREPAID_HOURS"
-
-    # New verified hours on that machine cover the overrun first and clear the exception.
-    top_up = purchase(api, f.accountant, f, "5", pay=str(5 * RATE))
-    verify(f.accountant2, top_up["payment"]["id"])
-    wea = f.owner.get(f"/api/v1/tenant/work-execution-allocations/{wea['id']}").json()
-    assert Decimal(wea["overrun_hours"]) == 0 and wea["exception_status"] == "EXPLAINED"
-    b = balance(f.owner, f.customer_id, f.c.t.machine_id)
-    assert b is not None and Decimal(b["remaining"]) == 2 and Decimal(b["consumed"]) == 10
+    b = balance(f.owner, f.customer_id, m)
+    assert b is not None and Decimal(b["remaining"]) == 0 and Decimal(b["consumed"]) == 7
     entries = tenant_sql(f.tid, "SELECT entry_type, count(*) FROM hours_ledger_entry GROUP BY entry_type ORDER BY 1")
-    assert dict(entries) == {"ACTIVATED": 3, "CONSUMED": 3}
+    assert dict(entries) == {"ACTIVATED": 2, "CONSUMED": 2}
 
 
 def test_transfer_to_another_machine_needs_approval_and_keeps_history(api: Api) -> None:
@@ -363,40 +327,20 @@ def test_expiry_sweep_warns_then_expires_unused_hours_once(api: Api) -> None:
     assert Decimal(got["totals"]["remaining"]) == 0
 
 
-def test_switched_off_tenant_keeps_the_invoice_flow(api: Api) -> None:
+def test_switched_off_tenant_sells_no_hours_and_reports_only_non_productive_time(api: Api) -> None:
     f = _setup(api)
+    m = f.c.t.machine_id
+    baseline(api, f, m)
     hours_policy(f, enabled=False)
-    body = {"customer_id": f.customer_id, "machine_id": f.c.t.machine_id, "hours": "2"}
+    body = {"customer_id": f.customer_id, "machine_id": m, "hours": "2"}
     r = f.manager.post("/api/v1/tenant/hours-purchases", body)
     assert r.status_code == 422 and _code(r) == "HOURS_DISABLED"
-    job = f.owner.post(
-        "/api/v1/tenant/jobs",
-        {
-            "contract_id": f.c.contract_id,
-            "job_number": "I-1",
-            "machine_id": f.c.t.machine_id,
-            "planned_start": api.clock.now.isoformat(),
-        },
-    )
-    assert job.status_code == 201 and job.json()["billing_mode"] == "INVOICE"
-    refused = f.owner.post(
-        "/api/v1/tenant/jobs",
-        {
-            "contract_id": f.c.contract_id,
-            "job_number": "I-2",
-            "machine_id": f.c.t.machine_id,
-            "planned_start": api.clock.now.isoformat(),
-            "billing_mode": "PREPAID_HOURS",
-        },
-    )
-    assert refused.status_code == 422 and _code(refused) == "HOURS_DISABLED"
-    for action in ("SUBMIT", "APPROVE"):
-        assert (
-            f.owner.post(f"/api/v1/tenant/jobs/{job.json()['id']}/transitions", {"action": action}).status_code == 200
-        )
-    summary = complete_job(api, f, job.json()["id"], "500", "506", 6)
-    assert summary["billing_ready"] is True
-    assert f.owner.get("/api/v1/tenant/work-execution-allocations").json()["total"] == 0
+    at = later(api, 3)
+    r = f.supervisor.post("/api/v1/tenant/machine-reports", report_body(m, "1003", at, [cust(f.customer_id, 3)]))
+    assert r.status_code == 422 and _code(r) == "HOURS_DISABLED", r.text
+    reasons = {x["code"]: x["id"] for x in ok(f.owner.get("/api/v1/tenant/machine-report-reasons"))}
+    rep = submit(f.supervisor, report_body(m, "1003", at, [idle(reasons["BREAKDOWN"], 3)]))
+    assert ok(f.manager.post(f"/api/v1/tenant/machine-reports/{rep['id']}/approve", {}))["status"] == "APPROVED"
 
 
 def test_reason_lists_are_tenant_data_and_policy_can_require_them(api: Api) -> None:

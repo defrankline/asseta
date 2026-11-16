@@ -85,12 +85,11 @@ def list_allocations(
     customer_id: uuid.UUID | None = None,
     kind: AllocationKind | None = None,
     status: Annotated[AllocationStatus | None, Query(description="Default: ACTIVE")] = None,
-    job_id: uuid.UUID | None = None,
 ) -> Page[WorkAllocationDto]:
     """The work allocation ledger, latest work date first (`q`: machine code or name)."""
     svc = WorkAllocationService(session, ctx, now)
     rows, total = paginate(
-        session, svc.query(paging.q, machine_id, day_from, day_to, customer_id, kind, status, job_id), paging
+        session, svc.query(paging.q, machine_id, day_from, day_to, customer_id, kind, status), paging
     )
     return Page(items=svc.dtos(rows), total=total, page=paging.page, page_size=paging.page_size)
 

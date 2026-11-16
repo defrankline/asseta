@@ -21,6 +21,7 @@ from asseta.core.search import ilike_any
 from asseta.core.signals import sod_violation
 from asseta.modules.adjustments.models import AdjustmentEntryStatus, AdjustmentType, AdjustmentUnit
 from asseta.modules.adjustments.posting import AdjustmentPosting, post_adjustment
+from asseta.modules.customers.models import Customer
 from asseta.modules.finance.common import currency_or_default
 from asseta.modules.finance.references import HOURS_TRANSFER, reference
 from asseta.modules.fleet.models import Machine, MachineStatus
@@ -57,7 +58,6 @@ from asseta.modules.hours.models import (
     RequestStatus,
 )
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.models import Customer
 from asseta.modules.meter.evidence_check import require_evidence
 
 T = LedgerEntryType
@@ -691,7 +691,6 @@ class HoursApprovals:
             evidence_attachment_ids=list(row.evidence_attachment_ids),
             details={"to_machine_id": str(row.to_machine_id), "purchase_id": str(purchase.id)},
         )
-        self.engine.cover_overruns(purchase.customer_id, row.to_machine_id)
 
     def decide_transfer(self, row_id: uuid.UUID, body: DecisionIn) -> TransferDto:
         row = self.transfer(row_id, lock=True)
@@ -766,7 +765,7 @@ class HoursApprovals:
         if purchase.cancelled_at is not None:
             raise Conflict("The purchase is already cancelled", code="PURCHASE_CANCELLED")
         totals = purchase_totals(self._s, purchase)
-        consumed = totals.total(T.CONSUMED) + totals.provisional  # hours held by running jobs count as used
+        consumed = totals.total(T.CONSUMED)
         if consumed > 0 and not self.engine.policy.cancellation_after_consumption_allowed:
             raise BusinessRuleViolation(
                 "Hours of this purchase were already used; tenant policy allows cancelling only unused purchases",
@@ -836,7 +835,7 @@ class HoursApprovals:
                 )
                 reversed_total += m.remaining
         released = ZERO
-        if totals.total(T.CONSUMED) + totals.provisional <= 0:  # nothing used: the money returns to customer credit
+        if totals.total(T.CONSUMED) <= 0:  # nothing used: the money returns to customer credit
             for alloc in self._s.execute(
                 select(HoursPaymentAllocation).where(
                     HoursPaymentAllocation.purchase_id == purchase.id, HoursPaymentAllocation.released_at.is_(None)

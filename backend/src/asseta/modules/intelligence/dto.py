@@ -32,7 +32,6 @@ class RiskSignalDto(_Dto):
     subject_type: SubjectType
     subject_id: uuid.UUID
     machine_id: uuid.UUID | None
-    job_id: uuid.UUID | None
     staff_member_id: uuid.UUID | None
     window_start: datetime
     window_end: datetime
@@ -50,7 +49,6 @@ class AnomalyCaseDto(_Dto):
     subject_type: SubjectType
     subject_id: uuid.UUID
     machine_id: uuid.UUID | None
-    job_id: uuid.UUID | None
     staff_member_id: uuid.UUID | None
     severity: SignalSeverity
     status: CaseStatus

@@ -1,5 +1,6 @@
-"""Customer balances and statements, per currency (never mixed). Only issued invoices, reversal adjustments and
-VERIFIED payments move the balance; claimed-but-unverified payments are reported separately."""
+"""Customer balances and statements, per currency (never mixed), on credit invoices (ADR-008 §1): what a customer owes
+is the unpaid part of their credit invoices. Only VERIFIED payments (not reversed) move the balance; claimed payments
+are reported separately. Credit invoices of cancelled orders owe nothing."""
 
 import uuid
 from dataclasses import dataclass
@@ -7,35 +8,24 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from sqlalchemy import ColumnElement, ScalarSelect, func, select
+from sqlalchemy import ColumnElement, ScalarSelect, and_, func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import Executable
 
 from asseta.core.errors import NotFound
+from asseta.modules.customers.models import Customer
 from asseta.modules.finance.common import ZERO, local_bounds, tenant_settings
 from asseta.modules.finance.dto import CustomerBalanceDto, CustomerStatementDto, StatementLineDto
-from asseta.modules.finance.invoice_service import verified_paid
-from asseta.modules.finance.models import (
-    CREDIT_KINDS,
-    DEBIT_KINDS,
-    AdjustmentKind,
-    CustomerPayment,
-    FinancialAdjustment,
-    HireInvoiceStatus,
-    HirePaymentAllocation,
-    SettlementStatus,
-    TenantHireInvoice,
-)
+from asseta.modules.finance.models import AdjustmentKind, CustomerPayment, FinancialAdjustment, SettlementStatus
 from asseta.modules.finance.payment_service import payment_dto
-from asseta.modules.hours.models import HoursPaymentAllocation
-from asseta.modules.jobs.models import Customer
+from asseta.modules.hours.models import CreditInvoice, CreditInvoicePayment, HoursPaymentAllocation, HoursPurchase
 
-Kind = Literal["INVOICE", "REVERSAL", "PAYMENT", "ADJUSTMENT"]
+Kind = Literal["INVOICE", "PAYMENT"]
 
 
 @dataclass(frozen=True)
 class ReceivableTotals:
-    """Open customer receivables in one currency: unpaid balance of ISSUED invoices (VERIFIED allocations only)."""
+    """Open customer receivables in one currency: unpaid balance of credit invoices (VERIFIED payments only)."""
 
     currency: str
     outstanding: Decimal
@@ -44,42 +34,37 @@ class ReceivableTotals:
     overdue_invoices: int
 
 
+def _verified() -> ColumnElement[bool]:
+    return and_(CustomerPayment.status == SettlementStatus.VERIFIED, CustomerPayment.reversed_at.is_(None))
+
+
 def verified_paid_subquery() -> ScalarSelect[Decimal]:
-    """Verified money allocated to the outer TenantHireInvoice (the same paid amount as `verified_paid`)."""
+    """Correlated: verified money paid against the outer CreditInvoice."""
     return (
-        select(func.coalesce(func.sum(HirePaymentAllocation.amount), 0))
-        .join(CustomerPayment, CustomerPayment.id == HirePaymentAllocation.payment_id)
-        .where(
-            HirePaymentAllocation.invoice_id == TenantHireInvoice.id,
-            HirePaymentAllocation.released_at.is_(None),
-            CustomerPayment.status == SettlementStatus.VERIFIED,
-        )
+        select(func.coalesce(func.sum(CreditInvoicePayment.amount), 0))
+        .join(CustomerPayment, CustomerPayment.id == CreditInvoicePayment.payment_id)
+        .where(CreditInvoicePayment.invoice_id == CreditInvoice.id, _verified())
         .scalar_subquery()
     )
 
 
-def overdue_conditions(today: date) -> tuple[ColumnElement[bool], ...]:
-    """Issued, not fully paid by verified money, and due before `today` (the tenant's local date): the one
-    definition behind the dashboard's overdue figures and the invoice list's `overdue` filter."""
-    return (
-        TenantHireInvoice.status == HireInvoiceStatus.ISSUED,
-        TenantHireInvoice.total > verified_paid_subquery(),
-        TenantHireInvoice.due_date < today,
-    )
+def _open_invoices() -> tuple[ColumnElement[bool], ...]:
+    """Credit invoices whose order is not cancelled."""
+    return (HoursPurchase.id == CreditInvoice.purchase_id, HoursPurchase.cancelled_at.is_(None))
 
 
 def open_receivables(session: Session, today: date) -> list[ReceivableTotals]:
-    """Tenant-wide (RLS-scoped) open receivables per currency; the same paid amount as `verified_paid`."""
+    """Tenant-wide (RLS-scoped) open receivables per currency."""
     paid = verified_paid_subquery()
     rows = session.execute(
-        select(TenantHireInvoice.currency, TenantHireInvoice.due_date, TenantHireInvoice.total - paid).where(
-            TenantHireInvoice.status == HireInvoiceStatus.ISSUED, TenantHireInvoice.total > paid
-        )
+        select(CreditInvoice.currency, CreditInvoice.due_date, CreditInvoice.amount - paid)
+        .join(HoursPurchase, HoursPurchase.id == CreditInvoice.purchase_id)
+        .where(HoursPurchase.cancelled_at.is_(None), CreditInvoice.amount > paid)
     ).tuples()
     acc: dict[str, list[Decimal]] = {}
     for currency, due, balance in rows:
         t = acc.setdefault(currency, [ZERO, ZERO, ZERO, ZERO])
-        late = due is not None and due < today
+        late = due < today
         t[0] += balance
         t[1] += balance if late else ZERO
         t[2] += 1
@@ -106,9 +91,7 @@ class ReceivablesService:
     def balances(self, customer_id: uuid.UUID) -> list[CustomerBalanceDto]:
         self._customer(customer_id)
         currencies = {
-            *self._s.execute(
-                select(TenantHireInvoice.currency).where(TenantHireInvoice.customer_id == customer_id)
-            ).scalars(),
+            *self._s.execute(select(CreditInvoice.currency).where(CreditInvoice.customer_id == customer_id)).scalars(),
             *self._s.execute(
                 select(CustomerPayment.currency).where(CustomerPayment.customer_id == customer_id)
             ).scalars(),
@@ -119,109 +102,76 @@ class ReceivablesService:
         """One customer's balance in one currency (what an adjustment records as its resulting balance)."""
         return self._balance(customer_id, currency)
 
-    def _adjustments(self, customer_id: uuid.UUID, currency: str, kinds: frozenset[AdjustmentKind]) -> Decimal:
-        return self._sum(
-            select(func.coalesce(func.sum(FinancialAdjustment.amount), 0)).where(
-                FinancialAdjustment.customer_id == customer_id,
-                FinancialAdjustment.currency == currency,
-                FinancialAdjustment.kind.in_(kinds),
-            )
-        )
-
     def _balance(self, customer_id: uuid.UUID, currency: str) -> CustomerBalanceDto:
-        inv = (TenantHireInvoice.customer_id == customer_id, TenantHireInvoice.currency == currency)
+        inv = (CreditInvoice.customer_id == customer_id, CreditInvoice.currency == currency, *_open_invoices())
         pay = (CustomerPayment.customer_id == customer_id, CustomerPayment.currency == currency)
-        invoiced = self._sum(
-            select(func.coalesce(func.sum(TenantHireInvoice.total), 0)).where(
-                *inv, TenantHireInvoice.issued_at.is_not(None)
-            )
+        invoiced = self._sum(select(func.coalesce(func.sum(CreditInvoice.amount), 0)).where(*inv))
+        paid = self._sum(
+            select(func.coalesce(func.sum(CreditInvoicePayment.amount), 0))
+            .join(CustomerPayment, CustomerPayment.id == CreditInvoicePayment.payment_id)
+            .join(CreditInvoice, CreditInvoice.id == CreditInvoicePayment.invoice_id)
+            .where(*inv, _verified())
         )
-        reversed_ = self._adjustments(customer_id, currency, CREDIT_KINDS)
-        debits = self._adjustments(customer_id, currency, DEBIT_KINDS)  # payments reversed, refunds paid out (B3/B4)
-        verified = self._sum(
-            select(func.coalesce(func.sum(CustomerPayment.amount), 0)).where(
-                *pay, CustomerPayment.status == SettlementStatus.VERIFIED
-            )
-        )
+        verified = self._sum(select(func.coalesce(func.sum(CustomerPayment.amount), 0)).where(*pay, _verified()))
         claimed = self._sum(
             select(func.coalesce(func.sum(CustomerPayment.amount), 0)).where(
                 *pay, CustomerPayment.status == SettlementStatus.CLAIMED
             )
         )
-        allocated = self._sum(
-            select(func.coalesce(func.sum(HirePaymentAllocation.amount), 0))
-            .join(CustomerPayment, CustomerPayment.id == HirePaymentAllocation.payment_id)
-            .where(
-                *pay, CustomerPayment.status == SettlementStatus.VERIFIED, HirePaymentAllocation.released_at.is_(None)
-            )
-        )
-        allocated += self._sum(  # verified money linked to hours purchases is not free credit either
+        linked = self._sum(  # verified money linked to orders (credit-invoice payments are linked to theirs too)
             select(func.coalesce(func.sum(HoursPaymentAllocation.amount), 0))
             .join(CustomerPayment, CustomerPayment.id == HoursPaymentAllocation.payment_id)
-            .where(
-                *pay, CustomerPayment.status == SettlementStatus.VERIFIED, HoursPaymentAllocation.released_at.is_(None)
+            .where(*pay, _verified(), HoursPaymentAllocation.released_at.is_(None))
+        )
+        paid_out = self._sum(  # refunds paid back to the customer are no longer their credit (DEC-032 B4)
+            select(func.coalesce(func.sum(FinancialAdjustment.amount), 0)).where(
+                FinancialAdjustment.customer_id == customer_id,
+                FinancialAdjustment.currency == currency,
+                FinancialAdjustment.kind == AdjustmentKind.HOURS_REFUND_PAYOUT,
             )
         )
-        issued = self._s.execute(
-            select(TenantHireInvoice).where(*inv, TenantHireInvoice.status == HireInvoiceStatus.ISSUED)
-        ).scalars()
-        open_count = sum(1 for i in issued if i.total - verified_paid(self._s, i.id) > 0)
+        paid_sub = verified_paid_subquery()
+        unpaid = select(func.count()).select_from(CreditInvoice).where(*inv, CreditInvoice.amount > paid_sub)
+        open_count = int(self._s.execute(unpaid).scalar_one())
         return CustomerBalanceDto(
             customer_id=customer_id,
             currency=currency,
             invoiced=invoiced,
-            reversed=reversed_,
-            verified_payments=verified,
-            balance=invoiced - reversed_ - verified + debits,
-            payment_reversals_and_refunds=debits,
-            unallocated_credit=max(ZERO, verified - allocated - debits),
+            verified_payments=paid,
+            balance=invoiced - paid,
+            unallocated_credit=max(ZERO, verified - linked - paid_out),
             claimed_unverified=claimed,
             open_invoices=open_count,
         )
 
     def _entries(self, customer_id: uuid.UUID, currency: str, end: datetime) -> list[Entry]:
         out: list[Entry] = []
-        for i in self._s.execute(
-            select(TenantHireInvoice).where(
-                TenantHireInvoice.customer_id == customer_id,
-                TenantHireInvoice.currency == currency,
-                TenantHireInvoice.issued_at < end,
-            )
-        ).scalars():
-            assert i.issued_at is not None and i.invoice_number is not None
-            out.append((i.issued_at, "INVOICE", i.invoice_number, "Hire invoice", i.total, ZERO))
-        numbers = dict(
+        invoices = list(
             self._s.execute(
-                select(TenantHireInvoice.id, TenantHireInvoice.invoice_number).where(
-                    TenantHireInvoice.customer_id == customer_id
+                select(CreditInvoice).where(
+                    CreditInvoice.customer_id == customer_id,
+                    CreditInvoice.currency == currency,
+                    CreditInvoice.issued_at < end,
+                    *_open_invoices(),
                 )
-            )
-            .tuples()
-            .all()
+            ).scalars()
         )
-        for a in self._s.execute(
-            select(FinancialAdjustment).where(
-                FinancialAdjustment.customer_id == customer_id,
-                FinancialAdjustment.currency == currency,
-                FinancialAdjustment.created_at < end,
-            )
-        ).scalars():
-            ref = numbers.get(a.invoice_id) if a.invoice_id else None
-            if a.kind in CREDIT_KINDS:
-                out.append((a.created_at, "REVERSAL", ref or str(a.id), f"Reversal: {a.reason}"[:200], ZERO, a.amount))
-            elif a.kind in DEBIT_KINDS:
-                text_ = f"{a.kind.value.replace('_', ' ').capitalize()}: {a.reason}"[:200]
-                out.append((a.created_at, "ADJUSTMENT", str(a.id), text_, a.amount, ZERO))
-        for p in self._s.execute(
-            select(CustomerPayment).where(
-                CustomerPayment.customer_id == customer_id,
-                CustomerPayment.currency == currency,
-                CustomerPayment.status == SettlementStatus.VERIFIED,
-                CustomerPayment.received_at < end,
-            )
-        ).scalars():
-            ref = p.reference or f"{p.method.value}-{str(p.id)[:8]}"
-            out.append((p.received_at, "PAYMENT", ref, f"{p.method.value} payment (verified)", ZERO, p.amount))
+        numbers = {i.id: i.invoice_number for i in invoices}
+        for i in invoices:
+            out.append((i.issued_at, "INVOICE", i.invoice_number, "Credit invoice", i.amount, ZERO))
+        if numbers:
+            for link, p in self._s.execute(
+                select(CreditInvoicePayment, CustomerPayment)
+                .join(CustomerPayment, CustomerPayment.id == CreditInvoicePayment.payment_id)
+                .where(
+                    CreditInvoicePayment.invoice_id.in_(numbers),
+                    _verified(),
+                    CustomerPayment.received_at < end,
+                )
+            ).tuples():
+                ref = p.reference or p.collection_number
+                text_ = f"{p.method.value} payment of {numbers[link.invoice_id]} (verified)"
+                out.append((p.received_at, "PAYMENT", ref, text_, ZERO, link.amount))
         return sorted(out, key=lambda e: (e[0], e[1]))
 
     def statement(self, customer_id: uuid.UUID, currency: str | None, first: date, last: date) -> CustomerStatementDto:

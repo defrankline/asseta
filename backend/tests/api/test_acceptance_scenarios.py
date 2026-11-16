@@ -2,7 +2,7 @@
 and asserts the outcome the guideline states; scenario 13 traces a customer-hour, an excavator-hour and a cash balance
 back to the records underneath them and checks the arithmetic."""
 
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from itertools import pairwise
 from typing import Any
@@ -12,24 +12,11 @@ from tests.api.test_adjustments import _approve, _ledger, _paid_purchase, _propo
 from tests.api.test_cash_custody_chain import _collect, _held, _staff
 from tests.api.test_customer_hours import _setup
 from tests.api.test_finance_sync import _h, _op, _push, _register
-from tests.api.test_work_allocation import (
-    _allocations,
-    _baseline,
-    _by_kind,
-    _cancel_setup_job,
-    _cap,
-    _close,
-    _ctx,
-    _day,
-    _flags,
-    _job,
-    _reading,
-    _start,
-)
 from tests.support.api import Actor, Api
-from tests.support.finance import FinCtx, complete_job, setup_finance, tenant_sql
-from tests.support.hours import RATE, balance, get_purchase, hours_policy, prepaid_job, purchase, verify
-from tests.support.jobs import capture
+from tests.support.finance import FinCtx, role, setup_finance, tenant_sql
+from tests.support.hours import RATE, balance, get_purchase, hours_policy, purchase, verify
+from tests.support.machine_reports import baseline, cust, report_body, submit
+from tests.support.meter import capture
 
 T = "/api/v1/tenant"
 C = f"{T}/cash"
@@ -84,6 +71,46 @@ def _sole(f: FinCtx) -> str:
     return _staff(f, "Operator Selemani")
 
 
+def _engine(api: Api, name: str = "Hire Co") -> FinCtx:
+    """A company whose machine has an approved starting reading of 1000 (reconciliation of engine hours began)."""
+    f = setup_finance(api, name, name[:6].upper().replace(" ", "") + "-1")
+    baseline(api, f, f.c.t.machine_id)
+    return f
+
+
+def _report(api: Api, f: FinCtx, value: str, at: datetime, hours: int) -> dict[str, Any]:
+    """The supervisor reports the meter's movement as the customer's hours; the manager approves."""
+    if at > api.clock.now:
+        api.clock.set_at(at)
+    rep = submit(f.supervisor, report_body(f.c.t.machine_id, value, at, [cust(f.customer_id, hours)]))
+    out: dict[str, Any] = _ok(f.manager.post(f"{T}/machine-reports/{rep['id']}/approve", {}))
+    return out
+
+
+def _daily(api: Api, f: FinCtx, value: str, at: datetime) -> None:
+    """A DAILY reading outside any report (the meter moved on after the last report)."""
+    if at > api.clock.now:
+        api.clock.set_at(at)
+    _ok(f.supervisor.post(f"{T}/meter-captures", capture(f.c.t.machine_id, value, at, mode="MANUAL")), 201)
+
+
+def _allocations(actor: Actor, **params: Any) -> list[dict[str, Any]]:
+    return list(_ok(actor.get(f"{T}/work-allocations", **params))["items"])
+
+
+def _by_kind(rows: list[dict[str, Any]]) -> dict[str, Decimal]:
+    out: dict[str, Decimal] = {}
+    for r in rows:
+        out[r["kind"]] = out.get(r["kind"], Decimal(0)) + Decimal(r["hours"])
+    return out
+
+
+def _day(f: FinCtx, day: date) -> dict[str, Any]:
+    params = {"machine_id": f.c.t.machine_id, "from": day.isoformat(), "to": day.isoformat()}
+    rows = _ok(f.owner.get(f"{T}/work-allocations/reconciliation", **params))
+    return dict(next(r for r in rows if r["machine_id"] == f.c.t.machine_id))
+
+
 # --- 1 to 5: customer hours ---------------------------------------------------------------------------------------
 def test_scenario_01_confirmed_payment_makes_the_hours_available(api: Api) -> None:
     f = _setup(api)
@@ -102,24 +129,25 @@ def test_scenario_01_confirmed_payment_makes_the_hours_available(api: Api) -> No
 
 
 def test_scenario_02_unconfirmed_payment_leaves_the_hours_inactive(api: Api) -> None:
-    f = _setup(api)
+    f = _engine(api)
     p = purchase(api, f.accountant, f, "10", pay=str(10 * RATE))
 
     still = get_purchase(f.owner, p["id"])
     assert still["status"] == "AWAITING_PAYMENT" and p["payment"]["status"] == "CLAIMED"
     assert Decimal(still["totals"]["activated"]) == 0 and _remaining(f) == 0
     assert _ok(f.owner.get(f"{T}/hours-ledger", purchase_id=p["id"]))["total"] == 0
-    # Inactive means unusable: a prepaid job cannot start against them.
-    job = prepaid_job(api, f, "S2-1")
-    _ok(f.owner.post(f"{T}/meter-captures", capture(job, "OPENING", "100", api.clock.now, mode="MANUAL")), 201)
-    blocked = f.owner.post(f"{T}/jobs/{job}/transitions", {"action": "START"})
-    assert blocked.status_code == 422 and _code(blocked) == "NO_AVAILABLE_HOURS"
+    # Inactive means unusable: a machine report cannot give the customer those hours.
+    at = api.clock.now + timedelta(hours=4)
+    api.clock.set_at(at)
+    body = report_body(f.c.t.machine_id, "1004", at, [cust(f.customer_id, 4)])
+    blocked = f.supervisor.post(f"{T}/machine-reports", body)
+    assert blocked.status_code == 422 and _code(blocked) == "HOURS_NOT_AVAILABLE"
 
 
 def test_scenario_03_part_use_leaves_the_right_balance(api: Api) -> None:
-    f = _setup(api)
+    f = _engine(api)
     p = _paid(api, f, 10)
-    complete_job(api, f, prepaid_job(api, f, "S3-1"), "100", "104", 4)
+    _report(api, f, "1004", api.clock.now + timedelta(hours=4), 4)
 
     b = balance(f.owner, f.customer_id, f.c.t.machine_id)
     assert b is not None and (Decimal(b["activated"]), Decimal(b["consumed"]), Decimal(b["remaining"])) == (
@@ -131,9 +159,9 @@ def test_scenario_03_part_use_leaves_the_right_balance(api: Api) -> None:
 
 
 def test_scenario_04_each_purchase_keeps_its_own_history_and_balance(api: Api) -> None:
-    f = _setup(api)
+    f = _engine(api)
     first, second = _paid(api, f, 4), _paid(api, f, 3)
-    complete_job(api, f, prepaid_job(api, f, "S4-1"), "100", "105", 5)  # oldest lot first, then one hour of the next
+    _report(api, f, "1005", api.clock.now + timedelta(hours=5), 5)  # oldest lot first, then one hour of the next
 
     one, two = get_purchase(f.owner, first["id"]), get_purchase(f.owner, second["id"])
     assert (Decimal(one["hours"]), Decimal(one["totals"]["remaining"])) == (Decimal(4), Decimal(0))
@@ -167,13 +195,13 @@ def test_scenario_05_hours_reassigned_with_approval_keep_the_original_assignment
 
 # --- 6 and 7: excavator hours -------------------------------------------------------------------------------------
 def test_scenario_06_operating_hours_reconcile_against_customer_and_authorized_work(api: Api) -> None:
-    c, approver, _ = _ctx(api, "Scenario Six")
-    o, t0 = c.owner, api.clock.now
-    _baseline(o, approver, c, "1000", t0 - timedelta(hours=1))
-    _start(c, c.job_id, "1000", t0)
-    _close(c, c.job_id, "1006", t0 + timedelta(hours=6))
-    _ok(_cap(o, _reading(None, c.t.machine_id, "DAILY", "1008", t0 + timedelta(hours=8))), 201)
-    # The two hours outside the job are authorized by a second person: moved to the yard for a service.
+    f = _engine(api, "Scenario Six")
+    o, t0 = f.owner, api.clock.now
+    approver = role(api, f.tid, "owner", "approver-six")
+    _paid(api, f, 6)
+    _report(api, f, "1006", t0 + timedelta(hours=6), 6)
+    _daily(api, f, "1008", t0 + timedelta(hours=8))
+    # The two hours after the report are authorized by a second person: moved to the yard for a service.
     reason = _ok(
         o.post(f"{T}/engine-hour-reasons", {"code": "MAINT", "name": "Servicing", "kind": "NON_CUSTOMER_CATEGORY"}), 201
     )
@@ -182,7 +210,7 @@ def test_scenario_06_operating_hours_reconcile_against_customer_and_authorized_w
         o.post(
             f"{T}/engine-hours/classifications",
             {
-                "machine_id": c.t.machine_id,
+                "machine_id": f.c.t.machine_id,
                 "start_ref": segment["start"]["ref"],
                 "end_ref": segment["end"]["ref"],
                 "outcome": "APPROVED_NON_CUSTOMER",
@@ -195,9 +223,9 @@ def test_scenario_06_operating_hours_reconcile_against_customer_and_authorized_w
     decide = {"decision": "APPROVE", "note": "Service record seen"}
     _ok(approver.post(f"{T}/engine-hours/classifications/{proposed['id']}/decision", decide))
 
-    rows = _allocations(o, machine_id=c.t.machine_id)
+    rows = _allocations(o, machine_id=f.c.t.machine_id)
     assert _by_kind(rows) == {"CUSTOMER_WORK": Decimal(6), "AUTHORIZED_ACTIVITY": Decimal(2)}
-    day = _day(c, t0.date())
+    day = _day(f, t0.date())
     assert (Decimal(day["total_engine_hours"]), Decimal(day["difference_hours"])) == (Decimal(8), Decimal(0))
     assert (Decimal(day["customer_hours"]), Decimal(day["authorized_hours"]), Decimal(day["unexplained_hours"])) == (
         Decimal(6),
@@ -208,39 +236,29 @@ def test_scenario_06_operating_hours_reconcile_against_customer_and_authorized_w
 
 
 def test_scenario_07_unexplained_hours_are_flagged_not_billable_not_wasted(api: Api) -> None:
-    c, approver, tid = _ctx(api, "Scenario Seven")
-    o, t0 = c.owner, api.clock.now
-    _ok(
-        o.post(
-            f"{T}/policies/REVENUE_RECONCILIATION/versions",
-            {"scope": "TENANT", "values": {"enabled": True, "period": "DAY"}, "reason": "On for this scenario"},
-        ),
-        201,
-    )
-    _baseline(o, approver, c, "1000", t0 - timedelta(hours=1))
-    _cancel_setup_job(c)
-    job = _job(api, c, "J-S7", rate="85000")
-    _start(c, job, "1000", t0)
-    _close(c, job, "1004", t0 + timedelta(hours=4))
-    _ok(_cap(o, _reading(None, c.t.machine_id, "DAILY", "1006", t0 + timedelta(hours=6))), 201)
+    f = _engine(api, "Scenario Seven")
+    o, t0 = f.owner, api.clock.now
+    _paid(api, f, 4)
+    _report(api, f, "1004", t0 + timedelta(hours=4), 4)
+    _daily(api, f, "1006", t0 + timedelta(hours=6))
 
     # Flagged.
-    assert _flags(tid, c, "UNEXPLAINED_HOURS") == 1
-    assert [e["status"] for e in _ok(o.get(f"{T}/exceptions", exception_type="UNEXPLAINED_HOURS"))["items"]] == ["OPEN"]
+    flagged = _ok(o.get(f"{T}/exceptions", exception_type="UNEXPLAINED_HOURS"))["items"]
+    # The report's own period was explained by its approval; the two hours after it stay open.
+    [still_open] = [e for e in flagged if e["status"] == "OPEN"]
+    assert {e["status"] for e in flagged} <= {"OPEN", "EXPLAINED"} and still_open["machine_id"] == f.c.t.machine_id
     # Visible as its own kind, on nobody's account.
     [unexplained] = _allocations(o, kind="UNEXPLAINED")
     assert Decimal(unexplained["hours"]) == 2 and unexplained["status"] == "ACTIVE"
-    assert unexplained["customer_id"] is None and unexplained["job_id"] is None
-    # Not billable: expected revenue comes from the job alone and the invoice can only be for the job's hours.
-    money = _ok(o.get(f"{T}/daily-machine-sheet", day_from=t0.date(), day_to=t0.date()))["items"][0]["money"][0]
-    assert Decimal(money["expected"]) == 4 * Decimal(85000)
-    assert Decimal(money["unexplained_hours"]) == 2 and Decimal(money["unexplained_expected"]) == 0
+    assert unexplained["customer_id"] is None and unexplained["approval_ref_ids"] == []
+    # Not billable: revenue comes from the approved report alone.
+    day = t0.date().isoformat()
+    [row] = _ok(f.accountant.get(f"{T}/finance/profitability", group_by="MACHINE", **{"from": day, "to": day}))["rows"]
+    assert Decimal(row["revenue"]) == 4 * Decimal(85000)
     # Not wasted: no decision was taken about them, and nothing wrote them off.
     assert _ok(o.get(f"{T}/engine-hours/classifications"))["total"] == 0
-    assert _ok(o.get(f"{T}/non-revenue-approvals"))["total"] == 0
-    assert _by_kind(_allocations(o, machine_id=c.t.machine_id)).get("AUTHORIZED_ACTIVITY") is None
-    # The value at risk is a separate line from expected revenue.
-    assert Decimal(money["value_at_risk"]) == 2 * Decimal(85000)
+    assert _by_kind(_allocations(o, machine_id=f.c.t.machine_id)).get("AUTHORIZED_ACTIVITY") is None
+    # The value at risk (the rate card's price of those hours) is a separate line from revenue.
     tile = _ok(o.get(f"{T}/accountability/summary"))["unexplained_hours"]
     assert Decimal(tile["hours"]) == 2 and Decimal(tile["value_at_risk"][0]["amount"]) == 2 * Decimal(85000)
 
@@ -372,7 +390,7 @@ def test_scenario_12_offline_entries_synchronize_without_duplication_or_loss(api
 
 
 # --- 13: tracing balances back --------------------------------------------------------------------------------------
-def _trace_customer_hours(f: FinCtx, machine: str, job_number: str) -> None:
+def _trace_customer_hours(f: FinCtx, machine: str, report_number: str) -> None:
     """The balance is exactly the ledger under it; each line names its purchase and its source record."""
     b = balance(f.owner, f.customer_id, machine)
     assert b is not None
@@ -395,11 +413,14 @@ def _trace_customer_hours(f: FinCtx, machine: str, job_number: str) -> None:
     # Each purchase's remainder adds up to the balance.
     numbers = {e["purchase_number"] for e in entries}
     assert sum(Decimal(_one(f.owner, n, "hours_purchase")["hours_remaining"]) for n in numbers) == remaining
-    # Each consumption goes back to the job, and the job to the excavator work allocated to its purchases.
-    assert {e["job_number"] for e in consumed} == {job_number}
-    job = _one(f.owner, job_number, "job")
-    assert job["route"] == f"/tenant/jobs/{job['id']}"
-    work = _allocations(f.owner, job_id=job["id"])
+    # Each consumption goes back to its machine report, and the report to the excavator work allocated to its
+    # purchases.
+    assert {e["machine_report_number"] for e in consumed} == {report_number}
+    report = _one(f.owner, report_number, "machine_report")
+    assert report["route"] == f"/tenant/machine-reports/{report['id']}"
+    work = [
+        r for r in _allocations(f.owner, machine_id=machine) if report["id"] in [str(x) for x in r["approval_ref_ids"]]
+    ]
     assert sum(Decimal(row["hours"]) for row in work) == 7
     by_purchase: dict[str, Decimal] = {}
     for row in work:
@@ -410,7 +431,16 @@ def _trace_customer_hours(f: FinCtx, machine: str, job_number: str) -> None:
     assert by_purchase == {e["purchase_number"]: Decimal(e["hours"]) for e in consumed}
 
 
-def _trace_excavator_hours(f: FinCtx, day: Any, job_number: str) -> None:
+def _reading_record(f: FinCtx, ref: str) -> dict[str, Any]:
+    """A recorded reading: a meter capture, or the approved starting reading (baseline) the first report starts from."""
+    r = f.owner.get(f"{T}/meter-captures/{ref}")
+    if r.status_code == 404:
+        r = f.owner.get(f"{T}/meter-baselines/{ref}")
+    out: dict[str, Any] = _ok(r)
+    return out
+
+
+def _trace_excavator_hours(f: FinCtx, day: Any, report_id: str) -> None:
     """Every engine hour of the day is an allocation; every allocation is the difference of two recorded readings."""
     machine = f.c.t.machine_id
     params = {"machine_id": machine, "from": day.isoformat(), "to": day.isoformat()}
@@ -424,8 +454,8 @@ def _trace_excavator_hours(f: FinCtx, day: Any, job_number: str) -> None:
     assert _by_kind(rows) == {"CUSTOMER_WORK": Decimal(7), "UNEXPLAINED": Decimal(2)}
     for row in rows:
         assert Decimal(row["hours"]) == Decimal(row["end_reading"]) - Decimal(row["start_reading"])
-        start = _ok(f.owner.get(f"{T}/meter-captures/{row['start_ref']}"))
-        end = _ok(f.owner.get(f"{T}/meter-captures/{row['end_ref']}"))
+        start = _reading_record(f, row["start_ref"])
+        end = _reading_record(f, row["end_ref"])
         assert (Decimal(start["reading"]), Decimal(end["reading"])) == (
             Decimal(row["start_reading"]),
             Decimal(row["end_reading"]),
@@ -433,7 +463,7 @@ def _trace_excavator_hours(f: FinCtx, day: Any, job_number: str) -> None:
         assert start["machine_id"] == end["machine_id"] == machine
         assert _ok(f.owner.get(f"{T}/work-allocations/{row['id']}"))["id"] == row["id"]
     customer = next(r for r in rows if r["kind"] == "CUSTOMER_WORK")
-    assert customer["job_number"] == job_number and customer["customer_id"] == f.customer_id
+    assert customer["approval_ref_ids"] == [report_id] and customer["customer_id"] == f.customer_id
     # The readings line up with no gap: the hours cannot have been counted twice or dropped.
     ordered = sorted(rows, key=lambda r: Decimal(r["start_reading"]))
     assert all(a["end_reading"] == b["start_reading"] for a, b in pairwise(ordered))
@@ -484,17 +514,15 @@ def _trace_cash(f: FinCtx, staff: str, day: Any, records: dict[str, dict[str, An
 
 
 def test_scenario_13_management_traces_each_balance_to_its_transactions(api: Api) -> None:
-    f = _setup(api)
+    f = _engine(api)
     t0 = api.clock.now
     machine = f.c.t.machine_id
-    # Customer-hour balance: two purchases, part used by one job.
+    # Customer-hour balance: two purchases, part used by one machine report.
     _paid(api, f, 6)
     _paid(api, f, 4)
-    job_number = "S13-1"
-    job = prepaid_job(api, f, job_number)
-    complete_job(api, f, job, "1000", "1007", 7)
+    report = _report(api, f, "1007", t0 + timedelta(hours=7), 7)
     # Excavator-hour balance: the machine ran two more hours nobody has explained.
-    _ok(_cap(f.owner, _reading(None, machine, "DAILY", "1009", t0 + timedelta(hours=9))), 201)
+    _daily(api, f, "1009", t0 + timedelta(hours=9))
     # Cash balance: a collection, part handed to a manager, part deposited and short at the company.
     operator = _sole(f)
     manager = _staff(f, "Field Manager", "OTHER", login=f.manager)
@@ -512,8 +540,8 @@ def test_scenario_13_management_traces_each_balance_to_its_transactions(api: Api
     )
     [variance] = _ok(f.owner.get(f"{C}/variances", source_type="REMITTANCE"))["items"]
 
-    _trace_customer_hours(f, machine, job_number)
-    _trace_excavator_hours(f, t0.date(), job_number)
+    _trace_customer_hours(f, machine, report["report_number"])
+    _trace_excavator_hours(f, t0.date(), report["id"])
     _trace_cash(
         f,
         operator,
