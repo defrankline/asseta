@@ -8,8 +8,9 @@
 `create` follows compose_smoke.py / field_e2e_setup.py: a throwaway confidential Keycloak client and platform-owner
 user onboard + verify + activate a tenant named "Drill 7E <tag>"; as its owner it creates N machines, enrolls each as
 a billable asset, registers one simulated OsmAnd tracker per machine (IMEI-shaped id) under a drill tracker model and
-assigns it as primary (effective 3 h ago), plus a customer and a contract (for job events). State, incl. the
-throwaway passwords, goes only to .drills/tenant.json (0600, gitignored).
+assigns it as primary (effective 3 h ago), plus a customer, a manager (the second approver, who receives the
+machine-report notifications) and manual meter readings without a photo (the drill's machine reports must not depend
+on the object store). State, incl. the throwaway passwords, goes only to .drills/tenant.json (0600, gitignored).
 
 `purge` removes exactly the tenant id recorded in that file with backend/scripts/purge_tenants.py's database and
 Keycloak routines (never by name prefix), deletes the throwaway Keycloak users + client and withdraws approval of
@@ -235,16 +236,32 @@ def create(machines: int) -> None:
     cust = expect(
         s.call("POST", "/tenant/customers", json={"code": f"DRL-{tag}", "name": "Drill customer"}), 201, "customer"
     )
-    contract = expect(
+    state["customer_id"] = cust["id"]
+    expect(
         s.call(
             "POST",
-            "/tenant/contracts",
-            json={"customer_id": cust["id"], "contract_number": f"DRL-CT-{tag}", "starts_on": today},
+            "/tenant/policies/METER_CAPTURE/versions",
+            json={
+                "scope": "TENANT",
+                "values": {"capture_mode": "MANUAL", "manual_photo_required": False},
+                "reason": "Gate 7E drill: manual readings without a photo",
+            },
         ),
         201,
-        "contract",
+        "capture policy",
     )
-    state["customer_id"], state["contract_id"] = cust["id"], contract["id"]
+    manager_email = f"drill-manager-{tag}@example.com"
+    expect(
+        s.call(
+            "POST",
+            "/tenant/access/members",
+            json={"email": manager_email, "first_name": "Drill", "last_name": "Manager", "role_key": "manager"},
+        ),
+        201,
+        "invite manager",
+    )
+    uid, pw = kc_user(h, manager_email, None)  # created by the invite (in the tenant manager group)
+    state["users"]["manager"] = {"email": manager_email, "password": pw, "id": uid}
     save_state(state)
     print(f"DRILL TENANT OK tenant={tid} machines={len(state['machines'])} state={state_path()}")
 

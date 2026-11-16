@@ -4,24 +4,28 @@ image on the compose network.
 
   seed    Finds the tenant (registration number, else exact name), checks it is verified, ACTIVE and entitled, then
           acts on it under a temporary managed-service mandate (DEC-018): machines, sites + geofences, enrollments,
-          simulated trackers, staff, two demo users (supervisor, accountant), customers, contracts, jobs. Sends a
-          few hours of GPS history and leaves the fleet parked. Refuses when the tenant already has machines, and a
-          tenant whose data was reset for go-live (scripts/reset-tenant-data.sh: platform.tenant.data_reset).
+          simulated trackers, staff, two demo users (supervisor, accountant), customers and hourly rate cards.
+          Sends a few hours of GPS history and leaves the fleet parked. Refuses when the tenant already has
+          machines, and a tenant whose data was reset for go-live (scripts/reset-tenant-data.sh:
+          platform.tenant.data_reset).
   feed    Keeps the demo fleet live for --minutes: working machines move slowly on their site with the engine on
-          (in work runs shorter than the tenant's unreported-engine-activity threshold), parked machines report
-          stationary with the ignition off. Time only moves forward (one writer, a lock file, the last sent time
-          persisted), so no overlapping batches and no "Implausible GPS jump" alerts. No API access needed.
+          (in short work runs), parked machines report stationary with the ignition off. Time only moves forward
+          (one writer, a lock file, the last sent time persisted), so no overlapping batches and no "Implausible
+          GPS jump" alerts. No API access needed.
   field   (--dry-run) Plays a recent field history as the demo supervisor, through the offline sync protocol the
           phones use (device session, resumable evidence upload, POST /sync/push), so every server rule applies
-          (meter checks, phone GPS vs tracker, exceptions, expense policy, cash custody, audit). J-2026-103 started
-          and completed with a customer acknowledgement, J-2026-101/102 started and running, work logs, fuel,
-          cash expenses, one customer cash collection and one handover; J-2026-104 stays ready to start. Never
-          before the jobs' approval. Refuses once any field activity exists; a re-run after a failure re-sends the
-          same operations (kept in the state file), which the server answers as duplicates.
+          (meter checks, phone GPS vs tracker, machine reports, exceptions, expense policy, cash custody, audit).
+          WL-01, EX-01 and EX-02 start with an opening report and get an end-of-day machine report (customer hours
+          + idle time) for every past working day; their customers buy the hours in cash on site. WL-01's hire
+          ends (all approved); the last report of EX-01/EX-02 waits for approval and today's hours are left for a
+          live report; TP-01 keeps no starting reading. Fuel, cash expenses and one handover too. The office part
+          (cash float, verifying the customers' cash, approving reports) runs under a temporary mandate, as in
+          `seed`. Never before the seed. Refuses once any field activity exists on those machines; a re-run after
+          a failure re-sends the same operations (kept in the state file), which the server answers as duplicates.
   status  Platform-level facts; without --quick also counts the tenant's data (under a short mandate).
-  retire  (--yes) Soft-removes what `seed` created: cancels jobs, retires trackers, ends enrollments, deactivates
-          machines, sites, geofences, contracts, customers and staff, revokes and disables the demo users. Nothing
-          is deleted (the audit trail and history stay).
+  retire  (--yes) Soft-removes what `seed` created: rejects machine reports still waiting for a decision, retires
+          trackers, ends enrollments, deactivates machines, sites, geofences, customers and staff, revokes and
+          disables the demo users. Nothing is deleted (the audit trail and history stay).
 
 Production safety: the platform side uses a throwaway platform user + Keycloak confidential client, both deleted in
 `finally`. Tenant changes happen only under the mandate (every audit event carries it); the mandate is granted for
@@ -30,7 +34,8 @@ users must not exist yet, and their generated passwords go only to the credentia
 in only as the demo supervisor `seed` created: the e-mail must be supervisor.<slug>@<demo domain> in both the
 credentials and the state file, the Keycloak user id and the app user id must be the ones `seed` recorded, and the
 password is read from the credentials file only (never printed). It uses its own throwaway Keycloak client (deleted
-in `finally`); the cash float, which only the office can issue, goes through the same temporary mandate as `seed`.
+in `finally`); the office's part (the cash float, verifying the customers' cash, approving the machine reports) goes
+through the same temporary mandate as `seed`.
 
 Endpoints (environment; defaults are the production compose network):
   ASSETA_DEMO_API_URL (http://api:8000), ASSETA_DEMO_KEYCLOAK_URL (http://keycloak:8080/auth),
@@ -161,15 +166,8 @@ MACHINES: list[tuple[str, str, str, str, str, int, int | None, str, float]] = [
 ]
 HOME_OFFSETS = [(0.0009, -0.0007), (-0.0006, 0.0010), (0.0011, 0.0004), (-0.0010, -0.0008), (0.0004, 0.0012)]
 CUSTOMERS = [("PRC", "Pwani Road Contractors Ltd"), ("MBD", "Msasani Bay Developers Ltd"), ("MMH", "Mji Mpya Housing")]
-# job number, customer, machine, hourly rate, final state
-JOBS = [
-    ("J-2026-101", "PRC", "EX-01", "95000", "APPROVED"),
-    ("J-2026-102", "MBD", "EX-02", "90000", "APPROVED"),
-    ("J-2026-103", "MBD", "WL-01", "80000", "APPROVED"),
-    ("J-2026-104", "PRC", "TP-01", "65000", "APPROVED"),
-    ("J-2026-105", "MMH", "GR-01", "110000", "PENDING_APPROVAL"),
-    ("J-2026-106", "MMH", "RL-01", "70000", "DRAFT"),
-]
+# hourly rate card per machine category (prices the customers' hours)
+RATES = {"Excavators": "95000", "Wheel loaders": "80000", "Tippers": "65000", "Graders": "110000", "Rollers": "70000"}
 EXPENSE_CATEGORIES = [
     ("FUEL", "Diesel and lubricants"),
     ("SPARES", "Repairs and spares"),
@@ -878,16 +876,30 @@ def tracker_model(p: Api) -> str:
 def read_rules(t: Api) -> Rules:
     tz = str(t.get("/tenant/overview").get("timezone") or "Africa/Dar_es_Salaam")
     tracking = t.get("/tenant/policies/TRACKING/effective")["values"]
-    fraud = t.get("/tenant/policies/FRAUD_CONTROLS/effective")["values"]
-    threshold = float(fraud.get("engine_activity_min_minutes") or 30)
     return Rules(
         timezone=tz,
         moving_speed_kmh=float(tracking["moving_speed_kmh"]),
         window_start=tracking.get("operating_window_start"),
         window_end=tracking.get("operating_window_end"),
         weekdays=list(tracking.get("operating_weekdays") or range(7)),
-        max_run_minutes=max(3.0, min(22.0, threshold - 6)),  # runs stay under the unreported-engine threshold
+        max_run_minutes=22.0,  # short work runs between stops
     )
+
+
+def ensure_rate_cards(t: Api, categories: dict[str, str]) -> int:
+    """An hourly rate card (RATES) for each demo machine category without one; returns how many were added."""
+    added = 0
+    for name, cat in categories.items():
+        if name in RATES and not t.get("/tenant/rate-cards", {"machine_category_id": cat}):
+            body = {
+                "machine_category_id": cat,
+                "hourly_rate": RATES[name],
+                "minimum_hours": "4",
+                "reason": "Standard hire rate",
+            }
+            t.post("/tenant/rate-cards", body, f"rate card {name}", (201,))
+            added += 1
+    return added
 
 
 def preflight_users(kc: KeycloakAdmin, emails: dict[str, str]) -> None:
@@ -1149,7 +1161,7 @@ def build_tenant(
                 f"assign supervisor {m[0]}",
             )
 
-    # Commercial side: customers, contracts per site, jobs (approved for the working machines, one pending, one draft).
+    # Commercial side: customers and the hourly rate card (customers buy machine hours; ADR-008).
     for code, name in EXPENSE_CATEGORIES:
         mark(
             "expense_categories",
@@ -1162,8 +1174,8 @@ def build_tenant(
                 {"code": code, "name": name},
             ),
         )
-    customers = {
-        code: mark(
+    for code, name in CUSTOMERS:
+        mark(
             "customers",
             *ensure(
                 t,
@@ -1174,51 +1186,10 @@ def build_tenant(
                 {"code": code, "name": name, "payment_terms_days": 30},
             ),
         )
-        for code, name in CUSTOMERS
-    }
-    site_of = {m[0]: m[6] for m in MACHINES}
-    contracts: dict[str, str] = {}
-    for n, (code, _name) in enumerate(CUSTOMERS):
-        number = f"CT-{now.year}-{code}"
-        cid, new = ensure(
-            t,
-            "/tenant/contracts",
-            "contract_number",
-            number,
-            "/tenant/contracts",
-            {
-                "customer_id": customers[code],
-                "contract_number": number,
-                "job_site_id": sites[n % len(sites)]["id"],
-                "starts_on": now.isoformat(),
-                "reference": f"Demo contract {number}",
-            },
-        )
-        contracts[code] = mark("contracts", cid, new)
-    jobs: list[str] = []
-    for number, cust, mcode, hourly, final in JOBS:
-        site = site_of[mcode]
-        body: dict[str, Any] = {
-            "contract_id": contracts[cust],
-            "job_number": number,
-            "machine_id": machines[mcode],
-            "planned_start": now.isoformat(),
-            "planned_end": (now + timedelta(days=30)).isoformat(),
-            "hourly_rate": hourly,
-            "minimum_hours": "4",
-        }
-        if site is not None:
-            body["job_site_id"] = sites[site]["id"]
-        if final == "APPROVED":
-            body["supervisor_id"] = sup
-        job = t.post("/tenant/jobs", body, f"job {number}")["id"]
-        jobs.append(mark("jobs", str(job), True))
-        actions = {"APPROVED": ("SUBMIT", "APPROVE"), "PENDING_APPROVAL": ("SUBMIT",), "DRAFT": ()}[final]
-        for action in actions:
-            t.post(f"/tenant/jobs/{job}/transitions", {"action": action}, f"{number} {action}", (200,))
+    rates = ensure_rate_cards(t, cats)
     log(
         f"created: {len(MACHINES)} machines, {len(units)} simulated trackers, {len(sites)} sites + geofences, "
-        f"{len(CUSTOMERS)} customers, {len(contracts)} contracts, {len(jobs)} jobs, 2 demo users, "
+        f"{len(CUSTOMERS)} customers, {rates} rate cards, 2 demo users, "
         f"{len(tracked) + 1} staff"
     )
     st.update(
@@ -1390,49 +1361,51 @@ def feed(a: argparse.Namespace) -> int:
 
 # --- field ----------------------------------------------------------------------------------------------------------
 # A recent field history played as the demo supervisor through the offline sync protocol the phones use
-# (POST /sync/push), so every server rule applies: meter validation, phone-GPS vs tracker comparison, exceptions,
-# the expense policy, cash custody and the audit trail. Times are only ever in the past and never before the jobs
-# were approved (earlier work would rightly be flagged as work without authorization).
-FIELD_STARTS = ("J-2026-103", "J-2026-101", "J-2026-102")  # started in this order on role days 0, 1, 2
-FIELD_COMPLETED = "J-2026-103"  # completed on role day 3 (closing reading, customer acknowledgement)
-FIELD_READY = "J-2026-104"  # left APPROVED: ready to start live during the demo
+# (POST /sync/push), so every server rule applies: meter validation, phone-GPS vs tracker comparison, machine reports
+# (the lines must add up to the meter difference, customer hours must be paid for), the expense policy, cash custody
+# and the audit trail. The office's part (the cash float, verifying the customers' cash, approving the reports) goes
+# through a temporary managed-service mandate, as in `seed`. Times are only ever in the past and never before the
+# seed (the machines are assigned to the supervisor from then).
+FIELD_STARTS = ("WL-01", "EX-01", "EX-02")  # first reading (opening report) in this order on role days 0, 1, 2
+FIELD_FINISHED = "WL-01"  # its hire ends on role day 3 (every report approved)
+FIELD_READY = "TP-01"  # left without a starting reading: its opening report can be made live during the demo
+FIELD_CUSTOMER = {"WL-01": "MBD", "EX-01": "PRC", "EX-02": "MBD"}  # who hires each machine (prepaid hours)
 FIELD_DAY = (dtime(7, 30), dtime(17, 30))  # local working hours (narrowed by the tenant's operating window)
-FIELD_MIN_DAY = timedelta(hours=3)  # shorter working periods (approval late in the day, now early) are skipped
+FIELD_MIN_DAY = timedelta(hours=3)  # shorter working periods (seed late in the day, now early) are skipped
 FIELD_PAST_DAYS = 4
 FIELD_BATCH = 25
 ENGINE_ON = ("WORK", "STANDBY")  # the hour meter runs while working and while idling on standby
 TENTH = Decimal("0.1")
+IDLE_REASON = "IDLE_ON_SITE"  # machine report reason for standby time (the tenant's own list; any active one else)
 STANDBY_NOTES = {
-    "J-2026-101": "Waiting for the tipper trucks to return from the tip",
-    "J-2026-102": "Waiting for the site engineer to set out the next section",
-    "J-2026-103": "Stockpile empty; waiting for the crusher",
+    "EX-01": "Waiting for the tipper trucks to return from the tip",
+    "EX-02": "Waiting for the site engineer to set out the next section",
+    "WL-01": "Stockpile empty; waiting for the crusher",
 }
 DOWNTIME_NOTES = {
-    "J-2026-101": "Hydraulic hose leak on the boom cylinder; hose replaced on site",
-    "J-2026-102": "Fuel filter blocked; filter changed by the operator",
-    "J-2026-103": "Front left tyre puncture; repaired on site",
+    "EX-01": "Hydraulic hose leak on the boom cylinder; hose replaced on site",
+    "EX-02": "Fuel filter blocked; filter changed by the operator",
+    "WL-01": "Front left tyre puncture; repaired on site",
 }
-FUEL_ISSUE_LITRES = {"J-2026-101": Decimal(180), "J-2026-102": Decimal(160), "J-2026-103": Decimal(140)}
+FUEL_ISSUE_LITRES = {"EX-01": Decimal(180), "EX-02": Decimal(160), "WL-01": Decimal(140)}
 FUEL_UNIT_PRICE = Decimal(3200)
 FUEL_PURCHASE = (Decimal(600), Decimal(3150), "Kibamba Filling Station")
-# category code, job, during ("DOWNTIME" | "STANDBY"), description, supplier, amount in the tenant currency
+# category code, machine, during ("DOWNTIME" | "STANDBY"), description, supplier, amount in the tenant currency
 FIELD_EXPENSES: list[tuple[str, str, str, str, str | None, Decimal]] = [
     (
         "SPARES",
-        "J-2026-101",
+        "EX-01",
         "DOWNTIME",
         "Hydraulic hose and fittings for the boom cylinder",
         "Tabata Hydraulics",
         Decimal(185000),
     ),
-    ("TYRES", "J-2026-103", "DOWNTIME", "Puncture repair, front left tyre", "Kigamboni Tyre Centre", Decimal(45000)),
-    ("FUEL", "J-2026-102", "STANDBY", "Engine oil 20 L and grease", "Tabata Lubricants", Decimal(95000)),
-    ("ALLOWANCE", "J-2026-101", "STANDBY", "Lunch allowance for the operator and banksman", None, Decimal(30000)),
+    ("TYRES", "WL-01", "DOWNTIME", "Puncture repair, front left tyre", "Kigamboni Tyre Centre", Decimal(45000)),
+    ("FUEL", "EX-02", "STANDBY", "Engine oil 20 L and grease", "Tabata Lubricants", Decimal(95000)),
+    ("ALLOWANCE", "EX-01", "STANDBY", "Lunch allowance for the operator and banksman", None, Decimal(30000)),
 ]
 FIELD_FLOAT = Decimal(500000)
-FIELD_COLLECTION = Decimal(1500000)
-FIELD_HANDOVER = Decimal(1200000)
-FIELD_SIGNER = "Grace Mushi"  # fictional site engineer of the customer
+FIELD_HANDOVER = Decimal(1200000)  # part of the cash from the hours sales, handed to the office
 OCR_ENGINE = "demo-script (generated image, not a camera photo)"
 
 
@@ -1445,24 +1418,54 @@ class Segment:
 
 
 @dataclass
-class JobRun:
-    number: str
+class Report:
+    """One end-of-day machine report: the reading, split into the customer's hours and idle (standby) hours."""
+
+    at: datetime
+    reading: Decimal
+    customer_hours: Decimal
+    idle_hours: Decimal
+
+
+@dataclass
+class MachineRun:
+    code: str
     opening_at: datetime
     opening: Decimal
     segments: list[Segment] = field(default_factory=list)
-    closing_at: datetime | None = None
+    finished_at: datetime | None = None
+    reports: list[Report] = field(default_factory=list)
 
     def meter_at(self, t: datetime) -> Decimal:
         """Hour meter at `t`: the opening reading plus engine time (work and standby) logged before `t`."""
         secs = sum(max(0.0, (min(s.end, t) - s.start).total_seconds()) for s in self.segments if s.kind in ENGINE_ON)
         return (self.opening + Decimal(str(secs)) / Decimal(3600)).quantize(TENTH, rounding=ROUND_DOWN)
 
+    def hours(self, kind: str, a: datetime, b: datetime) -> Decimal:
+        """Hours of `kind` between a and b."""
+        secs = sum(max(0.0, (min(s.end, b) - max(s.start, a)).total_seconds()) for s in self.segments if s.kind == kind)
+        return Decimal(str(secs)) / Decimal(3600)
+
+    def add_report(self, at: datetime) -> Report | None:
+        """The report at `at` (from the last reported reading); None when the meter has not moved."""
+        prev_at, prev = (
+            (self.reports[-1].at, self.reports[-1].reading) if self.reports else (self.opening_at, self.opening)
+        )
+        reading = self.meter_at(at)
+        diff = reading - prev
+        if diff <= 0:
+            return None
+        idle = min(diff, self.hours("STANDBY", prev_at, at).quantize(TENTH, rounding=ROUND_DOWN))
+        report = Report(at, reading, diff - idle, idle)
+        self.reports.append(report)
+        return report
+
 
 @dataclass
 class FieldEvent:
     at: datetime
-    kind: str  # FLOAT FUEL_PURCHASE OPENING START FUEL_ISSUE ACTIVITY EXPENSE CLOSING ACK COMPLETE COLLECTION HANDOVER
-    job: str | None = None
+    kind: str  # FLOAT FUEL_PURCHASE SALE OPENING FUEL_ISSUE EXPENSE REPORT HANDOVER
+    machine: str | None = None
     data: dict[str, Any] = field(default_factory=dict)
 
 
@@ -1508,9 +1511,9 @@ def field_days(earliest: datetime, latest: datetime, rules: Rules) -> tuple[list
     return past[-FIELD_PAST_DAYS:], today
 
 
-def day_segments(number: str, a: datetime, b: datetime, standby: bool, downtime: bool) -> list[Segment]:
-    """One day of a job's work log between a and b: work with a lunch gap, a standby block on the first day and
-    a short downtime (with its note) on the second (both on the first when the job has a single day)."""
+def day_segments(code: str, a: datetime, b: datetime, standby: bool, downtime: bool) -> list[Segment]:
+    """One day of a machine's work between a and b: work with a lunch gap, a standby block on the first day and a
+    short downtime (with its note) on the second (both on the first when the machine works a single day)."""
     span = b - a
     if span < timedelta(minutes=30):
         return []
@@ -1528,7 +1531,7 @@ def day_segments(number: str, a: datetime, b: datetime, standby: bool, downtime:
         pattern = [("WORK", 0, 0.45), ("WORK", 0.52, 0.75), ("DOWNTIME", 0.75, 0.83), ("WORK", 0.83, 1.0)]
     else:
         pattern = [("WORK", 0, 0.45), ("WORK", 0.52, 1.0)]
-    notes = {"STANDBY": STANDBY_NOTES[number], "DOWNTIME": DOWNTIME_NOTES[number]}
+    notes = {"STANDBY": STANDBY_NOTES[code], "DOWNTIME": DOWNTIME_NOTES[code]}
     return [
         Segment(kind, _minute_down(a + span * f0), _minute_down(a + span * f1), notes.get(kind))
         for kind, f0, f1 in pattern
@@ -1537,9 +1540,11 @@ def day_segments(number: str, a: datetime, b: datetime, standby: bool, downtime:
 
 def plan_field(
     past: list[Day], today: list[Day], openings: dict[str, Decimal]
-) -> tuple[dict[str, JobRun], list[FieldEvent]]:
-    """The whole field history, in time order. Role days map onto the usable past days (4 of them: exactly
-    "started 4/3/2 days ago, completed yesterday"); with fewer, roles share days; with none, all of it is today."""
+) -> tuple[dict[str, MachineRun], list[FieldEvent]]:
+    """The whole field history, in time order. Role days map onto the usable past days (4 of them: exactly "started
+    4/3/2 days ago, finished yesterday"); with fewer, roles share days; with none, all of it is today. Each machine
+    gets an opening report on its first day and an end-of-day report for every past day it worked; today's hours are
+    left for a live report in the app (the finished machine's last day is always reported)."""
     days = past + today
     if not days:
         raise ValueError("no usable working period")
@@ -1548,7 +1553,7 @@ def plan_field(
         return past[min(r, len(past) - 1)] if past else days[-1]
 
     index = {d: i for i, d in enumerate(days)}
-    runs: dict[str, JobRun] = {}
+    runs: dict[str, MachineRun] = {}
     events: list[FieldEvent] = [
         FieldEvent(days[0][0] - timedelta(minutes=10), "FLOAT", data={"amount": FIELD_FLOAT}),
         FieldEvent(
@@ -1558,47 +1563,50 @@ def plan_field(
         ),
     ]
     starts: Counter[Day] = Counter()
-    for r, number in enumerate(FIELD_STARTS):
+    sales: list[datetime] = []
+    for r, code in enumerate(FIELD_STARTS):
         day = role_day(r)
         at = day[0] + timedelta(minutes=15 + 20 * starts[day])
         starts[day] += 1
-        run = runs[number] = JobRun(number, at, openings[number])
-        end_day = role_day(3) if number == FIELD_COMPLETED else days[-1]
-        if number == FIELD_COMPLETED:
-            run.closing_at = end_day[1] - timedelta(minutes=45)
+        run = runs[code] = MachineRun(code, at, openings[code])
+        end_day = role_day(3) if code == FIELD_FINISHED else days[-1]
+        if code == FIELD_FINISHED:
+            run.finished_at = end_day[1] - timedelta(minutes=45)
         si, ei = index[day], index[end_day]
         for i in range(si, ei + 1):
             a = at + timedelta(minutes=10) if i == si else days[i][0]
-            b = run.closing_at - timedelta(minutes=5) if run.closing_at and i == ei else days[i][1]
+            b = run.finished_at - timedelta(minutes=5) if run.finished_at and i == ei else days[i][1]
             downtime = i == si + 1 if ei > si else True
-            run.segments += day_segments(number, a, b, standby=i == si, downtime=downtime)
+            run.segments += day_segments(code, a, b, standby=i == si, downtime=downtime)
+        for i in range(si, ei + 1):
+            last = run.finished_at is not None and i == ei
+            if days[i] in today and not last:
+                continue  # today's hours: reported live in the app
+            report = run.add_report(run.finished_at + timedelta(minutes=10) if last and run.finished_at else days[i][1])
+            if report is not None:
+                events.append(FieldEvent(report.at, "REPORT", code, {"report": report}))
+        # The customer pays (cash, on site) for the hours this machine works for them, today's included.
+        work = run.hours("WORK", at, days[-1][1])
+        hours = max(5, math.ceil((float(work) + 2) / 5) * 5)
+        sales.append(at - timedelta(minutes=5))
         events += [
-            FieldEvent(at, "OPENING", number, {"reading": run.opening}),
-            FieldEvent(at + timedelta(minutes=1), "START", number),
+            FieldEvent(at - timedelta(minutes=5), "SALE", code, {"customer": FIELD_CUSTOMER[code], "hours": hours}),
+            FieldEvent(at, "OPENING", code, {"reading": run.opening}),
             FieldEvent(
                 at + timedelta(minutes=5),
                 "FUEL_ISSUE",
-                number,
-                {"litres": FUEL_ISSUE_LITRES[number], "unit_price": FUEL_UNIT_PRICE, "meter": run.opening},
+                code,
+                {"litres": FUEL_ISSUE_LITRES[code], "unit_price": FUEL_UNIT_PRICE, "meter": run.opening},
             ),
         ]
-        events += [FieldEvent(s.end, "ACTIVITY", number, {"segment": s}) for s in run.segments]
-        if run.closing_at:
-            c = run.closing_at
-            closing = run.meter_at(c)
-            events += [
-                FieldEvent(c, "CLOSING", number, {"reading": closing}),
-                FieldEvent(c + timedelta(minutes=10), "ACK", number, {"hours": closing - run.opening}),
-                FieldEvent(c + timedelta(minutes=12), "COMPLETE", number),
-                FieldEvent(c + timedelta(minutes=20), "COLLECTION", number, {"amount": FIELD_COLLECTION}),
-                FieldEvent(c + timedelta(minutes=35), "HANDOVER", None, {"amount": FIELD_HANDOVER}),
-            ]
-    for code, number, during, description, supplier, amount in FIELD_EXPENSES:
-        run = runs[number]
+    handover_at = max(role_day(2)[1] - timedelta(minutes=5), max(sales) + timedelta(minutes=30))
+    events.append(FieldEvent(handover_at, "HANDOVER", None, {"amount": FIELD_HANDOVER}))
+    for code, machine, during, description, supplier, amount in FIELD_EXPENSES:
+        run = runs[machine]
         seg = next((s for s in run.segments if s.kind == during), None)
         at = _minute_down(seg.start + (seg.end - seg.start) / 2) if seg else run.opening_at + timedelta(minutes=30)
         data = {"category": code, "description": description, "supplier": supplier, "amount": amount}
-        events.append(FieldEvent(at, "EXPENSE", number, data))
+        events.append(FieldEvent(at, "EXPENSE", machine, data))
     events.sort(key=lambda e: e.at)
     return runs, events
 
@@ -1656,50 +1664,9 @@ def _iso(t: datetime) -> str:
     return t.astimezone(UTC).isoformat()
 
 
-def opening_meters(state: dict[str, Any]) -> dict[str, Decimal]:
-    """Opening readings at each machine's current meter: the simulated tracker's engine hours (the seed baseline
-    when the state has none)."""
-    hours = {u["code"]: Decimal(int(u["hours_ms"])) / Decimal(3_600_000) for u in state.get("units", [])}
-    baseline = {m[0]: Decimal(str(m[8])) for m in MACHINES}
-    machine_of = {j[0]: j[2] for j in JOBS}
-    return {
-        n: hours.get(machine_of[n], baseline[machine_of[n]]).quantize(TENTH, rounding=ROUND_DOWN) for n in FIELD_STARTS
-    }
-
-
 def homes(state: dict[str, Any]) -> dict[str, tuple[float, float]]:
     """Where each tracked machine works (the simulated tracker's home spot on its site)."""
     return {u["code"]: (float(u["home"][0]), float(u["home"][1])) for u in state.get("units", [])}
-
-
-def describe_plan(runs: dict[str, JobRun], events: list[FieldEvent], tz: str) -> list[str]:
-    zone, out = ZoneInfo(tz), []
-    for e in events:
-        when = e.at.astimezone(zone).strftime("%a %d %b %H:%M")
-        d = e.data
-        if e.kind == "ACTIVITY":
-            s = d["segment"]
-            what = f"{s.kind:8} {s.start.astimezone(zone):%H:%M}-{s.end.astimezone(zone):%H:%M}" + (
-                f" ({s.note})" if s.note else ""
-            )
-        elif e.kind in ("OPENING", "CLOSING"):
-            what = f"{e.kind.lower()} reading {d['reading']} h"
-        elif e.kind == "ACK":
-            what = f"customer acknowledgement by {FIELD_SIGNER} ({d['hours']} h)"
-        elif e.kind in ("FUEL_ISSUE", "FUEL_PURCHASE"):
-            what = f"fuel {e.kind.split('_')[1].lower()} {d['litres']} L at {d['unit_price']}/L"
-        elif e.kind == "EXPENSE":
-            what = f"expense {d['category']} {d['amount']}: {d['description']}"
-        elif e.kind in ("FLOAT", "COLLECTION", "HANDOVER"):
-            what = f"cash {e.kind.lower()} {d['amount']}" + (" (issued by the office)" if e.kind == "FLOAT" else "")
-        else:
-            what = e.kind.lower()
-        out.append(f"{when}  {e.job or '':10}  {what}")
-    for n, r in runs.items():
-        end = f"closing {r.meter_at(r.closing_at)} h" if r.closing_at else "still IN_PROGRESS"
-        out.append(f"{n}: opening {r.opening} h, {end}")
-    out.append(f"{FIELD_READY}: left APPROVED (ready to start)")
-    return out
 
 
 @dataclass
@@ -1787,8 +1754,48 @@ class FieldDevice:
                     raise RuntimeError(
                         f"{o['label']}: {r['status']} {err.get('code', '')} {str(err.get('message', ''))[:300]}"
                     )
-                results.append({"label": o["label"], "op_type": o["op_type"], "entity": r["result"].get("entity")})
+                entity = r["result"].get("entity")
+                results.append({"id": o["id"], "label": o["label"], "op_type": o["op_type"], "entity": entity})
         return results
+
+
+def opening_meters(state: dict[str, Any]) -> dict[str, Decimal]:
+    """Opening readings at each machine's current meter: the simulated tracker's engine hours (the seed's figure
+    when the state has none)."""
+    hours = {u["code"]: Decimal(int(u["hours_ms"])) / Decimal(3_600_000) for u in state.get("units", [])}
+    baseline = {m[0]: Decimal(str(m[8])) for m in MACHINES}
+    return {c: hours.get(c, baseline[c]).quantize(TENTH, rounding=ROUND_DOWN) for c in FIELD_STARTS}
+
+
+def describe_plan(runs: dict[str, MachineRun], events: list[FieldEvent], tz: str) -> list[str]:
+    zone, out = ZoneInfo(tz), []
+    for e in events:
+        when = e.at.astimezone(zone).strftime("%a %d %b %H:%M")
+        d = e.data
+        if e.kind == "SALE":
+            what = f"{d['customer']} buys {d['hours']} h on {e.machine}, paid in cash (verified by the office)"
+        elif e.kind == "OPENING":
+            what = f"opening report, reading {d['reading']} h (approved by the office)"
+        elif e.kind == "REPORT":
+            r: Report = d["report"]
+            idle = f" + {r.idle_hours} h idle" if r.idle_hours else ""
+            what = f"machine report, reading {r.reading} h: {r.customer_hours} h customer{idle}"
+        elif e.kind in ("FUEL_ISSUE", "FUEL_PURCHASE"):
+            what = f"fuel {e.kind.split('_')[1].lower()} {d['litres']} L at {d['unit_price']}/L"
+        elif e.kind == "EXPENSE":
+            what = f"expense {d['category']} {d['amount']}: {d['description']}"
+        elif e.kind in ("FLOAT", "HANDOVER"):
+            what = f"cash {e.kind.lower()} {d['amount']}" + (" (issued by the office)" if e.kind == "FLOAT" else "")
+        else:
+            what = e.kind.lower()
+        out.append(f"{when}  {e.machine or '':6}  {what}")
+    for code, run in runs.items():
+        last = run.reports[-1].reading if run.reports else run.opening
+        end = "hire finished" if run.finished_at else "still working (today's hours are left for a live report)"
+        out.append(f"{code}: opening {run.opening} h, last reported {last} h, {len(run.reports)} report(s), {end}")
+    out.append(f"{FIELD_READY}: no starting reading yet (its opening report can be made live in the app)")
+    out.append("the last report of each machine still working is left waiting for the office's approval")
+    return out
 
 
 def build_field_ops(
@@ -1796,29 +1803,32 @@ def build_field_ops(
     boot: dict[str, Any],
     events: list[FieldEvent],
     state: dict[str, Any],
-) -> list[dict[str, Any]]:
-    """Turns the plan into sync operations (with uploaded evidence where the tenant's policy asks for it)."""
+) -> tuple[list[dict[str, Any]], int, list[str]]:
+    """Turns the plan into sync operations (with uploaded evidence where the tenant's policy asks for it), split in
+    phases: the office approves a machine's report (and verifies the customers' cash) before its next report is sent
+    (one report per machine waits for a decision at a time). Returns (ops, phases, reports left waiting)."""
     data = boot["data"]
-    jobs = {j["job_number"]: j for j in data["jobs"]}
-    customer_of = {c["id"]: c["customer_id"] for c in data["contracts"]}
+    machine_ids = {m["asset_code"]: str(m["id"]) for m in data["machines"]}
+    customers = {c["code"]: str(c["id"]) for c in data["customers"]}
+    reasons = {r["code"]: str(r["id"]) for r in data["machine_report_reasons"] if r.get("is_active", True)}
+    idle_reason = reasons.get(IDLE_REASON) or next(iter(reasons.values()))
     categories = {c["code"]: c["id"] for c in data["expense_categories"]}
     snapshots = {(p["policy_type"], p["scope_key"]): p["values"] for p in boot["policy_snapshots"]}
     expense_policy = snapshots[("EXPENSE_CAPTURE", "tenant")]
     receipt_above = Decimal(str(expense_policy["receipt_required_above"]))
     auto_limit = Decimal(str(expense_policy["auto_approve_limit"]))
-    machine_of = {j[0]: j[2] for j in JOBS}
     spots = homes(state)
     ops: list[dict[str, Any]] = []
-    op_of: dict[tuple[str, str], str] = {}  # (job, kind) -> op id, for dependencies
+    phase = 0
+    in_phase: set[str] = set()  # machines with a report in the current phase (approved once the phase is pushed)
+    last_report: dict[str, tuple[str, bool]] = {}  # machine -> (report id, opening)
 
-    def meter_policy(job: dict[str, Any]) -> dict[str, Any]:
-        found = (
-            snapshots.get(("METER_CAPTURE", f"machine:{job['machine_id']}")) or snapshots[("METER_CAPTURE", "tenant")]
-        )
+    def meter_policy(machine_id: str) -> dict[str, Any]:
+        found = snapshots.get(("METER_CAPTURE", f"machine:{machine_id}")) or snapshots[("METER_CAPTURE", "tenant")]
         return dict(found)
 
-    def gps(number: str, at: datetime, key: str) -> dict[str, Any]:
-        lat, lon = spots[machine_of[number]]
+    def gps(code: str, at: datetime, key: str) -> dict[str, Any]:
+        lat, lon = spots[code]
         rng = random.Random(key)  # noqa: S311 - plausible jitter, not crypto
         return {
             "status": "FIX",
@@ -1829,24 +1839,24 @@ def build_field_ops(
             "provider": "fused",
         }
 
-    def add(e: FieldEvent, op_type: str, payload: dict[str, Any], label: str, deps: tuple[str, ...] = ()) -> str:
-        oid = str(uuid.uuid4())
-        depends = [op_of[(e.job or "", d)] for d in deps if (e.job or "", d) in op_of]
+    def add(
+        e: FieldEvent, op_type: str, payload: dict[str, Any], label: str, oid: str = "", deps: tuple[str, ...] = ()
+    ) -> str:
+        oid = oid or str(uuid.uuid4())
         ops.append(
             {
                 "id": oid,
                 "op_type": op_type,
                 "created_at_device": _iso(e.at),
-                "depends_on": depends,
+                "depends_on": list(deps),
                 "payload": payload,
                 "label": label,
+                "phase": phase,
             }
         )
-        op_of[(e.job or "", e.kind)] = oid
         return oid
 
     for e in events:
-        job = jobs.get(e.job or "")
         if e.kind == "FLOAT":
             continue  # issued by the office (see issue_float), not by the supervisor's phone
         if e.kind == "FUEL_PURCHASE":
@@ -1867,24 +1877,40 @@ def build_field_ops(
                 "amount": str(e.data["amount"]),
                 "handed_at": _iso(e.at),
                 "reference": "HO-01",
-                "note": "Cash handed over to the office",
+                "note": "Cash from hours sales handed over to the office",
             }
             add(e, "CASH_HANDOVER", payload, f"cash handover {e.data['amount']}")
             continue
-        assert job is not None, e
-        number = str(e.job)
-        if e.kind in ("OPENING", "CLOSING"):
-            pol = meter_policy(job)
-            mode = str(pol["opening_mode" if e.kind == "OPENING" else "closing_mode"])
-            reading: Decimal = e.data["reading"]
+        code = str(e.machine)
+        machine_id = machine_ids[code]
+        if e.kind == "SALE":
+            oid = str(uuid.uuid4())  # the operation id is the purchase's client id
+            payload = {
+                "client_id": oid,
+                "customer_id": customers[e.data["customer"]],
+                "machine_id": machine_id,
+                "hours": str(e.data["hours"]),
+                "payment": {"method": "CASH", "received_at": _iso(e.at), "note": "Paid in cash on site"},
+                "note": "Prepaid hours sold on site",
+                "client_created_at": _iso(e.at),
+            }
+            add(e, "HOURS_PURCHASE", payload, f"{code} {e.data['customer']} buys {e.data['hours']} h (cash)", oid)
+        elif e.kind in ("OPENING", "REPORT"):
+            if code in in_phase:  # its previous report must be approved first: start a new phase
+                phase += 1
+                in_phase.clear()
+            opening = e.kind == "OPENING"
+            reading: Decimal = e.data["reading"] if opening else e.data["report"].reading
+            pol = meter_policy(machine_id)
+            mode = str(pol.get("capture_mode") or pol.get("closing_mode") or "MANUAL")
             cid = str(uuid.uuid4())
             payload = {
                 "id": cid,
-                "job_id": job["id"],
-                "kind": e.kind,
+                "machine_id": machine_id,
+                "kind": "DAILY",
                 "capture_mode": mode,
                 "reading": str(reading),
-                "gps": gps(number, e.at, cid),
+                "gps": gps(code, e.at, cid),
                 "device_id": device.device_id,
                 "captured_at": _iso(e.at),
             }
@@ -1897,45 +1923,34 @@ def build_field_ops(
                     "ocr_confidence": 0.96,
                     "ocr_engine": OCR_ENGINE,
                 }
-            add(e, "METER_CAPTURE", payload, f"{number} {e.kind.lower()} reading {reading}", ("START",))
-        elif e.kind in ("START", "COMPLETE"):
-            deps = ("OPENING",) if e.kind == "START" else ("CLOSING", "ACK")
-            add(e, "JOB_TRANSITION", {"job_id": job["id"], "action": e.kind}, f"{number} {e.kind.lower()}", deps)
-        elif e.kind == "ACTIVITY":
-            s: Segment = e.data["segment"]
-            payload = {
-                "job_id": job["id"],
-                "client_id": str(uuid.uuid4()),
-                "activity_type": s.kind,
-                "started_at": _iso(s.start),
-                "ended_at": _iso(s.end),
-                "note": s.note,
-                "device_id": device.device_id,
-            }
-            add(e, "JOB_ACTIVITY", payload, f"{number} {s.kind.lower()} {s.start:%d %b %H:%M}Z", ("START",))
-        elif e.kind == "ACK":
-            payload = {
-                "job_id": job["id"],
-                "client_id": str(uuid.uuid4()),
-                "method": "NAME_CONFIRMATION",
-                "signer_name": FIELD_SIGNER,
-                "acknowledged_hours": str(e.data["hours"]),
-                "captured_at": _iso(e.at),
-            }
-            add(e, "JOB_ACKNOWLEDGEMENT", payload, f"{number} acknowledgement", ("CLOSING",))
+            add(e, "METER_CAPTURE", payload, f"{code} reading {reading}", cid)
+            lines: list[dict[str, Any]] = []
+            if not opening:
+                r: Report = e.data["report"]
+                if r.customer_hours > 0:
+                    customer = customers[FIELD_CUSTOMER[code]]
+                    lines.append({"kind": "CUSTOMER", "customer_id": customer, "hours": str(r.customer_hours)})
+                if r.idle_hours > 0:
+                    idle = {"reason_id": idle_reason, "hours": str(r.idle_hours), "note": STANDBY_NOTES[code]}
+                    lines.append({"kind": "NON_PRODUCTIVE", **idle})
+            rid = str(uuid.uuid4())  # the operation id is the report id
+            body = {"machine_id": machine_id, "capture_id": cid, "opening": opening, "lines": lines}
+            label = f"{code} {'opening report' if opening else 'machine report'} at {reading}"
+            add(e, "MACHINE_REPORT", body, label, rid, (cid,))
+            in_phase.add(code)
+            last_report[code] = (rid, opening)
         elif e.kind == "FUEL_ISSUE":
             payload = {
                 "client_id": str(uuid.uuid4()),
                 "event_type": "ISSUE",
                 "litres": str(e.data["litres"]),
                 "unit_price": str(e.data["unit_price"]),
-                "machine_id": job["machine_id"],
-                "job_id": job["id"],
+                "machine_id": machine_id,
                 "meter_reading": str(e.data["meter"]),
                 "occurred_at": _iso(e.at),
                 "note": "Issued from the site bowser",
             }
-            add(e, "FUEL_EVENT", payload, f"{number} fuel issue {e.data['litres']} L")
+            add(e, "FUEL_EVENT", payload, f"{code} fuel issue {e.data['litres']} L")
         elif e.kind == "EXPENSE":
             amount: Decimal = e.data["amount"]
             if auto_limit > 0 and e.data["category"] == "ALLOWANCE":
@@ -1950,50 +1965,67 @@ def build_field_ops(
                 "description": e.data["description"],
                 "amount": str(amount),
                 "incurred_at": _iso(e.at),
-                "machine_id": job["machine_id"],
-                "job_id": job["id"],
+                "machine_id": machine_id,
                 "paid_from": "CASH_CUSTODY",
                 "receipt_attachment_ids": [],
-                "gps": gps(number, e.at, cid),
+                "gps": gps(code, e.at, cid),
                 "device_id": device.device_id,
             }
             if amount > receipt_above:
                 payload["receipt_attachment_ids"] = [device.upload(png_image(f"{amount:,.0f}", cid), "EXPENSE_RECEIPT")]
-            add(e, "EXPENSE", payload, f"{number} expense {e.data['category']} {amount}")
-        elif e.kind == "COLLECTION":
-            payload = {
-                "client_id": str(uuid.uuid4()),
-                "customer_id": customer_of[job["contract_id"]],
-                "amount": str(e.data["amount"]),
-                "received_at": _iso(e.at),
-                "reference": f"{number}-CASH-01",
-                "note": f"Part payment in cash for {number}",
-            }
-            add(e, "CASH_COLLECTION", payload, f"{number} cash collection {e.data['amount']}", ("COMPLETE",))
-    return ops
+            add(e, "EXPENSE", payload, f"{code} expense {e.data['category']} {amount}")
+    waiting = [rid for code, (rid, opening) in last_report.items() if code != FIELD_FINISHED and not opening]
+    return ops, phase + 1, waiting
 
 
-def issue_float(kc: KeycloakAdmin, a: argparse.Namespace, state: dict[str, Any], staff_id: str, at: datetime) -> None:
-    """A supervisor cannot give themselves cash: the office issues the float. As in `seed`, that is done under a
-    temporary managed-service mandate, by a throwaway platform user (both removed at the end)."""
-    with platform_session(kc, a.demo_domain) as pf:
-        tenant = find_tenant(pf.api, a.registration_number, a.tenant_name)
-        if tenant["id"] != state["tenant_id"]:
-            raise Refuse(f"state file belongs to tenant {state['tenant_id']}, not {tenant['id']}")
-        with mandate(pf, tenant, a.consent_reference, "issuing the demo supervisor's cash float") as t:
-            t.post(
-                "/tenant/cash/floats",
-                {
-                    "staff_member_id": staff_id,
-                    "amount": str(FIELD_FLOAT),
-                    "occurred_at": _iso(at),
-                    "reference": "FLOAT-01",
-                    "note": "Site cash float for the week",
-                },
-                "issue cash float",
-                (201,),
-            )
+def issue_float(office: Api, staff_id: str, at: datetime) -> None:
+    """A supervisor cannot give themselves cash: the office issues the float (under the temporary mandate)."""
+    office.post(
+        "/tenant/cash/floats",
+        {
+            "staff_member_id": staff_id,
+            "amount": str(FIELD_FLOAT),
+            "occurred_at": _iso(at),
+            "reference": "FLOAT-01",
+            "note": "Site cash float for the week",
+        },
+        "issue cash float",
+        (201,),
+    )
     log(f"cash float {FIELD_FLOAT} issued to the demo supervisor (by the office, under the mandate)")
+
+
+def office_phase(office: Api, played: dict[str, Any], results: list[dict[str, Any]]) -> None:
+    """The office's part after a phase was pushed: verify the customers' cash (their hours become active) and approve
+    the machine reports (all but the ones left waiting for the live demo). Done again on a re-run (checked first)."""
+    for r in results:
+        if r["op_type"] != "HOURS_PURCHASE":
+            continue
+        ent = r["entity"] or {}
+        for p in [ent.get("payment"), *(ent.get("payments") or [])]:
+            if not p or p.get("status") != "CLAIMED":
+                continue
+            if office.get(f"/tenant/customer-payments/{p['id']}").get("status") == "CLAIMED":
+                office.post(
+                    f"/tenant/customer-payments/{p['id']}/decision",
+                    {"verified": True, "note": "Cash counted at the office"},
+                    f"verify {r['label']}",
+                    (200,),
+                )
+                log(f"office verified the cash of {r['label']}")
+    waiting = set(played.get("waiting") or [])
+    for r in results:
+        if r["op_type"] != "MACHINE_REPORT" or r["id"] in waiting:
+            continue
+        report = office.get(f"/tenant/machine-reports/{r['id']}")
+        if report.get("status") == "SUBMITTED":
+            office.post(
+                f"/tenant/machine-reports/{r['id']}/approve",
+                {"note": "Checked against the site diary"},
+                f"approve {r['label']}",
+                (200,),
+            )
+            log(f"office approved {report.get('report_number')} ({r['label']})")
 
 
 def reset_demo_password(kc: KeycloakAdmin, a: argparse.Namespace, who: DemoSupervisor) -> DemoSupervisor:
@@ -2023,12 +2055,12 @@ def field_history(a: argparse.Namespace) -> int:
     who = demo_supervisor(a, state)
     rules = rules_of(state)
     if a.dry_run:
-        earliest = datetime.fromisoformat(state["seeded_at"]) + timedelta(minutes=30)
+        earliest = datetime.fromisoformat(state["seeded_at"]) + timedelta(minutes=15)
         past, today = field_days(earliest, utcnow() - timedelta(minutes=10), rules)
         if not past and not today:
-            raise Refuse("no working period of 3 h yet since the jobs were approved; run `field` later")
+            raise Refuse("no working period of 3 h yet since the seed; run `field` later")
         runs, events = plan_field(past, today, opening_meters(state))
-        log(f"DRY RUN: nothing is sent. Plan (times in {rules.timezone}; job approval approximated by the seed time):")
+        log(f"DRY RUN: nothing is sent. Plan (times in {rules.timezone}):")
         for line in describe_plan(runs, events, rules.timezone):
             log("  " + line)
         log(f"would sign in as {who.email} (password from the credentials file, never printed)")
@@ -2064,12 +2096,25 @@ def field_history(a: argparse.Namespace) -> int:
             plan_ops(device, boot, state, rules)
             write_private(path, state)
         played = state["field"]
-        if not played.get("float_issued"):
-            issue_float(kc, a, state, who.staff_id, datetime.fromisoformat(played["float_at"]))
-            played["float_issued"] = True
-            write_private(path, state)
-        log(f"pushing {len(played['ops'])} operations as the supervisor's phone (sync protocol)")
-        results = device.push(played["ops"])
+        results: list[dict[str, Any]] = []
+        with platform_session(kc, a.demo_domain) as pf:
+            tenant = find_tenant(pf.api, a.registration_number, a.tenant_name)
+            if tenant["id"] != state["tenant_id"]:
+                raise Refuse(f"state file belongs to tenant {state['tenant_id']}, not {tenant['id']}")
+            with mandate(pf, tenant, a.consent_reference, "the office side of the demo field history") as office:
+                if not played.get("float_issued"):
+                    issue_float(office, who.staff_id, datetime.fromisoformat(played["float_at"]))
+                    played["float_issued"] = True
+                    write_private(path, state)
+                phases = int(played["phases"])
+                log(
+                    f"pushing {len(played['ops'])} operations as the supervisor's phone "
+                    f"(sync protocol, {phases} rounds)"
+                )
+                for n in range(phases):
+                    pushed = device.push([o for o in played["ops"] if o["phase"] == n])
+                    office_phase(office, played, pushed)
+                    results += pushed
         played["completed_at"] = utcnow().isoformat()
         write_private(path, state)
         report_field(device.api, results)
@@ -2083,36 +2128,44 @@ def field_history(a: argparse.Namespace) -> int:
 
 
 def plan_ops(device: FieldDevice, boot: dict[str, Any], state: dict[str, Any], rules: Rules) -> None:
-    """First run: refuse unless the field is untouched, plan from the real approval and server times, upload the
+    """First run: refuse unless the played machines are untouched, plan from the seed and server times, upload the
     evidence and keep the operations in the state file (a re-run after a failure re-sends the same operations,
     which the server answers as duplicates)."""
     data = boot["data"]
-    jobs = {j["job_number"]: j for j in data["jobs"]}
-    # Only the jobs the history plays must be untouched. FIELD_READY is left for the live demo, so a demo that has
-    # already used or cancelled it is fine; other office or field records (petty cash, sales) do not interfere.
-    wanted = FIELD_STARTS
-    problems = [f"{n} is {jobs[n]['status']}" for n in wanted if n in jobs and jobs[n]["status"] != "APPROVED"]
-    problems += [f"{n} is not one of the supervisor's jobs" for n in wanted if n not in jobs]
-    played = {str(jobs[n]["id"]) for n in wanted if n in jobs}
-    for k in ("meter_captures", "job_activities", "fuel_events"):
-        on_played = [r for r in data.get(f"my_{k}") or [] if str(r.get("job_id")) in played]
+    machines = {m["asset_code"]: str(m["id"]) for m in data["machines"]}
+    # Only the machines the history plays must be untouched. FIELD_READY is left for the live demo, so a demo that
+    # has already reported on it is fine; other office or field records (petty cash, sales) do not interfere.
+    problems = [f"{c} is not assigned to the demo supervisor" for c in FIELD_STARTS if c not in machines]
+    played = {machines[c] for c in FIELD_STARTS if c in machines}
+    for k in ("meter_captures", "machine_reports", "fuel_events"):
+        on_played = [r for r in data.get(f"my_{k}") or [] if str(r.get("machine_id")) in played]
         if on_played:
-            problems.append(f"{len(on_played)} {k.replace('_', ' ')} on the demo jobs")
+            problems.append(f"{len(on_played)} {k.replace('_', ' ')} on the demo machines")
+    states = {str(s["machine_id"]): s for s in data.get("machine_report_states") or []}
+    problems += [
+        f"{c} already has a starting reading (approved report or baseline)"
+        for c in FIELD_STARTS
+        if c in machines and not states.get(machines[c], {}).get("opening_required", True)
+    ]
+    codes = {c["code"] for c in data["customers"]}
+    problems += [f"customer {c} is missing" for c in sorted(set(FIELD_CUSTOMER.values()) - codes)]
+    if not [r for r in data.get("machine_report_reasons") or [] if r.get("is_active", True)]:
+        problems.append("the company has no active machine report reasons")
     if problems:
-        raise Refuse("Field activity already exists (only played on untouched demo jobs):", *problems)
-    approved = max(datetime.fromisoformat(jobs[n]["approved_at"]) for n in wanted)
+        raise Refuse("Field activity already exists or the demo data is incomplete:", *problems)
+    seeded = datetime.fromisoformat(state["seeded_at"])
     server_now = datetime.fromisoformat(boot["server_time"])
-    past, today = field_days(approved + timedelta(minutes=15), server_now - timedelta(minutes=10), rules)
+    past, today = field_days(seeded + timedelta(minutes=15), server_now - timedelta(minutes=10), rules)
     if not past and not today:
         raise Refuse(
-            f"No working period of at least 3 h between the job approval ({approved.isoformat()}) and now.",
-            "Field records before approval would be flagged as work without authorization; run `field` later.",
+            f"No working period of at least 3 h between the seed ({seeded.isoformat()}) and now.",
+            "Field records before the machines were assigned would be refused or flagged; run `field` later.",
         )
     runs, events = plan_field(past, today, opening_meters(state))
     log(f"plan ({rules.timezone}):")
     for line in describe_plan(runs, events, rules.timezone):
         log("  " + line)
-    ops = build_field_ops(device, boot, events, state)
+    ops, phases, waiting = build_field_ops(device, boot, events, state)
     float_at = next(e.at for e in events if e.kind == "FLOAT")
     state["field"] = {
         "planned_at": utcnow().isoformat(),
@@ -2120,6 +2173,8 @@ def plan_ops(device: FieldDevice, boot: dict[str, Any], state: dict[str, Any], r
         "float_at": float_at.isoformat(),
         "float_issued": False,
         "ops": ops,
+        "phases": phases,
+        "waiting": waiting,
     }
 
 
@@ -2130,15 +2185,14 @@ def report_field(api: Api, results: list[dict[str, Any]]) -> None:
             cap = ent.get("capture", {})
             found = [f["type"] for f in ent.get("findings", [])]
             log(f"{r['label']}: {cap.get('state')} findings={found or 'none'} gps={cap.get('tracker_comparison')}")
-        elif r["op_type"] == "EXPENSE":
-            log(f"{r['label']}: {ent.get('status')}")
-    jobs = {j["job_number"]: j for j in api.rows("/tenant/jobs")}
-    for n in (*FIELD_STARTS, FIELD_READY):
-        if n in jobs:
-            s = api.get(f"/tenant/jobs/{jobs[n]['id']}")
+        elif r["op_type"] in ("EXPENSE", "MACHINE_REPORT"):
+            log(f"{r['label']}: {ent.get('report_number', '')} {ent.get('status')}".replace("  ", " "))
+    codes = {*FIELD_STARTS, FIELD_READY}
+    for s in api.get("/tenant/machine-reports/status"):
+        if s.get("machine_code") in codes:
             log(
-                f"{n}: {s['job']['status']} meter={s['meter_hours']} billable={s['billable_hours']} "
-                f"open exceptions={s['open_exceptions']} billing_ready={s['billing_ready']}"
+                f"{s['machine_code']}: last approved {s['last_approved_reading']} h, "
+                f"waiting {s.get('pending_report_number') or 'none'}, opening required={s.get('opening_required')}"
             )
     for c in api.get("/tenant/cash/custody/me"):
         log(f"cash custody: {c}")
@@ -2187,14 +2241,14 @@ def status(a: argparse.Namespace) -> int:
                 "job_sites": len(t.rows("/tenant/job-sites")),
                 "geofences": len(t.rows("/tenant/geofences")),
                 "customers": len(t.rows("/tenant/customers")),
-                "contracts": len(t.rows("/tenant/contracts")),
+                "rate_cards": len(t.get("/tenant/rate-cards")),
                 "staff": len(t.rows("/tenant/staff")),
                 "members": len(t.rows("/tenant/access/members")),
                 "expense_categories": len(t.rows("/tenant/expense-categories")),
             }
             print("counts        " + " ".join(f"{k}={v}" for k, v in counts.items()))
-            jobs = Counter(j["status"] for j in t.rows("/tenant/jobs"))
-            print(f"jobs          {dict(jobs)}")
+            reports = Counter(r["status"] for r in t.rows("/tenant/machine-reports"))
+            print(f"reports       {dict(reports)}")
             fleet = t.get("/tenant/fleet/map")
             print(
                 f"fleet map     connectivity={dict(Counter(r['connectivity'] for r in fleet))} "
@@ -2205,11 +2259,10 @@ def status(a: argparse.Namespace) -> int:
                 f"alerts        open={dict(Counter(x['alert_type'] for x in alerts if x['status'] == 'OPEN'))} "
                 f"all={dict(Counter(x['alert_type'] for x in alerts))}"
             )
-            all_jobs = t.rows("/tenant/jobs")
             exceptions = t.rows("/tenant/exceptions")
             field_counts = {
                 "meter_captures": len(t.rows("/tenant/meter-captures")),
-                "activities": sum(len(t.get(f"/tenant/jobs/{j['id']}/activities")) for j in all_jobs),
+                "hours_sales": len(t.rows("/tenant/hours-purchases")),
                 "fuel_events": len(t.rows("/tenant/fuel-events")),
                 "cash_collections": sum(p["method"] == "CASH" for p in t.rows("/tenant/customer-payments")),
             }
@@ -2258,11 +2311,15 @@ def retire(a: argparse.Namespace) -> int:
         with mandate(pf, tenant, a.consent_reference, "retiring demo data") as t:
             now = utcnow()
             created = state["created"]
-            for jid in created.get("jobs", []):
-                job = t.get(f"/tenant/jobs/{jid}")["job"]
-                if job["status"] in ("DRAFT", "PENDING_APPROVAL", "APPROVED"):
-                    body = {"action": "CANCEL", "reason": reason}
-                    do(t, f"cancel job {job['job_number']}", f"/tenant/jobs/{jid}/transitions", body)
+            for code, mid in state.get("machines", {}).items():  # a report waiting for a decision blocks retirement
+                for rep_ in t.rows("/tenant/machine-reports", {"machine_id": mid, "status": "SUBMITTED"}):
+                    body = {"reason": reason}
+                    do(
+                        t,
+                        f"reject report {rep_['report_number']} ({code})",
+                        f"/tenant/machine-reports/{rep_['id']}/reject",
+                        body,
+                    )
             for code, trk in state.get("trackers", {}).items():
                 body = {"effective_to": now.isoformat(), "reason": reason}
                 do(t, f"unassign tracker {code}", f"/tenant/trackers/{trk}/unassign", body)
@@ -2275,7 +2332,6 @@ def retire(a: argparse.Namespace) -> int:
             for kind, fmt in (
                 ("geofences", "/tenant/geofences/{}/deactivate"),
                 ("sites", "/tenant/job-sites/{}/deactivate"),
-                ("contracts", "/tenant/contracts/{}/close"),
                 ("customers", "/tenant/customers/{}/deactivate"),
                 ("staff", "/tenant/staff/{}/deactivate"),
             ):
@@ -2422,29 +2478,11 @@ def _extras(owner: Api, acct: Api, sup: Api, state: dict[str, Any], now: datetim
         ),
     )
 
-    # Hourly rate cards per machine type in use, from the demo jobs' rates.
+    # Hourly rate cards per machine type (added by `seed`; here only when missing).
     machines = {m["asset_code"]: m for m in owner.rows("/tenant/machines")}
-    rate_of = {mcode: hourly for _n, _c, mcode, hourly, _f in JOBS}
-    by_category: dict[str, str] = {}
-    for code, m in machines.items():
-        cat = m.get("category_id")
-        if cat and code in rate_of and cat not in by_category:
-            by_category[cat] = rate_of[code]
-    for cat, hourly in ({} if done.get("rates") else by_category).items():
-        step(
-            f"rate card {hourly}/h",
-            lambda cat=cat, hourly=hourly: owner.post(
-                "/tenant/rate-cards",
-                {
-                    "machine_category_id": cat,
-                    "hourly_rate": hourly,
-                    "minimum_hours": "4",
-                    "reason": "Standard hire rate",
-                },
-                "rate card",
-                (201,),
-            ),
-        )
+    if not done.get("rates"):
+        cats = {c["name"]: str(c["id"]) for c in owner.rows("/tenant/machine-categories")}
+        step("rate cards", lambda: ensure_rate_cards(owner, cats))
 
     done["rates"] = True
     # The accountant's staff record (holds the office petty cash box); kept if already there.

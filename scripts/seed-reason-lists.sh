@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Add one company's starter reason lists (customer hours, engine hours, cash, revenue) from a JSON file, with audit
-# events. Entries already there are skipped; nothing existing is changed.
+# Add one company's starter reason lists (customer hours, engine hours, cash) from a JSON file, with audit events.
+# Entries already there are skipped; nothing existing is changed. A `revenue` list (removed with jobs, ADR-008) is
+# skipped.
 # Keep the company's file on the server; deploy/reason-lists.example.json is a starting list.
 #
 #   scripts/seed-reason-lists.sh --registration-number 2026/10/0001 --file /home/asseta/mzalendo-reasons.json        dry run

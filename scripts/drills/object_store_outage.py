@@ -6,8 +6,8 @@
    registered field device and its first chunk sent.
 2. `docker compose stop minio`: readiness must report object_store down (degraded, HTTP 200); a machine photo upload
    must return the 503 error envelope (DEPENDENCY_UNAVAILABLE), not a 500 or a hang; the rest of the API keeps working
-   (machine list, telemetry ingestion, job creation); the blob session keeps accepting chunks (staged in Postgres)
-   but `complete` returns 503 and the staged chunks survive.
+   (machine list, telemetry ingestion, a machine report without a photo); the blob session keeps accepting chunks
+   (staged in Postgres) but `complete` returns 503 and the staged chunks survive.
 3. `docker compose start minio`: readiness recovers; the SAME blob session completes (no re-upload), the object is
    readable from MinIO with the declared SHA-256; photo uploads succeed again.
 """
@@ -143,17 +143,38 @@ def main() -> None:
         headers={"X-Asseta-Gateway-Key": ENV["ASSETA_TRACCAR_GATEWAY_KEY"]},
         timeout=30,
     ).status_code
-    other["POST /tenant/jobs"] = httpx.post(
-        f"{API}/tenant/jobs",
-        headers=s.headers(),
-        timeout=30,
-        json={
-            "contract_id": state["contract_id"],
-            "job_number": f"DRL-OS-{uuid.uuid4().hex[:6]}",
+    at = now_utc()
+    report = {
+        "id": str(uuid.uuid4()),
+        "machine_id": m["machine_id"],
+        "opening": True,
+        "lines": [],
+        "capture": {
+            "id": str(uuid.uuid4()),
             "machine_id": m["machine_id"],
-            "planned_start": now_utc().isoformat(),
-            "hourly_rate": "50000",
+            "kind": "DAILY",
+            "capture_mode": "MANUAL",
+            "reading": "100.0",
+            "gps": {"status": "FIX", "latitude": -6.8, "longitude": 39.28, "accuracy_m": 6.0, "provider": "fused"},
+            "device_id": "drill-device",
+            "captured_at": at.isoformat(),
         },
+    }
+    waiting = httpx.get(
+        f"{API}/tenant/machine-reports",
+        headers=s.headers(),
+        params={"machine_id": m["machine_id"], "status": "SUBMITTED"},
+        timeout=30,
+    ).json()["items"]
+    for w in waiting:  # one report per machine waits for a decision (the background drills leave some)
+        httpx.post(
+            f"{API}/tenant/machine-reports/{w['id']}/reject",
+            headers=s.headers("manager"),
+            json={"reason": "Drill: superseded"},
+            timeout=30,
+        )
+    other["POST /tenant/machine-reports"] = httpx.post(
+        f"{API}/tenant/machine-reports", headers=s.headers(), timeout=30, json=report
     ).status_code
     other["GET /sync/bootstrap"] = httpx.get(
         f"{API}/sync/bootstrap", headers={**s.headers(), **dh}, timeout=30

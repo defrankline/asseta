@@ -2,12 +2,13 @@
 
     cd backend && uv run python ../scripts/drills/kafka_outage.py [--outage 60]
 
-Background activity (drill_activity.py: positions + job submissions) runs throughout. Kafka is stopped for
+Background activity (drill_activity.py: positions + machine report submissions) runs throughout. Kafka is stopped for
 `--outage` seconds: the API must keep answering 2xx (readiness `degraded`, kafka down), domain events must
 accumulate in the transactional outbox. Kafka is started again: measured are broker recovery, outbox drain and the
 lag of the timeline, notification and intelligence consumer groups back to 0. Then exactly-once is verified: every
-acknowledged position stored once, every submitted job's JobPendingApproval event produced its notification once,
-and Kafka-level redeliveries (offset growth minus events published) are reported — consumers must absorb them.
+acknowledged position stored once, every submitted machine report's MachineReportSubmitted event produced its
+notification once, and Kafka-level redeliveries (offset growth minus events published) are reported — consumers must
+absorb them.
 """
 
 from __future__ import annotations
@@ -64,7 +65,7 @@ def main() -> None:
     state = load_state()
     tid = state["tenant_id"]
     ev = Evidence("kafka-outage", "Kafka broker outage and recovery under activity")
-    ev.say(f"Throwaway tenant `{tid}`; activity = 1 position / 0.5 s + 1 job create+submit / 2 s; outage {a.outage} s.")
+    ev.say(f"Throwaway tenant `{tid}`; activity = 1 position / 0.5 s + 1 machine report / 2 s; outage {a.outage} s.")
     ev.say("")
     base_lags = lags()
     ev.say(
@@ -138,14 +139,14 @@ def main() -> None:
     ev.check("no acknowledged position lost", eff["positions_lost"] == 0, str(eff["positions_lost"]))
     ev.check("no position stored twice", eff["positions_duplicated"] == 0, str(eff["positions_duplicated"]))
     ev.check(
-        "every submitted job produced its JobPendingApproval event",
-        eff["job_events"] == eff["jobs_submitted"],
-        f"{eff['job_events']}/{eff['jobs_submitted']}",
+        "every submitted machine report produced its MachineReportSubmitted event",
+        eff["report_events"] == eff["reports_submitted"],
+        f"{eff['report_events']}/{eff['reports_submitted']}",
     )
     ev.check(
         "every JobPendingApproval event notified (consumer caught up)",
-        eff["job_events_without_notification"] == 0,
-        str(eff["job_events_without_notification"]),
+        eff["report_events_without_notification"] == 0,
+        str(eff["report_events_without_notification"]),
     )
     ev.check(
         "no duplicate notifications despite at-least-once delivery",

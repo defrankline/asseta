@@ -98,7 +98,7 @@ def main() -> None:
     state = load_state()
     tid = state["tenant_id"]
     ev = Evidence("restart-under-load", "API and worker restarts under activity, WebSocket reconnect")
-    ev.say(f"Throwaway tenant `{tid}`; activity = 1 position / 0.5 s + job create+submit / 2 s; 1 WebSocket client.")
+    ev.say(f"Throwaway tenant `{tid}`; activity = 1 position / 0.5 s + machine report / 2 s; 1 WebSocket client.")
     ev.say("")
     act = Activity(state)
     ws = WsClient(Session(state), tid)
@@ -173,9 +173,9 @@ def main() -> None:
         f"lost {eff['positions_lost']}, dup {eff['positions_duplicated']}",
     )
     ev.check(
-        "no lost outbox events: every submitted job produced its event and notification",
-        eff["job_events"] == eff["jobs_submitted"] and eff["job_events_without_notification"] == 0,
-        f"{eff['job_events']}/{eff['jobs_submitted']} events, {eff['job_events_without_notification']} "
+        "no lost outbox events: every submitted machine report produced its event and notification",
+        eff["report_events"] == eff["reports_submitted"] and eff["report_events_without_notification"] == 0,
+        f"{eff['report_events']}/{eff['reports_submitted']} events, {eff['report_events_without_notification']} "
         "without notification",
     )
     ev.check("no duplicate notifications", eff["duplicate_notifications"] == 0, str(eff["duplicate_notifications"]))

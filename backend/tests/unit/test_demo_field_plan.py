@@ -1,6 +1,6 @@
 """Pure helpers of the demo `field` command (backend/scripts/demo_tenant_live.py): the planned field history stays
-inside working hours after job approval and before now, follows the job lifecycle order, and the generated
-evidence images are valid, unique PNGs."""
+inside working hours after the seed and before now, each machine is sold hours, gets an opening report and then
+reports that add up to its meter, and the generated evidence images are valid, unique PNGs."""
 
 import argparse
 import importlib.util
@@ -31,42 +31,43 @@ def demo() -> ModuleType:
 
 
 TZ = ZoneInfo("Africa/Dar_es_Salaam")
-OPENINGS = {"J-2026-101": Decimal("6423.1"), "J-2026-102": Decimal("3181.9"), "J-2026-103": Decimal("5014.0")}
+OPENINGS = {"EX-01": Decimal("6423.1"), "EX-02": Decimal("3181.9"), "WL-01": Decimal("5014.0")}
 
 
 def local(y: int, mo: int, d: int, h: int, mi: int = 0) -> datetime:
     return datetime(y, mo, d, h, mi, tzinfo=TZ).astimezone(UTC)
 
 
-def plan(demo: ModuleType, approved: datetime, now: datetime) -> tuple[Any, Any, Any, Any]:
+def plan(demo: ModuleType, seeded: datetime, now: datetime) -> tuple[Any, Any, Any, Any]:
     rules = demo.Rules()
-    past, today = demo.field_days(approved + timedelta(minutes=15), now - timedelta(minutes=10), rules)
+    past, today = demo.field_days(seeded + timedelta(minutes=15), now - timedelta(minutes=10), rules)
     runs, events = demo.plan_field(past, today, OPENINGS)
     return past, today, runs, events
 
 
-def by_kind(events: list[Any], kind: str, job: str | None = None) -> list[Any]:
-    return [e for e in events if e.kind == kind and (job is None or e.job == job)]
+def by_kind(events: list[Any], kind: str, machine: str | None = None) -> list[Any]:
+    return [e for e in events if e.kind == kind and (machine is None or e.machine == machine)]
 
 
 def test_full_week_matches_the_requested_days(demo: ModuleType) -> None:
-    approved, now = local(2026, 10, 15, 9), local(2026, 10, 24, 15, 30)  # approved 9 days ago
-    past, today, _runs, events = plan(demo, approved, now)
+    seeded, now = local(2026, 10, 15, 9), local(2026, 10, 24, 15, 30)  # seeded 9 days ago
+    past, today, runs, events = plan(demo, seeded, now)
     assert len(past) == 4 and len(today) == 1
 
     def days_ago(t: datetime) -> int:
         return (now.astimezone(TZ).date() - t.astimezone(TZ).date()).days
 
-    assert days_ago(by_kind(events, "OPENING", "J-2026-103")[0].at) == 4
-    assert days_ago(by_kind(events, "OPENING", "J-2026-101")[0].at) == 3
-    assert days_ago(by_kind(events, "OPENING", "J-2026-102")[0].at) == 2
-    assert days_ago(by_kind(events, "CLOSING", "J-2026-103")[0].at) == 1
-    assert not by_kind(events, "CLOSING", "J-2026-101") and not by_kind(events, "CLOSING", "J-2026-102")
-    assert all(e.job != "J-2026-104" for e in events)  # stays APPROVED, ready to start
+    assert days_ago(by_kind(events, "OPENING", "WL-01")[0].at) == 4
+    assert days_ago(by_kind(events, "OPENING", "EX-01")[0].at) == 3
+    assert days_ago(by_kind(events, "OPENING", "EX-02")[0].at) == 2
+    assert days_ago(by_kind(events, "REPORT", "WL-01")[-1].at) == 1  # its hire ended yesterday, all reported
+    for code in ("EX-01", "EX-02"):  # still working: today's hours are left to report live in the app
+        assert days_ago(by_kind(events, "REPORT", code)[-1].at) == 1
+    assert all(e.machine != "TP-01" for e in events)  # no starting reading: its opening report is made live
 
 
 @pytest.mark.parametrize(
-    ("approved", "now"),
+    ("seeded", "now"),
     [
         (local(2026, 10, 15, 9), local(2026, 10, 24, 15, 30)),  # a week of history
         (local(2026, 10, 22, 14), local(2026, 10, 24, 12)),  # two short days
@@ -74,48 +75,50 @@ def test_full_week_matches_the_requested_days(demo: ModuleType) -> None:
         (local(2026, 10, 20, 11), local(2026, 10, 24, 6)),  # before work today: past days only
     ],
 )
-def test_plan_is_ordered_in_hours_after_approval_and_before_now(
-    demo: ModuleType, approved: datetime, now: datetime
+def test_plan_is_ordered_in_hours_after_the_seed_and_before_now(
+    demo: ModuleType, seeded: datetime, now: datetime
 ) -> None:
-    past, today, runs, events = plan(demo, approved, now)
+    past, today, runs, events = plan(demo, seeded, now)
     days = past + today
     lo, hi = demo.field_window(demo.Rules())
     assert [e.at for e in events] == sorted(e.at for e in events)
     for e in events:
         if e.kind == "FLOAT":  # issued by the office just before the first working period
-            assert approved < e.at < days[0][0]
+            assert seeded < e.at < days[0][0]
             continue
-        assert approved + timedelta(minutes=15) <= e.at <= now - timedelta(minutes=10), e
+        assert seeded + timedelta(minutes=15) <= e.at <= now - timedelta(minutes=10), e
         t = e.at.astimezone(TZ).time()
         assert lo <= t <= hi, e
-    for number, run in runs.items():
-        opening = by_kind(events, "OPENING", number)[0].at
-        start = by_kind(events, "START", number)[0].at
-        acts = by_kind(events, "ACTIVITY", number)
-        assert opening < start < min(a.data["segment"].start for a in acts)
-        kinds = {a.data["segment"].kind for a in acts}
-        assert {"WORK", "STANDBY", "DOWNTIME"} <= kinds
-        assert all(a.data["segment"].note for a in acts if a.data["segment"].kind != "WORK")
-        for a in acts:
-            s = a.data["segment"]
-            assert s.start < s.end and a.at == s.end
-        if run.closing_at:
-            closing = by_kind(events, "CLOSING", number)[0]
-            ack, complete = by_kind(events, "ACK", number)[0], by_kind(events, "COMPLETE", number)[0]
-            assert max(a.data["segment"].end for a in acts) <= closing.at < ack.at < complete.at
-            delta = closing.data["reading"] - run.opening
-            elapsed_h = Decimal((closing.at - opening).total_seconds()) / 3600
-            assert Decimal(0) < delta <= elapsed_h * Decimal("1.05")  # server: meter can't outrun the clock
-            assert ack.data["hours"] == delta
-            assert by_kind(events, "COLLECTION")[0].at > complete.at
-            assert by_kind(events, "HANDOVER")[0].at > by_kind(events, "COLLECTION")[0].at
+    kinds: set[str] = set()
+    for code, run in runs.items():
+        [sale], [opening] = by_kind(events, "SALE", code), by_kind(events, "OPENING", code)
+        assert sale.at < opening.at < min(seg.start for seg in run.segments)
+        assert opening.data["reading"] == run.opening == OPENINGS[code]
+        kinds |= {seg.kind for seg in run.segments}
+        assert all(seg.note for seg in run.segments if seg.kind != "WORK")
+        assert all(seg.start < seg.end for seg in run.segments)
+        # Every report accounts for the meter since the previous reading: customer hours plus idle (standby) hours.
+        prev_at, prev = opening.at, run.opening
+        for e in by_kind(events, "REPORT", code):
+            r = e.data["report"]
+            assert r.at == e.at and r.reading > prev
+            assert r.customer_hours + r.idle_hours == r.reading - prev and r.idle_hours >= 0
+            elapsed_h = Decimal((r.at - prev_at).total_seconds()) / 3600
+            assert r.reading - prev <= elapsed_h * Decimal("1.05")  # server: meter can't outrun the clock
+            prev_at, prev = r.at, r.reading
+        used = sum((r.customer_hours for r in run.reports), Decimal(0))
+        assert Decimal(sale.data["hours"]) >= used  # the customer paid for every hour reported for them
+        if run.finished_at:
+            assert by_kind(events, "REPORT", code)[-1].at > run.finished_at
+    assert {"WORK", "STANDBY", "DOWNTIME"} <= kinds
+    assert by_kind(events, "HANDOVER")[0].at > max(e.at for e in by_kind(events, "SALE"))
     assert len(by_kind(events, "FUEL_ISSUE")) == 3 and len(by_kind(events, "FUEL_PURCHASE")) == 1
     assert {e.data["category"] for e in by_kind(events, "EXPENSE")} == {"SPARES", "TYRES", "FUEL", "ALLOWANCE"}
 
 
 def test_no_usable_time_yields_no_days(demo: ModuleType) -> None:
-    approved = local(2026, 10, 24, 16)
-    past, today = demo.field_days(approved, local(2026, 10, 24, 17), demo.Rules())
+    seeded = local(2026, 10, 24, 16)
+    past, today = demo.field_days(seeded, local(2026, 10, 24, 17), demo.Rules())
     assert past == [] and today == []
     with pytest.raises(ValueError, match="no usable working period"):
         demo.plan_field([], [], OPENINGS)
@@ -133,7 +136,7 @@ def test_operating_window_and_weekdays_are_respected(demo: ModuleType) -> None:
 
 def test_meter_counts_work_and_standby_only(demo: ModuleType) -> None:
     t0 = local(2026, 10, 20, 8)
-    run = demo.JobRun("J-2026-101", t0, Decimal("100.0"))
+    run = demo.MachineRun("EX-01", t0, Decimal("100.0"))
     run.segments = [
         demo.Segment("WORK", t0, t0 + timedelta(hours=2)),
         demo.Segment("STANDBY", t0 + timedelta(hours=2), t0 + timedelta(hours=3)),
@@ -146,8 +149,8 @@ def test_meter_counts_work_and_standby_only(demo: ModuleType) -> None:
 def test_opening_meters_follow_the_tracker_engine_hours(demo: ModuleType) -> None:
     state = {"units": [{"code": "EX-01", "hours_ms": int(6425.37 * 3_600_000), "home": [-6.7, 39.0]}]}
     meters = demo.opening_meters(state)
-    assert meters["J-2026-101"] == Decimal("6425.3")  # EX-01 from its tracker
-    assert meters["J-2026-102"] == Decimal("3180.2")  # EX-02 falls back to the seed baseline
+    assert meters["EX-01"] == Decimal("6425.3")  # from its tracker
+    assert meters["EX-02"] == Decimal("3180.2")  # falls back to the seed baseline
 
 
 def _png_size(data: bytes) -> tuple[int, int]:

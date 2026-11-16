@@ -5,9 +5,10 @@ Usage (from backend/): uv run python scripts/demo_seed.py ../.env ../.demo/crede
 Creates "Kilimanjaro Earthworks" (verified, ACTIVE subscription at a negotiated TZS rate) with an owner, supervisor
 and accountant (Keycloak users with generated passwords), machine categories, an operating area, job sites with
 geofences, expense categories, five machines (four with simulated GPS trackers reporting through the real Traccar
-gateway, one deliberately untracked), customers, contracts, approved and draft jobs, and the supervisor assigned to
-machines. A throwaway platform user and Keycloak client do the provisioning and are deleted at the end. Demo
-passwords are written only to the credentials file (mode 600, gitignored), never printed."""
+gateway, one deliberately untracked), customers, hourly rate cards, bank-paid orders of machine hours (verified by the
+accountant), the supervisor assigned to two machines with approved opening reports and one machine report waiting
+for the owner's approval (ADR-008). A throwaway platform user and Keycloak client do the provisioning and are
+deleted at the end. Demo passwords are written only to the credentials file (mode 600, gitignored), never printed."""
 
 import sys
 import uuid
@@ -42,6 +43,10 @@ MACHINES = [  # code, name, category, manufacturer, model, site (None = untracke
     ("GR-01", "CAT 140 Motor Grader", "Graders", "Caterpillar", "140K", "YRD"),
     ("TP-01", "Howo 25t Tipper", "Tippers", "Sinotruk", "Howo 371", None),
 ]
+
+
+RATES = {"Excavators": "95000", "Wheel loaders": "80000", "Graders": "110000", "Tippers": "65000"}  # per hour
+ORDERS = [("RBL", "EX-01", "40"), ("DMK", "WL-01", "30")]  # customer, machine, prepaid hours
 
 
 def square(lat: float, lon: float, half: float) -> dict[str, Any]:
@@ -121,7 +126,8 @@ def onboard(stack: Stack, kc: Keycloak, platform: Api) -> str:
     return tid
 
 
-def seed_fleet(o: Api, platform: Api, stack: Stack, now: datetime) -> dict[str, str]:
+def seed_fleet(o: Api, platform: Api, stack: Stack, now: datetime) -> tuple[dict[str, str], dict[str, str]]:
+    """Returns (machine ids by asset code, category ids by name)."""
     today = now.date().isoformat()
     cats = {
         n: o.post("/tenant/machine-categories", {"name": n}, f"category {n}")["id"] for n in {m[2] for m in MACHINES}
@@ -194,11 +200,55 @@ def seed_fleet(o: Api, platform: Api, stack: Stack, now: datetime) -> dict[str, 
         )
         if send_osmand(traccar, device, fixes) != len(fixes):
             raise RuntimeError(f"Traccar rejected fixes for {code}")
-    return machines
+    return machines, cats
 
 
-def seed_work(o: Api, kc: Keycloak, machines: dict[str, str], now: datetime) -> None:
-    today = now.date().isoformat()
+def photo(api: Api, key: str) -> str:
+    """A placeholder meter photo (unique bytes; the server flags a photo used twice), uploaded as METER_PHOTO."""
+    h = {k: v for k, v in api.h().items() if k != "Content-Type"}
+    data = b"\xff\xd8\xff\xe0" + uuid.uuid5(uuid.NAMESPACE_URL, key).bytes * 4 + uuid.uuid4().bytes
+    r = httpx.post(
+        f"{api.s.api}/tenant/attachments",
+        headers=h,
+        files={"file": (f"{key}.jpg", data, "image/jpeg")},
+        data={"purpose": "METER_PHOTO"},
+        timeout=TIMEOUT,
+    )
+    return str(check(r, 201, f"meter photo {key}")["id"])
+
+
+def report(
+    sup: Api, machine_id: str, code: str, reading: str, at: datetime, site: tuple[float, float], lines: list[Any]
+) -> dict[str, Any]:
+    """A machine report as the supervisor's app sends it: a DAILY reading (photo + OCR) and the lines (none for an
+    opening report: the machine's first reading)."""
+    lat, lon = site
+    capture = {
+        "id": str(uuid.uuid4()),
+        "machine_id": machine_id,
+        "kind": "DAILY",
+        "capture_mode": "AUTOMATIC",
+        "reading": reading,
+        "ocr_value": reading,
+        "ocr_confidence": 0.96,
+        "ocr_engine": "demo-seed",
+        "photo_attachment_id": photo(sup, f"{code}-{reading}"),
+        "gps": {
+            "status": "FIX",
+            "latitude": lat,
+            "longitude": lon,
+            "accuracy_m": 8.0,
+            "captured_at": (at - timedelta(seconds=5)).isoformat(),
+            "provider": "fused",
+        },
+        "device_id": "demo-seed-phone",
+        "captured_at": at.isoformat(),
+    }
+    body = {"id": str(uuid.uuid4()), "machine_id": machine_id, "opening": not lines, "lines": lines, "capture": capture}
+    return sup.post("/tenant/machine-reports", body, f"{'opening' if not lines else 'machine'} report {code}")
+
+
+def seed_work(o: Api, kc: Keycloak, machines: dict[str, str], categories: dict[str, str], now: datetime) -> None:
     # Expense categories: without them nothing can be recorded on the Expenses screen or in the field apps.
     for code, name in (
         ("SPARES", "Repairs and spares"),
@@ -212,34 +262,13 @@ def seed_work(o: Api, kc: Keycloak, machines: dict[str, str], now: datetime) -> 
         code: o.post("/tenant/customers", {"code": code, "name": name}, f"customer {code}")["id"]
         for code, name in (("RBL", "Road Builders Ltd"), ("DMK", "Dam Makers Co"), ("CTY", "City Works Department"))
     }
-    contracts = {
-        c: o.post(
-            "/tenant/contracts",
-            {"customer_id": customers[c], "contract_number": f"CT-2026-{c}", "starts_on": today},
-            f"contract {c}",
-        )["id"]
-        for c in customers
-    }
-    jobs = [  # number, contract, machine, rate, approve
-        ("J-1001", "RBL", "EX-01", "95000", True),
-        ("J-1002", "DMK", "WL-01", "80000", True),
-        ("J-1003", "CTY", "GR-01", "110000", False),
-    ]
-    for number, contract, machine, rate, approve in jobs:
-        job = o.post(
-            "/tenant/jobs",
-            {
-                "contract_id": contracts[contract],
-                "job_number": number,
-                "machine_id": machines[machine],
-                "planned_start": now.isoformat(),
-                "hourly_rate": rate,
-            },
-            f"job {number}",
-        )["id"]
-        if approve:
-            for action in ("SUBMIT", "APPROVE"):
-                o.post(f"/tenant/jobs/{job}/transitions", {"action": action}, f"{number} {action}", 200)
+    # The hourly rate card per machine category prices the hours customers buy.
+    for name, cat in categories.items():
+        o.post(
+            "/tenant/rate-cards",
+            {"machine_category_id": cat, "hourly_rate": RATES[name], "minimum_hours": "4", "reason": "Standard rate"},
+            f"rate card {name}",
+        )
     people = {}
     for role in ("supervisor", "accountant"):
         email, first, last = USERS[role]
@@ -255,12 +284,50 @@ def seed_work(o: Api, kc: Keycloak, machines: dict[str, str], now: datetime) -> 
         "supervisor staff",
     )["id"]
     o.post("/tenant/staff", {"full_name": "Demo Operator", "kind": "OPERATOR"}, "operator staff")
+    assigned = now - timedelta(hours=4)
     for code in ("EX-01", "WL-01"):
         o.post(
             f"/tenant/machines/{machines[code]}/assignments",
-            {"staff_member_id": staff, "role": "SUPERVISOR", "effective_from": now.isoformat()},
+            {"staff_member_id": staff, "role": "SUPERVISOR", "effective_from": assigned.isoformat()},
             f"assign supervisor {code}",
         )
+    # Customer hours (orders): the owner records bank-paid orders, the accountant verifies the money (hours active).
+    accountant = Api(o.s, kc, USERS["accountant"][0], o.tenant_id)
+    for number, (customer, machine, hours) in enumerate(ORDERS, start=1):
+        order = o.post(
+            "/tenant/hours-purchases",
+            {
+                "customer_id": customers[customer],
+                "machine_id": machines[machine],
+                "hours": hours,
+                "payment": {"method": "BANK", "reference": f"CRDB-DEMO-{number:03d}", "received_at": now.isoformat()},
+                "note": "Prepaid machine hours",
+            },
+            f"order {customer} {machine}",
+        )
+        accountant.post(
+            f"/tenant/customer-payments/{order['payment']['id']}/decision",
+            {"verified": True, "note": "Seen on the bank statement"},
+            f"verify order {customer} {machine}",
+            200,
+        )
+    # Machine reports: each supervised machine starts with an opening report (approved by the owner); EX-01 then
+    # reports its first hours for RBL, left waiting for the owner's approval.
+    sup = Api(o.s, kc, USERS["supervisor"][0], o.tenant_id)
+    sites = {code: pos for code, _, pos in SITES}
+    site_of = {m[0]: str(m[5]) for m in MACHINES}
+    for code, reading in (("EX-01", "1250.0"), ("WL-01", "860.0")):
+        opening = report(sup, machines[code], code, reading, now - timedelta(hours=3), sites[site_of[code]], [])
+        o.post(f"/tenant/machine-reports/{opening['id']}/approve", {"note": "Starting reading"}, f"approve {code}", 200)
+    report(
+        sup,
+        machines["EX-01"],
+        "EX-01",
+        "1252.5",
+        now - timedelta(minutes=5),
+        sites[site_of["EX-01"]],
+        [{"kind": "CUSTOMER", "customer_id": customers["RBL"], "hours": "2.5"}],
+    )
 
 
 def main(argv: list[str]) -> int:
@@ -274,8 +341,8 @@ def main(argv: list[str]) -> int:
         tid = onboard(stack, kc, platform)
         o = Api(stack, kc, USERS["owner"][0], tid)
         now = datetime.now(UTC)
-        machines = seed_fleet(o, platform, stack, now)
-        seed_work(o, kc, machines, now)
+        machines, categories = seed_fleet(o, platform, stack, now)
+        seed_work(o, kc, machines, categories, datetime.now(UTC))
         creds = {
             "web": "http://localhost:5173",
             "tenant": TENANT,

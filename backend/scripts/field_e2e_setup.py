@@ -6,10 +6,12 @@ Usage (from backend/):
 
 Against a running `docker compose` stack: creates a throwaway confidential Keycloak client and platform user (the
 compose_smoke.py pattern), onboards + verifies + activates a tenant through the API, and as the tenant owner creates a
-machine category, machine, customer, contract, an APPROVED job on that machine, a MANUAL-with-photo opening capture
-policy and a SUPERVISOR staff member linked to a throwaway Keycloak supervisor (invited through the tenant access API,
-so it lands in `/tenants/<id>/supervisor`) and assigned to the machine. Finally writes the supervisor's access token
-and the fixture ids as JSON to <outfile>. Secrets are only ever written to that file, never printed.
+machine category with an hourly rate card, a machine (no starting reading: the app's first report on it is an opening
+report), a customer with a bank-paid order of machine hours on that machine (verified by a throwaway accountant, so
+the hours are active), a MANUAL-with-photo capture policy and a SUPERVISOR staff member linked to a throwaway
+Keycloak supervisor (invited through the tenant access API, so it lands in `/tenants/<id>/supervisor`) and assigned
+to the machine. Finally writes the supervisor's access token and the fixture ids as JSON to <outfile>. Secrets are only
+ever written to that file, never printed.
 """
 
 import json
@@ -183,8 +185,8 @@ def cleanup(stack: Stack, info: dict[str, Any]) -> int:
     return removed
 
 
-class Owner:
-    """Tenant-owner API calls (fresh idempotency key per mutation)."""
+class Member:
+    """API calls as a tenant member (fresh idempotency key per mutation)."""
 
     def __init__(self, stack: Stack, kc: Keycloak, email: str, tenant_id: str):
         self.s, self.kc, self.email, self.tenant_id = stack, kc, email, tenant_id
@@ -261,7 +263,7 @@ def onboard(stack: Stack, kc: Keycloak, tag: str) -> tuple[str, str]:
 def build_fixture(stack: Stack, kc: Keycloak) -> dict[str, Any]:
     tag = uuid.uuid4().hex[:6]
     tenant_id, owner_email = onboard(stack, kc, tag)
-    o = Owner(stack, kc, owner_email, tenant_id)
+    o = Member(stack, kc, owner_email, tenant_id)
     now = datetime.now(UTC) - timedelta(minutes=5)
     today = now.date().isoformat()
     category = o.post("/tenant/machine-categories", {"name": "Excavators"}, "create category")["id"]
@@ -277,44 +279,55 @@ def build_fixture(stack: Stack, kc: Keycloak) -> dict[str, Any]:
     )["id"]
     o.post("/tenant/billing/enrollments", {"machine_id": machine, "effective_from": today}, "enroll machine")
     customer = o.post("/tenant/customers", {"code": f"C-{tag}", "name": "Road Builders Ltd"}, "create customer")["id"]
-    contract = o.post(
-        "/tenant/contracts",
-        {"customer_id": customer, "contract_number": f"CT-{tag}", "starts_on": today},
-        "create contract",
-    )["id"]
-    job = o.post(
-        "/tenant/jobs",
-        {
-            "contract_id": contract,
-            "job_number": f"J-{tag}",
-            "machine_id": machine,
-            "planned_start": now.isoformat(),
-            "hourly_rate": "85000",
-        },
-        "create job",
-    )["id"]
-    for action in ("SUBMIT", "APPROVE"):
-        o.post(f"/tenant/jobs/{job}/transitions", {"action": action}, f"job {action}", status=200)
-    # Opening readings are MANUAL with a mandatory photo (no camera/OCR in a headless test); the clients still read
-    # the mode from the synced policy snapshot rather than assuming it.
+    o.post(
+        "/tenant/rate-cards",
+        {"machine_category_id": category, "hourly_rate": "85000", "minimum_hours": "4", "reason": "Field E2E rate"},
+        "create rate card",
+    )
+    # Readings are MANUAL with a mandatory photo (no camera/OCR in a headless test); the clients still read the mode
+    # from the synced policy snapshot rather than assuming it.
     o.post(
         "/tenant/policies/METER_CAPTURE/versions",
         {
             "scope": "TENANT",
-            "values": {"opening_mode": "MANUAL", "closing_mode": "MANUAL", "manual_photo_required": True},
+            "values": {"capture_mode": "MANUAL", "manual_photo_required": True},
             "reason": "Field E2E capture rules",
         },
         "set capture policy",
     )
-    # The field E2E exercises the job flow, not engine-hour accountability: no baseline gate for this tenant.
+    # The field E2E exercises machine reports, not the daily-reading reminder.
     o.post(
         "/tenant/policies/ENGINE_HOURS/versions",
         {
             "scope": "TENANT",
-            "values": {"baseline_required_before_start": False, "daily_report_required": False},
-            "reason": "Field E2E: job flow without the engine-hour baseline gate",
+            "values": {"daily_report_required": False},
+            "reason": "Field E2E: no daily-reading reminder",
         },
         "set engine-hour policy",
+    )
+    # Customer hours on the machine: the owner records a bank-paid order, an accountant verifies it (hours active).
+    order = o.post(
+        "/tenant/hours-purchases",
+        {
+            "customer_id": customer,
+            "machine_id": machine,
+            "hours": "20",
+            "payment": {"method": "BANK", "reference": f"FE2E-{tag}", "received_at": now.isoformat()},
+        },
+        "record order",
+    )
+    acct_email = f"field-e2e-acct-{tag}@example.com"
+    o.post(
+        "/tenant/access/members",
+        {"email": acct_email, "first_name": "Field", "last_name": "Accountant", "role_key": "accountant"},
+        "invite accountant",
+    )
+    kc.user(acct_email, None)  # created by the invite (in the tenant accountant group)
+    Member(stack, kc, acct_email, tenant_id).post(
+        f"/tenant/customer-payments/{order['payment']['id']}/decision",
+        {"verified": True, "note": "Field E2E fixture"},
+        "verify order payment",
+        status=200,
     )
     sup_email = f"field-e2e-sup-{tag}@example.com"
     o.post(
@@ -337,15 +350,15 @@ def build_fixture(stack: Stack, kc: Keycloak) -> dict[str, Any]:
     return {
         "api_base": stack.api_base,
         "tenant_id": tenant_id,
-        "job_id": job,
         "machine_id": machine,
         "supervisor_email": sup_email,
         "customer_id": customer,
+        "purchase_id": order["id"],
         **finance,
     }
 
 
-def finance_fixture(o: Owner, tag: str, staff: str) -> dict[str, Any]:
+def finance_fixture(o: Member, tag: str, staff: str) -> dict[str, Any]:
     """An active expense category and a cash float for the supervisor (so collections, handovers and custody
     expenses have a balance to move). The tenant keeps the default EXPENSE_CAPTURE policy (receipt and GPS fix
     required, every expense needs approval). Each run uses a fresh tenant, so this is idempotent per fixture."""
@@ -405,7 +418,9 @@ def main(argv: list[str]) -> int:
         token = supervisor_token(kc, fixture.pop("supervisor_email"))
         write_private(out, {**fixture, **token, "keycloak_cleanup": kc.cleanup_info()})
         done = True
-        print(f"FIELD E2E SETUP OK tenant={fixture['tenant_id']} job={fixture['job_id']} at={time.strftime('%X')}")
+        print(
+            f"FIELD E2E SETUP OK tenant={fixture['tenant_id']} machine={fixture['machine_id']} at={time.strftime('%X')}"
+        )
         return 0
     finally:
         if not done:

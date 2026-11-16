@@ -1,12 +1,12 @@
 """Drill (f): queue backlog recovery (throwaway drill tenant).
 
-    cd backend && uv run python ../scripts/drills/queue_backlog.py [--positions 2000] [--jobs 60]
+    cd backend && uv run python ../scripts/drills/queue_backlog.py [--positions 2000] [--reports 60]
 
 The timeline and notification workers are stopped; a burst of `--positions` tracker positions (8 concurrent
-senders, gateway path) and `--jobs` job submissions (each → JobPendingApproval → one owner notification) builds a
-Kafka backlog. The workers are started again and the catch-up of each consumer group to lag 0 is timed; then
-every acknowledged position is checked stored once, every job event notified once, and the drill machines' latest
-positions/timeline reflect the newest fixes.
+senders, gateway path) and `--reports` machine report submissions (each → MachineReportSubmitted → one manager
+notification) builds a Kafka backlog. The workers are started again and the catch-up of each consumer group to lag 0
+is timed; then every acknowledged position is checked stored once, every machine report event notified once, and
+the drill machines' latest positions/timeline reflect the newest fixes.
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ STOPPED = ("timeline-worker", "notification-worker")
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--positions", type=int, default=2000)
-    ap.add_argument("--jobs", type=int, default=60)
+    ap.add_argument("--reports", "--jobs", dest="reports", type=int, default=60)
     a = ap.parse_args()
     guard_local()
     state = load_state()
@@ -50,7 +50,7 @@ def main() -> None:
     ev = Evidence("queue-backlog", "Queue backlog recovery (timeline + notification workers stopped during a burst)")
     ev.say(
         f"Throwaway tenant `{tid}`; burst of {a.positions} positions over {len(state['machines'])} machines and "
-        f"{a.jobs} job submissions while {', '.join(STOPPED)} are stopped."
+        f"{a.reports} machine report submissions while {', '.join(STOPPED)} are stopped."
     )
     ev.say("")
     ev.say(f"* Baseline lag {lags()}")
@@ -83,8 +83,8 @@ def main() -> None:
     with ThreadPoolExecutor(8) as pool:
         list(pool.map(send, range(a.positions)))
     with httpx.Client(timeout=30) as c:
-        for _ in range(a.jobs):
-            act.job(c)
+        for _ in range(a.reports):
+            act.report(c)
     burst_s = time.monotonic() - t0
     time.sleep(5)  # let the relay publish
     backlog = {g: kafka_lag(g) for g in ("asseta-timeline", "asseta-notification")}
@@ -128,9 +128,9 @@ def main() -> None:
         str(eff),
     )
     ev.check(
-        "every job event notified exactly once",
-        eff["job_events"] == eff["jobs_submitted"] == a.jobs
-        and eff["job_events_without_notification"] == 0
+        "every machine report event notified exactly once",
+        eff["report_events"] == eff["reports_submitted"] == a.reports
+        and eff["report_events_without_notification"] == 0
         and eff["duplicate_notifications"] == 0,
         str(eff),
     )
@@ -144,7 +144,7 @@ def main() -> None:
         ],
         commands=[
             "cd backend",
-            f"uv run python ../scripts/drills/queue_backlog.py --positions {a.positions} --jobs {a.jobs}",
+            f"uv run python ../scripts/drills/queue_backlog.py --positions {a.positions} --reports {a.reports}",
         ],
     )
 

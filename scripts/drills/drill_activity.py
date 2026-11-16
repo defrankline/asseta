@@ -1,9 +1,11 @@
 """Background domain activity on the throwaway drill tenant, used by the disruption drills.
 
 Each tick posts one tracker position through the gateway-authenticated ingestion path (→ PositionStored outbox
-event → timeline worker, notification worker live channel) and every `job_every` ticks creates a job and submits it
-(→ JobPendingApproval → notification worker inbox row for the owner). Every call's outcome is recorded so a drill
-can prove "API stayed up" and verify that each accepted effect reached the consumers exactly once.
+event → timeline worker, notification worker live channel) and every `report_every` ticks the owner submits an
+opening machine report on the next drill machine (→ MachineReportSubmitted → notification worker inbox row for the
+drill manager, the other approver). The manager rejects a machine's waiting report before its next one (one report per
+machine waits for a decision). Every call's outcome is recorded so a drill can prove "API stayed up" and verify that
+each accepted effect reached the consumers exactly once.
 """
 
 from __future__ import annotations
@@ -23,9 +25,9 @@ from asseta.tools.gps_simulator import Fix, traccar_payload
 
 
 class Activity(threading.Thread):
-    def __init__(self, state: dict[str, Any], interval: float = 0.5, job_every: int = 4, machines: int = 20):
+    def __init__(self, state: dict[str, Any], interval: float = 0.5, report_every: int = 4, machines: int = 20):
         super().__init__(daemon=True)
-        self.state, self.interval, self.job_every = state, interval, job_every
+        self.state, self.interval, self.report_every = state, interval, report_every
         self.machines = state["machines"][:machines]
         self.session = Session(state)
         self.stop_flag = threading.Event()
@@ -33,7 +35,9 @@ class Activity(threading.Thread):
         self.outcomes: Counter[str] = Counter()
         self.failures: list[tuple[float, str, str]] = []
         self.positions: dict[tuple[str, int], float] = {}  # (device, epoch s) -> sent at
-        self.jobs: list[str] = []
+        self.reports: list[str] = []
+        self.waiting: dict[str, str] = {}  # machine id -> its report waiting for a decision
+        self._next = 0
         self.started_at = now_utc()
         self._sec = int(time.time()) - 600  # event times advance 1 s per position: unique per device, never future
 
@@ -62,31 +66,54 @@ class Activity(threading.Thread):
         if self._record("position", status):
             self.positions[(m["device"], int(t.timestamp()))] = time.time()
 
-    def job(self, c: httpx.Client) -> None:
-        m = random.choice(self.machines)
-        tag = uuid.uuid4().hex[:8]
+    def report(self, c: httpx.Client) -> None:
+        """An opening machine report (a manual DAILY reading, no lines) on the next drill machine, as the owner."""
+        m = self.machines[self._next % len(self.machines)]
+        self._next += 1
         try:
+            waiting = self.waiting.pop(m["machine_id"], None)
+            if waiting:  # one report per machine waits for a decision: the manager rejects the earlier one
+                r = c.post(
+                    f"{API}/tenant/machine-reports/{waiting}/reject",
+                    headers=self.session.headers("manager"),
+                    json={"reason": "Drill: superseded"},
+                )
+                if not self._record("report.reject", r.status_code):
+                    self.waiting[m["machine_id"]] = waiting
+                    return
+            at = now_utc()
             r = c.post(
-                f"{API}/tenant/jobs",
+                f"{API}/tenant/machine-reports",
                 headers=self.session.headers(),
                 json={
-                    "contract_id": self.state["contract_id"],
-                    "job_number": f"DRL-{tag}",
+                    "id": str(uuid.uuid4()),
                     "machine_id": m["machine_id"],
-                    "planned_start": now_utc().isoformat(),
-                    "hourly_rate": "50000",
+                    "opening": True,
+                    "lines": [],
+                    "capture": {
+                        "id": str(uuid.uuid4()),
+                        "machine_id": m["machine_id"],
+                        "kind": "DAILY",
+                        "capture_mode": "MANUAL",
+                        "reading": "100.0",
+                        "gps": {
+                            "status": "FIX",
+                            "latitude": -6.8,
+                            "longitude": 39.28,
+                            "accuracy_m": 6.0,
+                            "captured_at": at.isoformat(),
+                            "provider": "fused",
+                        },
+                        "device_id": "drill-device",
+                        "captured_at": at.isoformat(),
+                    },
                 },
             )
-            if not self._record("job.create", r.status_code):
-                return
-            jid = r.json()["id"]
-            r = c.post(
-                f"{API}/tenant/jobs/{jid}/transitions", headers=self.session.headers(), json={"action": "SUBMIT"}
-            )
-            if self._record("job.submit", r.status_code):
-                self.jobs.append(jid)
+            if self._record("report.submit", r.status_code):
+                self.reports.append(r.json()["id"])
+                self.waiting[m["machine_id"]] = r.json()["id"]
         except httpx.HTTPError as exc:
-            self._record("job", type(exc).__name__)
+            self._record("report", type(exc).__name__)
 
     def run(self) -> None:
         n = 0
@@ -95,8 +122,8 @@ class Activity(threading.Thread):
                 t0 = time.monotonic()
                 self.position(c)
                 n += 1
-                if n % self.job_every == 0:
-                    self.job(c)
+                if n % self.report_every == 0:
+                    self.report(c)
                 time.sleep(max(0.0, self.interval - (time.monotonic() - t0)))
 
     def stop(self) -> None:
@@ -123,9 +150,9 @@ def verify_effects(state: dict[str, Any], act: Activity) -> dict[str, Any]:
     lost = [k for k in act.positions if k not in stored]
     dup_pos = sum(1 for k in act.positions if stored.get(k, 0) > 1)
     pending_events = sql(
-        "SELECT o.id::text FROM outbox_event o WHERE o.tenant_id = %s AND o.event_type = 'JobPendingApproval' "
-        "AND o.payload->>'job_id' = ANY(%s)",
-        (tid, act.jobs),
+        "SELECT o.id::text FROM outbox_event o WHERE o.tenant_id = %s AND o.event_type = 'MachineReportSubmitted' "
+        "AND o.payload->>'report_id' = ANY(%s)",
+        (tid, act.reports),
     )
     event_ids = [r[0] for r in pending_events]
     notif = sql(
@@ -140,9 +167,9 @@ def verify_effects(state: dict[str, Any], act: Activity) -> dict[str, Any]:
         "positions_acked": len(act.positions),
         "positions_lost": len(lost),
         "positions_duplicated": dup_pos,
-        "jobs_submitted": len(act.jobs),
-        "job_events": len(event_ids),
-        "job_events_without_notification": len(set(event_ids) - notified),
+        "reports_submitted": len(act.reports),
+        "report_events": len(event_ids),
+        "report_events_without_notification": len(set(event_ids) - notified),
         "duplicate_notifications": dup_notif,
         "outbox_unpublished": int(unpublished),
     }

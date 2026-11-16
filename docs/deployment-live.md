@@ -303,57 +303,54 @@ VERIFIED with an ACTIVE subscription and FULL access, already has machines, or i
 * 3 job sites (road works, quarry, plant yard) with an allowed-area geofence each, bound to that site's machines.
 * 6 simulated trackers (tracker model "Simulated OsmAnd demo simulator", created once on the platform), 4 hours of
   GPS history (never before today 00:05 UTC), operators on every tracked machine, a supervisor on the working ones.
-* 3 customers, 3 contracts, 6 jobs (4 APPROVED for the working machines, 1 pending approval, 1 draft), 5 expense
-  categories, and two demo accounts: `supervisor.wambura@demo.asseta.co.tz` (field app) and
-  `accountant.wambura@demo.asseta.co.tz`. `demo.asseta.co.tz` has no mail server, so nothing is ever delivered;
-  `--demo-domain` changes it (do not use a domain where real people receive mail).
-* Jobs are approved but not started. `field` (below) adds the supervisor's field work; J-2026-104 stays ready to
-  start live with the supervisor account during the demo.
+* 3 customers, an hourly rate card per machine type, 5 expense categories, and two demo accounts:
+  `supervisor.wambura@demo.asseta.co.tz` (field app) and `accountant.wambura@demo.asseta.co.tz`. `demo.asseta.co.tz`
+  has no mail server, so nothing is ever delivered; `--demo-domain` changes it (do not use a domain where real people
+  receive mail).
+* No machine has a starting reading yet: `field` (below) gives three of them their opening reports; TP-01 keeps none,
+  so its first report can be made live (an opening report) with the supervisor account during the demo.
 
 **What `field` adds** (run once, after `seed`). It plays a recent field history **as the demo supervisor**, through
 the offline sync protocol the phones use: it registers a device session (`demo-wambura-phone`), uploads evidence
 with the resumable blob upload, and sends the work as `POST /api/v1/sync/push` operations. So the server applies
 every rule exactly as for a real phone: meter validation and exceptions, phone GPS vs tracker comparison, the
 tenant's expense policy, cash custody and the audit trail (the actor is the supervisor).
-* J-2026-103 (WL-01): opening reading, started, work logs, closing reading, customer acknowledgement
-  (NAME_CONFIRMATION by "Grace Mushi") and completed, so it shows meter, billable hours and charges.
-* J-2026-101 (EX-01) and J-2026-102 (EX-02): opening reading, started and still IN_PROGRESS, with daily work logs
-  (WORK with a lunch gap, one STANDBY block, one short DOWNTIME with a note). There is no mid-job meter reading:
-  the API only has OPENING and CLOSING readings.
+* Hours sales: a cash order (`HOURS_PURCHASE`) per working machine, sized to cover the work reported below.
+* Machine reports (ADR-008) on WL-01, EX-01 and EX-02: an opening report first (a DAILY `METER_CAPTURE`, then
+  `MACHINE_REPORT` with `capture_id`, `opening: true`, `lines: []`), then one end-of-day report per past working day
+  (customer hours plus an IDLE_ON_SITE line for standby time). The office part (the supervisor's float, verifying the
+  customers' cash, approving reports between push rounds, since only one report per machine can wait) runs under one
+  temporary mandate. WL-01 ends with everything approved; the last report of EX-01 and EX-02 is left waiting for
+  approval, and today's work on them is not reported, so it can be reported live.
 * Fuel: one PURCHASE of 600 L into stock and an ISSUE to each of the three machines at TZS 3,200/L with the meter.
-* Cash: a TZS 500,000 float, a TZS 1,500,000 customer cash collection on J-2026-103 and a TZS 1,200,000 handover
+* Cash: a TZS 500,000 float, the customers' cash for their hours and a TZS 1,200,000 handover
   left unverified (CLAIMED) for the accountant. Four small cash expenses (lubricants, tyre repair, hydraulic hose,
   lunch allowance) with a GPS fix. Receipts and approvals follow the tenant's expense policy: with the default
   policy every expense needs a receipt (a generated placeholder image of the amount is uploaded) and none is
   auto-approved; with an auto-approve limit, the allowance is kept under it and the hose purchase above it.
 * Meter photos are generated placeholder images of the digits, not camera photos. When the policy asks for
   AUTOMATIC capture, the reading carries `ocr_engine = "demo-script (generated image, not a camera photo)"`, so
-  the record says how it was made. Opening readings start at each machine's current simulated engine hours.
+  the record says how it was made. Opening reports start at each machine's current simulated engine hours.
 
 Timing: everything is in the past, in the tenant's time zone, on its operating weekdays, between 07:30 and 17:30
-(narrowed by its operating window), and **never before the jobs were approved**: earlier records would rightly be
-flagged as work without authorization. With a seed four or more days old the history is exactly "J-2026-103
-started 4 days ago and completed yesterday, J-2026-101 started 3 days ago, J-2026-102 2 days ago", plus today's
-work so far. With a younger seed the same story is compressed into the working time since approval (all of it
-today if the seed ran this morning); with less than 3 h of working time since approval, `field` refuses and asks
-you to run it later. `--dry-run` prints the plan without signing in.
+(narrowed by its operating window), and never before the seed ran. With a seed four or more days old the history
+covers the last four working days plus today's work so far; with a younger seed it is compressed into the working
+time since the seed (all of it today if the seed ran this morning). `--dry-run` prints the plan without signing in.
 
 What to expect from the simulated trackers: the readings carry the phone GPS at the machine's spot on its site, so
 where a tracker fix exists within 5 minutes they compare within tolerance. The simulated trackers only report while
-`seed`/`feed` run, so for J-2026-103 the tracker's engine hours usually barely moved between its opening and
-closing readings: the server then raises a TELEMETRY_MISMATCH exception on the closing reading and the job is not
-billing-ready until someone reviews it in Exceptions. That is the control working on simulated data; resolve it
-during the demo to show the review flow.
+`seed`/`feed` run, so the tracker's engine hours usually barely move between two readings: the server then adds a
+TELEMETRY_MISMATCH finding to the report's reading (evidence for the approver; it does not hold the reading). That is
+the control working on simulated data; show it during the demo when approving a report.
 
 Safety: `field` signs in only as `supervisor.wambura@demo.asseta.co.tz`, with the password from
 `demo-wambura-credentials.json` (never printed), and only if that e-mail, its Keycloak user id and its app user id
 are the ones `seed` recorded in the state file. It uses its own throwaway Keycloak client (deleted at the end). The
 float is the only office action (a supervisor cannot issue cash to themselves): it is issued under the same
-temporary mandate mechanism as `seed`. `field` refuses when any field activity exists (a job not APPROVED, or any
-reading, work log, fuel, expense, collection or handover of the supervisor). The operations are kept in the state
+temporary mandate mechanism as `seed`. `field` refuses when any field activity exists (any reading, machine report,
+fuel, expense, collection or handover of the supervisor). The operations are kept in the state
 file before they are sent, so after a failure `field` again re-sends the same operations, which the server answers
-as duplicates. `retire` cannot cancel the two IN_PROGRESS jobs (only unstarted jobs can be cancelled): they stay
-as history.
+as duplicates.
 
 **Billing.** Telemetry is only accepted for enrolled machines, so all 7 machines are **enrolled from today on the
 tenant's subscription**. They count as billable assets on the client's next platform invoice (the seed prints
@@ -364,8 +361,8 @@ the period closes.
 by you; `.deploy/` is not in git or in backups). They are never printed. `.deploy/demo-wambura-state.json` holds
 the created ids and the simulator state the feed continues from (no secrets).
 
-**The feed.** Working machines (EX-01, EX-02, WL-01, TP-01) run on their site with the ignition on in runs shorter
-than the tenant's unreported-engine-activity threshold, with short engine-off breaks. They only travel at
+**The feed.** Working machines (EX-01, EX-02, WL-01, TP-01) run on their site with the ignition on in runs of about
+22 minutes, with short engine-off breaks. They only travel at
 "moving" speed inside the tenant's operating window. Parked machines (GR-01, RL-01) report a fixed position with
 the ignition off and never switch it on. Engine hours rise only while an engine runs. Fixes go every 30 s. Time
 only moves forward: a lock file allows one feed per tenant, and each fix is later than the last one sent (kept in
@@ -381,10 +378,11 @@ real OsmAnd devices. Without it, the fixes go straight to the gateway endpoint (
 the gateway key from `.env.production`: the same ingestion path Traccar forwards to.
 
 **Removing it later.** Nothing is ever deleted (audit and history stay). `scripts/seed-demo-tenant.sh retire --yes`
-soft-removes what `seed` created, using the ids in the state file: it cancels the unstarted jobs, unassigns and
+soft-removes what `seed` created, using the ids in the state file: it rejects machine reports still waiting for a
+decision (a waiting report blocks retiring its machine), unassigns and
 retires the trackers, ends the enrollments (billing stops from today), deactivates the machines, geofences, sites,
-contracts, customers and staff, revokes the demo users' roles and disables their logins (and removes the Traccar
-devices if `TRACCAR_ADMIN_EMAIL` is set). A step the API refuses is reported; run it again later. Job history,
+customers and staff, revokes the demo users' roles and disables their logins (and removes the Traccar
+devices if `TRACCAR_ADMIN_EMAIL` is set). A step the API refuses is reported; run it again later. Report history,
 positions and audit events remain, as for any retired machine.
 
 **Going live without demo data.** When the demo tenant becomes the real company, erase its demo data instead (keeps

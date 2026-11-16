@@ -2,8 +2,8 @@
 # Gate 4 live E2E: the native apps' REAL sync clients against the running docker compose stack (API + Keycloak).
 #   scripts/field-e2e.sh            # uses ./.env (or ASSETA_ENV_FILE)
 # For each platform: build the tests first, then create a fresh fixture (throwaway Keycloak client/users, tenant,
-# APPROVED job, supervisor; access tokens live 300 s) and run that platform's live test right away. The fixture file
-# (mode 600, private temp dir) is the only place secrets go; nothing secret is printed. Keycloak throwaways are
+# machine with customer hours, supervisor; access tokens live 300 s) and run that platform's live test right away.
+# The fixture file (mode 600, private temp dir) is the only place secrets go; nothing secret is printed. Keycloak throwaways are
 # deleted on exit, pass or fail. Exits non-zero if a live test fails or was skipped.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
