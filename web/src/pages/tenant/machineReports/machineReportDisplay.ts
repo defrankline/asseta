@@ -100,3 +100,36 @@ export const REASON_ERROR_HINTS: Readonly<Record<string, string>> = {
   DUPLICATE_CODE: 'Another reason already uses this code. Choose a different code.',
   REASON_CODE_TAKEN: 'Another reason already uses this code. Choose a different code.',
 };
+
+export type MachineReportState = 'AWAITING' | 'REJECTED' | 'DUE' | 'UP_TO_DATE';
+
+/** The report state of one of my machines, as the Supervisor apps show it. */
+export function machineReportState(
+  s: {
+    pending_report_id: string | null;
+    rejected_report_id: string | null;
+    previous_reading?: string | null;
+    days_since_report: number | null;
+  },
+  reminderDays: number | null,
+): MachineReportState {
+  if (s.pending_report_id !== null) return 'AWAITING';
+  if (s.rejected_report_id !== null) return 'REJECTED';
+  // Never reported, no starting reading yet, or no report for the company's reminder days.
+  if (s.previous_reading == null || s.days_since_report === null) return 'DUE';
+  if (reminderDays !== null && s.days_since_report >= reminderDays) return 'DUE';
+  return 'UP_TO_DATE';
+}
+
+export const MACHINE_STATE_LABELS: Readonly<Record<MachineReportState, string>> = {
+  AWAITING: 'Awaiting approval',
+  REJECTED: 'Rejected · redo',
+  DUE: 'Report due',
+  UP_TO_DATE: 'Up to date',
+};
+export const MACHINE_STATE_TONES: Readonly<Record<MachineReportState, StatusTone>> = {
+  AWAITING: 'info',
+  REJECTED: 'error',
+  DUE: 'warning',
+  UP_TO_DATE: 'success',
+};

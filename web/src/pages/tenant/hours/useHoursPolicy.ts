@@ -28,6 +28,8 @@ export interface HoursPolicy {
   fieldNoncashPayments: boolean;
   /** Field staff may record a credit line (holders of credit_activate always may). */
   fieldCreditSales: boolean;
+  /** Days without a report before a machine is due (null: only never-reported machines). */
+  machineReportReminderDays: number | null;
 }
 
 const MODES: readonly BillingMode[] = ['INVOICE', 'PREPAID_HOURS'];
@@ -60,6 +62,12 @@ export function parseHoursPolicy(values: Record<string, unknown>): HoursPolicy {
       typeof values.max_discount_percent === 'string' ? values.max_discount_percent : '100',
     fieldNoncashPayments: flag(values.field_noncash_payments, false),
     fieldCreditSales: flag(values.field_credit_sales, false),
+    machineReportReminderDays:
+      values.machine_report_reminder_days === null
+        ? null
+        : typeof values.machine_report_reminder_days === 'number'
+          ? values.machine_report_reminder_days
+          : 3,
   };
 }
 

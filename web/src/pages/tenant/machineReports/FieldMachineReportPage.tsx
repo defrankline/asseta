@@ -20,20 +20,18 @@ import { useSession } from '../../../session/useSession';
 import { formatInstantIn } from '../../../utils/time';
 import { MachineFilter } from '../shared/financePickers';
 import { machineText } from '../shared/names';
-import { hoursLabel } from './machineReportDisplay';
+import { StatusChip } from '../../../components/display/StatusChip';
+import { useHoursPolicy } from '../hours/useHoursPolicy';
+import {
+  hoursLabel,
+  MACHINE_STATE_LABELS,
+  MACHINE_STATE_TONES,
+  machineReportState,
+} from './machineReportDisplay';
 import { MachineReportDialog } from './MachineReportDialog';
 import { reportColumns } from './reportColumns';
 
 type Opened = { machineId: string; corrects: MachineReportDto | null } | null;
-
-function stateText(s: MachineReportStatusDto): string {
-  if (s.pending_report_id !== null) {
-    return `Waiting for a decision (${s.pending_report_number ?? 'report'})`;
-  }
-  if (s.rejected_report_id !== null) return 'Rejected: correct it';
-  if (s.previous_reading == null) return 'No starting reading yet';
-  return 'Ready for a report';
-}
 
 /**
  * Field work › Machine report: the caller's machines with their report status, a new report (reading
@@ -47,6 +45,9 @@ export function FieldMachineReportPage() {
   const canSubmit = useCanMutate(PERMISSIONS.tenantMachineReportSubmit);
   const canReportAny = hasPermission(PERMISSIONS.tenantMachineReportApprove);
   const canOpen = hasPermission(PERMISSIONS.tenantMachineReportRead);
+  const hours = useHoursPolicy();
+  // The company's reminder days (default 3; null = only never-reported machines are due).
+  const reminderDays = hours.policy === null ? 3 : hours.policy.machineReportReminderDays;
   const [opened, setOpened] = useState<Opened>(null);
   const [other, setOther] = useState<MachineDto | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -125,7 +126,26 @@ export function FieldMachineReportPage() {
                       render: (s) =>
                         s.days_since_report === null ? 'Never' : String(s.days_since_report),
                     },
-                    { id: 'state', header: 'Report', render: stateText },
+                    {
+                      id: 'state',
+                      header: 'Report',
+                      render: (s) => {
+                        const state = machineReportState(s, reminderDays);
+                        return (
+                          <StatusChip
+                            status={state}
+                            tones={MACHINE_STATE_TONES}
+                            label={
+                              state === 'AWAITING' && s.pending_report_number !== null
+                                ? `${MACHINE_STATE_LABELS[state]} · ${s.pending_report_number}`
+                                : state === 'DUE' && s.previous_reading == null
+                                  ? `${MACHINE_STATE_LABELS[state]} · first reading`
+                                  : MACHINE_STATE_LABELS[state]
+                            }
+                          />
+                        );
+                      },
+                    },
                     {
                       id: 'action',
                       header: '',

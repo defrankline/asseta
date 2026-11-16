@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { REPORT } from './machineReportFixtures';
+import { machineReportState } from './machineReportDisplay';
+import { REPORT, STATUS } from './machineReportFixtures';
 import {
   emptyLine,
   reportSchema,
@@ -115,5 +116,17 @@ describe('machine report rules', () => {
       corrects: null,
     });
     expect(opening).toMatchObject({ opening: true, lines: [] });
+  });
+});
+
+describe('report due', () => {
+  it('follows the company reminder days, never-reported and first-reading machines', () => {
+    expect(machineReportState({ ...STATUS, days_since_report: 2 }, 3)).toBe('UP_TO_DATE');
+    expect(machineReportState({ ...STATUS, days_since_report: 3 }, 3)).toBe('DUE');
+    expect(machineReportState({ ...STATUS, days_since_report: 30 }, null)).toBe('UP_TO_DATE');
+    expect(machineReportState({ ...STATUS, days_since_report: null }, null)).toBe('DUE');
+    expect(machineReportState({ ...STATUS, previous_reading: null }, 3)).toBe('DUE');
+    expect(machineReportState({ ...STATUS, rejected_report_id: 'r' }, 3)).toBe('REJECTED');
+    expect(machineReportState({ ...STATUS, pending_report_id: 'p' }, 3)).toBe('AWAITING');
   });
 });

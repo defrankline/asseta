@@ -1,6 +1,7 @@
 import {
   Alert,
   Button,
+  Link,
   Dialog,
   DialogActions,
   DialogContent,
@@ -9,6 +10,7 @@ import {
 } from '@mui/material';
 import { useFormikContext } from 'formik';
 import { useCallback, useMemo, useState } from 'react';
+import { Link as RouterLink } from 'react-router';
 import { newUuid } from '../../../api/ids';
 import type {
   AvailableHoursDto,
@@ -23,6 +25,7 @@ import { StepperFormDialog } from '../../../components/forms/StepperFormDialog';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
+import { ROUTES } from '../../../navigation/routes';
 import { compareDecimal, isDecimalString } from '../../../utils/money';
 import { formatInstantIn } from '../../../utils/time';
 import { CaptureEvidenceFields } from '../readings/ReadingEvidence';
@@ -81,6 +84,12 @@ function ReadingStep({ context, rules, corrects, photo, onPhotoChange, gps }: Re
           },
         ]}
       />
+      <Typography variant="body2">
+        Reading looks wrong or the meter was replaced?{' '}
+        <Link component={RouterLink} to={ROUTES.fieldReadings}>
+          Readings and meter resets
+        </Link>
+      </Typography>
       {rules.previous === null && (
         <Alert severity="info">
           This machine has no starting reading yet. Record its reading now: once approved it is the

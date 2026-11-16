@@ -97,9 +97,9 @@ describe('Field work › Machine report', () => {
     ]);
     renderWithProviders(<FieldMachineReportPage />, { tenantPermissions: [SUBMIT, READ] });
     const table = await screen.findByRole('table', { name: 'My machines' });
-    expect(within(table).getByText('Ready for a report')).toBeInTheDocument();
-    expect(within(table).getByText('Waiting for a decision (MR-2026-00001)')).toBeInTheDocument();
-    expect(within(table).getByText('Rejected: correct it')).toBeInTheDocument();
+    expect(within(table).getByText('Report due')).toBeInTheDocument();
+    expect(within(table).getByText('Awaiting approval · MR-2026-00001')).toBeInTheDocument();
+    expect(within(table).getByText('Rejected · redo')).toBeInTheDocument();
     expect(within(table).getByRole('button', { name: 'New report' })).toBeInTheDocument();
     expect(within(table).getByRole('button', { name: 'Correct report' })).toBeInTheDocument();
     expect(within(table).getByRole('button', { name: 'View' })).toBeInTheDocument();
