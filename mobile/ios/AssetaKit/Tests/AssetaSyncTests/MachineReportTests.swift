@@ -103,6 +103,15 @@ struct MachineReportTests {
         #expect(MachineReportStanding.of(state(rejected: rejected), unsentReport: false, reminderDays: 3) == .rejected(reportID: rejected))
         #expect(MachineReportStanding.rejected(reportID: rejected).needsReport && MachineReportStanding.opening.needsReport)
         #expect(!MachineReportStanding.upToDate.needsReport)
+        // The Supervisor's reminder days: a policy that failed to load counts as 3; an explicit null switches them off.
+        #expect(MachineReportStanding.reminderDays(nil) == 3)
+        let off = CustomerHoursPolicyValues(enabled: true, walkInAllowed: true, transferRequiresApproval: true,
+                                            machineReportReminderDays: nil)
+        #expect(MachineReportStanding.reminderDays(off) == nil)
+        #expect(MachineReportStanding.of(state(days: 30), unsentReport: false,
+                                         reminderDays: MachineReportStanding.reminderDays(off)) == .upToDate)
+        #expect(MachineReportStanding.of(state(days: 3), unsentReport: false,
+                                         reminderDays: MachineReportStanding.reminderDays(nil)) == .due)
     }
 
     @Test func aRejectedReportIsRedoneFromItsLines() {

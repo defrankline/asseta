@@ -72,9 +72,54 @@ struct MachineReportOwnerTests {
         let quiet = MachineReportStatusDTO(machineID: UUID(), machineCode: "EX-02", machineName: "Komatsu", previousReading: 3182.8,
                                            daysSinceReport: 3)
         let fresh = MachineReportStatusDTO(machineID: UUID(), machineCode: "WL-01", previousReading: 5016.8, daysSinceReport: 1)
-        let rows = AttentionRow.rows(pending: [Self.report(at: now)], states: [quiet, fresh], now: now)
+        let rows = AttentionRow.rows(pending: [Self.report(at: now)], states: [quiet, fresh], reminderDays: 3, now: now)
         #expect(rows.map(\.title) == ["EX-01 report · 80 h non-productive", "EX-02 · no report for 3 days"])
         #expect(rows[0].pill == MachineReportOwnerTexts.review && rows[1].pill == MachineReportOwnerTexts.overdue)
+    }
+
+    @Test func overdueFollowsTheTenantsReminderDays() {
+        let now = Date(timeIntervalSince1970: 1_792_000_000)
+        let five = MachineReportStatusDTO(machineID: UUID(), machineCode: "EX-02", previousReading: 3182.8, daysSinceReport: 5)
+        let two = MachineReportStatusDTO(machineID: UUID(), machineCode: "WL-01", previousReading: 5016.8, daysSinceReport: 2)
+        let never = MachineReportStatusDTO(machineID: UUID(), machineCode: "GR-01", previousReading: 900, daysSinceReport: nil)
+        let opening = MachineReportStatusDTO(machineID: UUID(), machineCode: "DZ-01", previousReading: nil)
+        let rejected = MachineReportStatusDTO(machineID: UUID(), machineCode: "EX-03", previousReading: 100, daysSinceReport: 1,
+                                              rejectedReportID: UUID())
+        let waiting = MachineReportStatusDTO(machineID: UUID(), machineCode: "EX-04", previousReading: 100, daysSinceReport: 9,
+                                             pendingReportID: UUID(), rejectedReportID: UUID())
+        let all = [five, two, never, opening, rejected, waiting]
+        func titles(_ days: Int?) -> [String] {
+            AttentionRow.rows(pending: [], states: all, reminderDays: days, now: now).map(\.title)
+        }
+        #expect(titles(3) == ["EX-02 · no report for 5 days", "EX-03 · report rejected, not yet redone",
+                              "GR-01 · no report yet", "DZ-01 · no report yet"])
+        #expect(titles(2) == ["EX-02 · no report for 5 days", "WL-01 · no report for 2 days",
+                              "EX-03 · report rejected, not yet redone", "GR-01 · no report yet", "DZ-01 · no report yet"])
+        #expect(titles(7) == ["EX-03 · report rejected, not yet redone", "GR-01 · no report yet", "DZ-01 · no report yet"])
+        // Reminders off: only never reported, no first reading and rejected machines.
+        #expect(titles(nil) == titles(7))
+        // A machine with a report waiting is never overdue.
+        #expect(OverdueMachine.of(waiting, reminderDays: 1) == nil)
+        #expect(OverdueMachine.of(five, reminderDays: 3)?.pill == "No report 5 days")
+        #expect(OverdueMachine.of(never, reminderDays: 3)?.pill == "No report yet")
+        #expect(OverdueMachine.of(opening, reminderDays: nil)?.pill == "No report yet")
+        #expect(OverdueMachine.of(rejected, reminderDays: 3)?.pill == "Rejected")
+    }
+
+    @Test func reminderDaysDefaultToThreeAndNullSwitchesThemOff() throws {
+        func policy(_ extra: String) throws -> CustomerHoursPolicyValues {
+            let json = """
+            {"policy_type":"CUSTOMER_HOURS","version_stamp":"v1","values":{"enabled":true,"walk_in_allowed":true,
+             "transfer_requires_approval":true,"reason_code_required":false\(extra)}}
+            """
+            return try AssetaJSON.decoder().decode(EffectivePolicyDTO<CustomerHoursPolicyValues>.self, from: Data(json.utf8)).values
+        }
+        #expect(MachineReportStanding.reminderDays(nil) == 3)
+        #expect(MachineReportStanding.reminderDays(try policy("")) == 3)
+        #expect(MachineReportStanding.reminderDays(try policy(",\"machine_report_reminder_days\":5")) == 5)
+        #expect(MachineReportStanding.reminderDays(try policy(",\"machine_report_reminder_days\":null")) == nil)
+        #expect(MachineReportStanding.reminderDays(try policy(",\"machine_report_reminder_days\":\"x\"")) == 3)
+        #expect(OwnerAPI.customerHoursPolicy().path.hasSuffix("/policies/CUSTOMER_HOURS/effective"))
     }
 
     @Test func decisionRequestsAndContractShapes() throws {

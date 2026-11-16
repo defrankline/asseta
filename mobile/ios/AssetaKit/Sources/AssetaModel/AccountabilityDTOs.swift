@@ -650,10 +650,11 @@ public struct CustomerHoursPolicyValues: Codable, Hashable, Sendable {
         fieldNoncashPayments = (try? c.decodeIfPresent(Bool.self, forKey: .fieldNoncashPayments)) ?? false
         cashActivation = HoursCashActivation(wire: (try? c.decodeIfPresent(String.self, forKey: .cashActivation)) ?? nil)
         fieldCreditSales = (try? c.decodeIfPresent(Bool.self, forKey: .fieldCreditSales)) ?? false
-        if c.contains(.machineReportReminderDays) {
-            machineReportReminderDays = try? c.decodeIfPresent(Int.self, forKey: .machineReportReminderDays)
+        // Absent or unreadable: the default 3; an explicit null: reminders off.
+        if c.contains(.machineReportReminderDays), (try? c.decodeNil(forKey: .machineReportReminderDays)) == true {
+            machineReportReminderDays = nil
         } else {
-            machineReportReminderDays = 3
+            machineReportReminderDays = (try? c.decodeIfPresent(Int.self, forKey: .machineReportReminderDays)) ?? 3
         }
     }
 

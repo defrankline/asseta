@@ -204,7 +204,68 @@ public struct SoldByMethod: Sendable, Equatable {
     }
 }
 
-/// Owner Home "Needs your attention": waiting machine reports and machines with no report for `days` days.
+/// A machine the owner should chase for a report: the shared ``MachineReportStanding`` (as the Supervisor app judges it)
+/// is due, needs its first reading, or was rejected and not redone. A machine with a report waiting is never overdue.
+public enum OverdueMachine: Sendable, Equatable {
+    /// No report for this many days (more than 0).
+    case noReportFor(days: Int)
+    /// Never reported (no report day known) or its first reading is still missing.
+    case noReportYet
+    /// The last report was rejected and not yet redone.
+    case rejected
+
+    /// The machine's overdue state under the tenant's reminder days (nil = reminders off), else nil.
+    public static func of(_ state: MachineReportStatusDTO, reminderDays: Int?) -> OverdueMachine? {
+        switch MachineReportStanding.of(state, unsentReport: false, reminderDays: reminderDays) {
+        case .due:
+            if let days = state.daysSinceReport, days > 0 { return .noReportFor(days: days) }
+            return .noReportYet
+        case .opening: return .noReportYet
+        case .rejected: return .rejected
+        case .awaitingApproval, .upToDate: return nil
+        }
+    }
+
+    /// The overdue machines, longest without a report first (never reported last).
+    public static func list(_ states: [MachineReportStatusDTO], reminderDays: Int?) -> [(state: MachineReportStatusDTO, overdue: OverdueMachine)] {
+        let rows = states.compactMap { s in of(s, reminderDays: reminderDays).map { (state: s, overdue: $0) } }
+        return rows.enumerated().sorted { a, b in
+            let (da, db) = (a.element.state.daysSinceReport ?? -1, b.element.state.daysSinceReport ?? -1)
+            return da != db ? da > db : a.offset < b.offset
+        }.map(\.element)
+    }
+
+    /// Owner Home row title ("EX-02 · no report for 3 days").
+    public func title(_ machine: String) -> String {
+        switch self {
+        case let .noReportFor(days): MachineReportOwnerTexts.attentionMissing(machine, days)
+        case .noReportYet: MachineReportOwnerTexts.attentionNoReportYet(machine)
+        case .rejected: MachineReportOwnerTexts.attentionRejected(machine)
+        }
+    }
+
+    /// Machines screen pill ("No report 3 days").
+    public var pill: String {
+        switch self {
+        case let .noReportFor(days): MachineReportOwnerTexts.noReportDays(days)
+        case .noReportYet: MachineReportOwnerTexts.noReportYet
+        case .rejected: MachineReportOwnerTexts.pillRejected
+        }
+    }
+}
+
+extension OwnerAPI {
+    /// The tenant's CUSTOMER_HOURS policy (`machine_report_reminder_days` for overdue machines).
+    public static func customerHoursPolicy() -> APIRequest<EffectivePolicyDTO<CustomerHoursPolicyValues>> {
+        .get("\(tenant)/policies/CUSTOMER_HOURS/effective")
+    }
+}
+
+extension SnapshotKey {
+    public static let customerHoursPolicy = SnapshotKey("policy.CUSTOMER_HOURS")
+}
+
+/// Owner Home "Needs your attention": waiting machine reports and overdue machines (``OverdueMachine``).
 public struct AttentionRow: Sendable, Equatable, Identifiable {
     public enum Kind: Sendable, Equatable { case report(UUID), missing(UUID) }
     public let id: String
@@ -213,7 +274,8 @@ public struct AttentionRow: Sendable, Equatable, Identifiable {
     public let pill: String
     public let kind: Kind
 
-    public static func rows(pending: [MachineReportDTO], states: [MachineReportStatusDTO], missingAfterDays: Int = 3,
+    /// `reminderDays`: the tenant's `machine_report_reminder_days` (``MachineReportStanding/reminderDays(_:)``).
+    public static func rows(pending: [MachineReportDTO], states: [MachineReportStatusDTO], reminderDays: Int?,
                             now: Date = Date()) -> [AttentionRow] {
         typealias T = MachineReportOwnerTexts
         var rows = pending.sorted { $0.submittedAt > $1.submittedAt }.map { r in
@@ -224,8 +286,8 @@ public struct AttentionRow: Sendable, Equatable, Identifiable {
                          detail: [r.submittedByName, T.when(r.submittedAt, now: now)].compactMap { $0 }.joined(separator: " · "),
                          pill: T.review, kind: .report(r.id))
         }
-        rows += states.filter { $0.pendingReportID == nil && ($0.daysSinceReport ?? 0) >= missingAfterDays }.map { s in
-            AttentionRow(id: "m-\(s.machineID)", title: T.attentionMissing(s.machineCode ?? "", s.daysSinceReport ?? 0),
+        rows += OverdueMachine.list(states, reminderDays: reminderDays).map { s, overdue in
+            AttentionRow(id: "m-\(s.machineID)", title: overdue.title(s.machineCode ?? s.machineName ?? ""),
                          detail: s.machineName ?? "", pill: T.overdue, kind: .missing(s.machineID))
         }
         return rows
@@ -266,6 +328,8 @@ public enum MachineReportOwnerTexts {
     public static func attentionReport(_ code: String, _ hours: String) -> String { "\(code) report · \(hours) h" }
     public static func attentionReportIdle(_ code: String, _ hours: String) -> String { "\(code) report · \(hours) h non-productive" }
     public static func attentionMissing(_ code: String, _ days: Int) -> String { "\(code) · no report for \(days) days" }
+    public static func attentionNoReportYet(_ code: String) -> String { "\(code) · no report yet" }
+    public static func attentionRejected(_ code: String) -> String { "\(code) · report rejected, not yet redone" }
 
     // Home
     public static let cashWithSupervisors = "Cash with supervisors"
@@ -356,6 +420,8 @@ public enum MachineReportOwnerTexts {
         "\(total) h · \(productive) productive" + (last.map { " · last reading \($0) h" + (pending ? " (pending)" : "") } ?? "")
     }
     public static func noReportDays(_ n: Int) -> String { "No report \(n) days" }
+    public static let noReportYet = "No report yet"
+    public static let pillRejected = "Rejected"
     public static let noReports = "No machine reports this week."
     // Money
     public static func soldIn(_ period: String) -> String { "SOLD \(period.uppercased())" }

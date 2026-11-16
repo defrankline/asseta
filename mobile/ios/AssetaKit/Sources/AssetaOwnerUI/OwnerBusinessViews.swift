@@ -117,11 +117,14 @@ struct OwnerMachinesView: View {
     @State private var fleet = Loader<[MachineMapDTO]>()
     @State private var reports = Loader<Page<MachineReportDTO>>()
     @State private var states = Loader<[MachineReportStatusDTO]>()
+    @State private var policy = Loader<EffectivePolicyDTO<CustomerHoursPolicyValues>>()
 
     var body: some View {
         let summary = MachineHoursSummary.of(reports.value?.items ?? [])
         let reported = Set(summary.machines.map(\.id))
-        let silent = (states.value ?? []).filter { !reported.contains($0.machineID) && ($0.daysSinceReport ?? 0) >= 3 }
+        let overdue = OverdueMachine.list(states.value ?? [], reminderDays: policy.reminderDays)
+        let overdueByMachine = Dictionary(overdue.map { ($0.state.machineID, $0.overdue) }, uniquingKeysWith: { a, _ in a })
+        let silent = overdue.filter { !reported.contains($0.state.machineID) }
         VStack(spacing: 0) {
             ShellHeader(T.machinesTitle, action: back) {
                 if model.features.fleet {
@@ -142,8 +145,12 @@ struct OwnerMachinesView: View {
                                     HStack {
                                         Text([m.code, m.name].filter { !$0.isEmpty }.joined(separator: " · ")).font(.system(size: 15, weight: .semibold))
                                         Spacer()
-                                        Text(m.submittedBy?.split(separator: " ").first.map(String.init) ?? "")
-                                            .font(.system(size: 13)).foregroundStyle(Shell.muted)
+                                        if let late = overdueByMachine[m.id] {
+                                            ShellPill(late.pill, tone: .bad)
+                                        } else {
+                                            Text(m.submittedBy?.split(separator: " ").first.map(String.init) ?? "")
+                                                .font(.system(size: 13)).foregroundStyle(Shell.muted)
+                                        }
                                     }
                                     .foregroundStyle(Shell.text)
                                     SplitBar([(percent(m.productive, of: m.total), Shell.accent),
@@ -156,13 +163,13 @@ struct OwnerMachinesView: View {
                             .buttonStyle(.plain)
                             if index < summary.machines.count - 1 || !silent.isEmpty { Divider().overlay(Shell.border) }
                         }
-                        ForEach(Array(silent.enumerated()), id: \.element.machineID) { index, s in
+                        ForEach(Array(silent.enumerated()), id: \.element.state.machineID) { index, row in
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
-                                    Text([s.machineCode, s.machineName].compactMap { $0 }.joined(separator: " · "))
+                                    Text([row.state.machineCode, row.state.machineName].compactMap { $0 }.joined(separator: " · "))
                                         .font(.system(size: 15, weight: .semibold)).foregroundStyle(Shell.text)
                                     Spacer()
-                                    ShellPill(T.noReportDays(s.daysSinceReport ?? 0), tone: .bad)
+                                    ShellPill(row.overdue.pill, tone: .bad)
                                 }
                             }
                             .padding(.horizontal, 16).padding(.vertical, 12)
@@ -190,6 +197,7 @@ struct OwnerMachinesView: View {
         if model.features.machineReports {
             await reports.load(model, .machineReports(from: week.from, to: week.to), OwnerAPI.machineReports(from: week.from, to: week.to))
             await states.load(model, .machineReportStatus, OwnerAPI.machineReportStatus())
+            await policy.load(model, .customerHoursPolicy, OwnerAPI.customerHoursPolicy())
         }
     }
 }

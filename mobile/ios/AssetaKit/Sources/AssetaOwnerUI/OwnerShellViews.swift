@@ -75,6 +75,7 @@ struct OwnerHomeView: View {
     let push: (AnyHashable) -> Void
     @State private var pending = Loader<Page<MachineReportDTO>>()
     @State private var states = Loader<[MachineReportStatusDTO]>()
+    @State private var policy = Loader<EffectivePolicyDTO<CustomerHoursPolicyValues>>()
     @State private var week = Loader<Page<MachineReportDTO>>()
     @State private var sold = Loader<Page<HoursPurchaseDTO>>()
     @State private var cash = Loader<[CashSupervisorSummaryDTO]>()
@@ -152,7 +153,8 @@ struct OwnerHomeView: View {
     }
 
     @ViewBuilder private var attention: some View {
-        let rows = AttentionRow.rows(pending: pending.value?.items ?? [], states: states.value ?? [])
+        let rows = AttentionRow.rows(pending: pending.value?.items ?? [], states: states.value ?? [],
+                                     reminderDays: policy.reminderDays)
         if rows.isEmpty {
             ShellCard { Text(T.nothingNeedsYou).font(.system(size: 14)).foregroundStyle(Shell.muted) }
         } else {
@@ -186,6 +188,7 @@ struct OwnerHomeView: View {
         if f.machineReports {
             await pending.load(model, .machineReportQueue, OwnerAPI.machineReports(pending: true))
             await states.load(model, .machineReportStatus, OwnerAPI.machineReportStatus())
+            await policy.load(model, .customerHoursPolicy, OwnerAPI.customerHoursPolicy())
             await self.week.load(model, .machineReports(from: week.from, to: week.to), OwnerAPI.machineReports(from: week.from, to: week.to))
         }
         if f.hoursRead {

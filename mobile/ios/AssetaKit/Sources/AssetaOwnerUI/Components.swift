@@ -43,6 +43,12 @@ final class Loader<Value: Codable & Sendable> {
     }
 }
 
+extension Loader where Value == EffectivePolicyDTO<CustomerHoursPolicyValues> {
+    /// `machine_report_reminder_days` of the loaded CUSTOMER_HOURS policy: 3 until it loads or when the read was refused
+    /// or failed (a cached copy counts while offline), nil when the tenant switched reminders off.
+    var reminderDays: Int? { MachineReportStanding.reminderDays(error == nil ? value?.values : nil) }
+}
+
 /// "Offline — data from 14:05 (stale)" above any screen showing cached data.
 struct StaleBanner: View {
     let fetchedAt: Date?

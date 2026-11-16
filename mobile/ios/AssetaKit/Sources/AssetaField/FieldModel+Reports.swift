@@ -12,8 +12,9 @@ extension FieldModel {
     var unsentReports: [UUID: MachineReportPayload] { services?.directory.unsentMachineReports() ?? [:] }
     var openCreditInvoices: [OpenCreditInvoice] { services?.directory.openCreditInvoices() ?? [] }
 
-    /// The tenant's reminder days (`machine_report_reminder_days`; 3 while the policy is unknown).
-    var reportReminderDays: Int? { access.hours.map(\.machineReportReminderDays) ?? 3 }
+    /// The tenant's reminder days (`machine_report_reminder_days`): 3 while the policy is unknown or failed to load,
+    /// nil (reminders off) when the tenant set it to null.
+    var reportReminderDays: Int? { MachineReportStanding.reminderDays(access.hours) }
 
     /// Each of my machines with its report status.
     var machineStandings: [(state: MachineReportStatusDTO, standing: MachineReportStanding)] {
