@@ -9,9 +9,9 @@ import { AsyncContent } from '../../../components/feedback/AsyncContent';
 import { NEUTRAL_REVIEW_NOTICE } from '../../../components/meter/exceptionText';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useNotify } from '../../../notifications/useNotify';
-import { CaptureCard } from './CaptureCard';
-import { readingKindFor, resultMessage } from './capturePolicy';
-import { ConsoleCaptureDialog } from './ConsoleCaptureDialog';
+import { CaptureCard } from '../readings/CaptureCard';
+import { readingKindFor, resultMessage } from '../readings/capturePolicy';
+import { ConsoleCaptureDialog } from '../readings/ConsoleCaptureDialog';
 
 interface Loaded {
   captures: MeterCaptureDto[];

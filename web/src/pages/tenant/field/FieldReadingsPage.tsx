@@ -24,9 +24,9 @@ import { useNotify } from '../../../notifications/useNotify';
 import { ProposeBaselineDialog } from '../engineHours/BaselineDialogs';
 import { SubmitDailyReportDialog } from '../engineHours/allocations/SubmitDailyReportDialog';
 import { ProposeCorrectionDialog } from '../engineHours/ProposeCorrectionDialog';
-import { CaptureCard } from '../jobDetail/CaptureCard';
-import { resultMessage } from '../jobDetail/capturePolicy';
-import { ConsoleCaptureDialog } from '../jobDetail/ConsoleCaptureDialog';
+import { CaptureCard } from '../readings/CaptureCard';
+import { resultMessage } from '../readings/capturePolicy';
+import { ConsoleCaptureDialog } from '../readings/ConsoleCaptureDialog';
 import { ChangeoverReadingDialog } from './ChangeoverReadingDialog';
 import { useFieldJobLabels, useFieldMachineLabels } from './fieldLookups';
 

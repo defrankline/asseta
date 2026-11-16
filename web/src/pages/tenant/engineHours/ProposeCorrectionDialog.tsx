@@ -18,14 +18,14 @@ import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
 import { humanize } from '../../../utils/text';
 import { formatInstantIn } from '../../../utils/time';
-import { CONSOLE_DEVICE_ID } from '../jobDetail/capturePolicy';
-import { CaptureEvidenceFields } from '../jobDetail/ReadingEvidence';
+import { CONSOLE_DEVICE_ID } from '../readings/capturePolicy';
+import { CaptureEvidenceFields } from '../readings/ReadingEvidence';
 import {
   captureModeField,
   gpsPendingError,
   readingField,
   useBrowserGps,
-} from '../jobDetail/readingEvidenceKit';
+} from '../readings/readingEvidenceKit';
 import { withErrorCode } from '../shared/errorHints';
 import { ENGINE_HOURS_ERROR_HINTS } from './engineHoursDisplay';
 

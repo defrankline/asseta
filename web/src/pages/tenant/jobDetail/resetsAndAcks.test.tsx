@@ -6,7 +6,7 @@ import type { meterService } from '../../../api/services/meterService';
 import { MACHINE_ID, ME_ID, makeAck, makeJob, makeReset } from '../../../test/jobFixtures';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { AcknowledgementTab } from './AcknowledgementTab';
-import { MeterResetsTab, OWN_RESET_TEXT } from './MeterResetsTab';
+import { MeterResetsTab, OWN_RESET_TEXT } from '../readings/MeterResetsTab';
 
 const mocks = vi.hoisted(() => ({
   listResets: vi.fn<typeof meterService.listResets>(),

@@ -16,7 +16,7 @@ import { useNotify } from '../../../notifications/useNotify';
 import { formatInstantIn } from '../../../utils/time';
 import { MachineFilter } from '../shared/financePickers';
 import { PersonName } from '../shared/PersonName';
-import type { ReadingMachine } from '../jobDetail/ConsoleCaptureDialog';
+import type { ReadingMachine } from '../readings/ConsoleCaptureDialog';
 import { ProposeBaselineDialog } from './BaselineDialogs';
 import { PROPOSAL_STATUS_OPTIONS } from './engineHoursDisplay';
 import { initialFilter } from '../../../navigation/urlFilters';

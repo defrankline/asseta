@@ -10,7 +10,7 @@ import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { jobDetailPath, ROUTES } from '../../../navigation/routes';
 import { formatInstantIn } from '../../../utils/time';
 import { humanize } from '../../../utils/text';
-import { CaptureCard } from '../jobDetail/CaptureCard';
+import { CaptureCard } from '../readings/CaptureCard';
 import { RecordDetail } from '../shared/RecordDetail';
 import { useMachineLabels } from '../shared/useMachineLabels';
 import { useRecordById } from '../shared/useRecordById';

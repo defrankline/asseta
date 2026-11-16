@@ -24,7 +24,7 @@ import { AcknowledgementTab } from './AcknowledgementTab';
 import { CapturesTab } from './CapturesTab';
 import { JobActions } from './JobActions';
 import { JobSummaryPanel } from './JobSummaryPanel';
-import { MeterResetsTab } from './MeterResetsTab';
+import { MeterResetsTab } from '../readings/MeterResetsTab';
 import { WorkLogTab } from './WorkLogTab';
 import { ENTITY, entityKey } from '../../../realtime/entities';
 import { useLiveRefresh } from '../../../realtime/hooks';

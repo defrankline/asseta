@@ -140,7 +140,17 @@ export const ROUTES = {
   fieldFuel: '/tenant/field/fuel',
   fieldExpenses: '/tenant/field/expenses',
   fieldCash: '/tenant/field/cash',
+  // Machine reports (ADR-008): backend `tenant.field.machine_report`, `tenant.approvals.machine_reports`
+  // and `tenant.machine_report_reasons` menus.
+  fieldMachineReport: '/tenant/field/machine-report',
+  tenantMachineReports: '/tenant/machine-reports',
+  tenantMachineReportDetail: '/tenant/machine-reports/:reportId',
+  tenantMachineReportReasons: '/tenant/machine-report-reasons',
 } as const;
+
+export function machineReportPath(reportId: string): string {
+  return `${ROUTES.tenantMachineReports}/${encodeURIComponent(reportId)}`;
+}
 
 export function platformInvoiceDetailPath(invoiceId: string): string {
   return `${ROUTES.platformInvoices}/${encodeURIComponent(invoiceId)}`;

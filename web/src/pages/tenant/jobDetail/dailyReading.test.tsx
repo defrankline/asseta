@@ -7,7 +7,7 @@ import type { policyService } from '../../../api/services/policyService';
 import { MACHINE_ID, makeCapture } from '../../../test/jobFixtures';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { ProposeCorrectionDialog } from '../engineHours/ProposeCorrectionDialog';
-import { ConsoleCaptureDialog } from './ConsoleCaptureDialog';
+import { ConsoleCaptureDialog } from '../readings/ConsoleCaptureDialog';
 
 const mocks = vi.hoisted(() => ({
   submitCapture: vi.fn<typeof meterService.submitCapture>(),

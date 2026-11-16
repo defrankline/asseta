@@ -15,14 +15,14 @@ import { FormDialog } from '../../../components/forms/FormDialog';
 import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
 import { useEngineHoursRules } from '../engineHours/allocations/useEngineHoursPolicy';
 import { ENGINE_HOURS_ERROR_HINTS } from '../engineHours/engineHoursDisplay';
-import { CONSOLE_DEVICE_ID } from '../jobDetail/capturePolicy';
-import { CaptureEvidenceFields } from '../jobDetail/ReadingEvidence';
+import { CONSOLE_DEVICE_ID } from '../readings/capturePolicy';
+import { CaptureEvidenceFields } from '../readings/ReadingEvidence';
 import {
   captureModeField,
   gpsPendingError,
   readingField,
   useBrowserGps,
-} from '../jobDetail/readingEvidenceKit';
+} from '../readings/readingEvidenceKit';
 import { withErrorCode } from '../shared/errorHints';
 import { JOB_ERROR_HINTS } from '../shared/jobDisplay';
 import {
