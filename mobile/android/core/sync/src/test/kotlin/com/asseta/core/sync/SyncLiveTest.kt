@@ -27,6 +27,7 @@ import com.asseta.core.sync.evidence.EncryptedEvidenceStore
 import com.asseta.core.sync.usecase.CaptureMeterReading
 import com.asseta.core.sync.usecase.CaptureRequest
 import com.asseta.core.sync.usecase.CaptureResult
+import com.asseta.core.sync.usecase.CaptureTarget
 import com.asseta.core.domain.finance.ApprovalOutlook
 import com.asseta.core.domain.finance.ExpenseDraft
 import com.asseta.core.domain.finance.ExpensePolicyDecision
@@ -104,9 +105,8 @@ class SyncLiveTest {
     }
 
     @Test
-    fun openingCaptureWithPhotoSyncsExactlyOnceAgainstTheLiveBackend() = runBlocking {
+    fun dailyReadingWithPhotoSyncsExactlyOnceAgainstTheLiveBackend() = runBlocking {
         val tenant = field("tenant_id")
-        val jobId = field("job_id")
         val machineId = field("machine_id")
         val token = field("access_token")
         val device = UUID.randomUUID().toString()
@@ -122,24 +122,21 @@ class SyncLiveTest {
         val repository = FieldRepository({ db }, json, clock, { liveAccount })
         val capture = CaptureMeterReading({ db }, repository, FieldOutbox({ db }, json, clock, { liveAccount }), files, { device }, json)
 
-        // 1. First sync: registers the device and bootstraps the supervisor's jobs + capture policy.
+        // 1. First sync: registers the device and bootstraps the supervisor's machines + capture policy.
         success(engine.sync(tenant))
-        val job = db.fieldDataDao().job(jobId)
-        assertNotNull("assigned job missing from bootstrap", job)
-        assertEquals("APPROVED", job!!.status)
-        assertEquals(machineId, job.machineId)
+        assertNotNull("assigned machine missing from bootstrap", db.fieldDataDao().machine(machineId))
 
-        // 2. Opening capture as the capture screen records it: policy-decided mode, photo, fresh GPS fix.
+        // 2. A DAILY reading as the machine report records it: policy-decided mode, photo, fresh GPS fix.
         val decision = repository.capturePolicy(tenant, machineId)
         assertTrue("capture blocked by the synced policy gate: $decision", decision is CapturePolicyDecision.Allowed)
-        val mode = (decision as CapturePolicyDecision.Allowed).policy.requiredMode(ReadingKind.OPENING)
+        val mode = (decision as CapturePolicyDecision.Allowed).policy.requiredMode(ReadingKind.DAILY)
         val ocr = if (mode == CaptureMode.AUTOMATIC) OcrReading("1234.5", 0.99, "1234.5", "OK", emptySet()) else null
         val now = clock.nowMs()
         val captureId = UUID.randomUUID().toString()
         val result = capture(
             CaptureRequest(
-                tenant, jobId, captureId, ReadingKind.OPENING, mode, "1234.5", jpeg(300_000), if (ocr == null) 0 else 1,
-                ocr, GpsOutcome.Fix(-6.8, 39.28, 8.0, Instant.ofEpochMilli(now - 2_000), "fused"), now,
+                tenant, captureId, ReadingKind.DAILY, mode, "1234.5", jpeg(300_000), if (ocr == null) 0 else 1,
+                ocr, GpsOutcome.Fix(-6.8, 39.28, 8.0, Instant.ofEpochMilli(now - 2_000), "fused"), now, CaptureTarget.Daily(machineId),
             ),
         )
         assertTrue("expected Saved but was $result", result is CaptureResult.Saved)
@@ -167,16 +164,17 @@ class SyncLiveTest {
         assertEquals(0, success(engine.sync(tenant)).push.sent) // nothing left to send
         assertTrue(wipes.isEmpty())
 
-        // 5. Server side: exactly one opening reading, with the uploaded photo.
-        val request = Request.Builder().url("${field("api_base").trimEnd('/')}/api/v1/tenant/jobs/$jobId/meter-captures")
+        // 5. Server side: exactly one reading with this id on the machine, with the uploaded photo.
+        val request = Request.Builder().url("${field("api_base").trimEnd('/')}/api/v1/tenant/meter-captures?machine_id=$machineId&page_size=100")
             .header(AssetaHeaders.TENANT_ID, tenant).get().build()
         val body = client.newCall(request).execute().use { it.body.string() }
-        val rows = json.parseToJsonElement(body).jsonArray
+        val rows = json.parseToJsonElement(body).jsonObject["items"]!!.jsonArray.map { it.jsonObject }.filter { it["id"]!!.jsonPrimitive.content == captureId }
         assertEquals(1, rows.size)
-        val row = rows.single().jsonObject
+        val row = rows.single()
         fun text(name: String) = row[name]!!.jsonPrimitive.content
         assertEquals(captureId, text("id"))
-        assertEquals("OPENING", text("kind"))
+        assertEquals("DAILY", text("kind"))
+        assertEquals(machineId, text("machine_id"))
         assertEquals(0, BigDecimal("1234.5").compareTo(BigDecimal(text("reading"))))
         assertEquals(mode.name, text("capture_mode"))
         assertEquals(serverAttachment, text("photo_attachment_id"))
@@ -211,7 +209,7 @@ class SyncLiveTest {
             .firstOrNull { it["currency"]!!.jsonPrimitive.content == financeCurrency }
         fun JsonObject?.money(name: String) = this?.get(name)?.jsonPrimitive?.content?.let(::BigDecimal) ?: BigDecimal.ZERO
 
-        // 1. Bootstrap delivers the category, the job's customer, the custody balance and the EXPENSE_CAPTURE rules.
+        // 1. Bootstrap delivers the category, the customer, the custody balance and the EXPENSE_CAPTURE rules.
         success(engine.sync(tenant))
         val categoryId = field("expense_category_id")
         assertTrue("category missing", financeRepo.observeCategories(tenant).first().any { it.id == categoryId })
@@ -221,23 +219,23 @@ class SyncLiveTest {
         assertTrue("expense rules not synced: $decision", decision is ExpensePolicyDecision.Allowed)
         val before = custody()
 
-        // 2. Offline: expense with receipt (cash custody), cash collection for the job's customer, handover.
+        // 2. Offline: expense with receipt (cash custody), cash collection paying the customer's order, handover.
         val now = clock.nowMs()
         val gps = GpsOutcome.Fix(-6.8, 39.28, 8.0, Instant.ofEpochMilli(now - 1_000), "fused")
         val expenseClient = UUID.randomUUID().toString()
         val expenseRequest = ExpenseRequest(
             tenant, expenseClient, categoryId, "Hydraulic hose (live E2E)", "Field Spares", "1500.50", financeCurrency,
-            PaidFrom.CASH_CUSTODY, field("machine_id"), null, listOf(jpeg(120_000)), gps, now,
+            PaidFrom.CASH_CUSTODY, field("machine_id"), listOf(jpeg(120_000)), gps, now,
         )
         val outlook = ExpenseRules.assess(
             ExpenseDraft(categoryId, expenseRequest.description, expenseRequest.supplier, expenseRequest.amountText, financeCurrency,
-                PaidFrom.CASH_CUSTODY, field("machine_id"), null, null, true, gps),
+                PaidFrom.CASH_CUSTODY, field("machine_id"), true, gps),
             (decision as ExpensePolicyDecision.Allowed).policy, financeCurrency,
         ).approval
         val expense = finance.expense(expenseRequest) as FinanceResult.Saved
         val collection = finance.cashCollection(
-            CashCollectionRequest(tenant, UUID.randomUUID().toString(), field("customer_id"), field("job_id"), "250000", financeCurrency,
-                "LIVE-${expenseClient.take(8)}", "", now),
+            CashCollectionRequest(tenant, UUID.randomUUID().toString(), field("customer_id"), "250000", financeCurrency,
+                "LIVE-${expenseClient.take(8)}", "", now, purchaseId = field("purchase_id")),
         ) as FinanceResult.Saved
         val handover = finance.cashHandover(
             CashHandoverRequest(tenant, UUID.randomUUID().toString(), "100000", financeCurrency, "", "Live E2E handover", now),
