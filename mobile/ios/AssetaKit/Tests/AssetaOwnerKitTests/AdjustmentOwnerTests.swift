@@ -159,7 +159,7 @@ struct AdjustmentOwnerTests {
         #expect(!revenue.nothingWaiting(waiting: revenue.decisionKinds.reduce(into: [:]) { $0[$1] = 0 }, revenueWaiting: nil))
         #expect(revenue.nothingWaiting(waiting: revenue.decisionKinds.reduce(into: [:]) { $0[$1] = 0 }, revenueWaiting: 0))
         #expect(!OwnerFeatures(permissions: [AdjustmentPermission.read, "tenant.approval.read"]).nothingWaiting(waiting: [.adjustmentRequest: 0]))
-        #expect(!OwnerFeatures(permissions: [AdjustmentPermission.read, "tenant.job.read"]).nothingWaiting(waiting: [.adjustmentRequest: 0]))
+        #expect(!OwnerFeatures(permissions: [AdjustmentPermission.read, "tenant.finance.read"]).nothingWaiting(waiting: [.adjustmentRequest: 0]))
     }
 
     @Test func deepLinks() {

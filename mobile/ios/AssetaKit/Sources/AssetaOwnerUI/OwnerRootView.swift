@@ -4,16 +4,17 @@ import AssetaModel
 import AssetaOwnerKit
 import SwiftUI
 
-enum OwnerTab: Hashable { case overview, fleet, jobs, alerts, more }
-
-/// Lists reachable from the "More" tab.
+/// Lists reachable from the "More" entry.
 enum MoreItem: Hashable { case setup, approvals, accountability, findReference, customerHours, scorecard, exceptions, fieldSpend, cash, investigations, notifications, settings }
 
-/// Owner home for one tenant: tabs, deep links from notification taps, offline/stale state.
+/// Owner home for one tenant (ADR-008): a sliding side menu over Home, one navigation stack, deep links from notification
+/// taps, offline/stale state. The Jobs tab is gone; every other screen stays reachable (side menu, Home tiles, More).
 public struct OwnerRootView: View {
     @State private var model: OwnerModel
-    @State private var tab: OwnerTab = .overview
-    @State private var paths: [OwnerTab: NavigationPath] = [:]
+    @State private var path = NavigationPath()
+    @State private var top: AnyHashable?
+    @State private var menuOpen = false
+    @State private var confirmSignOut = false
     @State private var push = PushCenter.shared
     @Environment(\.scenePhase) private var scenePhase
 
@@ -22,41 +23,39 @@ public struct OwnerRootView: View {
     }
 
     public var body: some View {
-        TabView(selection: $tab) {
-            if model.features.overview {
-                stack(.overview) { OverviewView(model: model, open: open) }
-                    .tabItem { Label("Overview", systemImage: "gauge.with.dots.needle.33percent") }.tag(OwnerTab.overview)
+        SideDrawer(isOpen: $menuOpen) {
+            NavigationStack(path: $path) {
+                OwnerHomeView(model: model, openMenu: { menuOpen = true }, push: append)
+                    .navigationDestination(for: OwnerScreen.self) { screen($0) }
+                    // Pushed screens use the inline title (as on Android).
+                    .navigationDestination(for: OwnerRoute.self) {
+                        RouteView(model: model, route: $0).navigationBarTitleDisplayMode(.inline)
+                    }
+                    .navigationDestination(for: MoreItem.self) {
+                        MoreDestination(model: model, item: $0).navigationBarTitleDisplayMode(.inline)
+                    }
             }
-            if model.features.fleet {
-                stack(.fleet) { FleetView(model: model).modifier(NotificationBell(model: model) { open(.notifications) }) }
-                    .tabItem { Label("Fleet", systemImage: "map") }.tag(OwnerTab.fleet)
-            }
-            if model.features.jobs {
-                stack(.jobs) { JobsView(model: model).modifier(NotificationBell(model: model) { open(.notifications) }) }
-                    .tabItem { Label("Jobs", systemImage: "list.clipboard") }.tag(OwnerTab.jobs)
-            }
-            if model.features.alertsOn {
-                stack(.alerts) {
-                    AlertsView(model: model, machineID: nil).modifier(NotificationBell(model: model) { open(.notifications) })
-                }
-                    .tabItem { Label("Alerts", systemImage: "exclamationmark.triangle") }.tag(OwnerTab.alerts)
-            }
-            stack(.more) { MoreView(model: model).modifier(NotificationBell(model: model) { open(.notifications) }) }
-                .tabItem { Label("More", systemImage: "ellipsis.circle") }.tag(OwnerTab.more)
-                .badge(OwnerFormat.badge(model.unreadCount).map { Text($0) })
+        } menu: {
+            OwnerMenu(model: model, current: top, go: go,
+                      switchCompany: model.me.tenants.filter({ $0.accessState.allowsEntry }).count > 1
+                          ? { menuOpen = false; model.leaveTenant() } : nil,
+                      signOut: { menuOpen = false; confirmSignOut = true })
         }
         .tint(Brand.amber)
         .task {
-            if !model.features.overview { tab = model.features.fleet ? .fleet : .more }
             await model.start()
             consumePendingLink()
         }
         .onDisappear { model.stop() }
+        .onChange(of: path.count) { _, count in if count == 0 { top = nil } }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { model.foreground() }
             if phase == .background { model.background() }
         }
         .onChange(of: push.pendingLink) { _, _ in consumePendingLink() }
+        .confirmationDialog("Sign out?", isPresented: $confirmSignOut, titleVisibility: .visible) {
+            Button("Sign out", role: .destructive) { Task { await model.signOut() } }
+        }
         .alert("Access changed", isPresented: Binding(get: { model.accessLostMessage != nil }, set: { _ in })) {
             Button("OK") { model.leaveTenant() }
         } message: {
@@ -64,21 +63,38 @@ public struct OwnerRootView: View {
         }
     }
 
-    private func stack(_ tab: OwnerTab, @ViewBuilder root: () -> some View) -> some View {
-        NavigationStack(path: Binding(get: { paths[tab] ?? NavigationPath() }, set: { paths[tab] = $0 })) {
-            root()
-                // Only a tab's first screen has a large title (as on Android); pushed screens use the inline title.
-                .navigationDestination(for: OwnerRoute.self) {
-                    RouteView(model: model, route: $0).navigationBarTitleDisplayMode(.inline)
-                }
-                .navigationDestination(for: MoreItem.self) {
-                    MoreDestination(model: model, item: $0).navigationBarTitleDisplayMode(.inline)
-                }
+    @ViewBuilder private func screen(_ screen: OwnerScreen) -> some View {
+        switch screen {
+        case .approvals: OwnerApprovalsHubView(model: model, back: pop, push: append)
+        case .customers: OwnerCustomersView(model: model, back: pop, push: append)
+        case .machines: OwnerMachinesView(model: model, back: pop, push: append)
+        case .money: OwnerMoneyView(model: model, back: pop, push: append)
+        case .reports: OwnerReportsView(model: model, back: pop)
+        case .more: MoreView(model: model).navigationBarTitleDisplayMode(.inline)
+        case .settings: SettingsView(model: model).navigationBarTitleDisplayMode(.inline)
         }
     }
 
-    /// Opens a route from inside the app (e.g. an overview tile).
-    private func open(_ route: OwnerRoute) { navigate(to: route) }
+    private func pop() { if !path.isEmpty { path.removeLast() } }
+
+    /// Pushes a screen, a record route or a More entry (each has its own destination).
+    private func append(_ value: AnyHashable) {
+        switch value.base {
+        case let screen as OwnerScreen: path.append(screen)
+        case let route as OwnerRoute: path.append(route)
+        case let item as MoreItem: path.append(item)
+        default: break
+        }
+        if top == nil { top = value }
+    }
+
+    /// A side-menu entry: its screen on top of Home (nil = Home).
+    private func go(_ value: AnyHashable?) {
+        menuOpen = false
+        path = NavigationPath()
+        top = nil
+        if let value { append(value) }
+    }
 
     /// Follows a notification tap. A link for another company switches company first (if this
     /// user may open it); the new home screen then consumes the link.
@@ -97,84 +113,39 @@ public struct OwnerRootView: View {
         navigate(to: link.route)
     }
 
+    /// Opens a route under the screen it belongs to (a capability the tenant switched off falls back to its list,
+    /// follow-up F1; jobs are gone, so their links open the inbox).
     private func navigate(to link: OwnerRoute) {
-        // A destination of a capability the tenant switched off falls back to its list (follow-up F1).
         let route = model.features.route(link)
-        var path = NavigationPath()
-        let target: OwnerTab
+        let f = model.features
+        path = NavigationPath()
+        top = nil
         switch route {
-        case .overview: target = model.features.overview ? .overview : .more
-        case .fleet where model.features.fleet: target = .fleet
-        case .jobs where model.features.jobs: target = .jobs
-        case .investigations:
-            target = .more; path.append(MoreItem.investigations)
-        case .machine where model.features.fleet: target = .fleet; path.append(route)
-        case .alert where model.features.alertsOn: target = .alerts; path.append(route)
-        case .alerts where model.features.alertsOn: target = .alerts
-        case .job where model.features.jobs: target = .jobs; path.append(route)
-        case .approval:
-            target = .more; path.append(MoreItem.approvals); path.append(route)
-        case .approvals:
-            target = .more; path.append(MoreItem.approvals)
-        case let .decision(kind, _) where model.features.decisionKinds.contains(kind):
-            target = .more; path.append(MoreItem.approvals); path.append(route)
-        case .accountability where model.features.accountability:
-            target = .more; path.append(MoreItem.accountability)
-        case .meterReset where model.features.meterEvidence:
-            target = .more; path.append(MoreItem.approvals); path.append(route)
-        case .handover where model.features.finance, .customerPayment where model.features.finance,
-             .pettyCashMovement where model.features.pettyCashRead, .pettyCashAdjustment where model.features.pettyCashRead:
-            target = .more; path.append(MoreItem.approvals); path.append(route)
-        case .exception where model.features.meterEvidence:
-            target = .more; path.append(MoreItem.exceptions); path.append(route)
-        case .exceptions(nil) where model.features.meterEvidence:
-            target = .more; path.append(MoreItem.exceptions)
-        case .exceptions where model.features.meterEvidence:
-            target = .more; path.append(MoreItem.exceptions); path.append(route)
-        case .fieldSpend where model.features.expenses:
-            target = .more; path.append(MoreItem.fieldSpend)
-        case .cash where model.features.finance:
-            target = .more; path.append(MoreItem.cash)
-        case .cashTransfer where model.features.allows(route), .cashFloat where model.features.allows(route),
-             .overdueRemittances where model.features.allows(route):
-            target = .more; path.append(MoreItem.cash); path.append(route)
-        case .overdueRemittance where model.features.allows(route):
-            target = .more; path.append(MoreItem.cash); path.append(OwnerRoute.overdueRemittances); path.append(route)
-        case .revenueDifference where model.features.allows(route), .dailyReport where model.features.allows(route):
-            target = .more; path.append(MoreItem.approvals); path.append(route)
-        case let .dailySheet(machine) where model.features.allows(route):
-            target = .fleet; path.append(OwnerRoute.machine(machine)); path.append(route)
-        case let .dailySheetDay(machine, _) where model.features.allows(route):
-            target = .fleet; path.append(OwnerRoute.machine(machine)); path.append(OwnerRoute.dailySheet(machine)); path.append(route)
-        case .customerHours where model.features.allows(route):
-            target = .more; path.append(MoreItem.customerHours)
-        case .hoursPurchase where model.features.allows(route), .hoursStatement where model.features.allows(route):
-            target = .more; path.append(MoreItem.customerHours); path.append(route)
-        case .scorecard where model.features.allows(route):
-            target = .more; path.append(MoreItem.scorecard)
-        case .scorecardPerson where model.features.allows(route):
-            target = .more; path.append(MoreItem.scorecard); path.append(route)
-        case .unbilledWork where model.features.allows(route), .idleMachines where model.features.allows(route):
-            target = .more
-            if model.features.accountability { path.append(MoreItem.accountability) }
-            path.append(route)
-        case .employeeAccountability where model.features.allows(route):
-            target = .more
-            if model.features.accountability { path.append(MoreItem.accountability) }
-            path.append(route)
-        case .setupChecklist where model.features.setupRead:
-            target = .more; path.append(MoreItem.setup)
-        case .setupChecklist:
-            target = model.features.overview ? .overview : .more
-        case .investigation:
-            target = .more; path.append(MoreItem.investigations); path.append(route)
-        case .notification:
-            target = .more; path.append(MoreItem.notifications); path.append(route)
+        case .overview: break
+        case .fleet where f.fleet: append(OwnerScreen.machines)
+        case .machine where f.fleet, .dailySheet where f.allows(route), .dailySheetDay where f.allows(route):
+            append(OwnerScreen.machines); append(route)
+        case .machineReport where f.machineReports: append(OwnerScreen.approvals); append(route)
+        case .approvals: append(OwnerScreen.approvals)
+        case .approval, .meterReset where f.meterEvidence:
+            append(OwnerScreen.approvals); append(route)
+        case let .decision(kind, _) where f.decisionKinds.contains(kind):
+            append(OwnerScreen.approvals); append(route)
+        case .handover where f.finance, .customerPayment where f.finance, .pettyCashMovement where f.pettyCashRead,
+             .pettyCashAdjustment where f.pettyCashRead, .revenueDifference where f.allows(route), .dailyReport where f.allows(route):
+            append(OwnerScreen.approvals); append(route)
+        case .customerHours where f.allows(route): append(OwnerScreen.customers)
+        case .hoursPurchase where f.allows(route), .hoursStatement where f.allows(route):
+            append(OwnerScreen.customers); append(route)
+        case .cash where f.finance: append(OwnerScreen.money); append(route)
+        case .cashTransfer where f.allows(route), .cashFloat where f.allows(route), .overdueRemittances where f.allows(route),
+             .overdueRemittance where f.allows(route):
+            append(OwnerScreen.money); append(route)
+        case .jobs, .job: append(OwnerRoute.notifications)
+        case .setupChecklist where !f.setupRead: break
         default:
-            target = .more; path.append(MoreItem.notifications)
+            append(f.allows(route) ? route : OwnerRoute.notifications)
         }
-        paths[target] = path
-        tab = target
     }
 }
 
@@ -230,6 +201,7 @@ struct RouteView: View {
         case let .dailyReport(id): DailyReportReviewView(model: model, reportID: id)
         case let .employeeAccountability(id, name, from, to):
             EmployeeAccountabilityView(model: model, staffID: id, name: name, from: from, to: to)
+        case let .machineReport(id): OwnerReportApprovalView(model: model, reportID: id)
         }
     }
 }

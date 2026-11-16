@@ -38,6 +38,16 @@ public struct OwnerFeatures: Equatable, Sendable {
     /// Tenant capabilities switched off by policy (`/me` `disabled_capabilities`): their entry points are hidden.
     public let disabledCapabilities: Set<String>
 
+    /// ADR-008: machine reports are readable (`tenant.machine_report.read`) / decidable (`…approve`).
+    public var machineReports: Bool { permissions.contains(MachineReportPermission.read) || reportsApprove }
+    public var reportsApprove: Bool { permissions.contains(MachineReportPermission.approve) }
+    /// Approve the credit part of an order (`tenant.hours.credit_activate`).
+    public var creditActivate: Bool { customerHours && permissions.contains(MachineReportPermission.creditActivate) }
+    /// Record a payment of a credit invoice (`tenant.hours.invoice_payment`).
+    public var invoicePayment: Bool { customerHours && permissions.contains(MachineReportPermission.invoicePayment) }
+    /// Fuel is on for the company (`FUEL` not switched off): off hides every fuel entry.
+    public var fuelOn: Bool { !disabledCapabilities.contains(TenantCapability.fuel) }
+
     /// Tracker data is in use (`TRACKING` not switched off): alerts, connectivity, tracker rows.
     public var tracking: Bool { !disabledCapabilities.contains(TenantCapability.tracking) }
     /// The Alerts tab and alert rows.
@@ -105,14 +115,15 @@ public struct OwnerFeatures: Equatable, Sendable {
         }
         fleet = set.contains("tenant.fleet.read")
         manageAlerts = set.contains("tenant.fleet.alert_manage") && !disabled.contains(TenantCapability.tracking)
-        jobs = set.contains("tenant.job.read")
-        approveJobs = set.contains("tenant.job.approve")
-        createJobs = set.contains("tenant.job.write")
+        // ADR-008: jobs are gone (machine reports replace them), whatever the permissions say.
+        jobs = false
+        approveJobs = false
+        createJobs = false
         pickJobSites = set.contains("tenant.geofence.read")
         finance = set.contains("tenant.finance.read")
         verifyHandovers = set.contains("tenant.finance.verify")
         issueFloats = set.contains("tenant.finance.cash")
-        overview = fleet || jobs || finance
+        overview = fleet || finance
         approvals = set.contains("tenant.approval.read")
         decideApprovals = set.contains("tenant.approval.expense")
         cases = set.contains("tenant.case.read") && !disabled.contains(TenantCapability.investigations)

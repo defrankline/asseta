@@ -214,6 +214,7 @@ extension OwnerFeatures {
         case .dailyReport: allocationsRead
         case .employeeAccountability: employeeAccountability
         case .notifications, .notification: notifications
+        case .machineReport: machineReports
         }
     }
 

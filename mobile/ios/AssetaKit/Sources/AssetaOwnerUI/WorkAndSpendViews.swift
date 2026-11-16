@@ -49,8 +49,9 @@ struct FieldSpendView: View {
 
     var body: some View {
         List {
-            SegmentedFilter(options: SpendText.kinds, selection: $showFuel)
-            if showFuel {
+            // FUEL switched off (ADR-008): expenses only, no fuel switch at all.
+            if model.features.fuelOn { SegmentedFilter(options: SpendText.kinds, selection: $showFuel) }
+            if showFuel && model.features.fuelOn {
                 if let page = fuel.value {
                     if page.items.isEmpty { EmptyState(title: SpendText.fuelEmpty, systemImage: "fuelpump") }
                     ForEach(page.items) { RecordLink(model: model, row: SpendText.fuelRow($0)) }

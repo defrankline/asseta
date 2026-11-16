@@ -89,7 +89,8 @@ struct SetupChecklistOwnerTests {
         let f = OwnerFeatures(permissions: Self.all)
         #expect(SetupPresentation.target(link: "/tenant/machines", features: f) == .app(.fleet, label: "Open Fleet"))
         #expect(SetupPresentation.target(link: "/tenant/machines?missing=tracker", features: f) == .web(path: "/tenant/machines?missing=tracker"))
-        #expect(SetupPresentation.target(link: "/tenant/jobs", features: f) == .app(.jobs, label: "Open Jobs"))
+        // ADR-008: jobs are gone from the apps, so their setup link opens the web.
+        #expect(SetupPresentation.target(link: "/tenant/jobs", features: f) == .web(path: "/tenant/jobs"))
         #expect(SetupPresentation.target(link: "/tenant/meter-baselines?missing=true", features: f) == .app(.approvals, label: "Open Approvals"))
         #expect(SetupPresentation.target(link: "/tenant/hours/purchases", features: f) == .app(.customerHours, label: "Open Customer hours"))
         #expect(SetupPresentation.target(link: "/tenant/hours/reasons", features: f) == .web(path: "/tenant/hours/reasons"))
