@@ -341,7 +341,6 @@ public enum MachineReportOwnerTexts {
     public static let menuSettings = "Settings"
     public static let menuSignOut = "Sign out"
     public static let menuMore = "More"
-    public static let roleOwner = "Owner"
     // Approvals
     public static func filterAll(_ n: Int) -> String { "All \(n)" }
     public static func filterReports(_ n: Int) -> String { "Machine reports \(n)" }
@@ -362,9 +361,6 @@ public enum MachineReportOwnerTexts {
     public static let reject = "Reject"
     public static let approve = "Approve"
     public static let creditApprovedReason = "Credit approved in the Owner app"
-    public static let otherApprovals = "Other approvals"
-    public static let otherApprovalsSub = "Hand-overs, petty cash, discounts and more"
-    public static let nothingWaiting = "Nothing is waiting for you."
     // Report approval
     public static func reportTitle(_ code: String) -> String { "\(code) machine report" }
     public static func readings(_ from: String, _ to: String) -> String { "\(from) → \(to) h" }

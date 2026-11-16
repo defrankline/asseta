@@ -4,13 +4,15 @@ import AssetaModel
 import AssetaOwnerKit
 import SwiftUI
 
-/// Lists reachable from the "More" entry.
-enum MoreItem: Hashable { case setup, approvals, accountability, findReference, customerHours, scorecard, exceptions, fieldSpend, cash, investigations, notifications, settings }
+/// Screens of the side menu's "MORE" group that have no record route of their own.
+enum MoreItem: Hashable { case dashboard, findReference }
 
 /// Owner home for one tenant (ADR-008): a sliding side menu over Home, one navigation stack, deep links from notification
-/// taps, offline/stale state. Every screen stays reachable (side menu, Home tiles, More).
+/// taps, offline/stale state. Every screen stays reachable (side menu with its "MORE" group, Home tiles).
 public struct OwnerRootView: View {
     @State private var model: OwnerModel
+    /// One approvals list per company, shared by the side menu badge, Home and the Approvals screen.
+    @State private var queues: ApprovalQueues
     @State private var path = NavigationPath()
     @State private var top: AnyHashable?
     @State private var menuOpen = false
@@ -19,26 +21,29 @@ public struct OwnerRootView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     public init(context: HomeContext) {
-        _model = State(initialValue: OwnerModel(session: context.session, me: context.me, tenant: context.tenant))
+        let model = OwnerModel(session: context.session, me: context.me, tenant: context.tenant)
+        _model = State(initialValue: model)
+        _queues = State(initialValue: ApprovalQueues(features: model.features))
     }
 
     public var body: some View {
         SideDrawer(isOpen: $menuOpen) {
             NavigationStack(path: $path) {
-                OwnerHomeView(model: model, openMenu: { menuOpen = true }, push: append)
+                OwnerHomeView(model: model, queues: queues, openMenu: { menuOpen = true }, push: append)
                     .navigationDestination(for: OwnerScreen.self) { screen($0) }
                     // Pushed screens use the inline title (as on Android).
                     .navigationDestination(for: OwnerRoute.self) {
                         RouteView(model: model, route: $0).navigationBarTitleDisplayMode(.inline)
                     }
                     .navigationDestination(for: MoreItem.self) {
-                        MoreDestination(model: model, item: $0).navigationBarTitleDisplayMode(.inline)
+                        MoreDestination(model: model, item: $0, push: append).navigationBarTitleDisplayMode(.inline)
                     }
             }
         } menu: {
-            OwnerMenu(model: model, current: top, go: go,
+            OwnerMenu(model: model, queues: queues, current: selectedEntry, go: { go(destination(of: $0)) },
                       switchCompany: model.me.tenants.filter({ $0.accessState.allowsEntry }).count > 1
                           ? { menuOpen = false; model.leaveTenant() } : nil,
+                      settings: { go(OwnerScreen.settings) },
                       signOut: { menuOpen = false; confirmSignOut = true })
         }
         .tint(Brand.amber)
@@ -53,8 +58,9 @@ public struct OwnerRootView: View {
             if phase == .background { model.background() }
         }
         .onChange(of: push.pendingLink) { _, _ in consumePendingLink() }
-        .confirmationDialog("Sign out?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-            Button("Sign out", role: .destructive) { Task { await model.signOut() } }
+        .confirmationDialog(OwnerMenuTexts.signOutConfirm, isPresented: $confirmSignOut, titleVisibility: .visible) {
+            Button(OwnerMenuTexts.signOutAction, role: .destructive) { Task { await model.signOut() } }
+            Button(OwnerMenuTexts.cancel, role: .cancel) {}
         }
         .alert("Access changed", isPresented: Binding(get: { model.accessLostMessage != nil }, set: { _ in })) {
             Button("OK") { model.leaveTenant() }
@@ -65,22 +71,53 @@ public struct OwnerRootView: View {
 
     @ViewBuilder private func screen(_ screen: OwnerScreen) -> some View {
         switch screen {
-        case .approvals: OwnerApprovalsHubView(model: model, back: pop, push: append)
+        case .approvals: OwnerApprovalsHubView(model: model, queues: queues, back: pop, push: append)
         case .customers: OwnerCustomersView(model: model, back: pop, push: append)
         case .machines: OwnerMachinesView(model: model, back: pop, push: append)
         case .money: OwnerMoneyView(model: model, back: pop, push: append)
         case .reports: OwnerReportsView(model: model, back: pop, push: append)
-        case .more: MoreView(model: model).navigationBarTitleDisplayMode(.inline)
         case .settings: SettingsView(model: model).navigationBarTitleDisplayMode(.inline)
         }
     }
 
     private func pop() { if !path.isEmpty { path.removeLast() } }
 
+    /// Where a side-menu entry leads (nil = Home).
+    private func destination(of entry: OwnerMenuEntry) -> AnyHashable? {
+        switch entry {
+        case .home: nil
+        case .approvals: OwnerScreen.approvals
+        case .customers: OwnerScreen.customers
+        case .machines: OwnerScreen.machines
+        case .money: OwnerScreen.money
+        case .reports: OwnerScreen.reports
+        case .notifications: OwnerRoute.notifications
+        case .setup: OwnerRoute.setupChecklist
+        case .dashboard: MoreItem.dashboard
+        case .accountability: OwnerRoute.accountability
+        case .lookup: MoreItem.findReference
+        case .scorecard: OwnerRoute.scorecard
+        case .fleet: OwnerRoute.fleet
+        case .alerts: OwnerRoute.alerts
+        case .exceptions: OwnerRoute.exceptions
+        case .fieldSpend: OwnerRoute.fieldSpend
+        case .cash: OwnerRoute.cash
+        case .investigations: OwnerRoute.investigations
+        }
+    }
+
+    /// The side-menu entry highlighted for the screen the stack sits under (Home when nothing is pushed).
+    private var selectedEntry: OwnerMenuEntry? {
+        guard let top else { return .home }
+        return OwnerMenuEntry.allCases.first { destination(of: $0) == top }
+    }
+
     /// Pushes a screen, a record route or a More entry (each has its own destination).
     private func append(_ value: AnyHashable) {
         switch value.base {
         case let screen as OwnerScreen: path.append(screen)
+        // The approvals list is the Approvals screen (machine reports, credit, expenses and every other kind).
+        case let route as OwnerRoute where route == .approvals: path.append(OwnerScreen.approvals)
         case let route as OwnerRoute: path.append(route)
         case let item as MoreItem: path.append(item)
         default: break
@@ -198,95 +235,17 @@ struct RouteView: View {
     }
 }
 
+/// A "MORE" screen without a record route of its own.
 struct MoreDestination: View {
     let model: OwnerModel
     let item: MoreItem
+    let push: (AnyHashable) -> Void
 
     var body: some View {
         switch item {
-        case .setup: SetupChecklistView(model: model)
-        case .approvals: ApprovalsView(model: model)
-        case .accountability: AccountabilityDashboardView(model: model)
+        case .dashboard: OverviewView(model: model, open: { push($0) }).navigationTitle(OwnerMenuTexts.dashboard)
         case .findReference: FindReferenceView(model: model)
-        case .customerHours: CustomerHoursView(model: model)
-        case .scorecard: ScorecardView(model: model)
-        case .exceptions: ExceptionsView(model: model)
-        case .fieldSpend: FieldSpendView(model: model)
-        case .cash: CashView(model: model)
-        case .investigations: CasesView(model: model)
-        case .notifications: NotificationsView(model: model)
-        case .settings: SettingsView(model: model)
         }
-    }
-}
-
-struct MoreView: View {
-    let model: OwnerModel
-
-    var body: some View {
-        List {
-            Section {
-                if model.features.setupRead {
-                    NavigationLink(value: MoreItem.setup) { Label(SetupTexts.more, systemImage: "checklist") }
-                }
-                if model.features.approvalsScreen {
-                    NavigationLink(value: MoreItem.approvals) { Label("Approvals", systemImage: "checkmark.seal") }
-                }
-                if model.features.accountability {
-                    NavigationLink(value: MoreItem.accountability) {
-                        Label(OwnerAccountabilityTexts.moreAccountability, systemImage: "checkmark.shield")
-                    }
-                }
-                if model.features.lookup {
-                    NavigationLink(value: MoreItem.findReference) { Label(ManagementTexts.lookupMore, systemImage: "magnifyingglass") }
-                }
-                if model.features.hoursRead {
-                    NavigationLink(value: MoreItem.customerHours) {
-                        Label(CustomerHoursTexts.more, systemImage: "hourglass")
-                    }
-                }
-                if model.features.scorecard {
-                    NavigationLink(value: MoreItem.scorecard) {
-                        Label(OversightTexts.scoreMore, systemImage: "person.text.rectangle")
-                    }
-                }
-                if model.features.meterEvidence {
-                    NavigationLink(value: MoreItem.exceptions) {
-                        Label(ExceptionText.title, systemImage: "exclamationmark.triangle")
-                    }
-                }
-                if model.features.expenses {
-                    NavigationLink(value: MoreItem.fieldSpend) { Label(SpendText.title, systemImage: "receipt") }
-                }
-                if model.features.finance {
-                    NavigationLink(value: MoreItem.cash) { Label(CashText.title, systemImage: "banknote") }
-                }
-                if model.features.cases {
-                    NavigationLink(value: MoreItem.investigations) {
-                        Label("Investigations", systemImage: "doc.text.magnifyingglass")
-                    }
-                }
-                if model.features.notifications {
-                    NavigationLink(value: MoreItem.notifications) {
-                        Label("Notifications", systemImage: "bell")
-                            .badge(OwnerFormat.badge(model.unreadCount).map { Text($0) })
-                    }
-                }
-            }
-            Section {
-                NavigationLink(value: MoreItem.settings) { Label("Settings", systemImage: "gearshape") }
-            }
-            Section("Company") {
-                LabeledContent("Name", value: model.tenant.name)
-                if model.isReadOnlyTenant {
-                    Text("This company is read-only. Viewing only.").font(.footnote).foregroundStyle(.secondary)
-                }
-                if model.me.tenants.filter({ $0.accessState.allowsEntry }).count > 1 {
-                    Button("Switch company") { model.leaveTenant() }
-                }
-            }
-        }
-        .navigationTitle("More")
     }
 }
 #endif
