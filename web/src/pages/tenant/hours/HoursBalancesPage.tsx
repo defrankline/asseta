@@ -24,11 +24,12 @@ import { lowBalanceAlertsPath } from '../../../navigation/hoursRoutes';
 import { customerDetailPath } from '../../../navigation/routes';
 import { CustomerFilter, MachineFilter } from '../shared/financePickers';
 import { machineText, nameOr } from '../shared/names';
+import { CustomerHoursTable } from './creditInvoices/CustomerHoursTable';
 import { hoursText, PROVISIONAL_LABEL } from './hoursDisplay';
 
-type View = 'customer' | 'machine';
+type View = 'all' | 'customer' | 'machine';
 
-function BalanceTable({ rows, by }: { rows: HoursBalanceDto[]; by: View }) {
+function BalanceTable({ rows, by }: { rows: HoursBalanceDto[]; by: 'customer' | 'machine' }) {
   return (
     <StaticTable
       ariaLabel="Hours balances"
@@ -175,13 +176,16 @@ function MachineBalances({ machine }: { machine: MachineDto }) {
   );
 }
 
-/** Remaining customer hours per customer (by machine) or per machine (by customer). */
+/**
+ * Customer hours: every customer's bought / used / left and credit owed, or one customer's hours per
+ * machine, or one machine's hours per customer.
+ */
 export function HoursBalancesPage() {
-  const [view, setView] = useState<View>('customer');
+  const [params, setParams] = useSearchParams();
+  const urlCustomer = params.get('customer_id');
+  const [view, setView] = useState<View>(urlCustomer === null ? 'all' : 'customer');
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
   const [machine, setMachine] = useState<MachineDto | null>(null);
-  const [params] = useSearchParams();
-  const urlCustomer = params.get('customer_id');
   useEffect(() => {
     if (urlCustomer === null) return undefined;
     const controller = new AbortController();
@@ -196,7 +200,7 @@ export function HoursBalancesPage() {
     <>
       <PageHeader
         title="Hours balances"
-        subtitle="Activated, used and remaining prepaid hours, derived from the hours ledger"
+        subtitle="Hours each customer bought, used and has left, and the credit they owe"
       />
       <Stack spacing={2}>
         <Box className="flex flex-wrap items-center gap-3">
@@ -209,17 +213,28 @@ export function HoursBalancesPage() {
               if (v !== null) setView(v);
             }}
           >
+            <ToggleButton value="all">All customers</ToggleButton>
             <ToggleButton value="customer">By customer</ToggleButton>
             <ToggleButton value="machine">By machine</ToggleButton>
           </ToggleButtonGroup>
-          <Box sx={{ minWidth: 260 }}>
-            {view === 'customer' ? (
-              <CustomerFilter label="Customer" value={customer} onChange={setCustomer} />
-            ) : (
-              <MachineFilter label="Machine" value={machine} onChange={setMachine} />
-            )}
-          </Box>
+          {view !== 'all' && (
+            <Box sx={{ minWidth: 260 }}>
+              {view === 'customer' ? (
+                <CustomerFilter label="Customer" value={customer} onChange={setCustomer} />
+              ) : (
+                <MachineFilter label="Machine" value={machine} onChange={setMachine} />
+              )}
+            </Box>
+          )}
         </Box>
+        {view === 'all' && (
+          <CustomerHoursTable
+            onOpenCustomer={(customerId) => {
+              setView('customer');
+              setParams({ customer_id: customerId });
+            }}
+          />
+        )}
         {view === 'customer' &&
           (customer === null ? (
             <EmptyState title="Choose a customer to see their hours" />

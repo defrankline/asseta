@@ -77,6 +77,14 @@ const LowBalanceAlertDetailPage = page(
   () => import('../pages/tenant/hours/LowBalanceAlertsPage'),
   'LowBalanceAlertDetailPage',
 );
+const CreditInvoicesPage = page(
+  () => import('../pages/tenant/hours/creditInvoices/CreditInvoicesPage'),
+  'CreditInvoicesPage',
+);
+const CreditInvoiceDetailPage = page(
+  () => import('../pages/tenant/hours/creditInvoices/CreditInvoiceDetailPage'),
+  'CreditInvoiceDetailPage',
+);
 const FieldHoursPage = page(() => import('../pages/tenant/hours/FieldHoursPage'), 'FieldHoursPage');
 
 type Guard = (permission: string, page: ReactNode) => ReactNode;
@@ -102,6 +110,8 @@ export function hoursRouteElements(guard: Guard): ReactNode[] {
     [HOURS_ROUTES.credit, read, <CreditArrangementsPage key="cr" />],
     [HOURS_ROUTES.creditDetail, read, <CreditArrangementDetailPage key="crd" />],
     [HOURS_ROUTES.walkIns, read, <WalkInCustomersPage key="w" />],
+    [HOURS_ROUTES.creditInvoices, read, <CreditInvoicesPage key="ci" />],
+    [HOURS_ROUTES.creditInvoiceDetail, read, <CreditInvoiceDetailPage key="cid" />],
     [HOURS_ROUTES.reasons, read, <HoursReasonsPage key="r" />],
     [HOURS_ROUTES.lowBalanceAlerts, read, <LowBalanceAlertsPage key="lb" />],
     [HOURS_ROUTES.lowBalanceAlertDetail, read, <LowBalanceAlertDetailPage key="lbd" />],
