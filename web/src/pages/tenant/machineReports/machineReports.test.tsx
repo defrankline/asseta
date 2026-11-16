@@ -9,6 +9,7 @@ import type {
 } from '../../../api/services/machineReportService';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
 import { ROUTES } from '../../../navigation/routes';
+import { notificationTargetPath } from '../../../notifications/center/display';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { FieldMachineReportPage } from './FieldMachineReportPage';
 import { MachineReportDetailPage } from './MachineReportDetailPage';
@@ -289,5 +290,16 @@ describe('Administration › Machine report reasons', () => {
     });
     expect(await screen.findByText('Breakdown / repair')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New reason' })).not.toBeInTheDocument();
+  });
+});
+
+describe('notifications', () => {
+  it('open the machine report and the credit invoice they are about', () => {
+    expect(notificationTargetPath(null, { kind: 'MACHINE_REPORT', record_id: 'mr1' })).toBe(
+      '/tenant/machine-reports/mr1',
+    );
+    expect(notificationTargetPath(null, { kind: 'CREDIT_INVOICE', record_id: 'i1' })).toBe(
+      '/tenant/hours/credit-invoices/i1',
+    );
   });
 });

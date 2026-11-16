@@ -28,6 +28,9 @@ export const RECORD_LIST_ROUTES = {
   NON_REVENUE_APPROVAL: '/tenant/non-revenue-approvals',
   ADJUSTMENT_ENTRY: '/tenant/finance/adjustments',
   ADJUSTMENT_REQUEST: '/tenant/finance/adjustments/requests',
+  /** ADR-008: MACHINE_REPORT_* notifications open the report, CREDIT_INVOICE_OVERDUE the invoice. */
+  MACHINE_REPORT: '/tenant/machine-reports',
+  CREDIT_INVOICE: '/tenant/hours/credit-invoices',
 } as const;
 
 export type RecordKind = keyof typeof RECORD_LIST_ROUTES;
@@ -67,6 +70,8 @@ export const RECORD_KIND_BY_ENTITY: Readonly<Record<string, RecordKind>> = {
   non_revenue_approval: 'NON_REVENUE_APPROVAL',
   adjustment_ledger_entry: 'ADJUSTMENT_ENTRY',
   adjustment_request: 'ADJUSTMENT_REQUEST',
+  machine_report: 'MACHINE_REPORT',
+  credit_invoice: 'CREDIT_INVOICE',
 };
 
 /** Hours records belong to the customer hours capability. */
@@ -76,4 +81,5 @@ export const HOURS_RECORD_KINDS: ReadonlySet<RecordKind> = new Set([
   'HOURS_CREDIT',
   'HOURS_TRANSFER',
   'HOURS_CANCELLATION',
+  'CREDIT_INVOICE',
 ]);
