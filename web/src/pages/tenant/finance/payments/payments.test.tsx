@@ -4,11 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PERMISSIONS as P } from '../../../../access/permissionCodes';
 import { ApiError } from '../../../../api/ApiError';
 import type { customerService } from '../../../../api/services/customerService';
-import type {
-  customerPaymentService,
-  hireInvoiceService,
-} from '../../../../api/services/financeService';
-import { CUSTOMER, ME, makeInvoice, makePayment, page } from '../../../../test/financeFixtures';
+import type { customerPaymentService } from '../../../../api/services/financeService';
+import { CUSTOMER, ME, makePayment, page } from '../../../../test/financeFixtures';
 import { fakeSocketServer } from '../../../../test/fakeWebSocket';
 import { acceptSocket, LiveProviders, push } from '../../../../test/realtimeHarness';
 import { renderWithProviders } from '../../../../test/renderWithProviders';
@@ -18,8 +15,6 @@ const mocks = vi.hoisted(() => ({
   list: vi.fn<typeof customerPaymentService.list>(),
   record: vi.fn<typeof customerPaymentService.record>(),
   decide: vi.fn<typeof customerPaymentService.decide>(),
-  allocate: vi.fn<typeof customerPaymentService.allocate>(),
-  invoices: vi.fn<typeof hireInvoiceService.list>(),
   customers: vi.fn<typeof customerService.list>(),
   getCustomer: vi.fn<typeof customerService.get>(),
 }));
@@ -28,9 +23,7 @@ vi.mock('../../../../api/services/financeService', () => ({
     list: mocks.list,
     record: mocks.record,
     decide: mocks.decide,
-    allocate: mocks.allocate,
   },
-  hireInvoiceService: { list: mocks.invoices },
 }));
 vi.mock('../../../../api/services/customerService', () => ({
   customerService: { list: mocks.customers, get: mocks.getCustomer },
@@ -47,7 +40,6 @@ beforeEach(() => {
   mocks.list.mockResolvedValue(page([makePayment()]));
   mocks.customers.mockResolvedValue(page([CUSTOMER]));
   mocks.getCustomer.mockResolvedValue(CUSTOMER);
-  mocks.invoices.mockResolvedValue(page([makeInvoice()]));
 });
 
 const MENU = 'Actions for payment TRX-1';
@@ -141,7 +133,7 @@ describe('PaymentsTab', () => {
     expect(screen.queryByRole('button', { name: 'Record payment' })).not.toBeInTheDocument();
   });
 
-  it('records a bank payment: reference required, allocations limited to the amount', async () => {
+  it('records a bank payment: reference required', async () => {
     const user = userEvent.setup();
     mocks.record.mockResolvedValue(makePayment());
     renderWithProviders(<PaymentsTab timeZone="UTC" />, { tenantPermissions: VERIFY });
@@ -160,28 +152,6 @@ describe('PaymentsTab', () => {
     );
     await user.click(within(dialog).getByRole('button', { name: 'Next' }));
     await user.click(await within(dialog).findByRole('button', { name: 'Next' }));
-    await user.click(await within(dialog).findByRole('button', { name: 'Allocate to an invoice' }));
-    await user.click(within(dialog).getByRole('combobox', { name: 'Invoice 1' }));
-    await user.type(within(dialog).getByRole('combobox', { name: 'Invoice 1' }), '0001');
-    await waitFor(() => {
-      expect(mocks.invoices).toHaveBeenCalledWith(
-        expect.objectContaining({
-          q: '0001',
-          filters: { status: 'ISSUED', customer_id: CUSTOMER.id },
-        }),
-        expect.any(AbortSignal),
-      );
-    });
-    await user.click(await screen.findByRole('option', { name: /HINV-2026-00001/ }));
-    await user.type(within(dialog).getByRole('textbox', { name: /^Amount/ }), '150000');
-    await user.click(within(dialog).getByRole('button', { name: 'Next' }));
-    expect(
-      await within(dialog).findByText('Allocations exceed the payment amount'),
-    ).toBeInTheDocument();
-    const alloc = within(dialog).getByRole('textbox', { name: /^Amount/ });
-    await user.clear(alloc);
-    await user.type(alloc, '60000');
-    await user.click(within(dialog).getByRole('button', { name: 'Next' }));
     await user.click(await within(dialog).findByRole('button', { name: 'Record payment' }));
     await waitFor(() => {
       expect(mocks.record).toHaveBeenCalledTimes(1);
@@ -190,10 +160,10 @@ describe('PaymentsTab', () => {
       customer_id: CUSTOMER.id,
       method: 'BANK',
       amount: '100000',
-      currency: 'TZS',
+      currency: null,
       reference: 'TRX-9',
-      allocations: [{ invoice_id: makeInvoice().id, amount: '60000' }],
     });
+    expect(mocks.record.mock.calls[0]?.[0]).not.toHaveProperty('allocations');
   });
 });
 

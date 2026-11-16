@@ -5,7 +5,6 @@ import type {
   CustomerDto,
   CustomerPaymentDto,
   ExpenseDto,
-  HireInvoiceDto,
   StaffDto,
 } from '../api/types';
 import { makeMe } from './fixtures';
@@ -46,43 +45,6 @@ export const SUPERVISOR: StaffDto = {
   deactivation_reason: null,
   version: 1,
 };
-
-export function makeInvoice(overrides: Partial<HireInvoiceDto> = {}): HireInvoiceDto {
-  return {
-    id: 'ffffffff-0000-4000-8000-000000000001',
-    customer_id: CUSTOMER_ID,
-    invoice_number: 'HINV-2026-00001',
-    status: 'ISSUED',
-    currency: 'TZS',
-    subtotal: '1200000.0000',
-    discount_total: '0.0000',
-    tax_total: '216000.0000',
-    total: '1416000.0000',
-    amount_paid: '400000.0000',
-    balance: '1016000.0000',
-    payment_state: 'PARTIALLY_PAID',
-    due_date: '2026-11-20',
-    notes: null,
-    created_at: '2026-10-20T08:00:00Z',
-    issued_at: '2026-10-21T08:00:00Z',
-    voided_at: null,
-    void_reason: null,
-    job_ids: ['dddddddd-0000-4000-8000-000000000001'],
-    lines: [
-      {
-        line_no: 1,
-        kind: 'HIRE',
-        job_id: 'dddddddd-0000-4000-8000-000000000001',
-        machine_id: 'aaaaaaaa-0000-4000-8000-000000000001',
-        description: 'Excavator hire 8 h',
-        quantity: '8.00',
-        unit_price: '150000.0000',
-        amount: '1200000.0000',
-      },
-    ],
-    ...overrides,
-  };
-}
 
 export function makePayment(overrides: Partial<CustomerPaymentDto> = {}): CustomerPaymentDto {
   return {

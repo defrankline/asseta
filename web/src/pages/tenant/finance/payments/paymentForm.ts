@@ -1,25 +1,15 @@
-import { array, mixed, object, string, type ObjectSchema } from 'yup';
+import { mixed, object, string, type ObjectSchema } from 'yup';
 import type {
   CashCollectionIn,
-  CustomerPaymentDto,
   CustomerPaymentIn,
-  HireAllocationIn,
-  HireInvoiceDto,
   HirePaymentMethod,
 } from '../../../../api/types';
-import { compareDecimal, isDecimalString, sumDecimals } from '../../../../utils/money';
 import { PAYMENT_METHODS } from '../../../../api/services/financeSchemas';
 import { optionalText, orNull, requiredInstant } from '../../shared/formRules';
 import { positiveDecimalField } from '../../../platform/shared/validators';
 
 /** Formik passes '' to Yup as undefined; read untyped form strings defensively in tests. */
 export const formText = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
-
-export interface AllocationRow {
-  /** The issued invoice picked from the server search (kept for labels and checks). */
-  invoice: HireInvoiceDto | null;
-  amount: string;
-}
 
 export interface PaymentFormValues {
   customer_id: string;
@@ -30,65 +20,33 @@ export interface PaymentFormValues {
   received_at: string;
   received_by_staff_id: string;
   note: string;
-  allocations: AllocationRow[];
   /** Collections only: the hours purchase this cash pays for ('' = none). */
   purchase_id: string;
 }
 
 export const PAYMENT_FIELDS = ['customer_id', 'method', 'amount', 'currency', 'reference'] as const;
 export const RECEIPT_FIELDS = ['received_at', 'received_by_staff_id', 'note'] as const;
-export const ALLOCATION_FIELDS = ['allocations', 'purchase_id'] as const;
+export const PURCHASE_FIELDS = ['purchase_id'] as const;
 
 /** Methods whose reference (bank / mobile money transaction id) is mandatory. */
 export const REFERENCE_REQUIRED: ReadonlySet<HirePaymentMethod> = new Set(['BANK', 'MOBILE_MONEY']);
 
 export function emptyPaymentValues(
   now: string,
-  init: { customerId?: string; invoice?: HireInvoiceDto; method?: HirePaymentMethod } = {},
+  init: { customerId?: string; method?: HirePaymentMethod } = {},
 ): PaymentFormValues {
   return {
-    customer_id: init.customerId ?? init.invoice?.customer_id ?? '',
+    customer_id: init.customerId ?? '',
     method: init.method ?? 'BANK',
     amount: '',
-    currency: init.invoice?.currency ?? '',
+    currency: '',
     reference: '',
     received_at: now,
     received_by_staff_id: '',
     note: '',
-    allocations: init.invoice === undefined ? [] : [{ invoice: init.invoice, amount: '' }],
     purchase_id: '',
   };
 }
-
-export const allocationRow: ObjectSchema<AllocationRow> = object({
-  invoice: mixed<HireInvoiceDto>()
-    .nullable()
-    .defined()
-    .test('picked', 'Choose an issued invoice', (v) => v !== null),
-  amount: positiveDecimalField('Allocated amount').test(
-    'open',
-    'More than the invoice’s open balance',
-    function check(v) {
-      const inv = (this.parent as AllocationRow).invoice;
-      return inv === null || !isDecimalString(v) || compareDecimal(v, inv.balance) <= 0;
-    },
-  ),
-});
-
-/** `linkRequired`: a cash collection must name its purchase or invoice (CASH_CUSTODY policy). */
-export const paymentFormSchemaFor = (linkRequired: boolean): ObjectSchema<PaymentFormValues> =>
-  paymentFormSchema.shape({
-    purchase_id: string()
-      .ensure()
-      .test(
-        'link',
-        'Your company policy needs the purchase or invoice this pays for',
-        function linked(v) {
-          const rows = (this.parent as { allocations: AllocationRow[] }).allocations;
-          return !linkRequired || v !== '' || rows.length > 0;
-        },
-      ),
-  });
 
 export const paymentFormSchema: ObjectSchema<PaymentFormValues> = object({
   customer_id: string().required('Choose the customer'),
@@ -102,31 +60,18 @@ export const paymentFormSchema: ObjectSchema<PaymentFormValues> = object({
   received_at: requiredInstant('Received at'),
   received_by_staff_id: string().ensure(),
   note: optionalText('Note', 1000),
-  allocations: array(allocationRow)
-    .required()
-    .max(50, 'At most 50 allocations')
-    .test('total', 'Allocations exceed the payment amount', function check(rows) {
-      const amount = formText((this.parent as Record<string, unknown>).amount);
-      const amounts = rows.map((r) => formText(r.amount));
-      if (!isDecimalString(amount) || !amounts.every(isDecimalString)) return true;
-      return compareDecimal(sumDecimals(amounts), amount) <= 0;
-    })
-    .test('currency', 'Every invoice must be in the payment currency', function check(rows) {
-      const cur = formText((this.parent as Record<string, unknown>).currency);
-      return cur === '' || rows.every((r) => r.invoice === null || r.invoice.currency === cur);
-    })
-    .test('unique', 'An invoice is listed twice', (rows) => {
-      const ids = rows.flatMap((r) => (r.invoice === null ? [] : [r.invoice.id]));
-      return new Set(ids).size === ids.length;
-    }),
   purchase_id: string().ensure(),
 });
 
-export function toAllocations(rows: readonly AllocationRow[]): HireAllocationIn[] {
-  return rows.flatMap((r) =>
-    r.invoice === null ? [] : [{ invoice_id: r.invoice.id, amount: r.amount.trim() }],
-  );
-}
+/** `linkRequired`: a cash collection must name the hours purchase it pays for (CASH_CUSTODY policy). */
+export const paymentFormSchemaFor = (linkRequired: boolean): ObjectSchema<PaymentFormValues> =>
+  linkRequired
+    ? paymentFormSchema.shape({
+        purchase_id: string()
+          .ensure()
+          .required('Your company policy needs the hours purchase this pays for'),
+      })
+    : paymentFormSchema;
 
 export function toPaymentPayload(v: PaymentFormValues, clientId: string): CustomerPaymentIn {
   return {
@@ -139,7 +84,6 @@ export function toPaymentPayload(v: PaymentFormValues, clientId: string): Custom
     received_by_staff_id: orNull(v.received_by_staff_id),
     note: orNull(v.note),
     client_id: clientId,
-    allocations: toAllocations(v.allocations),
   };
 }
 
@@ -155,12 +99,5 @@ export function toCollectionPayload(v: PaymentFormValues, clientId: string): Cas
     note: orNull(v.note),
     client_id: clientId,
     purchase_id: orNull(v.purchase_id),
-    allocations: toAllocations(v.allocations),
   };
-}
-
-/** Payment amount minus its active (unreleased) allocations — exact BigInt arithmetic. */
-export function unallocatedOf(p: CustomerPaymentDto): string {
-  const active = p.allocations.filter((a) => a.released_at === null);
-  return sumDecimals([p.amount, ...active.map((a) => `-${a.amount}`)]);
 }

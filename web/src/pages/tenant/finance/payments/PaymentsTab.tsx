@@ -31,7 +31,7 @@ import {
 } from '../../shared/financeDisplay';
 import { CustomerFilter, StaffFilter } from '../../shared/financePickers';
 import { useCustomerLabels, useStaffLabels } from '../../shared/useFinanceLabels';
-import { PaymentAllocations, PaymentVerifyNotice, ReversedChip } from './PaymentParts';
+import { PaymentVerifyNotice, ReversedChip } from './PaymentParts';
 import { paymentItems } from './paymentRecord';
 import { StaticSelectFilter } from '../../../../components/forms/StaticSelectFilter';
 import { initialFilter } from '../../../../navigation/urlFilters';
@@ -101,12 +101,11 @@ function PaymentDrawer({
         </Alert>
       )}
       <KeyValueGrid columns={2} items={paymentItems(p, timeZone, customerLabel, staffLabel)} />
-      <PaymentAllocations payment={p} />
     </DetailsDrawer>
   );
 }
 
-/** Customer payments: claimed vs verified views, record, allocate, verify / reject (SoD). */
+/** Customer payments: claimed vs verified views, record, verify / reject (SoD). */
 export function PaymentsTab({ timeZone }: { timeZone: string }) {
   const notify = useNotify();
   const customerLabel = useCustomerLabels();

@@ -15,7 +15,6 @@ import {
   ACTIVITY_ID,
   APPROVAL_ID,
   DIFFERENCE_ID,
-  INVOICE_ID,
   makeActivity,
   makeSheetDay,
   makeSheetRow,
@@ -139,10 +138,7 @@ describe('Daily machine sheet', () => {
     );
     expect(mocks.sheetDay).toHaveBeenCalledWith(MACHINE_ID, '2026-10-20', expect.any(AbortSignal));
     const sources = screen.getByRole('table', { name: 'Money sources' });
-    expect(within(sources).getByRole('link', { name: 'Open invoice' })).toHaveAttribute(
-      'href',
-      `/tenant/finance/invoices/${INVOICE_ID}`,
-    );
+    expect(within(sources).queryByRole('link', { name: 'Open invoice' })).toBeNull();
     expect(within(sources).getByRole('link', { name: 'Open purchase' })).toHaveAttribute(
       'href',
       `/tenant/hours/purchases/${PURCHASE_ID}`,

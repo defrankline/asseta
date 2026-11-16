@@ -336,13 +336,9 @@ describe('MyJobsPage', () => {
 });
 
 describe('FieldCollectionDialog', () => {
-  it('fills the customer from the picked job and records into the caller’s own custody', async () => {
+  it('records into the caller’s own custody', async () => {
     const user = userEvent.setup();
-    const job = makeJob({ status: 'IN_PROGRESS' });
-    mocks.list.mockResolvedValue(page([job]));
-    mocks.summary.mockResolvedValue(makeSummary({ job }));
-    mocks.getContract.mockResolvedValue(CONTRACT);
-    mocks.getCustomer.mockResolvedValue(CUSTOMER);
+    mocks.listCustomers.mockResolvedValue(page([CUSTOMER]));
     mocks.recordCollection.mockResolvedValue(makePayment());
     const onRecorded = vi.fn();
     renderWithProviders(
@@ -350,14 +346,9 @@ describe('FieldCollectionDialog', () => {
       { tenantPermissions: SUPERVISOR },
     );
     const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('combobox', { name: /^Job/ }));
-    await user.click(await screen.findByRole('option', { name: /J-100/ }));
-    await waitFor(() => {
-      expect(within(dialog).getByRole('combobox', { name: /^Customer/ })).toHaveValue(
-        'ACME · Acme Builders',
-      );
-    });
-    expect(mocks.list.mock.calls[0]?.[0].filters).toEqual({ mine: 'true' });
+    expect(within(dialog).queryByRole('combobox', { name: /^Job/ })).toBeNull();
+    await user.click(within(dialog).getByRole('combobox', { name: /^Customer/ }));
+    await user.click(await screen.findByRole('option', { name: 'ACME · Acme Builders' }));
     await user.type(within(dialog).getByRole('textbox', { name: /^Amount received/ }), '250000');
     await user.click(within(dialog).getByRole('button', { name: 'Next' }));
     await user.click(await within(dialog).findByRole('button', { name: 'Next' }));
@@ -366,15 +357,14 @@ describe('FieldCollectionDialog', () => {
     await waitFor(() => {
       expect(mocks.recordCollection).toHaveBeenCalledWith(
         expect.objectContaining({
-          customer_id: CONTRACT.customer_id,
+          customer_id: CUSTOMER.id,
           amount: '250000',
           staff_member_id: null,
-          allocations: [],
         }),
         expect.any(String),
       );
     });
-    expect(mocks.recordCollection.mock.calls[0]?.[0]).not.toHaveProperty('job_id');
+    expect(mocks.recordCollection.mock.calls[0]?.[0]).not.toHaveProperty('allocations');
     expect(onRecorded).toHaveBeenCalledTimes(1);
   });
 });

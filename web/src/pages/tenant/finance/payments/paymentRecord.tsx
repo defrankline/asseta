@@ -7,7 +7,6 @@ import { hoursPurchasePath } from '../../../../navigation/hoursRoutes';
 import { formatInstantIn } from '../../../../utils/time';
 import { PAYMENT_METHOD_LABELS } from '../../shared/financeDisplay';
 import { PersonName } from '../../shared/PersonName';
-import { unallocatedOf } from './paymentForm';
 import { VerificationText } from './PaymentParts';
 import { waitsForHandover } from './paymentVerification';
 
@@ -46,10 +45,6 @@ export function paymentItems(
   return [
     { label: 'Customer', value: p.customer_name ?? customerLabel(p.customer_id) },
     { label: 'Amount', value: <MoneyText amount={p.amount} currency={p.currency} strong /> },
-    {
-      label: 'Unallocated',
-      value: <MoneyText amount={unallocatedOf(p)} currency={p.currency} />,
-    },
     { label: 'Method', value: PAYMENT_METHOD_LABELS[p.method] },
     { label: 'Number', value: p.collection_number ?? '—' },
     { label: 'Reference', value: p.reference ?? '—' },

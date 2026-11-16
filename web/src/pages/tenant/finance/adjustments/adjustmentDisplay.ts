@@ -20,7 +20,6 @@ import { hoursPurchasePath } from '../../../../navigation/hoursRoutes';
 import { recordPath } from '../../../../navigation/recordRoutes';
 import {
   financeTabPath,
-  hireInvoiceDetailPath,
   machineDetailPath,
 } from '../../../../navigation/routes';
 import { formatMoney } from '../../../../utils/money';
@@ -168,8 +167,6 @@ export function adjustedRecordPath(type: string, id: string): string | null {
       return hoursPurchasePath(id);
     case 'customer_payment':
       return paymentRecordPath(id);
-    case 'tenant_hire_invoice':
-      return hireInvoiceDetailPath(id);
     case 'machine':
       return machineDetailPath(id);
     case 'adjustment_request':

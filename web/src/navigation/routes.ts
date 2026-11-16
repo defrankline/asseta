@@ -75,13 +75,11 @@ export const ROUTES = {
   tenantExpenseCategories: '/tenant/expenses/categories',
   /** Matches the backend `tenant.approvals` menu path. */
   tenantApprovals: '/tenant/approvals',
-  /** Matches the backend `tenant.finance` menu path (invoices, payments, cash custody). */
+  /** Matches the backend `tenant.finance` menu path (customer payments; cash custody has its own page). */
   tenantFinance: '/tenant/finance',
   /** Standalone list of customer payments (server dashboard links; `status`, `method`, period). */
   tenantCustomerPayments: '/tenant/customer-payments',
   tenantCustomerPaymentDetail: '/tenant/customer-payments/:paymentId',
-  tenantHireInvoiceDetail: '/tenant/finance/invoices/:invoiceId',
-  tenantHireInvoicePrint: '/tenant/finance/invoices/:invoiceId/print',
   /** Matches the backend `tenant.cash_custody` menu path (custody chain, remittances, reconciliation). */
   tenantCashCustody: '/tenant/finance/cash',
   /** Matches the backend `tenant.deposit_accounts` menu path (Finance group). */
@@ -222,7 +220,7 @@ export const CASH_TABS_MOVED: ReadonlySet<string> = new Set([
   'reconciliation',
 ]);
 
-/** Hire finance hub on a given tab (`invoices`, `payments`); cash tabs open the cash custody page. */
+/** Hire finance hub on a given tab (`payments`); cash tabs open the cash custody page. */
 export function financeTabPath(tab: string): string {
   if (CASH_TABS_MOVED.has(tab)) return cashTabPath(tab);
   return `${ROUTES.tenantFinance}?tab=${encodeURIComponent(tab)}`;
@@ -247,14 +245,6 @@ export function depositAccountDetailPath(accountId: string): string {
 
 export function syncConflictDetailPath(operationId: string): string {
   return `${ROUTES.tenantSyncConflicts}/${encodeURIComponent(operationId)}`;
-}
-
-export function hireInvoiceDetailPath(invoiceId: string): string {
-  return `${ROUTES.tenantFinance}/invoices/${encodeURIComponent(invoiceId)}`;
-}
-
-export function hireInvoicePrintPath(invoiceId: string): string {
-  return `${hireInvoiceDetailPath(invoiceId)}/print`;
 }
 
 export function modelDetailPath(modelId: string): string {

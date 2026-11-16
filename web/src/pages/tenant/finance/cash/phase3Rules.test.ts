@@ -32,7 +32,6 @@ describe('partial remittance', () => {
 
 describe('collection link policy', () => {
   const field = {
-    job_id: '',
     customer_id: 'c1',
     staff_member_id: '',
     amount: '100',
@@ -41,14 +40,12 @@ describe('collection link policy', () => {
     received_at: '2026-10-21T10:00:00.000Z',
     note: '',
     purchase_id: '',
-    invoice_id: '',
   };
 
-  it('needs a purchase or an invoice on a field collection when the policy is on', () => {
+  it('needs a purchase on a field collection when the policy is on', () => {
     expect(fieldCollectionSchemaFor(false).isValidSync(field)).toBe(true);
     expect(fieldCollectionSchemaFor(true).isValidSync(field)).toBe(false);
     expect(fieldCollectionSchemaFor(true).isValidSync({ ...field, purchase_id: 'p1' })).toBe(true);
-    expect(fieldCollectionSchemaFor(true).isValidSync({ ...field, invoice_id: 'i1' })).toBe(true);
   });
 
   it('needs a link on an office collection when the policy is on', () => {
@@ -61,7 +58,6 @@ describe('collection link policy', () => {
       received_at: '2026-10-21T10:00:00.000Z',
       received_by_staff_id: '',
       note: '',
-      allocations: [],
       purchase_id: '',
     };
     expect(paymentFormSchemaFor(false).isValidSync(v)).toBe(true);

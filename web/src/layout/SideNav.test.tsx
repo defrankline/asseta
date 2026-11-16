@@ -89,7 +89,7 @@ describe('SideNav', () => {
 
   it('expands the group of the active route even if it was collapsed before', () => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ 'tenant.finance': false }));
-    renderNav('/tenant/finance/invoices/1');
+    renderNav('/tenant/finance?tab=payments');
     expect(header('Finance')).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('link', { name: 'Hire finance' })).toHaveClass('active');
   });

@@ -5,12 +5,9 @@ import { CAPABILITY, useCapabilityEnabled } from '../../../access/capabilities';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { newUuid } from '../../../api/ids';
 import { cashService } from '../../../api/services/cashService';
-import { customerService } from '../../../api/services/customerService';
-import { jobService } from '../../../api/services/jobService';
-import type { CustomerDto, CustomerPaymentDto, HireInvoiceDto } from '../../../api/types';
+import type { CustomerDto, CustomerPaymentDto } from '../../../api/types';
 import type { CustodianDto } from '../../../api/custodyTypes';
 import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
-import { FormikAsyncIdAutocomplete } from '../../../components/forms/FormikAsyncIdAutocomplete';
 import { FormikDateTimeField } from '../../../components/forms/FormikDateTimeField';
 import { FormikSelectField } from '../../../components/forms/FormikSelectField';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
@@ -22,13 +19,8 @@ import { formatInstantIn } from '../../../utils/time';
 import { withErrorCode } from '../shared/errorHints';
 import { CURRENCY_OPTIONS, FINANCE_ERROR_HINTS } from '../shared/financeDisplay';
 import { FormikCustodianIdPicker } from '../finance/cash/custodyPickers';
-import {
-  customerOptionLabel,
-  invoiceOptionLabel,
-  searchIssuedInvoices,
-} from '../shared/financeLookups';
+import { customerOptionLabel } from '../shared/financeLookups';
 import { FormikCustomerIdPicker } from '../shared/financePickers';
-import { optionId } from '../shared/lookups';
 import { useCashPolicy } from '../finance/cash/custodyHooks';
 import { FormikPurchaseIdPicker } from '../hours/hoursPickers';
 import {
@@ -37,9 +29,8 @@ import {
   toFieldCollectionPayload,
   type FieldCollectionValues,
 } from './fieldCash';
-import { FormikFieldJobIdPicker } from './fieldPickers';
 
-/** A purchase or invoice belongs to one customer: changing the customer clears the choice. */
+/** A purchase belongs to one customer: changing the customer clears the choice. */
 function ClearLinksOnCustomerChange({ customerId }: { customerId: string }) {
   const { setFieldValue } = useFormikContext<FieldCollectionValues>();
   const previous = useRef(customerId);
@@ -47,32 +38,8 @@ function ClearLinksOnCustomerChange({ customerId }: { customerId: string }) {
     if (previous.current !== customerId) {
       previous.current = customerId;
       void setFieldValue('purchase_id', '');
-      void setFieldValue('invoice_id', '');
     }
   }, [customerId, setFieldValue]);
-  return null;
-}
-
-/** Picking a job fills the customer of its contract (the customer stays editable). */
-function JobCustomerSync() {
-  const { values, setFieldValue } = useFormikContext<FieldCollectionValues>();
-  const jobId = values.job_id;
-  useEffect(() => {
-    if (jobId === '') return undefined;
-    const controller = new AbortController();
-    jobService
-      .summary(jobId, controller.signal)
-      .then((s) => customerService.getContract(s.job.contract_id, controller.signal))
-      .then((contract) => {
-        if (!controller.signal.aborted) void setFieldValue('customer_id', contract.customer_id);
-      })
-      .catch(() => {
-        // The customer can still be chosen by hand.
-      });
-    return () => {
-      controller.abort();
-    };
-  }, [jobId, setFieldValue]);
   return null;
 }
 
@@ -96,9 +63,7 @@ export function FieldCollectionDialog({
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
   const [custodian, setCustodian] = useState<CustodianDto | null>(null);
   const [initial] = useState(() => emptyCollectionValues(new Date().toISOString()));
-  const [invoice, setInvoice] = useState<HireInvoiceDto | null>(null);
   const { hasPermission } = useSession();
-  const canSearchInvoices = hasPermission(PERMISSIONS.tenantFinanceRead);
   const canSearchPurchases = hasPermission(
     [PERMISSIONS.tenantHoursPurchase, PERMISSIONS.tenantHoursRead],
     'any',
@@ -118,18 +83,9 @@ export function FieldCollectionDialog({
       steps={[
         {
           label: 'Collection',
-          fields: [
-            'job_id',
-            'customer_id',
-            'staff_member_id',
-            'amount',
-            'currency',
-            'purchase_id',
-            'invoice_id',
-          ],
+          fields: ['customer_id', 'staff_member_id', 'amount', 'currency', 'purchase_id'],
           render: (f) => (
             <>
-              <JobCustomerSync />
               {forOthers && (
                 <FormikCustodianIdPicker
                   name="staff_member_id"
@@ -138,11 +94,6 @@ export function FieldCollectionDialog({
                   onOptionChange={setCustodian}
                 />
               )}
-              <FormikFieldJobIdPicker
-                name="job_id"
-                label="Job (optional)"
-                helperText="Fills in the job's customer."
-              />
               <FormikCustomerIdPicker
                 name="customer_id"
                 label="Customer"
@@ -165,19 +116,6 @@ export function FieldCollectionDialog({
                   customerId={f.values.customer_id}
                   disabled={f.values.customer_id === ''}
                   helperText="Linked up to its open amount; the rest stays as customer credit."
-                />
-              )}
-              {canSearchInvoices && (
-                <FormikAsyncIdAutocomplete<HireInvoiceDto>
-                  key={`invoice-${f.values.customer_id}`}
-                  name="invoice_id"
-                  label={linkRequired ? 'Or the invoice it pays' : 'Invoice (optional)'}
-                  disabled={f.values.customer_id === ''}
-                  fetchOptions={searchIssuedInvoices(f.values.customer_id)}
-                  getOptionId={optionId}
-                  getOptionLabel={invoiceOptionLabel}
-                  onOptionChange={setInvoice}
-                  noOptionsText="No issued invoice of this customer matches"
                 />
               )}
               {linkRequired && f.submitCount > 0 && f.errors.purchase_id !== undefined && (
@@ -219,14 +157,13 @@ export function FieldCollectionDialog({
             ]}
           />
           <Alert severity="info">
-            Recorded as CLAIMED in the custodian’s cash custody. The office verifies it and
-            allocates it to the customer’s invoices; until then it does not reduce the customer’s
-            balance.
+            Recorded as CLAIMED in the custodian’s cash custody. Until the office verifies it, it
+            does not reduce the customer’s balance.
           </Alert>
         </>
       )}
       onSubmit={async (v) => {
-        const body = toFieldCollectionPayload(v, clientId, v.invoice_id === '' ? null : invoice);
+        const body = toFieldCollectionPayload(v, clientId);
         try {
           onRecorded(await cashService.recordCollection(body, keyFor(body)));
         } catch (err) {

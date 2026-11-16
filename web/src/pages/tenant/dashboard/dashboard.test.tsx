@@ -131,7 +131,7 @@ describe('DashboardPage', () => {
     const money = await screen.findByRole('article', { name: 'TZS' });
     expect(within(money).getByRole('link', { name: /Overdue \(2 invoices\)/ })).toHaveAttribute(
       'href',
-      '/tenant/finance?tab=invoices&overdue=true',
+      '/tenant/hours/credit-invoices?overdue=true',
     );
     expect(within(money).getByRole('link', { name: /Cash held by supervisors/ })).toHaveAttribute(
       'href',
@@ -173,8 +173,8 @@ describe('dashboard helpers', () => {
   });
 
   it('builds deep links and reads only known filter values back', () => {
-    expect(withQuery('/tenant/finance?tab=invoices', { status: 'ISSUED', q: '' })).toBe(
-      '/tenant/finance?tab=invoices&status=ISSUED',
+    expect(withQuery('/tenant/finance?tab=payments', { status: 'CLAIMED', q: '' })).toBe(
+      '/tenant/finance?tab=payments&status=CLAIMED',
     );
     const params = new URLSearchParams('status=OPEN&severity=BOGUS');
     expect(initialFilter(params, 'status', ['OPEN', 'RESOLVED'], '')).toBe('OPEN');

@@ -89,9 +89,9 @@ describe('isFieldUser', () => {
 });
 
 describe('toFieldCollectionPayload', () => {
-  it('records into the caller’s own custody without allocations; the job is not sent', () => {
+  it('records into the caller’s own custody', () => {
     const v = {
-      ...emptyCollectionValues('2026-10-21T12:00:00Z', 'job-1'),
+      ...emptyCollectionValues('2026-10-21T12:00:00Z'),
       customer_id: 'cust-1',
       amount: ' 250000 ',
       reference: ' RB-12 ',
@@ -106,7 +106,6 @@ describe('toFieldCollectionPayload', () => {
       note: null,
       client_id: 'client-1',
       purchase_id: null,
-      allocations: [],
     });
   });
 });

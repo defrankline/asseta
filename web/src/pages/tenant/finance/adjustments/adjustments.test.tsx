@@ -256,7 +256,7 @@ describe('adjustment links', () => {
 
   it('links an adjusted record to its page and leaves unknown types plain', () => {
     expect(adjustedRecordPath('hours_purchase', 'p1')).toBe('/tenant/hours/purchases/p1');
-    expect(adjustedRecordPath('tenant_hire_invoice', 'i1')).toBe('/tenant/finance/invoices/i1');
+    expect(adjustedRecordPath('tenant_hire_invoice', 'i1')).toBeNull();
     expect(adjustedRecordPath('job_activity', 'x')).toBeNull();
   });
 });

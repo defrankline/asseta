@@ -12,7 +12,7 @@ import { PersonName } from '../../shared/PersonName';
 import { RecordDetail } from '../../shared/RecordDetail';
 import { useCustomerLabels, useStaffLabels } from '../../shared/useFinanceLabels';
 import { useRecordById } from '../../shared/useRecordById';
-import { PaymentAllocations, PaymentVerifyNotice, ReversedChip } from './PaymentParts';
+import { PaymentVerifyNotice, ReversedChip } from './PaymentParts';
 import { paymentItems } from './paymentRecord';
 import { usePaymentActions } from './usePaymentActions';
 
@@ -86,7 +86,6 @@ export function CustomerPaymentDetailPage() {
                 </Link>
               </Alert>
             )}
-            <PaymentAllocations payment={p} />
           </>
         )}
       </RecordDetail>

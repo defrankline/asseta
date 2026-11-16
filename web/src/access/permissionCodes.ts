@@ -125,11 +125,9 @@ export const PERMISSIONS = {
   /** Approval requests (read); approve / reject expenses above policy limits. */
   tenantApprovalRead: 'tenant.approval.read',
   tenantApprovalExpense: 'tenant.approval.expense',
-  /** Hire invoices, customer payments, balances, statements and cash custody (read). */
+  /** Customer payments, balances, statements and cash custody (read). */
   tenantFinanceRead: 'tenant.finance.read',
-  /** Draft, issue and void customer hire invoices. */
-  tenantFinanceInvoice: 'tenant.finance.invoice',
-  /** Record customer payments and allocate them to invoices. */
+  /** Record customer payments. */
   tenantFinancePayment: 'tenant.finance.payment',
   /** Verify or reject customer payments and cash handovers (never your own). */
   tenantFinanceVerify: 'tenant.finance.verify',

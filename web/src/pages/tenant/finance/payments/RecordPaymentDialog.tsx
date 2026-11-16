@@ -1,15 +1,10 @@
-import { Alert, Box, Typography } from '@mui/material';
+import { Alert, Box } from '@mui/material';
 import { useMemo, useState } from 'react';
 import { CAPABILITY, useCapabilityEnabled } from '../../../../access/capabilities';
 import { cashService } from '../../../../api/services/cashService';
 import { customerPaymentService } from '../../../../api/services/financeService';
 import { newUuid } from '../../../../api/ids';
-import type {
-  CustomerDto,
-  CustomerPaymentDto,
-  HireInvoiceDto,
-  StaffDto,
-} from '../../../../api/types';
+import type { CustomerDto, CustomerPaymentDto, StaffDto } from '../../../../api/types';
 import { KeyValueGrid } from '../../../../components/display/KeyValueGrid';
 import { MoneyText } from '../../../../components/display/MoneyText';
 import { FormikDateTimeField } from '../../../../components/forms/FormikDateTimeField';
@@ -26,16 +21,15 @@ import {
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHOD_OPTIONS,
 } from '../../shared/financeDisplay';
-import { customerOptionLabel, invoiceOptionLabel } from '../../shared/financeLookups';
+import { customerOptionLabel } from '../../shared/financeLookups';
 import { FormikCustomerIdPicker, FormikStaffIdPicker } from '../../shared/financePickers';
 import { useCashPolicy } from '../cash/custodyHooks';
 import { FormikPurchaseIdPicker } from '../../hours/hoursPickers';
-import { AllocationFields } from './AllocationFields';
 import {
-  ALLOCATION_FIELDS,
   emptyPaymentValues,
   PAYMENT_FIELDS,
   paymentFormSchemaFor,
+  PURCHASE_FIELDS,
   RECEIPT_FIELDS,
   REFERENCE_REQUIRED,
   toCollectionPayload,
@@ -49,8 +43,6 @@ interface RecordPaymentDialogProps {
   /** `collection`: a supervisor's CASH collection into custody (recordCashCollection). */
   mode?: PaymentMode;
   customerId?: string;
-  /** Pre-fills one allocation to this issued invoice. */
-  invoice?: HireInvoiceDto;
   /** Pre-fills the custodian of a cash collection. */
   staffMemberId?: string;
   timeZone: string;
@@ -59,13 +51,13 @@ interface RecordPaymentDialogProps {
 }
 
 /**
- * Payment → Receipt → Allocation → Review. Recorded money is CLAIMED until someone other than the
- * recorder verifies it; only VERIFIED money reduces balances. Mount only while open.
+ * Payment → Receipt (→ Hours purchase for a cash collection) → Review. Recorded money is CLAIMED
+ * until someone other than the recorder verifies it; only VERIFIED money reduces balances. Mount
+ * only while open.
  */
 export function RecordPaymentDialog({
   mode = 'payment',
   customerId,
-  invoice,
   staffMemberId,
   timeZone,
   onClose,
@@ -84,7 +76,6 @@ export function RecordPaymentDialog({
   const [initialValues] = useState(() => ({
     ...emptyPaymentValues(new Date().toISOString(), {
       ...(customerId !== undefined ? { customerId } : {}),
-      ...(invoice !== undefined ? { invoice } : {}),
       method: isCollection ? 'CASH' : 'BANK',
     }),
     received_by_staff_id: staffMemberId ?? '',
@@ -115,12 +106,7 @@ export function RecordPaymentDialog({
             required
             slotProps={{ htmlInput: { inputMode: 'decimal' } }}
           />
-          <FormikSelectField
-            name="currency"
-            label="Currency"
-            options={CURRENCY_OPTIONS}
-            helperText="Must match the invoices it pays."
-          />
+          <FormikSelectField name="currency" label="Currency" options={CURRENCY_OPTIONS} />
           <FormikTextField
             name="reference"
             label={
@@ -160,29 +146,28 @@ export function RecordPaymentDialog({
         </>
       ),
     },
-    {
-      label: 'Allocation',
-      fields: ALLOCATION_FIELDS,
+  ];
+  if (isCollection) {
+    steps.push({
+      label: 'Hours purchase',
+      fields: PURCHASE_FIELDS,
       render: (formik) => (
         <>
-          <AllocationFields />
-          {isCollection && (
-            <FormikPurchaseIdPicker
-              key={formik.values.customer_id}
-              name="purchase_id"
-              label={linkRequired ? 'Hours purchase it pays for' : 'Hours purchase (optional)'}
-              customerId={formik.values.customer_id}
-              disabled={formik.values.customer_id === ''}
-              helperText="Linked up to its open amount; the rest stays as customer credit."
-            />
-          )}
+          <FormikPurchaseIdPicker
+            key={formik.values.customer_id}
+            name="purchase_id"
+            label={linkRequired ? 'Hours purchase it pays for' : 'Hours purchase (optional)'}
+            customerId={formik.values.customer_id}
+            disabled={formik.values.customer_id === ''}
+            helperText="Linked up to its open amount; the rest stays as customer credit."
+          />
           {linkRequired && formik.submitCount > 0 && formik.errors.purchase_id !== undefined && (
             <Alert severity="error">{formik.errors.purchase_id}</Alert>
           )}
         </>
       ),
-    },
-  ];
+    });
+  }
   return (
     <StepperFormDialog<PaymentFormValues>
       open
@@ -219,17 +204,6 @@ export function RecordPaymentDialog({
               },
             ]}
           />
-          <Typography variant="subtitle2">Allocations</Typography>
-          {v.allocations.length === 0 ? (
-            <Typography variant="body2">None — held as customer credit once verified.</Typography>
-          ) : (
-            v.allocations.map((a, i) => (
-              <Box key={i} className="flex justify-between gap-2">
-                <span>{a.invoice === null ? '—' : invoiceOptionLabel(a.invoice)}</span>
-                <MoneyText amount={a.amount} currency={v.currency} />
-              </Box>
-            ))
-          )}
           <Alert severity="info">
             Recorded as <strong>CLAIMED</strong>. It reduces the customer’s balance only after a
             different authorised person verifies it (segregation of duties).

@@ -1,4 +1,5 @@
 import type { OverviewConnectivityCountsDto, OverviewSeverityCountsDto } from '../../../api/types';
+import { creditInvoicesPath } from '../../../navigation/hoursRoutes';
 import { financeTabPath, ROUTES } from '../../../navigation/routes';
 import { withQuery } from '../../../navigation/urlFilters';
 import { ENTITY } from '../../../realtime/entities';
@@ -35,7 +36,6 @@ export const DASHBOARD_LIVE_ENTITIES: readonly string[] = [
   ENTITY.approval,
   ENTITY.meterCapture,
   ENTITY.meterException,
-  ENTITY.hireInvoice,
   ENTITY.customerPayment,
   ENTITY.cashHandover,
   ENTITY.expense,
@@ -87,8 +87,8 @@ export const DASHBOARD_LINKS = {
   jobs: (status?: string) => withQuery(ROUTES.tenantJobs, { status }),
   approvals: () => ROUTES.tenantApprovals,
   openExceptions: () => withQuery(ROUTES.tenantExceptions, { status: 'OPEN' }),
-  receivables: () => withQuery(financeTabPath('invoices'), { status: 'ISSUED' }),
-  overdue: () => withQuery(financeTabPath('invoices'), { overdue: 'true' }),
+  receivables: () => creditInvoicesPath(),
+  overdue: () => creditInvoicesPath({ overdue: 'true' }),
   receipts: () => financeTabPath('payments'),
   cashCustody: () => financeTabPath('custody'),
   approvedExpenses: () => withQuery(ROUTES.tenantExpenses, { status: 'APPROVED' }),

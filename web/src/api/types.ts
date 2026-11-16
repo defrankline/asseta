@@ -304,21 +304,11 @@ export type GatewayIn = Schemas['GatewayIn'];
 export type GatewayCreatedDto = Schemas['GatewayCreatedDto'];
 export type TenantUpdateIn = Schemas['TenantUpdateIn'];
 
-// ---- Tenant hire finance (Gate 5, R1-G): invoices, payments, receivables, cash custody ----
+// ---- Tenant hire finance (Gate 5, R1-G): payments, receivables, cash custody ----
 
-export type HireInvoiceDto = Schemas['HireInvoiceDto'];
-export type HireInvoiceLineDto = Schemas['HireInvoiceLineDto'];
-export type HireInvoiceStatus = Schemas['HireInvoiceStatus'];
-export type HireInvoiceDraftIn = Schemas['HireInvoiceDraftIn'];
-export type HireInvoiceIssueIn = Schemas['HireInvoiceIssueIn'];
-export type HireInvoiceVoidIn = Schemas['HireInvoiceVoidIn'];
 export type ChargeKind = Schemas['ChargeKind'];
-export type InvoicePaymentState = NonNullable<HireInvoiceDto['payment_state']>;
 export type CustomerPaymentDto = Schemas['CustomerPaymentDto'];
 export type CustomerPaymentIn = Schemas['CustomerPaymentIn'];
-export type HireAllocationDto = Schemas['HireAllocationDto'];
-export type HireAllocationIn = Schemas['HireAllocationIn'];
-export type HireAllocateIn = Schemas['HireAllocateIn'];
 export type HirePaymentMethod = Schemas['HirePaymentMethod'];
 export type SettlementStatus = Schemas['SettlementStatus'];
 export type SettlementDecisionIn = Schemas['SettlementDecisionIn'];

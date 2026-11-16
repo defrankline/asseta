@@ -13,14 +13,22 @@ const ID = '00000000-0000-4000-8000-000000000001';
 
 const source = (file: string) => readFileSync(resolve(MODULE, file), 'utf8');
 
-/** `RECORD_ROUTES` of links.py: record type -> list prefix. */
+/**
+ * Record types the web no longer serves (ADR-008 removed jobs and job-based hire invoices). The
+ * server pass drops them from links.py as well; skipping them keeps this test green before and after.
+ */
+const RETIRED: ReadonlySet<string> = new Set(['job', 'hire_invoice']);
+
+/** `RECORD_ROUTES` of links.py: record type -> list prefix (retired types left out). */
 function recordRoutes(): [string, string][] {
   const text = source('links.py');
   const block = text.slice(text.indexOf('RECORD_ROUTES'), text.indexOf('def record_route'));
-  return [...block.matchAll(/"([a-z_]+)": f?"([^"]+)"/g)].map((m) => [
-    m[1] ?? '',
-    (m[2] ?? '').replace('{CASH}', CASH).replace('{PETTY}', PETTY),
-  ]);
+  return [...block.matchAll(/"([a-z_]+)": f?"([^"]+)"/g)]
+    .map((m): [string, string] => [
+      m[1] ?? '',
+      (m[2] ?? '').replace('{CASH}', CASH).replace('{PETTY}', PETTY),
+    ])
+    .filter(([type]) => !RETIRED.has(type));
 }
 
 /** Paths named in sections.py: list routes, plain routes and the employee link. */

@@ -4,30 +4,12 @@ import type {
   ExpensePaidFrom,
   ExpenseStatus,
   FuelEventType,
-  HireInvoiceStatus,
   HirePaymentMethod,
-  InvoicePaymentState,
   SettlementStatus,
 } from '../../../api/types';
 import type { StatusTone } from '../../../components/display/StatusChip';
 import { SUPPORTED_CURRENCIES } from '../../../utils/money';
 import type { Option } from './display';
-
-export const INVOICE_STATUS_TONES: Readonly<Record<HireInvoiceStatus, StatusTone>> = {
-  DRAFT: 'info',
-  ISSUED: 'success',
-  VOIDED: 'default',
-};
-export const INVOICE_STATUS_OPTIONS: readonly Option<HireInvoiceStatus>[] = [
-  { value: 'DRAFT', label: 'Draft' },
-  { value: 'ISSUED', label: 'Issued' },
-  { value: 'VOIDED', label: 'Voided' },
-];
-export const PAYMENT_STATE_TONES: Readonly<Record<InvoicePaymentState, StatusTone>> = {
-  UNPAID: 'warning',
-  PARTIALLY_PAID: 'info',
-  PAID: 'success',
-};
 
 /** CLAIMED money is reported, not yet settled; only VERIFIED counts against balances. */
 export const SETTLEMENT_TONES: Readonly<Record<SettlementStatus, StatusTone>> = {
@@ -120,25 +102,12 @@ export const FINANCE_ERROR_HINTS: Readonly<Record<string, string>> = {
     'The person who recorded or requested this cannot decide it. Ask another authorised colleague.',
   EVIDENCE_REQUIRED: 'Your company policy needs supporting evidence: attach it first.',
   COLLECTION_LINK_REQUIRED:
-    'Your company policy needs each collection to name its purchase or invoice.',
+    'Your company policy needs each collection to name the hours purchase it pays for.',
   PARTIAL_REMITTANCE_REASON_REQUIRED:
     'This remittance leaves part of the balance with the custodian; give the reason.',
   PURCHASE_NOT_FOUND: 'That hours purchase was not found.',
-  JOB_NOT_BILLABLE:
-    'Only COMPLETED, billing-ready jobs can be invoiced. Resolve blocking exceptions or missing readings first.',
-  JOB_ALREADY_INVOICED: 'The job is already on another non-voided invoice.',
-  JOB_CUSTOMER_MISMATCH: 'Every job must belong to the selected customer.',
-  DRAFT_STALE:
-    'Job charges changed since drafting. Void this draft and create a new one from the current charges.',
   CURRENCY_MISMATCH: 'All amounts on one record must share a single currency.',
   NOT_CUSTODIAN: 'Only office cash staff may record custody for someone else.',
-  INVOICE_NOT_DRAFT: 'Issued invoices are immutable; correct them by voiding.',
-  INVOICE_ALREADY_VOIDED: 'This invoice is already voided.',
-  INVOICE_NOT_OPEN: 'Payments can only be allocated to issued invoices.',
-  OVER_ALLOCATION: 'Allocate no more than the invoice’s open amount.',
-  ALLOCATION_EXCEEDS_PAYMENT: 'Allocations cannot exceed the payment amount.',
-  ALLOCATION_MISMATCH: 'The invoice belongs to another customer or currency.',
-  PAYMENT_REJECTED: 'A rejected payment cannot be allocated.',
   PAYMENT_ALREADY_DECIDED: 'Someone already decided this payment. Reload to see it.',
   HANDOVER_ALREADY_DECIDED: 'Someone already decided this handover. Reload to see it.',
   APPROVAL_ALREADY_DECIDED: 'Someone already decided this request. Reload to see it.',

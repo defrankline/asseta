@@ -11,7 +11,6 @@ import {
   APPROVAL_ID,
   CASE_ID,
   DIFFERENCE_ID,
-  INVOICE_ID,
   makeActivity,
   makeApproval,
   makeDifference,
@@ -102,10 +101,7 @@ describe('Revenue differences', () => {
       `/tenant/jobs/${JOB_ID}`,
     );
     const sources = screen.getByRole('table', { name: 'Money sources' });
-    expect(within(sources).getByRole('link', { name: 'Open invoice' })).toHaveAttribute(
-      'href',
-      `/tenant/finance/invoices/${INVOICE_ID}`,
-    );
+    expect(within(sources).queryByRole('link', { name: 'Open invoice' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Daily sheet' })).toHaveAttribute(
       'href',
       expect.stringContaining('/tenant/engine-hours/daily-sheet/'),

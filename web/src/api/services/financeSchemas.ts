@@ -1,6 +1,6 @@
 /**
- * Runtime (Yup) response schemas for tenant hire finance: hire invoices, customer payments and
- * allocations, balances, statements, cash custody, handovers, reconciliation and profitability.
+ * Runtime (Yup) response schemas for tenant hire finance: customer payments, balances, statements,
+ * cash custody, handovers, reconciliation and profitability.
  * Money values are decimal strings and stay strings.
  */
 import { array, mixed, object, string, type Schema } from 'yup';
@@ -15,10 +15,7 @@ import type {
   CustomerBalanceDto,
   CustomerPaymentDto,
   CustomerStatementDto,
-  HireInvoiceDto,
-  HireInvoiceStatus,
   HirePaymentMethod,
-  InvoicePaymentState,
   ProfitabilityDto,
   ProfitabilityGroupBy,
   SettlementStatus,
@@ -29,7 +26,6 @@ import type { RemittanceMethod } from '../custodyTypes';
 import {
   bool,
   id,
-  idList,
   int,
   nullableId,
   nullableOneOf,
@@ -38,7 +34,6 @@ import {
   text,
 } from './schemaKit';
 
-export const HIRE_INVOICE_STATUSES: readonly HireInvoiceStatus[] = ['DRAFT', 'ISSUED', 'VOIDED'];
 export const CHARGE_KINDS: readonly ChargeKind[] = [
   'HIRE',
   'STANDBY',
@@ -47,7 +42,6 @@ export const CHARGE_KINDS: readonly ChargeKind[] = [
   'TAX',
   'HOURS_RECOVERY',
 ];
-export const PAYMENT_STATES: readonly InvoicePaymentState[] = ['UNPAID', 'PARTIALLY_PAID', 'PAID'];
 export const PAYMENT_METHODS: readonly HirePaymentMethod[] = ['CASH', 'BANK', 'MOBILE_MONEY'];
 export const SETTLEMENT_STATUSES: readonly SettlementStatus[] = ['CLAIMED', 'VERIFIED', 'REJECTED'];
 export const STATEMENT_KINDS: readonly StatementLineKind[] = [
@@ -71,41 +65,7 @@ export const REMITTANCE_METHODS: readonly RemittanceMethod[] = [
 ];
 export const GROUP_BYS: readonly ProfitabilityGroupBy[] = ['MACHINE', 'JOB', 'CUSTOMER'];
 
-export const hireInvoiceSchema: Schema<HireInvoiceDto> = object({
-  id: id(),
-  customer_id: id(),
-  invoice_number: nullableText(),
-  status: oneOf(HIRE_INVOICE_STATUSES),
-  currency: text(),
-  subtotal: text(),
-  discount_total: text(),
-  tax_total: text(),
-  total: text(),
-  amount_paid: text(),
-  balance: text(),
-  payment_state: nullableOneOf(PAYMENT_STATES),
-  due_date: nullableText(),
-  notes: nullableText(),
-  created_at: text(),
-  issued_at: nullableText(),
-  voided_at: nullableText(),
-  void_reason: nullableText(),
-  pending_void_request_id: string().nullable().default(null),
-  job_ids: idList(),
-  lines: array(
-    object({
-      line_no: int(),
-      kind: oneOf(CHARGE_KINDS),
-      job_id: id(),
-      machine_id: id(),
-      description: text(),
-      quantity: text(),
-      unit_price: text(),
-      amount: text(),
-    }),
-  ).required(),
-});
-
+/** Hire invoice allocations (retired by ADR-008): still parsed while the server sends them, never shown. */
 const allocationSchema = object({
   id: id(),
   invoice_id: id(),

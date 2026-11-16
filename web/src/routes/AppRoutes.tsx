@@ -61,8 +61,6 @@ import {
   FinancePage,
   FleetMapPage,
   GeofencesPage,
-  HireInvoiceDetailPage,
-  HireInvoicePrintPage,
   JobDetailPage,
   JobsPage,
   MachineDetailPage,
@@ -356,14 +354,6 @@ export function AppRoutes() {
         <Route
           path={ROUTES.tenantFinance}
           element={guard(PERMISSIONS.tenantFinanceRead, <FinancePage />)}
-        />
-        <Route
-          path={ROUTES.tenantHireInvoiceDetail}
-          element={guard(PERMISSIONS.tenantFinanceRead, <HireInvoiceDetailPage />)}
-        />
-        <Route
-          path={ROUTES.tenantHireInvoicePrint}
-          element={guard(PERMISSIONS.tenantFinanceRead, <HireInvoicePrintPage />)}
         />
         <Route
           path={ROUTES.tenantCashCustody}

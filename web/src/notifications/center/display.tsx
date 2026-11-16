@@ -9,7 +9,6 @@ import {
   caseDetailPath,
   exceptionsPath,
   financeTabPath,
-  hireInvoiceDetailPath,
   jobDetailPath,
   machineDetailPath,
   platformInvoiceDetailPath,
@@ -59,8 +58,6 @@ const BY_ENTITY: Readonly<Record<string, (id: string | null) => string>> = {
   [ENTITY.meterException]: () => exceptionsPath(),
   [ENTITY.customerPayment]: () => financeTabPath('payments'),
   [ENTITY.cashHandover]: () => financeTabPath('handovers'),
-  [ENTITY.hireInvoice]: (id) =>
-    id === null ? financeTabPath('invoices') : hireInvoiceDetailPath(id),
   [ENTITY.platformInvoice]: (id) =>
     id === null ? ROUTES.platformInvoices : platformInvoiceDetailPath(id),
   [ENTITY.platformPayment]: () => ROUTES.platformPayments,

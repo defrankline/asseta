@@ -11,7 +11,6 @@ export const ENTITY = {
   expense: 'expense',
   customerPayment: 'customer_payment',
   cashHandover: 'cash_handover',
-  hireInvoice: 'hire_invoice',
   meterCapture: 'meter_capture',
   meterException: 'meter_exception',
   job: 'job',

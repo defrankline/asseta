@@ -1,13 +1,10 @@
-import { Alert, Box, Typography } from '@mui/material';
+import { Alert, Box } from '@mui/material';
 import type { AdjustmentRequestDto } from '../../../../api/adjustmentTypes';
 import { adjustmentService } from '../../../../api/services/adjustmentService';
-import { hireInvoiceService } from '../../../../api/services/financeService';
-import type { CustomerPaymentDto, HireInvoiceDto } from '../../../../api/types';
+import type { CustomerPaymentDto } from '../../../../api/types';
 import { KeyValueGrid } from '../../../../components/display/KeyValueGrid';
 import { MoneyText } from '../../../../components/display/MoneyText';
 import { PAYMENT_METHOD_LABELS } from '../../shared/financeDisplay';
-import { VoidExplanation } from '../invoices/InvoiceViews';
-import { invoiceTitle } from '../invoices/invoiceData';
 import { AdjustmentProposalDialog } from './AdjustmentProposalDialog';
 import { reversalTypeOf } from './adjustmentDisplay';
 
@@ -53,39 +50,6 @@ export function ReversePaymentDialog({
           key,
         )
       }
-      onDone={onDone}
-      onClose={onClose}
-    />
-  );
-}
-
-/** Void an issued invoice: applied at once or proposed, as the tenant's policy says. */
-export function VoidIssuedInvoiceDialog({
-  invoice,
-  onClose,
-  onDone,
-}: {
-  invoice: HireInvoiceDto;
-  onClose: () => void;
-  onDone: (result: HireInvoiceDto) => void;
-}) {
-  return (
-    <AdjustmentProposalDialog
-      title={`Void ${invoiceTitle(invoice)}`}
-      submitLabel="Void invoice"
-      reasonKind="REVERSAL"
-      initial={{}}
-      summary={
-        <Box className="flex flex-col gap-2">
-          <VoidExplanation invoice={invoice} />
-          <Typography variant="body2" color="text.secondary">
-            If your company policy needs a second person, this becomes a request and the invoice
-            stays issued until someone else decides.
-          </Typography>
-          <Alert severity="warning">This cannot be undone.</Alert>
-        </Box>
-      }
-      submit={(common, _v, key) => hireInvoiceService.void(invoice.id, common, key)}
       onDone={onDone}
       onClose={onClose}
     />

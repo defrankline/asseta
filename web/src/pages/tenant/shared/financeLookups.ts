@@ -5,7 +5,6 @@
 import { customerService } from '../../../api/services/customerService';
 import { expenseCategoryService } from '../../../api/services/expenseCategoryService';
 import { expenseService } from '../../../api/services/expenseService';
-import { hireInvoiceService } from '../../../api/services/financeService';
 import { jobService } from '../../../api/services/jobService';
 import { machineService } from '../../../api/services/machineService';
 import { staffService } from '../../../api/services/staffService';
@@ -13,7 +12,6 @@ import type {
   CustomerDto,
   ExpenseCategoryDto,
   ExpenseDto,
-  HireInvoiceDto,
   JobDto,
   MachineDto,
   StaffDto,
@@ -59,16 +57,3 @@ export const expenseOptionLabel = (e: ExpenseDto): string =>
 export const searchExpenses = async (q: string, signal: AbortSignal) =>
   (await expenseService.list(one(q), signal)).items;
 export const resolveExpense = (id: string, signal: AbortSignal) => expenseService.get(id, signal);
-
-export const invoiceOptionLabel = (i: HireInvoiceDto): string =>
-  `${i.invoice_number ?? 'Draft'} · open ${formatMoney(i.balance, i.currency)}`;
-/** Issued invoices of one customer (server filters), searched by invoice number. */
-export const searchIssuedInvoices =
-  (customerId: string) =>
-  async (q: string, signal: AbortSignal): Promise<HireInvoiceDto[]> =>
-    (
-      await hireInvoiceService.list(
-        { ...one(q), filters: { status: 'ISSUED', customer_id: customerId } },
-        signal,
-      )
-    ).items;

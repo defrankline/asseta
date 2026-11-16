@@ -149,16 +149,6 @@ export const ApprovalsPage = lazy(() =>
 export const FinancePage = lazy(() =>
   import('../pages/tenant/finance/FinancePage').then((m) => ({ default: m.FinancePage })),
 );
-export const HireInvoiceDetailPage = lazy(() =>
-  import('../pages/tenant/finance/invoices/HireInvoiceDetailPage').then((m) => ({
-    default: m.HireInvoiceDetailPage,
-  })),
-);
-export const HireInvoicePrintPage = lazy(() =>
-  import('../pages/tenant/finance/invoices/HireInvoicePrintPage').then((m) => ({
-    default: m.HireInvoicePrintPage,
-  })),
-);
 export const ProfitabilityPage = lazy(() =>
   import('../pages/tenant/profitability/ProfitabilityPage').then((m) => ({
     default: m.ProfitabilityPage,

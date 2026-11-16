@@ -4,7 +4,6 @@ import type { AdjustmentRequestDto } from '../../../../api/adjustmentTypes';
 import { StaticTable } from '../../../../components/data/StaticTable';
 import { KeyValueGrid, type KeyValueItem } from '../../../../components/display/KeyValueGrid';
 import { MoneyText } from '../../../../components/display/MoneyText';
-import { hireInvoiceDetailPath } from '../../../../navigation/routes';
 import { caseDetailPath } from '../../../../navigation/routes';
 import { hoursPurchasePath } from '../../../../navigation/hoursRoutes';
 import { hoursText } from '../../hours/hoursDisplay';
@@ -114,9 +113,7 @@ export function RequestEffects({
     items.push({
       label: 'Recovery invoice',
       value: (
-        <Link component={RouterLink} to={hireInvoiceDetailPath(invoiceId)}>
-          {str(e.recovery_invoice_number) ?? 'Open the invoice'}
-        </Link>
+        <>{str(e.recovery_invoice_number) ?? invoiceId}</>
       ),
     });
   }

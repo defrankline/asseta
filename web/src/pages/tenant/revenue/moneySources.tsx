@@ -5,15 +5,13 @@ import type { DataColumn } from '../../../components/data/ServerDataTable';
 import { StaticTable } from '../../../components/data/StaticTable';
 import { MoneyText } from '../../../components/display/MoneyText';
 import { hoursPurchasePath } from '../../../navigation/hoursRoutes';
-import { hireInvoiceDetailPath, jobDetailPath } from '../../../navigation/routes';
+import { jobDetailPath } from '../../../navigation/routes';
 import { MONEY_SOURCE_LABELS } from './revenueDisplay';
 
-/** The record a money source came from: the issued invoice, or the prepaid-hours purchase. */
+/** The prepaid-hours purchase a money source came from (older invoice lines have no page). */
 function moneySourceRecord(m: Pick<SheetMoneySourceDto, 'source' | 'parent_id'>) {
   return m.source === 'INVOICE_LINE' ? (
-    <Link component={RouterLink} to={hireInvoiceDetailPath(m.parent_id)}>
-      Open invoice
-    </Link>
+    '—'
   ) : (
     <Link component={RouterLink} to={hoursPurchasePath(m.parent_id)}>
       Open purchase
