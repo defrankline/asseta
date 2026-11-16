@@ -17,12 +17,12 @@ struct SellHoursView: View {
     let close: () -> Void
     @State private var clientID = UUID()
     @State private var draft = HoursSaleDraft.newSale()
-    @State private var receivedAt = Date()
     @State private var holderID: UUID?
     @State private var photos: [UUID: [(evidence: StoredEvidence, data: Data)]] = [:]
     @State private var cameraFor: UUID?
     @State private var cameraDenied = false
     @State private var error: String?
+    @State private var saving = false
     @Environment(\.openURL) private var openURL
 
     var body: some View {
@@ -98,7 +98,9 @@ struct SellHoursView: View {
                     .padding(.horizontal, 16).padding(.top, 4)
                 }
                 VStack(spacing: 8) {
-                    PrimaryButton(T.saleSave, enabled: valid, identifier: "hours.save") { save(price: price, credit: credit) }
+                    PrimaryButton(saving ? T.saleSaving : T.saleSave, enabled: valid && !saving, identifier: "hours.save") {
+                        save(price: price, credit: credit)
+                    }
                     Text(T.saleFooter).font(.system(size: 12)).foregroundStyle(Shell.faint).multilineTextAlignment(.center)
                 }
                 .padding(.horizontal, 16).padding(.vertical, 12)
@@ -125,8 +127,9 @@ struct SellHoursView: View {
 
     private struct LineID: Identifiable { let id: UUID }
 
+    /// The total card: "Total", the amount and "20 h × 95,000 · rate card"; nothing until the hours and machine are known.
     @ViewBuilder private func totalCard(_ price: HoursSalePrice) -> some View {
-        ShellCard(fill: Shell.raised) {
+        if price != .hidden { ShellCard(fill: Shell.raised) {
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(T.saleTotal).font(.system(size: 13)).foregroundStyle(Shell.muted)
@@ -137,16 +140,17 @@ struct SellHoursView: View {
                     case .unpriced:
                         Text(A.hoursPriceLater).font(.system(size: 15, weight: .semibold)).foregroundStyle(Shell.text)
                     case .hidden:
-                        Text("—").font(.system(size: 26, weight: .bold)).foregroundStyle(Shell.muted)
+                        EmptyView()
                     }
                 }
                 Spacer()
                 if case let .priced(q) = price {
-                    Text(T.saleRate(MachineReportRules.hoursText(q.hours), HoursPricing.rate(q.effectiveRate)))
+                    Text(T.saleRate(HoursPricing.figure(q.hours), HoursPricing.rate(q.hourlyRate),
+                                    discount: q.discountPercent > 0 ? HoursPricing.figure(q.discountPercent) : nil))
                         .font(.system(size: 13)).foregroundStyle(Shell.muted).multilineTextAlignment(.trailing)
                 }
             }
-        }
+        } }
     }
 
     @ViewBuilder private func paymentCard(_ index: Int, methods: [String]) -> some View {
@@ -208,7 +212,7 @@ struct SellHoursView: View {
                 .font(.system(size: 13))
             } else {
                 Button { Task { if await CameraAccess.request() { cameraFor = lineID } else { cameraDenied = true } } } label: {
-                    Label(A.hoursPhotograph, systemImage: "camera").font(.system(size: 13))
+                    Label(T.salePhoto, systemImage: "camera").font(.system(size: 13))
                 }
                 Spacer()
             }
@@ -220,10 +224,11 @@ struct SellHoursView: View {
         switch summary.status {
         case .notPaid: return T.saleNotPaid
         case .fullyPaid: return T.saleFullyPaid()
-        case let .partPaid(balance):
-            if case let .priced(q) = price { return T.saleBalance(HoursPricing.money(balance, currency: q.currency, minorUnits: q.minorUnits)) }
-            return ""
-        case .overTotal, .noTotal: return ""
+        case let .partPaid(balance): return T.saleBalance(HoursPricing.rate(balance))
+        case .overTotal:
+            guard let q = summary.quote else { return "" }
+            return A.hoursErrPaymentsExceed(HoursPricing.money(q.amount, currency: q.currency, minorUnits: q.minorUnits))
+        case .noTotal: return T.salePaid(HoursPricing.rate(summary.paid))
         }
     }
 
@@ -241,6 +246,17 @@ struct SellHoursView: View {
     }
 
     private func save(price: HoursSalePrice, credit: Bool) {
+        guard !saving else { return }
+        saving = true
+        // "Saving…" shows while the sale is written (next run loop turn).
+        Task { @MainActor in
+            await Task.yield()
+            store(credit: credit)
+            saving = false
+        }
+    }
+
+    private func store(credit: Bool) {
         let a = model.access
         let holder = holderID.flatMap { a.recordForOthers && $0 != model.myStaffID ? $0 : nil }
         do {
@@ -249,7 +265,7 @@ struct SellHoursView: View {
                                        evidence: draft.payments.map { line in
                                            line.method == "CREDIT" ? [] : (photos[line.id] ?? []).map(\.evidence)
                                        },
-                                       receivedAt: min(receivedAt, Date()), clientID: clientID, noncashAllowed: a.noncashPayments,
+                                       receivedAt: Date(), clientID: clientID, noncashAllowed: a.noncashPayments,
                                        creditAllowed: credit)
             }
             photos = [:]
