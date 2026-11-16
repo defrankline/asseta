@@ -70,7 +70,7 @@ export function FundDialog({ fund, onClose, onSaved, onReload }: FundDialogProps
               }}
             />
           )}
-          <FormikJobSitePicker name="job_site_id" label="Job site (optional)" />
+          <FormikJobSitePicker name="job_site_id" label="Site (optional)" />
         </>
       ),
     },

@@ -18,7 +18,7 @@ export function makeCase(overrides: Partial<AnomalyCaseDto> = {}): AnomalyCaseDt
   return {
     id: CASE_ID,
     case_number: 'CASE-2026-00001',
-    title: 'Engine activity without an active job',
+    title: 'Engine activity without reported work',
     subject_type: 'MACHINE',
     subject_id: MACHINE_ID,
     machine_id: MACHINE_ID,

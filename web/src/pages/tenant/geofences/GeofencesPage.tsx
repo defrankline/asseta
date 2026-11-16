@@ -58,12 +58,12 @@ function SectionTitle({ title, toggle }: { title: string; toggle: ReactNode }) {
   );
 }
 
-/** Job sites and geofences with a map preview: view, draw / edit, deactivate / reactivate. */
+/** Sites and geofences with a map preview: view, draw / edit, deactivate / reactivate. */
 export function GeofencesPage() {
   const notify = useNotify();
   const { hasPermission } = useSession();
   const canWrite = useCanMutate(PERMISSIONS.tenantGeofenceWrite);
-  // Geofences belong to the TRACKING capability; job sites stay when it is off.
+  // Geofences belong to the TRACKING capability; sites stay when it is off.
   const tracking = useCapabilityEnabled(CAPABILITY.tracking);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing>(null);
@@ -83,7 +83,7 @@ export function GeofencesPage() {
   );
   const sites = useAsyncResource(loadSites, [inactiveSites]);
   const [params] = useSearchParams();
-  /** `?tab=sites` (e.g. from the go-live checklist) opens on the job sites, once both lists loaded. */
+  /** `?tab=sites` (e.g. from the go-live checklist) opens on the sites, once both lists loaded. */
   const sitesRef = useScrollIntoView<HTMLDivElement>(
     params.get('tab') === 'sites',
     sites.data !== null && (!tracking || geofences.data !== null),
@@ -127,7 +127,7 @@ export function GeofencesPage() {
   });
   const siteLifecycle = useLifecycleDialog<JobSiteDto>({
     labelOf: jobSiteLabel,
-    noun: 'job site',
+    noun: 'site',
     errorHints: JOB_SITE_ERROR_HINTS,
     consequences: JOB_SITE_DEACTIVATE_CONSEQUENCES,
     deactivate: (s, body, key) =>
@@ -135,9 +135,7 @@ export function GeofencesPage() {
     reactivate: (s, body, key) =>
       geofenceService.reactivateJobSite(s.id, { ...body, version: s.version }, key),
     onDone: (s, kind) => {
-      notify.success(
-        `Job site ${s.name} ${kind === 'deactivate' ? 'deactivated' : 'reactivated'}.`,
-      );
+      notify.success(`Site ${s.name} ${kind === 'deactivate' ? 'deactivated' : 'reactivated'}.`);
       sites.reload();
     },
     onReload: sites.reload,
@@ -208,11 +206,9 @@ export function GeofencesPage() {
   return (
     <>
       <PageHeader
-        title={tracking ? 'Sites & geofences' : 'Job sites'}
+        title={tracking ? 'Sites & geofences' : 'Sites'}
         subtitle={
-          tracking
-            ? 'Job sites, allowed / restricted areas and corridors'
-            : 'Where your machines work'
+          tracking ? 'Sites, allowed / restricted areas and corridors' : 'Where your machines work'
         }
         actions={
           <CanMutate permission={PERMISSIONS.tenantGeofenceWrite}>
@@ -221,7 +217,7 @@ export function GeofencesPage() {
                 setEditing({ kind: 'new-site' });
               }}
             >
-              New job site
+              New site
             </Button>
             {tracking && (
               <Button
@@ -296,20 +292,16 @@ export function GeofencesPage() {
           sx={{ scrollMarginTop: 80 }}
         >
           <SectionTitle
-            title="Job sites"
+            title="Sites"
             toggle={
               <ShowInactiveToggle
                 checked={inactiveSites}
                 onChange={setInactiveSites}
-                label="Show inactive job sites"
+                label="Show inactive sites"
               />
             }
           />
-          <AsyncContent
-            resource={sites}
-            isEmpty={(s) => s.length === 0}
-            emptyTitle="No job sites yet"
-          >
+          <AsyncContent resource={sites} isEmpty={(s) => s.length === 0} emptyTitle="No sites yet">
             {(rows) => <JobSitesTable rows={rows} actionsFor={(s) => siteActions(s, false)} />}
           </AsyncContent>
         </Paper>
@@ -336,7 +328,7 @@ export function GeofencesPage() {
           onReloadRequested={sites.reload}
           onSaved={(s) => {
             notify.success(
-              `Job site ${s.name} ${editing.kind === 'edit-site' ? 'updated' : 'created'}.`,
+              `Site ${s.name} ${editing.kind === 'edit-site' ? 'updated' : 'created'}.`,
             );
             sites.reload();
           }}

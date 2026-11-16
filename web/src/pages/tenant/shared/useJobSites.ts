@@ -6,7 +6,7 @@ import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useSession } from '../../../session/useSession';
 
 export interface JobSites {
-  /** null when the user cannot read job sites. */
+  /** null when the user cannot read sites. */
   sites: readonly JobSiteDto[] | null;
   label: (id: string | null) => string;
 }

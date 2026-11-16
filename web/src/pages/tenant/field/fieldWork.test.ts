@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { canvasPoint } from '../../../components/meter/signature';
 import { isGranted } from '../../../session/permissions';
 import { emptyCollectionValues, toFieldCollectionPayload } from './fieldCash';
 import { isFieldUser } from './fieldWork';
@@ -36,15 +35,5 @@ describe('toFieldCollectionPayload', () => {
       client_id: 'client-1',
       purchase_id: null,
     });
-  });
-});
-
-describe('canvasPoint', () => {
-  it('scales screen coordinates to canvas pixels', () => {
-    expect(canvasPoint(160, 70, { left: 10, top: 20, width: 300, height: 100 })).toEqual({
-      x: 300,
-      y: 100,
-    });
-    expect(canvasPoint(5, 5, { left: 0, top: 0, width: 0, height: 0 })).toEqual({ x: 5, y: 5 });
   });
 });

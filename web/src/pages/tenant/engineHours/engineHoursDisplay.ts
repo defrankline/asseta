@@ -141,7 +141,8 @@ export const ENGINE_HOURS_ERROR_HINTS: Readonly<Record<string, string>> = {
   SEGMENT_CHANGED:
     'These hours changed since the explanation was proposed (a correction or late reading); propose again.',
   CAPTURE_NOT_ACTIVE: 'Only a live reading (accepted or provisional) can be corrected.',
-  CORRECTION_MISMATCH: 'The corrected reading must be the same kind of reading for the same job.',
+  CORRECTION_MISMATCH:
+    'The corrected reading must be the same kind of reading for the same machine.',
   BASELINE_INCONSISTENT:
     'The baseline is above a later reading of this machine; check the value or record a meter reset.',
   BASELINE_IN_FUTURE: 'A baseline cannot be taken in the future.',
@@ -150,7 +151,7 @@ export const ENGINE_HOURS_ERROR_HINTS: Readonly<Record<string, string>> = {
   CAPTURE_ID_CONFLICT:
     'This reading was already recorded with different values; close the dialog and start again.',
   STALE_VERSION: 'Someone else changed this record; reload and try again.',
-  // DEC-032 Phase 1: work allocation corrections, daily reports, changeovers.
+  // DEC-032 Phase 1: work allocation corrections and daily reports.
   ALLOCATION_PARTS_MISMATCH: "The parts must add up to the entry's hours.",
   ALLOCATION_CORRECTION_PENDING: 'A correction of this entry already awaits a decision.',
   ALLOCATION_NOT_ACTIVE: 'Only an active entry can be corrected; reload to see the current one.',
@@ -165,10 +166,6 @@ export const ENGINE_HOURS_ERROR_HINTS: Readonly<Record<string, string>> = {
     'Only a submitted or returned report for the same machine and day can be replaced.',
   REPORT_EVIDENCE_REQUIRED: 'Your company requires a photo with daily reports; attach one.',
   REPORT_ALREADY_REVIEWED: 'This report has already been reviewed; reload to see the outcome.',
-  CHANGEOVER_NOT_ALLOWED: 'A changeover is recorded on the job currently running.',
-  CHANGEOVER_SAME_CUSTOMER: 'The machine is already working for this customer.',
-  CHANGEOVER_JOB_REQUIRED: 'Your company bills changeovers: name the job the machine moves on to.',
-  CHANGEOVER_JOB_INVALID: 'Choose a job of the next customer on the same machine.',
 };
 
 /** An unallocated segment that can be explained now (verified, unexplained, nothing proposed). */

@@ -67,13 +67,12 @@ export function toStaffUpdatePayload(v: StaffFormValues, version: number): Staff
 
 /** Stable staff error codes with what the user can do about them. */
 export const STAFF_ERROR_HINTS: Readonly<Record<string, string>> = {
-  STAFF_HAS_ACTIVE_JOBS: 'Reassign or finish the jobs this person supervises first.',
   STAFF_HOLDS_CASH: 'Record a cash handover so this person holds no cash first.',
   STAFF_ASSIGNED: 'End this person’s machine assignments before changing their kind.',
   DUPLICATE_STAFF: 'Another staff member already uses this employee code or login.',
 };
 
 export const STAFF_DEACTIVATE_CONSEQUENCES =
-  'Their open machine assignments are ended, and they can no longer be assigned to machines or jobs.';
+  'Their open machine assignments are ended, and they can no longer be assigned to machines.';
 
 export const PERSON_FIELDS = ['full_name', 'kind', 'employee_code', 'phone'] as const;

@@ -58,7 +58,7 @@ export interface CsvFile {
 /**
  * Revenue reconciliation (DEC-031 R1–R3), all gated by the REVENUE_RECONCILIATION capability: the daily
  * machine sheet, revenue differences (explain / decide), the tenant's revenue reasons and the
- * explanation + approval of non-revenue time inside jobs.
+ * explanation + approval of non-revenue time.
  */
 export const revenueService = {
   // --- daily machine sheet ---
@@ -208,8 +208,8 @@ export const revenueService = {
     );
   },
 
-  // --- non-revenue time inside jobs ---
-  /** GET /tenant/non-revenue-activities (listNonRevenueActivities). Filters: machine_id, job_id, status NONE|PROPOSED|APPROVED|REJECTED. */
+  // --- non-revenue time ---
+  /** GET /tenant/non-revenue-activities (listNonRevenueActivities). Filters: machine_id, status NONE|PROPOSED|APPROVED|REJECTED. */
   listActivities(
     query: TenantListQuery,
     signal?: AbortSignal,
@@ -222,7 +222,7 @@ export const revenueService = {
       signal,
     );
   },
-  /** GET /tenant/non-revenue-approvals (listNonRevenueApprovals). Filters: status, machine_id, job_id; q. */
+  /** GET /tenant/non-revenue-approvals (listNonRevenueApprovals). Filters: status, machine_id; q. */
   listApprovals(
     query: TenantListQuery,
     signal?: AbortSignal,

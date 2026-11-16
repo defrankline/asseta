@@ -65,18 +65,18 @@ describe('optional module switches', () => {
     expect(screen.getByText('the page')).toBeInTheDocument();
   });
 
-  it('job sites stay when tracking is off, and geofences are never requested', async () => {
+  it('sites stay when tracking is off, and geofences are never requested', async () => {
     renderWithProviders(<GeofencesPage />, {
       tenantPermissions: [P.tenantGeofenceRead, P.tenantGeofenceWrite],
       disabledCapabilities: [CAPABILITY.tracking],
     });
-    expect(await screen.findByRole('heading', { name: 'Job sites', level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Sites', level: 1 })).toBeInTheDocument();
     await waitFor(() => {
       expect(geo.listJobSites).toHaveBeenCalled();
     });
     expect(geo.list).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'New geofence' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'New job site' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'New site' })).toBeInTheDocument();
   });
 
   it('shows geofences by default', async () => {

@@ -68,7 +68,7 @@ const SITE_LAYERS: AddLayerObject[] = [
   },
 ];
 
-/** Overview of all geofence areas (coloured by kind) and job site centers. */
+/** Overview of all geofence areas (coloured by kind) and site centers. */
 export function GeofencesMap({ geofences, sites, selectedId, onSelect }: GeofencesMapProps) {
   const areas = useMemo(
     () => featureCollection(geofences.flatMap((g) => areaFeatures(g, g.id === selectedId))),

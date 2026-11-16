@@ -13,7 +13,7 @@ const TZ = 'Africa/Dar_es_Salaam';
 const VERDICT = /fraud|guilty|cheat|theft|stole/i;
 
 describe('explainRiskSignal', () => {
-  it('UNREPORTED_ENGINE_ACTIVITY: minutes, local window, threshold and nearby jobs', () => {
+  it('UNREPORTED_ENGINE_ACTIVITY: minutes, local window and threshold', () => {
     const text = explainRiskSignal(
       'UNREPORTED_ENGINE_ACTIVITY',
       RULE_EVIDENCE.UNREPORTED_ENGINE_ACTIVITY,
@@ -23,7 +23,8 @@ describe('explainRiskSignal', () => {
     expect(text).toContain('recorded for 1 h 30 min,');
     expect(text).toContain('from 20 Oct 2026, 08:00 to 20 Oct 2026, 09:30');
     expect(text).toContain('threshold is 30 min');
-    expect(text).toContain('J-1001');
+    expect(text).toContain('while no reported work covered the machine');
+    expect(text).not.toContain('J-1001');
     expect(text).not.toContain('still running');
   });
 
@@ -69,7 +70,8 @@ describe('explainRiskSignal', () => {
       RULE_EVIDENCE.FUEL_ALLOWANCE_EXCEEDED,
       'UTC',
     );
-    expect(text).toContain('On job J-1002, 300 L of fuel were recorded over 10.0 meter hours');
+    expect(text).toContain('300 L of fuel were recorded over 10.0 meter hours');
+    expect(text).not.toContain('J-1002');
     expect(text).toContain('30.000 L per meter hour against an allowance of 18 L per meter hour');
     expect(text).toContain('logged as used: 250 L');
   });
@@ -109,8 +111,8 @@ describe('explainRiskSignal', () => {
       RULE_EVIDENCE.WORK_WITHOUT_AUTHORIZATION,
       'UTC',
     );
-    expect(text).toContain('A meter reading on job J-1003 dated 20 Oct 2026, 04:00');
-    expect(text).toContain('before the job was approved (20 Oct 2026, 06:00)');
+    expect(text).toContain('A meter reading dated 20 Oct 2026, 04:00');
+    expect(text).toContain('before the work was authorized');
     expect(text).toContain('by a supervisor who was not assigned to the machine');
     expect(text).toContain('Clock tolerance: 15 min');
     const after = explainRiskSignal(
@@ -123,8 +125,8 @@ describe('explainRiskSignal', () => {
       },
       'UTC',
     );
-    expect(after).toContain('An expense on job J-1003');
-    expect(after).toContain('after the job was completed (19 Oct 2026, 17:00)');
+    expect(after).toContain('An expense dated');
+    expect(after).toContain('after the authorized work ended');
   });
 
   it('never states a verdict and tolerates missing evidence', () => {

@@ -303,7 +303,7 @@ export function FundDetailPage() {
                     { label: 'Code', value: f.code },
                     { label: 'Name', value: f.name },
                     { label: 'Holder', value: f.holder_staff_name ?? '—' },
-                    { label: 'Job site', value: f.job_site_name ?? '—' },
+                    { label: 'Site', value: f.job_site_name ?? '—' },
                     { label: 'Currency', value: f.currency },
                     { label: 'Approved limit', value: money(f.approved_limit, f.currency) },
                     {

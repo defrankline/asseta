@@ -52,7 +52,7 @@ export function FundsTab({ holds, reloadKey, onChanged }: Omit<TabProps, 'fundId
     { id: 'code', header: 'Code', render: (f) => <strong>{f.code}</strong> },
     { id: 'name', header: 'Name', render: (f) => f.name },
     { id: 'holder', header: 'Holder', render: (f) => f.holder_staff_name ?? '—' },
-    { id: 'site', header: 'Job site', render: (f) => f.job_site_name ?? '—' },
+    { id: 'site', header: 'Site', render: (f) => f.job_site_name ?? '—' },
     {
       id: 'limit',
       header: 'Approved limit',

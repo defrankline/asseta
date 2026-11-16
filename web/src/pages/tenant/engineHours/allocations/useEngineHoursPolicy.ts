@@ -5,8 +5,6 @@ import { useAsyncResource } from '../../../../hooks/useAsyncResource';
 import { useSession } from '../../../../session/useSession';
 
 export interface EngineHoursRules {
-  /** The next job must be named on a changeover. */
-  changeoverJobRequired: boolean;
   /** A daily report needs at least one photo. */
   reportEvidenceRequired: boolean;
 }
@@ -36,7 +34,6 @@ export function useEngineHoursRules(
   const res = useAsyncResource(load, [machineId, siteId], canRead && machineId !== null);
   const values = res.data?.values;
   return {
-    changeoverJobRequired: values?.changeover_splits_billing === true,
     reportEvidenceRequired: values?.daily_report_evidence_required === true,
   };
 }

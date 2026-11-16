@@ -1,4 +1,4 @@
-/** Stable lifecycle error codes for geofences and job sites, with what the user can do. */
+/** Stable lifecycle error codes for geofences and sites, with what the user can do. */
 export const GEOFENCE_ERROR_HINTS: Readonly<Record<string, string>> = {
   ALREADY_INACTIVE: 'This geofence is already inactive; reload the list.',
   ALREADY_ACTIVE: 'This geofence is already active; reload the list.',
@@ -6,8 +6,8 @@ export const GEOFENCE_ERROR_HINTS: Readonly<Record<string, string>> = {
 
 export const JOB_SITE_ERROR_HINTS: Readonly<Record<string, string>> = {
   SITE_IN_USE: 'The site is still in use; move those records to another site first.',
-  ALREADY_INACTIVE: 'This job site is already inactive; reload the list.',
-  ALREADY_ACTIVE: 'This job site is already active; reload the list.',
+  ALREADY_INACTIVE: 'This site is already inactive; reload the list.',
+  ALREADY_ACTIVE: 'This site is already active; reload the list.',
 };
 
 export const GEOFENCE_DEACTIVATE_CONSEQUENCES =

@@ -117,7 +117,7 @@ describe('CaseDetailPage', () => {
     await loaded();
     const evidence = within(screen.getByRole('list', { name: 'Linked evidence' }));
     expect(evidence.getAllByRole('listitem')).toHaveLength(signals.length);
-    expect(evidence.getByText(/while no job on the machine was in progress/)).toBeInTheDocument();
+    expect(evidence.getByText(/while no reported work covered the machine/)).toBeInTheDocument();
     expect(evidence.getByText(/is identical \(SHA-256 abcdef012345…\)/)).toBeInTheDocument();
     expect(evidence.getByText(/30\.000 L per meter hour against an allowance/)).toBeInTheDocument();
     expect(

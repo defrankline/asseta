@@ -48,7 +48,7 @@ export const PURCHASE_STATUS_OPTIONS: readonly Option<HoursPurchaseStatus>[] =
 
 export const LEDGER_TYPE_LABELS: Readonly<Record<LedgerEntryType, string>> = {
   ACTIVATED: 'Activated',
-  CONSUMED: 'Used on a job',
+  CONSUMED: 'Used',
   TRANSFER_OUT: 'Transferred out',
   TRANSFER_IN: 'Transferred in',
   EXPIRED: 'Expired',
@@ -134,7 +134,7 @@ export const HOURS_ERROR_HINTS: Readonly<Record<string, string>> = {
   NO_RATE: 'No rate card covers this machine; add a rate card first.',
   CUSTOMER_INACTIVE: 'The customer is inactive.',
   MACHINE_INACTIVE: 'The machine is retired; choose an active machine.',
-  SITE_INACTIVE: 'The job site is inactive.',
+  SITE_INACTIVE: 'The site is inactive.',
   DUPLICATE_CUSTOMER: 'A customer with these details already exists.',
   ALREADY_REGISTERED: 'This customer is already registered.',
   NOTHING_TO_PAY: 'Nothing is left to pay on this purchase.',

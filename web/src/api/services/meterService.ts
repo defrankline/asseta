@@ -71,17 +71,8 @@ export const meterService = {
       idempotencyKey,
     );
   },
-  /** GET /tenant/jobs/{id}/meter-captures (listJobCaptures). */
-  listCaptures(jobId: string, signal?: AbortSignal): Promise<MeterCaptureDto[]> {
-    return tenantList(
-      `/tenant/jobs/${seg(jobId)}/meter-captures`,
-      meterCaptureSchema,
-      'meter captures',
-      signal,
-    );
-  },
   /**
-   * GET /tenant/meter-captures (listMeterCaptures), latest first. Filters: `job_id`, `machine_id`,
+   * GET /tenant/meter-captures (listMeterCaptures), latest first. Filters: `machine_id`,
    * `kind`, `state`, `captured_from`, `captured_to`, `mine`.
    */
   listAllCaptures(query: TenantListQuery, signal?: AbortSignal): Promise<Page<MeterCaptureDto>> {
@@ -142,7 +133,7 @@ export const meterService = {
   getReset(resetId: string, signal?: AbortSignal): Promise<ResetDto> {
     return tenantGet(`/tenant/meter-resets/${seg(resetId)}`, resetSchema, 'meter reset', signal);
   },
-  /** GET /tenant/exceptions (listJobExceptions). Filters: `status`, `exception_type`, `job_id`, `meter_capture_id`. */
+  /** GET /tenant/exceptions (listJobExceptions). Filters: `status`, `exception_type`, `meter_capture_id`. */
   listExceptions(query: TenantListQuery, signal?: AbortSignal): Promise<Page<ExceptionDto>> {
     return tenantPage('/tenant/exceptions', exceptionPageSchema, query, 'exception page', signal);
   },

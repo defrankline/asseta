@@ -10,7 +10,7 @@ interface JobSitesTableProps {
   actionsFor: (s: JobSiteDto) => RowAction[];
 }
 
-/** Job site list; inactive sites are muted. */
+/** Site list; inactive sites are muted. */
 export function JobSitesTable({ rows, actionsFor }: JobSitesTableProps) {
   const columns: DataColumn<JobSiteDto>[] = [
     { id: 'code', header: 'Code', render: (s) => s.code },
@@ -26,12 +26,12 @@ export function JobSitesTable({ rows, actionsFor }: JobSitesTableProps) {
       id: 'actions',
       header: '',
       align: 'right',
-      render: (s) => <RowActionsMenu label={`job site ${s.code}`} actions={actionsFor(s)} />,
+      render: (s) => <RowActionsMenu label={`site ${s.code}`} actions={actionsFor(s)} />,
     },
   ];
   return (
     <StaticTable
-      ariaLabel="Job sites"
+      ariaLabel="Sites"
       columns={columns}
       rows={rows}
       getRowId={(s) => s.id}

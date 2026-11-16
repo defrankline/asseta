@@ -1,4 +1,4 @@
-import { array, object, type Schema } from 'yup';
+import { array, mixed, object, type Schema } from 'yup';
 import { apiClient } from '../client';
 import type { components } from '../generated/schema';
 import { parseResponse } from '../validation';
@@ -17,22 +17,6 @@ export const SETUP_STEP_STATUSES: readonly SetupStepStatus[] = [
   'TODO',
   'NOT_NEEDED',
   'NOT_APPLICABLE',
-];
-
-export const SETUP_STEP_KEYS: readonly SetupStepKey[] = [
-  'COMPANY_SETTINGS',
-  'PEOPLE',
-  'MACHINE_TYPES_AND_RATES',
-  'MACHINES',
-  'TRACKERS',
-  'SITES',
-  'CUSTOMERS_AND_CONTRACTS',
-  'CONTROLS_CHOSEN',
-  'REASON_LISTS',
-  'DEPOSIT_ACCOUNTS',
-  'METER_BASELINES',
-  'FIELD_APP_SIGNED_IN',
-  'FIRST_JOB',
 ];
 
 const checkSchema: Schema<SetupCheckDto> = object({
@@ -54,7 +38,8 @@ const notNeededFields = {
 };
 
 const stepSchema: Schema<SetupStepDto> = object({
-  key: oneOf(SETUP_STEP_KEYS),
+  /** Any step the server names (ADR-008 replaced the job and contract steps); unknown ones still show. */
+  key: mixed<SetupStepKey>().required(),
   order: int(),
   title: text(),
   description: text(),

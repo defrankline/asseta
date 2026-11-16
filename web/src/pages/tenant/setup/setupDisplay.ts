@@ -67,7 +67,7 @@ const SCREEN_NAMES: Readonly<Record<string, string>> = {
   '/tenant/revenue-reasons': 'Revenue reasons',
   '/tenant/finance/deposit-accounts': 'Deposit accounts',
   '/tenant/meter-baselines': 'Meter baselines',
-  '/tenant/jobs': 'Jobs',
+  '/tenant/machine-reports': 'Machine reports',
 };
 
 export function screenName(link: string): string | null {

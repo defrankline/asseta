@@ -120,7 +120,6 @@ export const FINANCE_ERROR_HINTS: Readonly<Record<string, string>> = {
   RECEIPT_REQUIRED: 'The EXPENSE_CAPTURE policy requires a receipt for this expense.',
   RECEIPT_NOT_FOUND: 'Upload the receipt again.',
   GPS_REQUIRED: 'The EXPENSE_CAPTURE policy requires an accurate GPS fix. Capture GPS and retry.',
-  ATTRIBUTION_MISMATCH: 'The machine must match the job’s machine (or leave the machine empty).',
   CUSTODIAN_NOT_ALLOWED: 'A custodian applies only to expenses paid from cash custody.',
   // Remittances (DEC-031 D2): the tenant's CASH_CUSTODY requirements and the company account.
   REMITTANCE_ACCOUNT_REQUIRED:

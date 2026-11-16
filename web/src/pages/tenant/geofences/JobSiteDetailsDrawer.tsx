@@ -21,7 +21,7 @@ interface JobSiteDetailsDrawerProps {
   onClose: () => void;
 }
 
-/** Job site record with its geofences. */
+/** Site record with its geofences. */
 export function JobSiteDetailsDrawer({
   site,
   geofences,
@@ -39,7 +39,7 @@ export function JobSiteDetailsDrawer({
   const [lon, lat] = site.center.coordinates;
   return (
     <DetailsDrawer
-      title={`Job site ${jobSiteLabel(site)}`}
+      title={`Site ${jobSiteLabel(site)}`}
       status={<ActiveChip active={site.is_active} />}
       actions={<ActionButtons actions={actions} />}
       onClose={onClose}

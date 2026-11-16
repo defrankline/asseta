@@ -106,7 +106,7 @@ export function RateCardSection({ timeZone }: { timeZone: string }) {
           </Box>
         </Box>
         <Typography variant="body2" color="text.secondary">
-          Your own hourly rental rates per machine category, used for jobs that do not carry a
+          Your own hourly rental rates per machine category, used for sales that do not carry a
           negotiated rate. {VERSIONING_NOTE}
         </Typography>
         {categories.error !== null && (
@@ -118,7 +118,7 @@ export function RateCardSection({ timeZone }: { timeZone: string }) {
           resource={cards}
           isEmpty={(d) => d.length === 0}
           emptyTitle="No rate cards yet"
-          emptyDescription="Without a rate card, jobs need a negotiated hourly rate."
+          emptyDescription="Without a rate card, each sale needs a negotiated hourly rate."
           errorTitle="Could not load rate cards"
         >
           {(d) => (

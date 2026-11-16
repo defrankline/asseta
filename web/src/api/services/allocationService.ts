@@ -33,7 +33,7 @@ const reportPage = tenantPageSchema(dailyReportSchema);
 
 /** The work allocation ledger ("Ledger 3") and daily operational reports (DEC-032 A1, A4). */
 export const allocationService = {
-  /** GET /tenant/work-allocations; filters `machine_id`, `from`, `to`, `customer_id`, `kind`, `status`, `job_id`. */
+  /** GET /tenant/work-allocations; filters `machine_id`, `from`, `to`, `customer_id`, `kind`, `status`. */
   list(query: TenantListQuery, signal?: AbortSignal): Promise<Page<WorkAllocationDto>> {
     return tenantPage(ALLOCATIONS, allocationPage, query, 'work allocations', signal);
   },

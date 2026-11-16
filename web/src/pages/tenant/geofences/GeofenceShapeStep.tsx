@@ -11,7 +11,7 @@ import type { GeofenceFormValues } from './geofenceForm';
 
 interface GeofenceShapeStepProps {
   formik: FormikProps<GeofenceFormValues>;
-  /** Initial map center when nothing is drawn yet (e.g. the job site center). */
+  /** Initial map center when nothing is drawn yet (e.g. the site center). */
   fallbackCenter: LonLat;
 }
 

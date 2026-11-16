@@ -59,7 +59,7 @@ export function GeofencesTable({
         g.shape === 'CORRIDOR' ? `Corridor · ${String(g.corridor_width_m ?? '?')} m` : 'Polygon',
     },
     { id: 'area', header: 'Area', align: 'right', render: (g) => formatArea(g.area_m2) },
-    { id: 'site', header: 'Job site', render: (g) => siteName(g.job_site_id) },
+    { id: 'site', header: 'Site', render: (g) => siteName(g.job_site_id) },
     {
       id: 'machines',
       header: 'Applies to',

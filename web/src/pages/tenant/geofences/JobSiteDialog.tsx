@@ -68,7 +68,7 @@ function LocationMap({ center, onPick }: { center: LonLat | null; onPick: (p: Lo
     <MapView
       center={initial}
       zoom={12}
-      ariaLabel="Job site location map"
+      ariaLabel="Site location map"
       className="h-72 w-full rounded"
     >
       <CenterPicker center={center} onPick={onPick} />
@@ -143,11 +143,11 @@ export function JobSiteDialog({ site, onClose, onSaved, onReloadRequested }: Job
   return (
     <StepperFormDialog<JobSiteValues>
       open
-      title={site === undefined ? 'New job site' : `Edit job site · ${site.code}`}
+      title={site === undefined ? 'New site' : `Edit site · ${site.code}`}
       steps={steps}
       initialValues={initialValues}
       validationSchema={schema}
-      submitLabel={site === undefined ? 'Create job site' : 'Save changes'}
+      submitLabel={site === undefined ? 'Create site' : 'Save changes'}
       onClose={onClose}
       renderReview={(v) => (
         <>

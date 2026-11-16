@@ -29,20 +29,18 @@ export const MACHINE_STATUS_ACTIONS: readonly MachineStatusAction[] = [
     from: ['OUT_OF_SERVICE'],
     target: 'ACTIVE',
     destructive: false,
-    description: 'The machine becomes active again and available for jobs.',
+    description: 'The machine becomes active again and available for work.',
   },
 ];
 
 export const MACHINE_ERROR_HINTS: Readonly<Record<string, string>> = {
-  MACHINE_HAS_OPEN_JOBS: 'Complete or cancel the open jobs on this machine first.',
-  MACHINE_HAS_OPEN_JOB: 'Complete or cancel the open job on this machine first.',
   MACHINE_HAS_TRACKER: 'Unassign its tracker first (Trackers).',
   MACHINE_ENROLLED: 'End its billable-asset enrollment first.',
   MACHINE_DISPOSED: 'A disposed machine can no longer be changed.',
 };
 
 export const RETIRE_CONSEQUENCES =
-  'Use this when the machine has been sold, scrapped or returned. It becomes Disposed: its jobs, readings, tracker and staff history are kept, its open staff assignments end, and it can no longer be edited, enrolled or used on new jobs until reinstated.';
+  'Use this when the machine has been sold, scrapped or returned. It becomes Disposed: its readings, reports, tracker and staff history are kept, its open staff assignments end, and it can no longer be edited, enrolled or reported on until reinstated.';
 
 /** Edit-form status choices: disposal is a separate, reasoned action. */
 export const EDIT_STATUS_OPTIONS = [

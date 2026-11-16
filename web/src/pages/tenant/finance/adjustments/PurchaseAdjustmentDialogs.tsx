@@ -1,5 +1,4 @@
 import { Alert, Typography } from '@mui/material';
-import { useState } from 'react';
 import { mixed, string } from 'yup';
 import type { AdjustmentRequestDto, RefundSettlement } from '../../../../api/adjustmentTypes';
 import type { HoursPurchaseDto, LedgerEntryDto } from '../../../../api/hoursTypes';
@@ -37,12 +36,9 @@ const DIRECTIONS = [
 
 const entryLabel = (e: LedgerEntryDto): string =>
   [
-    e.job_number ?? null,
     e.usage_day == null ? formatDate(e.occurred_at) : formatDate(e.usage_day),
     hoursText(e.hours),
-  ]
-    .filter((x) => x !== null)
-    .join(' · ');
+  ].join(' · ');
 
 type CorrectionValues = {
   direction: Direction;
@@ -62,7 +58,6 @@ type RefundValues = {
 
 /** Propose adding hours to, or taking them off, one machine's lot of this purchase. */
 export function CorrectHoursDialog({ purchase, onClose, onDone }: DialogProps) {
-  const [consumedJob, setConsumedJob] = useState<string | null>(null);
   const correction = (v: CorrectionValues) => {
     const giveBack = v.direction === 'ADD' ? orNull(v.consumed_entry_id) : null;
     return {
@@ -71,7 +66,6 @@ export function CorrectHoursDialog({ purchase, onClose, onDone }: DialogProps) {
       machine_id: v.machine_id,
       hours: v.direction === 'ADD' ? v.hours.trim() : `-${v.hours.trim()}`,
       consumed_entry_id: giveBack,
-      job_id: giveBack === null ? null : consumedJob,
     };
   };
   return (
@@ -121,9 +115,6 @@ export function CorrectHoursDialog({ purchase, onClose, onDone }: DialogProps) {
               }
               getOptionId={optionId}
               getOptionLabel={entryLabel}
-              onOptionChange={(e) => {
-                setConsumedJob(e?.job_id ?? null);
-              }}
               noOptionsText="No use of hours on this purchase matches"
             />
           )}

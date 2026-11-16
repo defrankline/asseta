@@ -22,14 +22,14 @@ const fence = (id: string) => `/tenant/geofences/${seg(id)}`;
 export const geofenceService = {
   /** GET /tenant/job-sites (listJobSites); `q` searches code and name; inactive when asked for. */
   listJobSites(signal?: AbortSignal, q?: string, includeInactive?: boolean): Promise<JobSiteDto[]> {
-    return tenantList('/tenant/job-sites', jobSiteSchema, 'job sites', signal, {
+    return tenantList('/tenant/job-sites', jobSiteSchema, 'sites', signal, {
       q,
       ...inactiveParam(includeInactive),
     });
   },
   /** POST /tenant/job-sites (createJobSite). */
   createJobSite(body: JobSiteIn, idempotencyKey: string): Promise<JobSiteDto> {
-    return tenantSend('post', '/tenant/job-sites', body, jobSiteSchema, 'job site', idempotencyKey);
+    return tenantSend('post', '/tenant/job-sites', body, jobSiteSchema, 'site', idempotencyKey);
   },
   /** GET /tenant/geofences (listGeofences); inactive geofences only when asked for. */
   list(signal?: AbortSignal, includeInactive?: boolean): Promise<GeofenceDto[]> {
@@ -65,27 +65,15 @@ export const geofenceService = {
     body: JobSiteUpdateIn,
     idempotencyKey: string,
   ): Promise<JobSiteDto> {
-    return tenantSend('put', site(siteId), body, jobSiteSchema, 'job site', idempotencyKey);
+    return tenantSend('put', site(siteId), body, jobSiteSchema, 'site', idempotencyKey);
   },
   /** POST /tenant/job-sites/{id}/deactivate (deactivateJobSite). */
   deactivateJobSite(id: string, body: LifecycleChangeIn, idempotencyKey: string) {
-    return tenantLifecycle(
-      `${site(id)}/deactivate`,
-      body,
-      jobSiteSchema,
-      'job site',
-      idempotencyKey,
-    );
+    return tenantLifecycle(`${site(id)}/deactivate`, body, jobSiteSchema, 'site', idempotencyKey);
   },
   /** POST /tenant/job-sites/{id}/reactivate (reactivateJobSite). */
   reactivateJobSite(id: string, body: LifecycleChangeIn, idempotencyKey: string) {
-    return tenantLifecycle(
-      `${site(id)}/reactivate`,
-      body,
-      jobSiteSchema,
-      'job site',
-      idempotencyKey,
-    );
+    return tenantLifecycle(`${site(id)}/reactivate`, body, jobSiteSchema, 'site', idempotencyKey);
   },
   /** GET /tenant/geofences/{id} (getGeofence). */
   get(geofenceId: string, signal?: AbortSignal): Promise<GeofenceDto> {

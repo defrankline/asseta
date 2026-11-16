@@ -30,7 +30,7 @@ interface RateCardDialogProps {
 }
 
 export const VERSIONING_NOTE =
-  'Saving creates a new rate-card version from its effective time. Earlier versions are kept, and jobs already created keep the price they were created with.';
+  'Saving creates a new rate-card version from its effective time. Earlier versions are kept, and records already created keep the price they were created with.';
 
 /** Rate → Version → Review. Owner-facing; each save is a new effective-dated version. */
 export function RateCardDialog({ timeZone, onClose, onCreated }: RateCardDialogProps) {

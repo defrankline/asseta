@@ -157,9 +157,6 @@ function LedgerView({ data, timeZone, onChanged }: LedgerViewProps) {
             label={REVIEW_LABELS[i.review]}
           />
           {i.inconsistent && <Chip size="small" color="warning" label="Readings inconsistent" />}
-          {i.overlapping_job_ids.length > 0 && (
-            <Chip size="small" color="warning" label="Overlapping jobs" />
-          )}
         </Box>
       ),
     },
@@ -261,7 +258,7 @@ function LedgerView({ data, timeZone, onChanged }: LedgerViewProps) {
             { label: 'Engine hours', value: hoursText(t.total_hours) },
             { label: 'Customer work', value: hoursText(t.customer_work_hours) },
             ...(Number(t.non_revenue_hours) !== 0
-              ? [{ label: 'Non-revenue time (in jobs)', value: hoursText(t.non_revenue_hours) }]
+              ? [{ label: 'Non-revenue time', value: hoursText(t.non_revenue_hours) }]
               : []),
             { label: 'Unallocated', value: hoursText(t.unallocated_hours) },
             { label: 'Not yet explained', value: hoursText(t.unexplained_hours) },
@@ -272,15 +269,6 @@ function LedgerView({ data, timeZone, onChanged }: LedgerViewProps) {
           ]}
         />
       </DetailSection>
-      {data.overlaps.length > 0 && (
-        <Alert severity="warning">
-          {data.overlaps.length === 1
-            ? 'Two jobs on this machine overlap'
-            : `${String(data.overlaps.length)} job overlaps on this machine`}{' '}
-          ({data.overlaps.map((o) => o.basis).join(', ')}). Hours are never counted twice; review
-          the jobs concerned.
-        </Alert>
-      )}
       <DetailSection title="Engine-hour timeline">
         {data.intervals.length === 0 ? (
           <Typography variant="body2" color="text.secondary">

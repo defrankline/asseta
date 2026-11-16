@@ -19,7 +19,7 @@ interface GeofenceDetailsDrawerProps {
   onClose: () => void;
 }
 
-/** Every field of a geofence with its job site and the machines it applies to. */
+/** Every field of a geofence with its site and the machines it applies to. */
 export function GeofenceDetailsDrawer({
   geofence: g,
   site,
@@ -48,7 +48,7 @@ export function GeofenceDetailsDrawer({
             label: 'Computed area',
             value: `${formatArea(g.area_m2)} (${g.area_m2.toFixed(0)} m²)`,
           },
-          { label: 'Job site', value: site === null ? '—' : jobSiteLabel(site) },
+          { label: 'Site', value: site === null ? '—' : jobSiteLabel(site) },
           { label: 'Deactivated', value: g.deactivated_at ?? '—' },
           { label: 'Deactivation reason', value: g.deactivation_reason ?? '—' },
           { label: 'Version', value: String(g.version) },

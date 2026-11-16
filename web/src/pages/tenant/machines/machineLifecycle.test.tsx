@@ -159,8 +159,8 @@ describe('machine list row actions', () => {
     mocks.deactivate.mockRejectedValue(
       new ApiError({
         status: 422,
-        code: 'MACHINE_HAS_OPEN_JOBS',
-        message: 'The machine has open jobs.',
+        code: 'MACHINE_HAS_TRACKER',
+        message: 'The machine has a tracker.',
         correlationId: 'r1',
       }),
     );
@@ -170,7 +170,7 @@ describe('machine list row actions', () => {
     await user.click(screen.getByRole('button', { name: 'Retire' }));
     expect(
       await screen.findByText(
-        /^MACHINE_HAS_OPEN_JOBS: The machine has open jobs\. — Complete or cancel the open jobs/,
+        /^MACHINE_HAS_TRACKER: The machine has a tracker\. — Unassign its tracker first/,
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole('dialog')).toBeInTheDocument();

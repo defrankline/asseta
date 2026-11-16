@@ -18,7 +18,7 @@ export const EXCEPTION_TYPE_LABELS: Readonly<Record<ExceptionType, string>> = {
   MANUAL_CORRECTION: 'Reading differs from OCR',
   METER_DECREASE: 'Possible meter reset (reading decreased)',
   IMPOSSIBLE_INCREMENT: 'Increment exceeds elapsed time',
-  CONTINUITY_GAP: 'Gap since previous job',
+  CONTINUITY_GAP: 'Gap since the previous reading',
   DUPLICATE_IMAGE: 'Photo reused',
   TELEMETRY_MISMATCH: 'Differs from tracker engine hours',
   CLOCK_SKEW: 'Device clock ahead of server',
@@ -27,7 +27,7 @@ export const EXCEPTION_TYPE_LABELS: Readonly<Record<ExceptionType, string>> = {
   MISSING_DAILY_REPORT: 'Daily report missing',
   DUPLICATE_DAILY_REPORT: 'Repeat daily report',
   UNEXPLAINED_HOURS: 'Engine hours not yet explained',
-  OVERLAPPING_ALLOCATION: 'Job intervals overlap',
+  OVERLAPPING_ALLOCATION: 'Claimed intervals overlap',
 };
 
 /** Labels (with units) for evidence keys; unknown keys fall back to a humanised key. */
@@ -53,7 +53,6 @@ export const EVIDENCE_KEY_LABELS: Readonly<Record<string, string>> = {
   entered_value: 'Entered value',
   previous_reading: 'Previous reading',
   previous_at: 'Previous reading time',
-  previous_job_id: 'Previous job',
   reading: 'Reading',
   delta_hours: 'Meter increase (h)',
   elapsed_hours: 'Elapsed time (h)',
@@ -123,9 +122,9 @@ const EXPLAIN: Readonly<Record<ExceptionType, Explainer>> = {
       : `The offline policy the device applied was not issued to device ${g('device_id')}.`,
   HOURS_OVERRUN: (g) =>
     g('drawdown') === 'DAILY'
-      ? `On ${g('day')} the job had used ${g('billable_hours_to_date')} billable hours to date; ` +
+      ? `On ${g('day')} ${g('billable_hours_to_date')} billable hours had been used to date; ` +
         `${g('excess_hours')} of them were not covered by the customer's activated hours on this machine ` +
-        `(drawn day by day). New activated hours cover them, or the final allocation at completion replaces this.`
+        `(drawn day by day). New activated hours cover them, or a reviewer records the outcome.`
       : `${g('excess_hours')} of ${g('billable_hours')} billable hours were not covered by the customer's activated ` +
         `hours on this machine; new activated hours cover them, or a reviewer records the outcome.`,
   DUPLICATE_DAILY_REPORT: (g) =>
@@ -135,9 +134,9 @@ const EXPLAIN: Readonly<Record<ExceptionType, Explainer>> = {
     `(basis: ${g('basis')}).`,
   UNEXPLAINED_HOURS: (g) =>
     `${g('hours')} engine hours between readings ${g('start_reading')} and ${g('end_reading')} are not ` +
-    `allocated to a job and not yet explained.`,
+    `allocated to a customer and not yet explained.`,
   OVERLAPPING_ALLOCATION: (g) =>
-    `Two jobs claim the same engine hours (${g('basis')}); each hour is counted once, for the earlier job.`,
+    `Two records claim the same engine hours (${g('basis')}); each hour is counted once, for the earlier one.`,
 };
 
 /** One-sentence, neutral explanation of an exception from its recorded evidence. */

@@ -5,7 +5,6 @@ import { formatMoney } from '../../../../utils/money';
 import { formatInstantIn } from '../../../../utils/time';
 import { humanize } from '../../../../utils/text';
 import { hoursText } from '../../hours/hoursDisplay';
-import { machineText, nameOr } from '../../shared/names';
 import { KpiCard, type KpiRow } from '../../dashboard/KpiCard';
 import { FigureGrid, FigureGroup, HoursCard, MoneyCard } from './figures';
 import { moneyRows } from './moneyRows';
@@ -25,7 +24,6 @@ export function ExceptionsGroup({ section: s }: { section: ExceptionsSectionDto 
       to: k.route,
     }));
   const pending = s.pending_adjustments;
-  const changeover = s.changeover_jobs_awaiting_approval;
   return (
     <FigureGroup
       id="exceptions"
@@ -145,23 +143,6 @@ export function ExceptionsGroup({ section: s }: { section: ExceptionsSectionDto 
                 to: v.route,
               })),
           ])}
-        />
-        <KpiCard
-          title="Changeover jobs awaiting approval"
-          value={changeover.count}
-          valueText={String(changeover.count)}
-          description={
-            changeover.oldest_days === null
-              ? 'Hours after a changeover stay unbilled until the job is approved'
-              : `Oldest waiting ${String(changeover.oldest_days)} days; hours stay unbilled until approved`
-          }
-          rows={changeover.items.map((j) => ({
-            key: j.job_id,
-            label: `${j.job_number ?? 'Job'}, ${nameOr(j.customer_name, j.customer_id)}, ${machineText(j.machine_code, j.machine_name, j.machine_id)}`,
-            value: `${String(j.days_waiting)}d`,
-            valueText: `${String(j.days_waiting)} days`,
-            to: j.route,
-          }))}
         />
       </FigureGrid>
     </FigureGroup>

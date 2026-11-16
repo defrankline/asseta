@@ -53,7 +53,7 @@ export function FormikAreaPicker(props: IdPickerProps<AreaDto>) {
   );
 }
 
-/** Job site search (code / name) bound to a Formik id field. */
+/** Site search (code / name) bound to a Formik id field. */
 export function FormikJobSitePicker(props: IdPickerProps<JobSiteDto>) {
   return (
     <FormikAsyncIdAutocomplete<JobSiteDto>
@@ -101,7 +101,7 @@ export function CategoryFilter({ label, value, onChange }: FilterProps<CategoryD
   );
 }
 
-/** List-page filter: job site (server search). */
+/** List-page filter: site (server search). */
 export function JobSiteFilter({ label, value, onChange }: FilterProps<JobSiteDto>) {
   return (
     <AsyncAutocomplete<JobSiteDto>

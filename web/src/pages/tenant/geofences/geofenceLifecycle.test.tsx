@@ -76,7 +76,7 @@ describe('geofence row actions', () => {
     expect(screen.queryByRole('button', { name: 'New geofence' })).not.toBeInTheDocument();
   });
 
-  it('shows every field and the job site in the details drawer', async () => {
+  it('shows every field and the site in the details drawer', async () => {
     const user = userEvent.setup();
     renderWithProviders(<GeofencesPage />, { tenantPermissions: WRITE });
     await user.click(await screen.findByRole('button', { name: 'Actions for geofence Yard' }));
@@ -134,12 +134,12 @@ describe('geofence row actions', () => {
   });
 });
 
-describe('job site lifecycle', () => {
-  it('passes the show-inactive flag for job sites', async () => {
+describe('site lifecycle', () => {
+  it('passes the show-inactive flag for sites', async () => {
     const user = userEvent.setup();
     renderWithProviders(<GeofencesPage />, { tenantPermissions: READ });
     await screen.findByText('Kunduchi');
-    await user.click(screen.getByRole('switch', { name: 'Show inactive job sites' }));
+    await user.click(screen.getByRole('switch', { name: 'Show inactive sites' }));
     await waitFor(() => {
       expect(mocks.listJobSites).toHaveBeenLastCalledWith(expect.any(AbortSignal), undefined, true);
     });
@@ -149,7 +149,7 @@ describe('job site lifecycle', () => {
     const user = userEvent.setup();
     mocks.deactivateJobSite.mockRejectedValue(apiError('SITE_IN_USE', 'Site is in use.'));
     renderWithProviders(<GeofencesPage />, { tenantPermissions: WRITE });
-    await user.click(await screen.findByRole('button', { name: 'Actions for job site S1' }));
+    await user.click(await screen.findByRole('button', { name: 'Actions for site S1' }));
     await user.click(screen.getByRole('menuitem', { name: 'Deactivate' }));
     await user.type(screen.getByRole('textbox', { name: /Reason/ }), 'Closed down');
     await user.click(screen.getByRole('button', { name: 'Deactivate' }));
@@ -165,7 +165,7 @@ describe('job site lifecycle', () => {
   it('lists the site geofences in its drawer', async () => {
     const user = userEvent.setup();
     renderWithProviders(<GeofencesPage />, { tenantPermissions: READ });
-    await user.click(await screen.findByRole('button', { name: 'Actions for job site S1' }));
+    await user.click(await screen.findByRole('button', { name: 'Actions for site S1' }));
     await user.click(screen.getByRole('menuitem', { name: 'View details' }));
     const drawer = await screen.findByRole('presentation');
     expect(within(drawer).getByRole('table', { name: 'Geofences on this site' })).toHaveTextContent(
@@ -175,7 +175,7 @@ describe('job site lifecycle', () => {
   });
 
   async function editToReview(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(await screen.findByRole('button', { name: 'Actions for job site S1' }));
+    await user.click(await screen.findByRole('button', { name: 'Actions for site S1' }));
     await user.click(screen.getByRole('menuitem', { name: 'Edit' }));
     const name = await screen.findByRole('textbox', { name: /^Name/ });
     expect(name).toHaveValue('Quarry');
@@ -187,7 +187,7 @@ describe('job site lifecycle', () => {
     await user.click(await screen.findByRole('button', { name: 'Save changes' }));
   }
 
-  it('edits a job site prefilled and sends its version and centre', async () => {
+  it('edits a site prefilled and sends its version and centre', async () => {
     const user = userEvent.setup();
     mocks.updateJobSite.mockResolvedValue({ ...SITE, name: 'Quarry North', version: 5 });
     renderWithProviders(<GeofencesPage />, { tenantPermissions: WRITE });
@@ -206,7 +206,7 @@ describe('job site lifecycle', () => {
     });
   });
 
-  it('offers Reload on STALE_VERSION when editing a job site', async () => {
+  it('offers Reload on STALE_VERSION when editing a site', async () => {
     const user = userEvent.setup();
     mocks.updateJobSite.mockRejectedValue(apiError('STALE_VERSION', 'Modified'));
     renderWithProviders(<GeofencesPage />, { tenantPermissions: WRITE });

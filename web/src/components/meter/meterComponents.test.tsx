@@ -1,7 +1,6 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { captureLocationFeatures } from './captureLocation';
-import { HoursComparison } from './HoursComparison';
 import { NOT_COMPARED_TEXT, TrackerComparison } from './TrackerComparison';
 
 describe('TrackerComparison', () => {
@@ -42,19 +41,6 @@ describe('TrackerComparison', () => {
       />,
     );
     expect(screen.getByText(/the phone had no GPS fix/)).toBeInTheDocument();
-  });
-});
-
-describe('HoursComparison', () => {
-  it('keeps meter and billable hours apart and waits for both readings', () => {
-    render(<HoursComparison meterHours={null} nonbillableHours="0.00" billableHours={null} />);
-    expect(
-      within(screen.getByRole('group', { name: 'Meter hours' })).getByText('Not yet available'),
-    ).toBeInTheDocument();
-    expect(
-      within(screen.getByRole('group', { name: 'Billable hours' })).getByText('Not yet available'),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/Both opening and closing readings are needed/)).toBeInTheDocument();
   });
 });
 

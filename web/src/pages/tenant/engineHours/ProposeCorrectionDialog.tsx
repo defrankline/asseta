@@ -58,7 +58,7 @@ interface ProposeCorrectionDialogProps {
 }
 
 /**
- * Propose superseding a reading with a corrected value and its own evidence (same kind, job and
+ * Propose superseding a reading with a corrected value and its own evidence (same kind and
  * machine; the original capture time is kept). Applied when a second person approves it, unless the
  * tenant's policy lets an approver correct directly. The replacement id is fixed per dialog.
  */
@@ -86,7 +86,6 @@ export function ProposeCorrectionDialog({
         if (gps === null) throw gpsPendingError();
         const replacement: MeterCaptureIn = {
           id: replacementId,
-          job_id: capture.job_id,
           machine_id: capture.machine_id,
           kind: capture.kind,
           capture_mode: v.capture_mode === '' ? 'MANUAL' : v.capture_mode,

@@ -123,7 +123,7 @@ describe('CasesPage', () => {
     const user = userEvent.setup();
     renderPage([...READ, P.tenantSignalRead]);
     await user.click(await screen.findByRole('tab', { name: 'Signals' }));
-    expect(await screen.findByText('Engine activity without an active job')).toBeInTheDocument();
+    expect(await screen.findByText('Engine activity without reported work')).toBeInTheDocument();
     expect(
       screen.getByText(/Verified engine activity \(ignition on\) was recorded/),
     ).toBeInTheDocument();
@@ -135,7 +135,7 @@ describe('CasesPage', () => {
     await waitFor(() => {
       expect(mocks.signals.mock.lastCall?.[0].filters?.rule_code).toBe('DUPLICATE_RECEIPT');
     });
-    await user.click(screen.getByText('Engine activity without an active job'));
+    await user.click(screen.getByText('Engine activity without reported work'));
     expect(await screen.findByText('Case page')).toBeInTheDocument();
     expect(mocks.list).toHaveBeenLastCalledWith(
       expect.objectContaining({

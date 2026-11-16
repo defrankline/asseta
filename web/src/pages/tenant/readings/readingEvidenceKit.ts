@@ -7,7 +7,7 @@ import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
 import { attemptGpsFix } from '../../../utils/geolocation';
 
 /**
- * Evidence pieces shared by every reading recorded from a browser: job readings, DAILY readings,
+ * Evidence pieces shared by every reading recorded from a browser: DAILY readings,
  * baseline proposals and reading corrections. Coordinates are never invented: the browser's real
  * GPS outcome is submitted, and photos are uploaded unchanged (the server keeps the hash).
  */

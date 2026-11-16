@@ -176,7 +176,7 @@ export const hoursService = {
       idempotencyKey,
     );
   },
-  /** GET /tenant/hours-ledger (listHoursLedger). Filters: purchase, customer, machine, job, entry type. */
+  /** GET /tenant/hours-ledger (listHoursLedger). Filters: purchase, customer, machine, entry type. */
   listLedger(query: TenantListQuery, signal?: AbortSignal): Promise<Page<LedgerEntryDto>> {
     return tenantPage(`${T}/hours-ledger`, ledgerPage, query, 'hours ledger', signal);
   },
