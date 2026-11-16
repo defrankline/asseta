@@ -39,14 +39,14 @@ export function ReportReview({
           {
             label: 'Meter',
             value:
-              rules.previous === null
+              rules.opening || rules.previous === null
                 ? `${hoursLabel(end)} (opening reading)`
                 : `${hoursLabel(rules.previous)} → ${hoursLabel(end)}`,
           },
           { label: 'Evidence', value: photoAttached ? 'Photo + GPS' : 'GPS only (no photo)' },
         ]}
       />
-      {rules.previous !== null && (
+      {!rules.opening && (
         <>
           <Typography variant="subtitle2" component="h3">
             Productive · {hoursLabel(productive)}
@@ -91,7 +91,7 @@ export function ReportReview({
         <KeyValueGrid columns={1} items={[{ label: 'Note', value: values.note.trim() }]} />
       )}
       <Alert severity="info">
-        {rules.previous === null
+        {rules.opening
           ? 'The owner or manager approves this reading; it then becomes the starting point of the next report.'
           : `The owner or manager approves this report. Until then the ${hoursLabel(productive)} of customer hours are reserved; on approval they come off each customer’s hours.`}
       </Alert>

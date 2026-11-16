@@ -90,7 +90,7 @@ function ReadingStep({ context, rules, corrects, photo, onPhotoChange, gps }: Re
           Readings and meter resets
         </Link>
       </Typography>
-      {rules.previous === null && (
+      {rules.opening && corrects === null && (
         <Alert severity="info">
           This machine has no starting reading yet. Record its reading now: once approved it is the
           starting point of the next report. There are no hours to split this time.
@@ -159,17 +159,19 @@ function ReportForm({ context, corrects, onClose, onSubmitted }: FormProps) {
     }
     return known;
   }, [context.customers, corrects]);
+  // A correction keeps the rejected report's kind; otherwise the server says whether it opens.
+  const opening = corrects !== null ? corrects.opening : context.opening_required;
   const rules = useMemo<ReportRules>(
     () => ({
-      previous: context.previous_reading,
+      previous: opening ? null : context.previous_reading,
+      opening,
       decimals: context.meter_decimal_places,
       fixedReading: corrects?.end_reading ?? null,
       available: Object.fromEntries(customers.map((c) => [c.customer_id, c.available])),
     }),
-    [context, corrects, customers],
+    [context, corrects, customers, opening],
   );
   const schema = useMemo(() => reportSchema(rules), [rules]);
-  const opening = rules.previous === null && corrects === null;
   const label = context.machine_code ?? context.machine_name ?? 'machine';
   return (
     <StepperFormDialog<ReportValues>
@@ -229,6 +231,7 @@ function ReportForm({ context, corrects, onClose, onSubmitted }: FormProps) {
           reportId,
           machineId: context.machine_id,
           corrects,
+          opening,
           evidence: {
             captureId,
             capturedAt,

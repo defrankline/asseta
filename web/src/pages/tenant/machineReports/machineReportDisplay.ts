@@ -29,6 +29,7 @@ export const START_SOURCE_LABELS: Readonly<Record<StartSource, string>> = {
   REPORT: 'last approved report',
   BASELINE: 'meter baseline',
   RESET: 'meter reset',
+  OPENING: 'opening report',
 };
 
 export const LINE_KIND_LABELS: Readonly<Record<ReportLineKind, string>> = {
@@ -68,8 +69,10 @@ export const REPORT_ERROR_HINTS: Readonly<Record<string, string>> = {
     'This machine is not assigned to you. Ask the office to assign it, or report on your own machines.',
   REPORT_PENDING:
     'A report on this machine is waiting for a decision; the next one can be sent after it is decided.',
-  BASELINE_REQUIRED:
-    'This machine has no approved starting reading yet. Propose its baseline under Field work › Readings first.',
+  OPENING_REPORT_REQUIRED:
+    'This machine has no starting reading yet: its first report gives the reading only. Close and start the report again.',
+  OPENING_NOT_ALLOWED:
+    'This machine already has a starting reading, so this is a normal report. Close and start the report again to split its hours.',
   READING_NOT_HIGHER: 'The new reading is lower than the last one. Check the number on the meter.',
   NOTHING_TO_REPORT: 'The reading is the same as the last one: there is nothing to report.',
   REPORT_SUM_MISMATCH: 'The lines must add up exactly to the hours shown by the meter.',
@@ -92,7 +95,7 @@ export const REPORT_ERROR_HINTS: Readonly<Record<string, string>> = {
     'The person who submitted a report cannot decide it. Ask another authorised colleague.',
   REPORT_NOT_PENDING: 'This report was already decided. Reload to see the decision.',
   REPORT_READINGS_CHANGED:
-    'The machine’s previous reading changed since this report was sent (a baseline or meter reset). Reject it so it is sent again.',
+    'The machine’s starting reading changed since this report was sent (a baseline, a meter reset, or another opening report was approved). Reject it so it is sent again.',
 };
 
 /** Reason list refusals in plain words. */
@@ -109,6 +112,7 @@ export function machineReportState(
     pending_report_id: string | null;
     rejected_report_id: string | null;
     previous_reading?: string | null;
+    opening_required?: boolean;
     days_since_report: number | null;
   },
   reminderDays: number | null,
@@ -116,7 +120,9 @@ export function machineReportState(
   if (s.pending_report_id !== null) return 'AWAITING';
   if (s.rejected_report_id !== null) return 'REJECTED';
   // Never reported, no starting reading yet, or no report for the company's reminder days.
-  if (s.previous_reading == null || s.days_since_report === null) return 'DUE';
+  if (s.opening_required === true || s.previous_reading == null || s.days_since_report === null) {
+    return 'DUE';
+  }
   if (reminderDays !== null && s.days_since_report >= reminderDays) return 'DUE';
   return 'UP_TO_DATE';
 }

@@ -156,10 +156,19 @@ describe('Field work › Machine report', () => {
   it('takes the reading only when the machine has no starting reading', async () => {
     m.context.mockResolvedValue({
       ...CONTEXT,
+      opening_required: true,
       previous_reading: null,
       previous_at: null,
       previous_source: null,
     });
+    m.submit.mockRejectedValueOnce(
+      new ApiError({
+        status: 422,
+        code: 'OPENING_NOT_ALLOWED',
+        message: 'x',
+        correlationId: null,
+      }),
+    );
     const user = userEvent.setup();
     renderWithProviders(<FieldMachineReportPage />, { tenantPermissions: [SUBMIT] });
     await user.click(await screen.findByRole('button', { name: 'New report' }));
@@ -173,10 +182,14 @@ describe('Field work › Machine report', () => {
     await user.click(screen.getByRole('button', { name: 'Next' }));
     expect(await screen.findByText('800 h (opening reading)')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Submit for approval' }));
-    await waitFor(() => {
-      expect(m.submit).toHaveBeenCalled();
+    expect(await screen.findByText(/already has a starting reading/)).toBeInTheDocument();
+    expect(m.submit.mock.calls[0]?.[0]).toMatchObject({
+      machine_id: 'm1',
+      opening: true,
+      lines: [],
+      capture: { kind: 'DAILY', machine_id: 'm1', reading: '800' },
     });
-    expect(m.submit.mock.calls[0]?.[0]).toMatchObject({ lines: [], opening: true });
+    expect(m.submit.mock.calls[0]?.[0]).not.toHaveProperty('capture_id');
   });
 
   it('says when a report on the machine already waits for a decision', async () => {

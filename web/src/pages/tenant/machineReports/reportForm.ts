@@ -32,8 +32,13 @@ export interface ReportValues {
 
 /** What the form checks against: from the machine's report context (the server decides). */
 export interface ReportRules {
-  /** Where the report starts; null = no starting reading yet (opening report: reading only). */
+  /** Where the report starts; null = no starting reading yet. */
   previous: string | null;
+  /**
+   * An opening report (`opening_required` in the context, or correcting a rejected opening report):
+   * the machine's first reading only, no lines.
+   */
+  opening: boolean;
   decimals: number;
   /** A correction keeps the rejected report's reading. */
   fixedReading: string | null;
@@ -196,7 +201,7 @@ export function reportSchema(rules: ReportRules): ObjectSchema<ReportValues> {
         ),
       )
       .test('sum', 'The lines must add up to the meter hours', function (raw) {
-        if (rules.previous === null) return true;
+        if (rules.opening || rules.previous === null) return true;
         const difference = meterDifference(rules, text((this.parent as ReportValues).reading));
         if (difference === null) return true;
         const left = balanceText(difference, accountedFor(normalized(raw)));
@@ -214,7 +219,12 @@ interface CaptureEvidence {
   photoId: string | null;
 }
 
-/** submitMachineReport body: a new reading (or the rejected report's reading) and the split. */
+/**
+ * submitMachineReport body: a new DAILY reading (or the rejected report's reading) and the split; an
+ * opening report sends `opening: true` with no lines. The new reading goes inline as `capture`:
+ * REST takes it in the same request as the report (the phones send it as a METER_CAPTURE operation
+ * first and then `capture_id`), so a supervisor holding only the machine-report permission can send it.
+ */
 export function toReportPayload(
   v: ReportValues,
   options: {
@@ -223,21 +233,26 @@ export function toReportPayload(
     evidence: CaptureEvidence;
     /** Correcting this rejected report on its reading. */
     corrects: MachineReportDto | null;
+    /** An opening report: the reading only. */
+    opening: boolean;
   },
-): MachineReportIn & { opening?: boolean } {
-  const lines: MachineReportLineIn[] = v.lines.map((l) =>
-    l.kind === 'CUSTOMER'
-      ? { kind: 'CUSTOMER', customer_id: l.customer_id, hours: l.hours.trim() }
-      : {
-          kind: 'NON_PRODUCTIVE',
-          reason_id: l.reason_id,
-          hours: l.hours.trim(),
-          note: l.note.trim(),
-        },
-  );
+): MachineReportIn {
+  const lines: MachineReportLineIn[] = options.opening
+    ? []
+    : v.lines.map((l) =>
+        l.kind === 'CUSTOMER'
+          ? { kind: 'CUSTOMER', customer_id: l.customer_id, hours: l.hours.trim() }
+          : {
+              kind: 'NON_PRODUCTIVE',
+              reason_id: l.reason_id,
+              hours: l.hours.trim(),
+              note: l.note.trim(),
+            },
+      );
   const base = {
     id: options.reportId,
     machine_id: options.machineId,
+    opening: options.opening,
     lines,
     note: orNull(v.note),
     client_created_at: options.evidence.capturedAt,
@@ -253,8 +268,6 @@ export function toReportPayload(
   if (evidence.gps === null) throw new Error('A new reading needs the GPS outcome');
   return {
     ...base,
-    // No starting reading yet: an opening report carries the reading only.
-    ...(lines.length === 0 ? { opening: true } : {}),
     capture: {
       id: evidence.captureId,
       kind: 'DAILY',

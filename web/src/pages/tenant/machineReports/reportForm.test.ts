@@ -11,6 +11,7 @@ import {
 
 const RULES: ReportRules = {
   previous: '1210.0',
+  opening: false,
   decimals: 1,
   fixedReading: null,
   available: { c1: '140' },
@@ -92,30 +93,42 @@ describe('machine report rules', () => {
       machineId: 'm1',
       evidence,
       corrects: null,
+      opening: false,
     });
     expect(fresh.capture).toMatchObject({ id: 'cap9', kind: 'DAILY', reading: '1510.0' });
-    expect(fresh.lines[1]).toEqual({
+    expect(fresh.lines?.[1]).toEqual({
       kind: 'NON_PRODUCTIVE',
       reason_id: 'r1',
       hours: '180',
       note: 'Hose',
     });
-    expect(fresh).not.toHaveProperty('opening');
+    expect(fresh.opening).toBe(false);
     const fixed = toReportPayload(v, {
       reportId: 'id2',
       machineId: 'm1',
       evidence: { ...evidence, gps: null },
       corrects: { ...REPORT, status: 'REJECTED' },
+      opening: false,
     });
     expect(fixed).toMatchObject({ capture_id: 'cap1', corrects_report_id: 'mr1' });
     expect(fixed).not.toHaveProperty('capture');
-    const opening = toReportPayload(values({ lines: [] }), {
+    const opening = toReportPayload(v, {
       reportId: 'id3',
       machineId: 'm1',
       evidence,
       corrects: null,
+      opening: true,
     });
     expect(opening).toMatchObject({ opening: true, lines: [] });
+    expect(opening.capture).toMatchObject({ id: 'cap9', kind: 'DAILY', reading: '1510.0' });
+    const reopened = toReportPayload(values({}), {
+      reportId: 'id4',
+      machineId: 'm1',
+      evidence: { ...evidence, gps: null },
+      corrects: { ...REPORT, status: 'REJECTED', opening: true, lines: [] },
+      opening: true,
+    });
+    expect(reopened).toMatchObject({ opening: true, lines: [], capture_id: 'cap1' });
   });
 });
 
@@ -126,6 +139,7 @@ describe('report due', () => {
     expect(machineReportState({ ...STATUS, days_since_report: 30 }, null)).toBe('UP_TO_DATE');
     expect(machineReportState({ ...STATUS, days_since_report: null }, null)).toBe('DUE');
     expect(machineReportState({ ...STATUS, previous_reading: null }, 3)).toBe('DUE');
+    expect(machineReportState({ ...STATUS, opening_required: true }, 3)).toBe('DUE');
     expect(machineReportState({ ...STATUS, rejected_report_id: 'r' }, 3)).toBe('REJECTED');
     expect(machineReportState({ ...STATUS, pending_report_id: 'p' }, 3)).toBe('AWAITING');
   });

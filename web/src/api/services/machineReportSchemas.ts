@@ -27,7 +27,7 @@ export const MACHINE_REPORT_STATUSES: readonly MachineReportStatus[] = [
   'REJECTED',
 ];
 export const REPORT_LINE_KINDS: readonly ReportLineKind[] = ['CUSTOMER', 'NON_PRODUCTIVE'];
-export const START_SOURCES: readonly StartSource[] = ['REPORT', 'BASELINE', 'RESET'];
+export const START_SOURCES: readonly StartSource[] = ['REPORT', 'BASELINE', 'RESET', 'OPENING'];
 
 export const machineReportReasonSchema: Schema<MachineReportReasonDto> = object({
   id: id(),
@@ -85,6 +85,7 @@ export const machineReportSchema: Schema<MachineReportDto> = object({
   machine_code: optionalText(),
   machine_name: optionalText(),
   capture_id: id(),
+  opening: bool().default(false),
   start_source: oneOf(START_SOURCES),
   start_ref: text(),
   start_reading: text(),
@@ -126,6 +127,7 @@ export const machineReportStatusSchema: Schema<MachineReportStatusDto> = object(
   previous_reading: optionalText(),
   previous_at: optionalText(),
   previous_source: nullableOneOf(START_SOURCES).default(null),
+  opening_required: bool().default(false),
   last_approved_reading: nullableText(),
   last_approved_at: nullableText(),
   last_report_at: nullableText(),
@@ -143,6 +145,7 @@ export const machineReportContextSchema: Schema<MachineReportContextDto> = objec
   previous_reading: nullableText(),
   previous_at: nullableText(),
   previous_source: nullableOneOf(START_SOURCES),
+  opening_required: bool().default(false),
   meter_epoch: int(),
   pending_report_id: nullableId(),
   last_report_at: nullableText(),
