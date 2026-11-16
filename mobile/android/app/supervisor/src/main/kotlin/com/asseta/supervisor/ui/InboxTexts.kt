@@ -6,23 +6,6 @@ import com.asseta.core.sync.data.AttentionItem
 import com.asseta.core.sync.data.JobSummary
 import java.math.BigDecimal
 
-/** The five bottom tabs, in order (same on iOS). */
-enum class SupervisorTab(val label: String) {
-    JOBS("Jobs"),
-    READINGS("Readings"),
-    FUEL("Fuel"),
-    MONEY("Money"),
-    INBOX("Inbox"),
-}
-
-/** Jobs tab segments. */
-enum class JobSegment(val label: String) {
-    IN_PROGRESS("In progress"),
-    READY("Ready to start"),
-    CLOSED("Recently closed"),
-    MACHINES("My machines"),
-}
-
 /** TRANSFERS is shown only when the server accepts cash transfers and the user records cash. */
 enum class MoneySegment(val label: String) { EXPENSES("Expenses"), COLLECTIONS("Collections"), HANDOVERS("Handovers"), TRANSFERS("Transfers") }
 
@@ -33,30 +16,10 @@ enum class FuelSegment(val code: String, val label: String) { PURCHASE("PURCHASE
  * `InboxTexts`. Pure functions so wording and the small display rules are unit-tested.
  */
 object InboxTexts {
-    /** Jobs segment of a job by its status on this device. */
-    fun segment(displayStatus: String): JobSegment = when (displayStatus) {
-        JobStatus.IN_PROGRESS -> JobSegment.IN_PROGRESS
-        JobStatus.COMPLETED, JobStatus.CANCELLED -> JobSegment.CLOSED
-        else -> JobSegment.READY
-    }
-
     /** Second line of a notification row: the body, unless it only repeats the title. */
     fun notificationDetail(title: String, body: String): String? =
         body.trim().takeUnless { it.isEmpty() || it.equals(title.trim(), ignoreCase = true) }
 
-    /** The Jobs tab opens on the first non-empty job group (In progress, then Ready to start, then Recently closed). */
-    fun defaultSegment(displayStatuses: List<String>): JobSegment {
-        val present = displayStatuses.map(::segment).toSet()
-        return listOf(JobSegment.IN_PROGRESS, JobSegment.READY, JobSegment.CLOSED).firstOrNull { it in present }
-            ?: JobSegment.IN_PROGRESS
-    }
-
-    fun jobsEmpty(segment: JobSegment): Pair<String, String> = when (segment) {
-        JobSegment.IN_PROGRESS -> "No jobs in progress" to "Jobs you have started appear here."
-        JobSegment.READY -> "No jobs ready to start" to "Approved jobs assigned to you appear here after a sync."
-        JobSegment.CLOSED -> "No recently closed jobs" to "Jobs completed or cancelled in the last 14 days appear here."
-        JobSegment.MACHINES -> "No machines" to "Machines of your jobs appear here after a sync."
-    }
 
     fun readingKind(kind: String): String = when (kind) {
         "OPENING" -> "Opening reading"

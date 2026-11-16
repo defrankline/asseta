@@ -21,20 +21,6 @@ class FieldRulesTest {
         JobFieldState(status, opening, closing, ack, start, completeQueued = false)
 
     @Test
-    fun jobActionsFollowTheServerRules() {
-        val approved = JobActions(state(JobStatus.APPROVED))
-        assertTrue(approved.canOpening && approved.canLogWork && !approved.canStart && approved.showsCapture)
-        assertTrue(JobActions(state(JobStatus.APPROVED, opening = true)).canStart)
-        val closing = JobActions(state(JobStatus.IN_PROGRESS, opening = true, closing = true, start = true))
-        assertTrue(closing.canAcknowledge)
-        assertFalse(closing.canComplete) // the server requires the customer acknowledgement (ACK_REQUIRED)
-        assertTrue(JobActions(state(JobStatus.IN_PROGRESS, opening = true, closing = true, ack = true, start = true)).canComplete)
-        val done = JobActions(state(JobStatus.COMPLETED))
-        assertTrue(done.isClosed && !done.canLogWork && !done.canComplete)
-        assertTrue(JobActions(state(JobStatus.CANCELLED)).isClosed)
-    }
-
-    @Test
     fun captureIssuesUseTheIosWording() {
         val manual = CaptureUi(ReadingKind.OPENING, loading = false, decimals = 1, mode = CaptureMode.MANUAL)
         assertEquals(listOf("Enter the meter reading.", "A location attempt is required for every reading."), manual.issues)
@@ -57,15 +43,6 @@ class FieldRulesTest {
             ocr = OcrReading("1234.5", 0.95, "1234.5", "OK", emptySet()), ocrStep = OcrStep.CONFIRM)
         assertFalse(ui.copy(readingText = "1234,5").isManualCorrection)
         assertTrue(ui.copy(readingText = "1243.5").isManualCorrection)
-    }
-
-    @Test
-    fun workLogFormKinds() {
-        assertEquals(WorkLogEntryKind.NOTE, WorkLogForm.kind(ActivityTypes.NOTE, hasEnded = true))
-        assertEquals(WorkLogEntryKind.FINISHED, WorkLogForm.kind(ActivityTypes.STANDBY, hasEnded = true))
-        assertEquals(WorkLogEntryKind.RUNNING, WorkLogForm.kind(ActivityTypes.WORK, hasEnded = false))
-        assertEquals(listOf("Contract default", "Yes", "No"), WorkLogForm.BILLABLE.map(WorkLogForm::billableLabel))
-        assertEquals(listOf("Work", "Standby", "Downtime", "Mobilization", "Note"), WorkLogForm.TYPES.map(FieldTexts::activityType))
     }
 
     @Test

@@ -415,7 +415,7 @@ object FieldAccountabilityTexts {
         "CREDIT_NOT_ALLOWED" -> "Your company does not sell on credit now. The sale is kept for review."
         "WALK_IN_NO_CREDIT" -> "A walk-in customer cannot buy on credit. The sale is kept for review."
         "PAYMENTS_EXCEED_TOTAL" -> "The payments add up to more than the sale. The sale is kept for review."
-        else -> com.asseta.supervisor.ui.report.ReportTexts.conflict(code) ?: DailyReportTexts.conflict(code) ?: SiteCheckinTexts.conflict(code)
+        else -> com.asseta.supervisor.ui.report.ReportTexts.conflict(code) ?: DailyReportTexts.conflict(code)
     }
 
     /** A colleague's name from the server, else from the saved cash holders, else the short id (DEC-030 G2). */

@@ -1,6 +1,5 @@
 package com.asseta.supervisor.ui
 
-import com.asseta.core.domain.capture.JobStatus
 import com.asseta.core.domain.inbox.InboxStatus
 import com.asseta.core.sync.data.AttentionItem
 import org.junit.Assert.assertEquals
@@ -9,16 +8,6 @@ import java.math.BigDecimal
 
 /** Wording of the supervisor tabs, identical on iOS (`InboxTextsTests`). */
 class InboxTextsTest {
-    @Test
-    fun `jobs fall into the three segments`() {
-        assertEquals(JobSegment.IN_PROGRESS, InboxTexts.segment(JobStatus.IN_PROGRESS))
-        assertEquals(JobSegment.READY, InboxTexts.segment(JobStatus.APPROVED))
-        assertEquals(JobSegment.CLOSED, InboxTexts.segment(JobStatus.COMPLETED))
-        assertEquals(JobSegment.CLOSED, InboxTexts.segment(JobStatus.CANCELLED))
-        assertEquals(listOf("In progress", "Ready to start", "Recently closed", "My machines"), JobSegment.entries.map { it.label })
-        assertEquals("No recently closed jobs", InboxTexts.jobsEmpty(JobSegment.CLOSED).first)
-    }
-
     @Test
     fun `reading, gps and money wording`() {
         assertEquals("Opening reading", InboxTexts.readingKind("OPENING"))
@@ -44,11 +33,7 @@ class InboxTextsTest {
     }
 
     @Test
-    fun `jobs tab opens on the first non-empty group and notification rows skip a repeated title`() {
-        assertEquals(JobSegment.READY, InboxTexts.defaultSegment(listOf("APPROVED", "APPROVED")))
-        assertEquals(JobSegment.IN_PROGRESS, InboxTexts.defaultSegment(listOf("APPROVED", "IN_PROGRESS")))
-        assertEquals(JobSegment.CLOSED, InboxTexts.defaultSegment(listOf("COMPLETED")))
-        assertEquals(JobSegment.IN_PROGRESS, InboxTexts.defaultSegment(emptyList()))
+    fun `notification rows skip a repeated title`() {
         assertEquals(null, InboxTexts.notificationDetail("Tracker Stale — EX-01", "tracker stale — EX-01 "))
         assertEquals("Last fix 2 h ago", InboxTexts.notificationDetail("Tracker Stale", "Last fix 2 h ago"))
     }

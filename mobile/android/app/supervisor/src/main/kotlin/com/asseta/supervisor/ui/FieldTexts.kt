@@ -66,7 +66,7 @@ object FieldTexts {
             OpTypes.CASH_COLLECTION -> "Cash collection ${text("amount")}"
             OpTypes.CASH_HANDOVER -> "Cash handover ${text("amount")}"
             OpTypes.METER_RESET_REQUEST -> "Meter reset request"
-            OpTypes.JOB_REQUEST -> JobRequestTexts.OPERATION
+            OpTypes.JOB_REQUEST -> "Job request"
             else -> opType
         }
     }
@@ -87,7 +87,9 @@ object FieldTexts {
         AccountabilityOps.METER_BASELINE -> FieldAccountabilityTexts.OUTBOX_BASELINE
         AccountabilityOps.METER_CORRECTION -> FieldAccountabilityTexts.OUTBOX_CORRECTION
         AccountabilityOps.CASH_RETENTION_REQUEST -> FieldAccountabilityTexts.OUTBOX_RETENTION
-        AccountabilityOps.SITE_CHECKIN -> com.asseta.supervisor.ui.accountability.SiteCheckinTexts.OUTBOX
+        AccountabilityOps.SITE_CHECKIN -> "Site check-in"
+        com.asseta.core.model.sync.MachineReportOps.MACHINE_REPORT -> com.asseta.supervisor.ui.report.ReportTexts.OUTBOX
+        com.asseta.core.model.sync.MachineReportOps.CREDIT_INVOICE_PAYMENT -> com.asseta.supervisor.ui.report.ReportTexts.OUTBOX_INVOICE_PAYMENT
         OpTypes.JOB_ACTIVITY -> "Work log entry"
         OpTypes.JOB_ACKNOWLEDGEMENT -> "Customer acknowledgement"
         OpTypes.JOB_TRANSITION ->
@@ -97,7 +99,7 @@ object FieldTexts {
         OpTypes.CASH_HANDOVER -> "Cash handover"
         OpTypes.FUEL_EVENT -> "Fuel event"
         OpTypes.METER_RESET_REQUEST -> "Meter reset request"
-        OpTypes.JOB_REQUEST -> JobRequestTexts.OPERATION
+        OpTypes.JOB_REQUEST -> "Job request"
         else -> com.asseta.supervisor.ui.pettycash.PettyCashTexts.outboxTitle(opType) ?: opType
     }
 

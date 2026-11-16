@@ -131,6 +131,10 @@ class FieldGraph(context: Context, val container: AssetaAppContainer) {
     val dailyReportCapture = DailyReportCapture(db, repository, outbox, evidence, json) { scheduler.syncNow() }
     val dailyReports = DailyReportData({ tenantApi }, db, json, account)
 
+    /** ADR-008 machine reports and credit-invoice payments: synced snapshots and offline operations. */
+    val machineReports = com.asseta.core.sync.data.MachineReportData(db, json, account)
+    val reportCapture = com.asseta.core.sync.usecase.MachineReportCapture(db, repository, outbox, evidence, { deviceId }, json) { scheduler.syncNow() }
+
     /**
      * The machine map (online only, needs `tenant.fleet.read`): the server returns this supervisor's own machines, or
      * every machine when the company's `TRACKING.field_fleet_scope` is `ALL`. Never filtered on the phone.

@@ -198,7 +198,6 @@ class AccountabilityPresentationTest {
     @Test
     fun `routes are titled and presented as forms`() {
         assertEquals("Sell hours", Route.HoursSale.title("Acme"))
-        assertEquals("Daily reading", Route.DailyReading("m1").title("Acme"))
         assertEquals("Cash float", Route.CashAck("f1", isFloat = true).title("Acme"))
         listOf(Route.HoursTransfer, Route.CashTransfer, Route.Retention, Route.Baseline("m"), Route.Correction("r"))
             .forEach { assertTrue(it.isForm) }

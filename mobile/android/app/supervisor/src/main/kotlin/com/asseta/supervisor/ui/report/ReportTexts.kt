@@ -88,6 +88,8 @@ object ReportTexts {
     const val SUBMIT = "Submit for approval"
     const val SUBMITTING = "Submitting…"
     const val QUEUED = "Saved on this phone. It is sent when you are online."
+    const val OUTBOX = "Machine report"
+    const val OUTBOX_INVOICE_PAYMENT = "Credit invoice payment"
 
     // Status of a machine
     fun state(s: ReportState): String = when (s) {

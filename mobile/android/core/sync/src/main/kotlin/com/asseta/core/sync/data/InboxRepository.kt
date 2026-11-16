@@ -463,6 +463,7 @@ class InboxRepository(
             AccountabilityOps.CASH_TRANSFER, AccountabilityOps.CASH_TRANSFER_ACKNOWLEDGEMENT, AccountabilityOps.CASH_FLOAT_ACKNOWLEDGEMENT,
             AccountabilityOps.HOURS_PURCHASE, AccountabilityOps.HOURS_TRANSFER_REQUEST, AccountabilityOps.METER_BASELINE,
             AccountabilityOps.METER_CORRECTION, AccountabilityOps.CASH_RETENTION_REQUEST, AccountabilityOps.SITE_CHECKIN,
+            com.asseta.core.model.sync.MachineReportOps.MACHINE_REPORT, com.asseta.core.model.sync.MachineReportOps.CREDIT_INVOICE_PAYMENT,
         )
         val ALL_OP_TYPES = listOf(
             OpTypes.METER_CAPTURE, OpTypes.JOB_ACTIVITY, OpTypes.JOB_ACKNOWLEDGEMENT, OpTypes.JOB_TRANSITION, OpTypes.EXPENSE,
@@ -470,6 +471,7 @@ class InboxRepository(
             AccountabilityOps.CASH_TRANSFER, AccountabilityOps.CASH_TRANSFER_ACKNOWLEDGEMENT, AccountabilityOps.CASH_FLOAT_ACKNOWLEDGEMENT,
             AccountabilityOps.HOURS_PURCHASE, AccountabilityOps.HOURS_TRANSFER_REQUEST, AccountabilityOps.METER_BASELINE,
             AccountabilityOps.METER_CORRECTION, AccountabilityOps.CASH_RETENTION_REQUEST, AccountabilityOps.SITE_CHECKIN,
+            com.asseta.core.model.sync.MachineReportOps.MACHINE_REPORT, com.asseta.core.model.sync.MachineReportOps.CREDIT_INVOICE_PAYMENT,
         )
     }
 }

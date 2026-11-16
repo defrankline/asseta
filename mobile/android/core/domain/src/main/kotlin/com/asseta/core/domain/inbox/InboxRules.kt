@@ -151,6 +151,10 @@ sealed interface InboxLink {
     data class DailyReport(val id: String) : InboxLink
     /** A remittance of mine (DEC-032: the partial reason was decided): its detail once on the phone, else Money. */
     data class Handover(val id: String) : InboxLink
+    /** ADR-008: one of my machine reports (submitted, approved or rejected): its machine's report screen. */
+    data class MachineReport(val id: String) : InboxLink
+    /** ADR-008: a credit invoice (overdue, paid): Money, where its payment is recorded. */
+    data class CreditInvoice(val id: String) : InboxLink
     data object None : InboxLink
 }
 
@@ -167,6 +171,8 @@ object InboxLinks {
                 "DAILY_REPORT" -> return InboxLink.DailyReport(recordId)
                 // DEC-032: my partial remittance reason was decided.
                 "CASH_REMITTANCE" -> return InboxLink.Handover(recordId)
+                "MACHINE_REPORT" -> return InboxLink.MachineReport(recordId)
+                "CREDIT_INVOICE" -> return InboxLink.CreditInvoice(recordId)
             }
         }
         return fromTarget(entity, id)
@@ -185,6 +191,8 @@ object InboxLinks {
         entity == "machine" && id != null -> InboxLink.Machine(id)
         entity == "daily_report" && id != null -> InboxLink.DailyReport(id)
         entity == "cash_handover" && id != null -> InboxLink.Handover(id)
+        entity == "machine_report" && id != null -> InboxLink.MachineReport(id)
+        entity == "credit_invoice" && id != null -> InboxLink.CreditInvoice(id)
         else -> InboxLink.None
     }
 }

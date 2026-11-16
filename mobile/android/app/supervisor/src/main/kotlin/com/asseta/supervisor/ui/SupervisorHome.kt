@@ -6,95 +6,77 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.asseta.core.domain.accountability.CustomerHoursPolicy
+import com.asseta.core.domain.accountability.FieldAccess
+import com.asseta.core.domain.accountability.FuelSwitch
 import com.asseta.core.domain.finance.ExpensePolicyDecision
 import com.asseta.core.domain.inbox.InboxLink
 import com.asseta.core.domain.inbox.InboxLinks
-import com.asseta.core.domain.policy.ReadingKind
 import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.model.TenantAccess
 import com.asseta.core.model.owner.NotificationDto
 import com.asseta.core.sync.data.AttentionItem
+import com.asseta.core.sync.data.CashView
 import com.asseta.core.sync.data.InboxSnapshot
+import com.asseta.core.sync.data.MachineReportView
 import com.asseta.core.sync.data.OnlineResult
 import com.asseta.core.sync.engine.SyncReport
+import com.asseta.core.ui.R as CoreR
 import com.asseta.core.ui.components.AssetaTopBar
-import com.asseta.core.ui.components.BarIconButton
 import com.asseta.core.ui.components.BarTextButton
 import com.asseta.core.ui.components.NavigationChrome
 import com.asseta.core.ui.session.LocalSessionActions
-import com.asseta.core.ui.session.PasswordChangeText
+import com.asseta.core.ui.shell.DrawerEntry
+import com.asseta.core.ui.shell.HomeTopRow
+import com.asseta.core.ui.shell.ShellDrawer
+import com.asseta.core.ui.shell.ShellText
+import com.asseta.core.ui.shell.StatusChip
 import com.asseta.core.ui.theme.palette
+import com.asseta.supervisor.BuildConfig
 import com.asseta.supervisor.FieldGraph
-import com.asseta.supervisor.R
 import com.asseta.supervisor.push.NotificationPermission
-import com.asseta.supervisor.push.PhonePushStatus
 import com.asseta.supervisor.push.PushTexts
 import com.asseta.supervisor.push.SupervisorPush
-import com.asseta.core.domain.accountability.FieldAccess
-import com.asseta.core.sync.usecase.CaptureTarget
 import com.asseta.supervisor.ui.accountability.CashAckScreen
 import com.asseta.supervisor.ui.accountability.CashAckViewModel
 import com.asseta.supervisor.ui.accountability.CashTransferScreen
 import com.asseta.supervisor.ui.accountability.CashTransferViewModel
-import com.asseta.supervisor.ui.accountability.DailyReportDetailScreen
-import com.asseta.supervisor.ui.accountability.DailyReportFormScreen
-import com.asseta.supervisor.ui.accountability.DailyReportFormViewModel
-import com.asseta.supervisor.ui.accountability.DailyReportTexts
-import com.asseta.supervisor.ui.accountability.DailyReportsScreen
 import com.asseta.supervisor.ui.accountability.FieldAccountabilityTexts
 import com.asseta.supervisor.ui.accountability.HoursSaleScreen
 import com.asseta.supervisor.ui.accountability.HoursSaleViewModel
 import com.asseta.supervisor.ui.accountability.HoursTransferScreen
 import com.asseta.supervisor.ui.accountability.HoursTransferViewModel
-import com.asseta.supervisor.ui.accountability.RetentionScreen
 import com.asseta.supervisor.ui.accountability.RemittanceOverdueScreen
 import com.asseta.supervisor.ui.accountability.RemittanceOverdueViewModel
+import com.asseta.supervisor.ui.accountability.RetentionScreen
 import com.asseta.supervisor.ui.accountability.RetentionStatusScreen
 import com.asseta.supervisor.ui.accountability.RetentionStatusViewModel
 import com.asseta.supervisor.ui.accountability.RetentionViewModel
@@ -102,6 +84,23 @@ import com.asseta.supervisor.ui.finance.CashFormScreen
 import com.asseta.supervisor.ui.finance.CashFormViewModel
 import com.asseta.supervisor.ui.finance.ExpenseScreen
 import com.asseta.supervisor.ui.finance.ExpenseViewModel
+import com.asseta.supervisor.ui.home.CustomerBalancesScreen
+import com.asseta.supervisor.ui.home.DashboardScreen
+import com.asseta.supervisor.ui.home.HomeScreen
+import com.asseta.supervisor.ui.home.HomeTexts
+import com.asseta.supervisor.ui.home.InvoicePaymentScreen
+import com.asseta.supervisor.ui.home.InvoicePaymentViewModel
+import com.asseta.supervisor.ui.home.MenuFooter
+import com.asseta.supervisor.ui.home.MenuItem
+import com.asseta.supervisor.ui.home.MoneyHomeScreen
+import com.asseta.supervisor.ui.home.MyReportsScreen
+import com.asseta.supervisor.ui.home.MySalesScreen
+import com.asseta.supervisor.ui.home.ShellData
+import com.asseta.supervisor.ui.home.ShellModel
+import com.asseta.supervisor.ui.home.SupervisorSettingsScreen
+import com.asseta.supervisor.ui.report.MachineReportScreen
+import com.asseta.supervisor.ui.report.MachineReportViewModel
+import com.asseta.supervisor.ui.report.ReportTexts
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -111,17 +110,26 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** In-app routes (state-based navigation; no extra navigation dependency). Each tab has its own back stack. */
+/** In-app routes (state-based navigation; no extra navigation dependency). The stack always starts at Home. */
 sealed interface Route {
-    data object Jobs : Route
-    data object Readings : Route
-    data object Fuel : Route
+    // ADR-008 shell (side menu)
+    data object Home : Route
     data object Money : Route
+    data object Dashboard : Route
     data object Inbox : Route
-    data class JobDetail(val jobId: String, val jobNumber: String) : Route
-    data class Capture(val jobId: String, val kind: ReadingKind) : Route
-    data class Acknowledge(val jobId: String) : Route
-    data class WorkLogEntry(val jobId: String) : Route
+    /** Fuel events (only while the company uses fuel capture). */
+    data object Fuel : Route
+    /** A machine report; [machineId] preselects one of my machines. */
+    data class MachineReport(val machineId: String? = null) : Route
+    data object MyReports : Route
+    data object MySales : Route
+    data object CustomerBalances : Route
+    /** My cash custody, today's figures and my money records (the former Money tab). */
+    data object MoneyRecords : Route
+    /** A payment on a customer's open credit invoice. */
+    data class InvoicePayment(val invoiceId: String? = null) : Route
+    data object Settings : Route
+
     data object SyncStatus : Route
     data object RecordExpense : Route
     data class CashForm(val kind: String) : Route
@@ -133,7 +141,6 @@ sealed interface Route {
     data class ExpenseDetail(val key: String) : Route
     data class CashDetail(val key: String, val collection: Boolean) : Route
     data class NotificationDetail(val id: String) : Route
-    data object RequestJob : Route
 
     // Accountability (each gated by server capability, permission and tenant policy)
     data object HoursSale : Route
@@ -145,20 +152,8 @@ sealed interface Route {
     data class RetentionStatus(val key: String) : Route
     /** My overdue remittance flag (read online). */
     data class RemittanceOverdue(val id: String) : Route
-    data class DailyReading(val machineId: String) : Route
     data class Baseline(val machineId: String) : Route
     data class Correction(val readingId: String) : Route
-    /** Explain a non-revenue work-log entry (DEC-031 R1, online only). */
-    data class ExplainNonRevenue(val activity: com.asseta.core.model.owner.NonRevenueActivityDto) : Route
-    /** Today's site check-ins and my check-ins (DEC-031 M3). */
-    data object SiteCheckins : Route
-    /** My daily reports (DEC-032 A4). */
-    data object DailyReports : Route
-    /** Write a daily report; [supersedesKey] is the sent-back report it replaces. */
-    data class DailyReportForm(val machineId: String, val supersedesKey: String? = null) : Route
-    data class DailyReportDetail(val key: String) : Route
-    /** A changeover reading on a running job (DEC-032 A3). */
-    data class Changeover(val jobId: String) : Route
 
     /** DEC-033 petty cash: my funds, and the offline forms on them. */
     data object PettyCash : Route
@@ -176,26 +171,20 @@ sealed interface Route {
     data class CustomerForm(val customerId: String?) : Route
 }
 
-val SupervisorTab.root: Route
-    get() = when (this) {
-        SupervisorTab.JOBS -> Route.Jobs
-        SupervisorTab.READINGS -> Route.Readings
-        SupervisorTab.FUEL -> Route.Fuel
-        SupervisorTab.MONEY -> Route.Money
-        SupervisorTab.INBOX -> Route.Inbox
-    }
-
 /** Screen titles (the iOS navigation titles). */
 fun Route.title(companyName: String): String = when (this) {
-    Route.Jobs -> companyName
-    Route.Readings -> "Readings"
-    Route.Fuel -> "Fuel"
+    Route.Home -> companyName
     Route.Money -> "Money"
+    Route.Dashboard -> "Dashboard"
     Route.Inbox -> "Inbox"
-    is Route.JobDetail -> jobNumber
-    is Route.Capture -> if (kind == ReadingKind.OPENING) "Opening reading" else "Closing reading"
-    is Route.Acknowledge -> "Customer acknowledgement"
-    is Route.WorkLogEntry -> "Work log entry"
+    Route.Fuel -> "Fuel"
+    is Route.MachineReport -> ReportTexts.TITLE
+    Route.MyReports -> HomeTexts.MY_REPORTS
+    Route.MySales -> HomeTexts.MY_SALES
+    Route.CustomerBalances -> HomeTexts.CUSTOMER_BALANCES
+    Route.MoneyRecords -> HomeTexts.MY_CASH
+    is Route.InvoicePayment -> HomeTexts.INVOICE_PAYMENT_TITLE
+    Route.Settings -> HomeTexts.SETTINGS
     Route.SyncStatus -> "Sync status"
     Route.RecordExpense -> "Record expense"
     is Route.CashForm -> when (kind) {
@@ -211,7 +200,6 @@ fun Route.title(companyName: String): String = when (this) {
     is Route.ExpenseDetail -> "Expense"
     is Route.CashDetail -> if (collection) "Cash collection" else "Cash handover"
     is Route.NotificationDetail -> "Notification"
-    Route.RequestJob -> JobRequestTexts.FORM_TITLE
     Route.HoursSale -> FieldAccountabilityTexts.TITLE_HOURS_SALE
     Route.HoursTransfer -> FieldAccountabilityTexts.TITLE_HOURS_TRANSFER
     Route.CashTransfer -> FieldAccountabilityTexts.TITLE_CASH_TRANSFER
@@ -219,15 +207,8 @@ fun Route.title(companyName: String): String = when (this) {
     Route.Retention -> FieldAccountabilityTexts.TITLE_RETENTION
     is Route.RetentionStatus -> FieldAccountabilityTexts.TITLE_RETENTION_STATUS
     is Route.RemittanceOverdue -> FieldAccountabilityTexts.TITLE_REMITTANCE_OVERDUE
-    is Route.DailyReading -> FieldAccountabilityTexts.TITLE_DAILY
     is Route.Baseline -> FieldAccountabilityTexts.TITLE_BASELINE
     is Route.Correction -> FieldAccountabilityTexts.TITLE_CORRECTION
-    is Route.ExplainNonRevenue -> com.asseta.supervisor.ui.accountability.NonRevenueText.TITLE
-    Route.SiteCheckins -> com.asseta.supervisor.ui.accountability.SiteCheckinTexts.TITLE
-    Route.DailyReports -> DailyReportTexts.LIST_TITLE
-    is Route.DailyReportForm -> if (supersedesKey == null) DailyReportTexts.FORM_TITLE else DailyReportTexts.RESUBMIT_TITLE
-    is Route.DailyReportDetail -> DailyReportTexts.FORM_TITLE
-    is Route.Changeover -> DailyReportTexts.CHANGEOVER_TITLE
     Route.PettyCash -> com.asseta.supervisor.ui.pettycash.PettyCashTexts.TITLE
     is Route.PettyCashAck -> com.asseta.supervisor.ui.pettycash.PettyCashTexts.TITLE_ACK
     is Route.PettyCashTopUp -> com.asseta.supervisor.ui.pettycash.PettyCashTexts.TITLE_TOP_UP
@@ -241,27 +222,42 @@ fun Route.title(companyName: String): String = when (this) {
     is Route.CustomerForm -> if (customerId == null) com.asseta.supervisor.ui.customers.CustomerTexts.TITLE_ADD else com.asseta.supervisor.ui.customers.CustomerTexts.TITLE_EDIT
 }
 
-/** Routes the iOS app presents as sheets (Cancel / Save in the navigation bar, no tab bar). */
+/** Routes the iOS app presents as sheets (Cancel / Save in the navigation bar). */
 val Route.isForm: Boolean
-    get() = this is Route.Capture || this is Route.Acknowledge || this is Route.WorkLogEntry || this == Route.RecordExpense ||
-        this is Route.CashForm || this is Route.ResetRequest || this == Route.RequestJob || this == Route.HoursSale ||
-        this == Route.HoursTransfer || this == Route.CashTransfer || this is Route.CashAck || this == Route.Retention ||
-        this is Route.DailyReading || this is Route.Baseline || this is Route.Correction || this is Route.ExplainNonRevenue ||
-        this is Route.DailyReportForm || this is Route.Changeover || this is Route.PettyCashAck || this is Route.PettyCashTopUp ||
-        this is Route.PettyCashReturn || this is Route.PettyCashCount || this is Route.PettyCashHolderChange || this is Route.PettyCashAdvance ||
-        this is Route.PettyCashGiveAdvance || this is Route.CustomerForm
+    get() = this == Route.RecordExpense || this is Route.CashForm || this is Route.ResetRequest || this == Route.HoursTransfer ||
+        this == Route.CashTransfer || this is Route.CashAck || this == Route.Retention || this is Route.Baseline || this is Route.Correction ||
+        this is Route.PettyCashAck || this is Route.PettyCashTopUp || this is Route.PettyCashReturn || this is Route.PettyCashCount ||
+        this is Route.PettyCashHolderChange || this is Route.PettyCashAdvance || this is Route.PettyCashGiveAdvance || this is Route.CustomerForm
 
-/** Back stacks of the five tabs; selecting the current tab again returns to its first screen (as on iOS). */
-data class TabStacks(val tab: SupervisorTab = SupervisorTab.JOBS, val stacks: Map<SupervisorTab, List<Route>> = SupervisorTab.entries.associateWith { listOf(it.root) }) {
-    val stack: List<Route> get() = stacks.getValue(tab)
+/** The menu entry a route belongs to (highlighted in the side menu). */
+val Route.menu: MenuItem?
+    get() = when (this) {
+        Route.Home -> MenuItem.HOME
+        Route.HoursSale -> MenuItem.SELL_HOURS
+        is Route.MachineReport -> MenuItem.MACHINE_REPORT
+        Route.Money -> MenuItem.MONEY
+        Route.Fuel -> MenuItem.FUEL
+        Route.Dashboard -> MenuItem.DASHBOARD
+        Route.Inbox -> MenuItem.INBOX
+        Route.Customers -> MenuItem.CUSTOMERS
+        else -> null
+    }
+
+/** One back stack starting at Home; a side-menu entry opens on top of Home (back returns Home, as in the designs). */
+data class NavStack(val stack: List<Route> = listOf(Route.Home)) {
     val route: Route get() = stack.last()
 
-    fun push(r: Route) = copy(stacks = stacks + (tab to stack + r))
-    fun pop() = if (stack.size > 1) copy(stacks = stacks + (tab to stack.dropLast(1))) else this
-    fun select(t: SupervisorTab) = if (t == tab) copy(stacks = stacks + (t to listOf(t.root))) else copy(tab = t)
+    fun push(r: Route) = copy(stack = stack + r)
+    fun pop() = if (stack.size > 1) copy(stack = stack.dropLast(1)) else this
 
-    /** A tab on its first screen (a notification tap opens the Inbox list); the other tabs keep their stacks. */
-    fun showRoot(t: SupervisorTab) = copy(tab = t, stacks = stacks + (t to listOf(t.root)))
+    /** A side-menu entry: Home itself, or Home then the entry. */
+    fun open(item: MenuItem) = NavStack(if (item == MenuItem.HOME) listOf(Route.Home) else listOf(Route.Home, item.root))
+
+    /** A notification tap opens the Inbox (on top of Home). */
+    fun showInbox() = open(MenuItem.INBOX)
+
+    /** The menu entry to highlight: the first entry on the stack after Home, else Home. */
+    val menu: MenuItem get() = stack.drop(1).firstNotNullOfOrNull { it.menu } ?: MenuItem.HOME
 }
 
 /** Foreground sync shared by every list (pull to refresh) and the sync status screen ("Sync now"). */
@@ -286,7 +282,7 @@ class FieldSyncViewModel(private val field: FieldGraph, private val tenantId: St
     }
 }
 
-/** The merged records of every tab plus the server notifications (cached for offline use). */
+/** The merged records of the Inbox plus the server notifications (cached for offline use). */
 class InboxViewModel(private val field: FieldGraph, private val tenantId: String) : ViewModel() {
     val snapshot: StateFlow<InboxSnapshot> = field.inbox.observe(tenantId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), InboxSnapshot())
@@ -317,6 +313,12 @@ class InboxViewModel(private val field: FieldGraph, private val tenantId: String
     fun markAllRead() = viewModelScope.launch { field.online.markAllRead(tenantId) }
 }
 
+/** Machine reports, open credit invoices and this phone's queued reports (for the shell's figures and badges). */
+class ReportsViewModel(field: FieldGraph, tenantId: String) : ViewModel() {
+    val view: StateFlow<MachineReportView> = field.machineReports.observe(tenantId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MachineReportView())
+}
+
 @Composable
 fun SupervisorHome(
     field: FieldGraph,
@@ -324,34 +326,48 @@ fun SupervisorHome(
     companyCount: Int,
     onSwitchTenant: () -> Unit,
     modifier: Modifier = Modifier,
-    /** The signed-in user (`/me`): "my" daily reports. */
+    /** The signed-in user (`/me`). */
     userId: String? = null,
+    /** The signed-in user's name (`/me` display name), for the greeting and the side menu. */
+    displayName: String? = null,
 ) {
     val tenantId = tenant.tenantId.toString()
     // View models outlive a sign-out (activity scope): key them by user too, so the next user never sees these flows.
     val scope = remember(tenantId) { "$tenantId-${field.repository.ownerSubject()}" }
-    var nav by remember(tenantId) { mutableStateOf(TabStacks()) }
+    var nav by remember(tenantId) { mutableStateOf(NavStack()) }
     val route = nav.route
     val stack = nav.stack
     fun push(r: Route) { nav = nav.push(r) }
     fun pop() { nav = nav.pop() }
-    BackHandler(enabled = stack.size > 1) { pop() }
+    val drawer = rememberDrawerState(DrawerValue.Closed)
+    val coroutines = rememberCoroutineScope()
+    BackHandler(enabled = drawer.isOpen) { coroutines.launch { drawer.close() } }
+    BackHandler(enabled = !drawer.isOpen && stack.size > 1 && route !is Route.MachineReport) { pop() }
     val sync: FieldSyncViewModel = viewModel(key = "sync-$scope") { FieldSyncViewModel(field, tenantId) }
     val syncing by sync.syncing.collectAsStateWithLifecycle()
     val inbox: InboxViewModel = viewModel(key = "inbox-$scope") { InboxViewModel(field, tenantId) }
     val snapshot by inbox.snapshot.collectAsStateWithLifecycle()
     val notifications by inbox.notifications.collectAsStateWithLifecycle()
+    val reportsVm: ReportsViewModel = viewModel(key = "reports-$scope") { ReportsViewModel(field, tenantId) }
+    val reports by reportsVm.view.collectAsStateWithLifecycle()
     val permissions = remember(tenant) {
         // Capabilities the tenant switched off (CUSTOMER_HOURS) hide their entries and are not read (DEC-030 G1).
         field.accountability.setDisabledCapabilities(tenantId, tenant.disabledCapabilities)
         tenant.permissions.toSet()
     }
-    val coroutines = rememberCoroutineScope()
+    // ADR-008 §3: the fuel switch comes with `/me`, so Fuel is never shown and then hidden.
+    val fuelOn = remember(tenant) { FuelSwitch.on(tenant.disabledCapabilities) }
     var blockedExpense by remember { mutableStateOf<String?>(null) }
-    // What the accountability entries need: server capabilities, permissions and the saved tenant policies.
+    // What the entries need: server capabilities, permissions and the saved tenant policies.
     val accountabilityCache by field.accountability.cache.collectAsStateWithLifecycle()
     val access by produceState<FieldAccess?>(null, tenantId, syncing, accountabilityCache) {
         value = field.accountability.access(tenantId, permissions)
+    }
+    val cashView by remember(tenantId) { field.financeRepository.observeCashView(tenantId) }.collectAsStateWithLifecycle(CashView(emptyList(), emptyList(), null))
+    val customers by remember(tenantId) { field.financeRepository.observeCustomers(tenantId) }.collectAsStateWithLifecycle(emptyList())
+    val reminderDays = access?.hours?.reportReminderDays ?: CustomerHoursPolicy.DEFAULT_REMINDER_DAYS.takeIf { access?.hours == null }
+    val data = remember(snapshot, reports, reminderDays, cashView, customers) {
+        ShellData.of(snapshot, reports, reminderDays, cashView, customers.associate { it.id to it.name }, com.asseta.core.network.NetworkFactory.json)
     }
 
     LaunchedEffect(tenantId) {
@@ -390,32 +406,34 @@ fun SupervisorHome(
     /** Opens what a link points at; [notificationId] is shown when the phone has nothing for it. */
     fun openLink(link: InboxLink, notificationId: String?) {
         val id = notificationId
-        fun money() { if (nav.tab != SupervisorTab.MONEY) nav = nav.select(SupervisorTab.MONEY) }
+        fun money() { push(Route.Money) }
         fun fallback() { if (id != null) push(Route.NotificationDetail(id)) else money() }
-        // CASH_CUSTODY switched off: its records are hidden, so their taps open the Money tab (follow-up F1).
+        // CASH_CUSTODY switched off: its records are hidden, so their taps open Money (follow-up F1).
         val cashOff = TenantAccess.CASH_CUSTODY in tenant.disabledCapabilities
         when (link) {
-            is InboxLink.Job -> push(Route.JobDetail(link.jobId, snapshot.jobs[link.jobId]?.jobNumber ?: "Job"))
+            // Jobs are gone (ADR-008): an old job notification shows its own text.
+            is InboxLink.Job, is InboxLink.DailyReport -> fallback()
             is InboxLink.Machine -> snapshot.machines[link.machineId]?.let { push(Route.MachineDetail(it.id, it.assetCode)) } ?: fallback()
             is InboxLink.Expense -> push(Route.ExpenseDetail(snapshot.expenses.firstOrNull { it.serverId == link.expenseId }?.key ?: link.expenseId))
-            InboxLink.Money -> if (nav.tab != SupervisorTab.MONEY) nav = nav.select(SupervisorTab.MONEY)
-            // The exact transfer / float while it still waits for my answer, else the Money tab.
+            InboxLink.Money -> money()
+            // The exact transfer / float while it still waits for my answer, else Money.
             is InboxLink.CashAck -> {
                 val waiting = if (link.isFloat) accountabilityCache.floats.any { it.id == link.id } else accountabilityCache.transfers.any { it.id == link.id && it.status == com.asseta.core.model.sync.CashTransferDto.PENDING }
-                if (waiting && access?.acknowledgeCash == true) push(Route.CashAck(link.id, link.isFloat))
-                else if (nav.tab != SupervisorTab.MONEY) nav = nav.select(SupervisorTab.MONEY)
+                if (waiting && access?.acknowledgeCash == true) push(Route.CashAck(link.id, link.isFloat)) else money()
             }
             is InboxLink.Retention -> if (cashOff) money() else push(Route.RetentionStatus(link.id))
-            // Read online first: a flag the server does not show me (404), offline or switched off opens the Money tab.
+            // Read online first: a flag the server does not show me (404), offline or switched off opens Money.
             is InboxLink.RemittanceOverdue -> if (cashOff) {
                 money()
             } else {
                 coroutines.launch { if (field.accountability.remittanceOverdue(link.id) != null) push(Route.RemittanceOverdue(link.id)) else money() }
             }
-            // Switched off: as any other notification.
-            is InboxLink.DailyReport -> if (TenantAccess.ENGINE_HOURS in tenant.disabledCapabilities) fallback() else push(Route.DailyReportDetail(link.id))
-            // One of my remittances: its detail once it is on the phone, else the Money tab.
+            // One of my remittances: its detail once it is on the phone, else Money.
             is InboxLink.Handover -> snapshot.handovers.firstOrNull { it.key == link.id }?.let { push(Route.CashDetail(it.key, collection = false)) } ?: money()
+            // ADR-008: a report decided (or waiting) opens its machine's report screen; else my reports.
+            is InboxLink.MachineReport -> (reports.myReports.firstOrNull { it.id == link.id }?.machineId ?: reports.local.firstOrNull { it.operationId == link.id }?.machineId)
+                ?.let { push(Route.MachineReport(it)) } ?: push(Route.MyReports)
+            is InboxLink.CreditInvoice -> if (access?.creditInvoicePayment == true && reports.invoices.any { it.id == link.id }) push(Route.InvoicePayment(link.id)) else money()
             InboxLink.None -> fallback()
         }
     }
@@ -455,18 +473,16 @@ fun SupervisorHome(
     val tap by field.pushTap.collectAsStateWithLifecycle()
     LaunchedEffect(tap) {
         val opened = tap ?: return@LaunchedEffect
-        nav = nav.showRoot(SupervisorTab.INBOX)
+        nav = nav.showInbox()
         try {
             inbox.refreshNow()
             val id = opened.notificationId
-            // What the notification is about (a transfer to acknowledge opens Money, a machine its detail), else its detail.
             val n = inbox.notifications.value.firstOrNull { it.id.toString() == id }
             if (n != null) {
                 openNotification(n)
             } else if (openPettyCash(opened.entity, opened.entityId)) {
                 // A petty cash record named by the push.
             } else if (opened.recordId != null || opened.entityId != null) {
-                // Not in the Inbox (yet): the push itself names the record (kind / record_id, entity / entity_id).
                 openLink(InboxLinks.from(opened.entity, opened.entityId, opened.kind, opened.recordId), null)
             }
         } finally {
@@ -477,71 +493,99 @@ fun SupervisorHome(
 
     val unread = notifications.count { it.readAt == null }
     val inboxBadge = NavigationChrome.badge(InboxTexts.inboxBadge(unread, snapshot.attention.size))
+    val unsynced by remember(tenantId) { field.repository.observeUnsynced(tenantId) }.collectAsStateWithLifecycle(emptyList())
+    val problems = unsynced.count { it.status == ClientOperationStatus.FAILED || it.status == ClientOperationStatus.CONFLICT }
     val formBar = remember(route) { FormBarState() }
+    val actions = LocalSessionActions.current
     val p = palette
-    // iOS navigation bar: each tab's first screen has a large title with the account menu, the sync badge (and "+" on
-    // Fuel and Money); pushed screens have "‹ <previous title>" back; forms (iOS sheets) have Cancel and Save.
-    Column(modifier.fillMaxSize().background(p.groupedBackground)) {
-        val title = route.title(tenant.name)
-        when {
-            route.isForm -> AssetaTopBar(
-                title, large = false,
-                leading = { BarTextButton("Cancel", onClick = ::pop) },
-                actions = {
-                    val save = formBar.save
-                    BarTextButton(save?.label ?: "Save", enabled = save?.enabled == true) { save?.onSave?.invoke() }
-                },
-            )
-            stack.size > 1 -> AssetaTopBar(
-                title, large = false, onBack = ::pop,
-                backLabel = NavigationChrome.backLabel(stack.getOrNull(stack.size - 2)?.title(tenant.name)),
-                actions = {
-                    if (route == Route.SyncStatus) BarTextButton("Sync now", enabled = !syncing, onClick = sync::syncNow)
-                },
-            )
-            else -> AssetaTopBar(
-                title, large = true,
-                leading = { AccountMenu(field.push, NOTIFICATION_READ in permissions, showSwitchCompany = companyCount > 1, onSwitchCompany = onSwitchTenant) },
-                actions = {
-                    when (route) {
-                        Route.Fuel -> if ("tenant.expense.write" in permissions) {
-                            BarIconButton(R.drawable.ic_add, "Record fuel event") { push(Route.CashForm(CashFormViewModel.FUEL)) }
-                        }
-                        Route.Money -> MoneyAddMenu(permissions, access, onExpense = ::recordExpense, onRoute = ::push)
-                        Route.Jobs -> if (JobRequestTexts.PERMISSION in permissions) {
-                            BarTextButton(JobRequestTexts.BUTTON) { push(Route.RequestJob) }
-                        }
-                        else -> Unit
+
+    fun select(key: String) {
+        coroutines.launch { drawer.close() }
+        MenuItem.entries.firstOrNull { it.name == key }?.let { nav = nav.open(it); return }
+        when (MenuFooter.valueOf(key)) {
+            MenuFooter.SYNC -> nav = nav.open(MenuItem.HOME).push(Route.SyncStatus)
+            MenuFooter.SWITCH_COMPANY -> onSwitchTenant()
+            MenuFooter.SETTINGS -> nav = nav.open(MenuItem.HOME).push(Route.Settings)
+            MenuFooter.SIGN_OUT -> actions.signOut()
+        }
+    }
+
+    val menu = ShellModel.menu(access, permissions, fuelOn)
+    ModalNavigationDrawer(
+        drawerState = drawer,
+        gesturesEnabled = route == Route.Home || drawer.isOpen,
+        modifier = modifier,
+        drawerContent = {
+            ShellDrawer(
+                name = displayName?.takeIf { it.isNotBlank() } ?: tenant.name,
+                subtitle = HomeTexts.role(tenant.name),
+                entries = menu.map { item ->
+                    when (item) {
+                        MenuItem.HOME -> DrawerEntry(item.name, item.label, CoreR.drawable.ic_shell_home)
+                        MenuItem.SELL_HOURS -> DrawerEntry(item.name, item.label, CoreR.drawable.ic_shell_sell_hours)
+                        MenuItem.MACHINE_REPORT -> DrawerEntry(item.name, item.label, CoreR.drawable.ic_shell_machine_report, ShellText.badge(data.due))
+                        MenuItem.MONEY -> DrawerEntry(item.name, item.label, CoreR.drawable.ic_shell_money)
+                        MenuItem.FUEL -> DrawerEntry(item.name, item.label, CoreR.drawable.ic_shell_fuel)
+                        MenuItem.DASHBOARD -> DrawerEntry(item.name, item.label, CoreR.drawable.ic_shell_dashboard)
+                        MenuItem.INBOX -> DrawerEntry(item.name, item.label, CoreR.drawable.ic_shell_inbox, inboxBadge, alert = true)
+                        MenuItem.CUSTOMERS -> DrawerEntry(item.name, item.label, CoreR.drawable.ic_shell_customer_add)
                     }
-                    SyncBadge(field, tenantId, syncing) { push(Route.SyncStatus) }
                 },
+                footer = listOfNotNull(
+                    DrawerEntry(MenuFooter.SYNC.name, HomeTexts.syncRow(unsynced.size, null), if (problems > 0) CoreR.drawable.ic_cloud_off else CoreR.drawable.ic_shell_check),
+                    DrawerEntry(MenuFooter.SWITCH_COMPANY.name, MenuFooter.SWITCH_COMPANY.label, CoreR.drawable.ic_shell_switch).takeIf { companyCount > 1 },
+                    DrawerEntry(MenuFooter.SETTINGS.name, MenuFooter.SETTINGS.label, CoreR.drawable.ic_shell_settings),
+                    DrawerEntry(MenuFooter.SIGN_OUT.name, MenuFooter.SIGN_OUT.label, CoreR.drawable.ic_shell_sign_out),
+                ),
+                selected = nav.menu.name,
+                caption = HomeTexts.caption(BuildConfig.VERSION_NAME),
+                onSelect = ::select,
+                footerTint = mapOf(MenuFooter.SYNC.name to if (problems > 0) p.offline else if (unsynced.isEmpty()) p.live else p.secondaryText),
             )
-        }
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            CompositionLocalProvider(LocalFormBar provides formBar) {
-                RouteContent(field, tenantId, userId, scope, route, snapshot, syncing, ::refresh, ::push, ::pop, inbox, permissions, access,
-                    onRecordExpense = ::recordExpense, onNotification = ::openNotification, onAttention = ::openAttention,
-                    companyNotice = com.asseta.core.ui.session.CompanyNotice.banner(tenant))
+        },
+    ) {
+        Column(Modifier.fillMaxSize().background(p.groupedBackground)) {
+            val title = route.title(tenant.name)
+            when {
+                route == Route.Home -> Unit
+                route.isForm -> AssetaTopBar(
+                    title, large = false,
+                    leading = { BarTextButton("Cancel", onClick = ::pop) },
+                    actions = {
+                        val save = formBar.save
+                        BarTextButton(save?.label ?: "Save", enabled = save?.enabled == true) { save?.onSave?.invoke() }
+                    },
+                )
+                else -> AssetaTopBar(
+                    title, large = false, onBack = ::pop,
+                    backLabel = NavigationChrome.backLabel(stack.getOrNull(stack.size - 2)?.title(tenant.name)),
+                    actions = {
+                        if (route == Route.SyncStatus) BarTextButton("Sync now", enabled = !syncing, onClick = sync::syncNow)
+                        if (route == Route.Fuel && ShellModel.EXPENSE_WRITE in permissions) {
+                            BarTextButton("Record") { push(Route.CashForm(CashFormViewModel.FUEL)) }
+                        }
+                    },
+                )
             }
-        }
-        if (!route.isForm) {
-            NavigationBar(containerColor = p.chrome, tonalElevation = 0.dp) {
-                SupervisorTab.entries.forEach { t ->
-                    NavigationBarItem(
-                        selected = t == nav.tab,
-                        onClick = { nav = nav.select(t) },
-                        icon = {
-                            val badge = inboxBadge?.takeIf { t == SupervisorTab.INBOX }
-                            BadgedBox(badge = { badge?.let { Badge { Text(it) } } }) {
-                                Icon(painterResource(t.icon()), contentDescription = null)
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                CompositionLocalProvider(LocalFormBar provides formBar) {
+                    when (route) {
+                        Route.Home -> HomeScreen(
+                            displayName, tenant.name, access, data, syncing, ::refresh, com.asseta.core.ui.session.CompanyNotice.banner(tenant), ::push,
+                        ) {
+                            Box(Modifier.statusBarsPadding()) {
+                                HomeTopRow(onMenu = { coroutines.launch { drawer.open() } }, menuBadge = inboxBadge) {
+                                    StatusChip(
+                                        if (unsynced.isEmpty()) HomeTexts.ALL_SYNCED else HomeTexts.notSynced(unsynced.size),
+                                        if (problems > 0) CoreR.drawable.ic_cloud_off else CoreR.drawable.ic_shell_check,
+                                        if (problems > 0) p.offline else if (unsynced.isEmpty()) p.live else p.secondaryText,
+                                    ) { push(Route.SyncStatus) }
+                                }
                             }
-                        },
-                        label = { Text(t.label, style = MaterialTheme.typography.labelSmall) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = p.accent, selectedTextColor = p.accent, indicatorColor = Color.Transparent,
-                            unselectedIconColor = p.secondaryText, unselectedTextColor = p.secondaryText,
-                        ),
-                    )
+                        }
+                        else -> RouteContent(field, tenantId, scope, route, snapshot, syncing, ::refresh, ::push, ::pop, inbox, permissions, access, data, fuelOn,
+                            onRecordExpense = ::recordExpense, onNotification = ::openNotification, onAttention = ::openAttention)
+                    }
                 }
             }
         }
@@ -560,7 +604,6 @@ fun SupervisorHome(
 private fun RouteContent(
     field: FieldGraph,
     tenantId: String,
-    userId: String?,
     scope: String,
     route: Route,
     snapshot: InboxSnapshot,
@@ -571,91 +614,48 @@ private fun RouteContent(
     inbox: InboxViewModel,
     permissions: Set<String>,
     access: FieldAccess?,
+    data: ShellData,
+    fuelOn: Boolean,
     onRecordExpense: () -> Unit,
     onNotification: (NotificationDto) -> Unit,
     onAttention: (AttentionItem) -> Unit,
-    /** The company's limited-access reason (e.g. a requested closure), shown as a banner on the jobs home. */
-    companyNotice: String? = null,
 ) {
     when (route) {
-        Route.Jobs -> JobsScreen(
-            field, tenantId, snapshot, syncing, onRefresh, onOpen = { id, number -> push(Route.JobDetail(id, number)) }, onRoute = push,
-            notice = companyNotice,
-            permissions = permissions,
-            checkinEntry = if (access?.siteCheckin == true) {
-                { com.asseta.supervisor.ui.accountability.SiteCheckinEntry(field, tenantId, permissions, snapshot, syncing) { push(Route.SiteCheckins) } }
-            } else null,
-        )
-        Route.SiteCheckins -> com.asseta.supervisor.ui.accountability.SiteCheckinScreen(
-            viewModel(key = "site-checkins-$scope") { com.asseta.supervisor.ui.accountability.SiteCheckinViewModel(field, tenantId, permissions) },
-            field, snapshot, online = rememberOnline(),
-        )
-        Route.Readings -> {
-            val showReports = access?.readDailyReports == true
-            val reports by produceState(emptyList<com.asseta.core.sync.data.DailyReportRow>(), tenantId, userId, showReports) {
-                if (showReports) field.dailyReports.observe(tenantId, userId).collect { value = it }
-            }
-            LaunchedEffect(tenantId, syncing, showReports) { if (showReports && !syncing) field.dailyReports.refresh(tenantId) }
-            ReadingsScreen(snapshot, syncing, onRefresh, push, showReports, reports.count { it.returned })
-        }
-        Route.DailyReports -> DailyReportsScreen(field, tenantId, userId, snapshot, push)
-        is Route.DailyReportDetail -> DailyReportDetailScreen(field, tenantId, route.key, snapshot, access, push)
-        is Route.DailyReportForm -> {
+        Route.Home -> Unit
+        Route.Money -> MoneyHomeScreen(data, access, permissions, push, onRecordExpense)
+        Route.MoneyRecords -> MoneyScreen(field, tenantId, snapshot, syncing, onRefresh, push, permissions, access)
+        Route.Dashboard -> DashboardScreen(field, tenantId, data, push)
+        Route.MyReports -> MyReportsScreen(data, push)
+        Route.MySales -> MySalesScreen(data)
+        Route.CustomerBalances -> CustomerBalancesScreen(data)
+        // Fuel only while the company uses it (ADR-008 §3); a stale route shows nothing.
+        Route.Fuel -> if (fuelOn) FuelScreen(snapshot, syncing, onRefresh, push)
+        is Route.MachineReport -> {
             val visit = remember(route) { System.nanoTime() }
-            DailyReportFormScreen(viewModel(key = "daily-report-$visit") { DailyReportFormViewModel(field, tenantId, route.machineId, route.supersedesKey, permissions) }, onDone = pop)
+            val vm: MachineReportViewModel = viewModel(key = "machine-report-$visit") { MachineReportViewModel(field, tenantId, permissions, route.machineId) }
+            BackHandler { if (!vm.back()) pop() }
+            MachineReportScreen(vm, onDone = pop)
         }
-        is Route.Changeover -> {
+        is Route.InvoicePayment -> {
             val visit = remember(route) { System.nanoTime() }
-            val target = CaptureTarget.Changeover(null, null, access?.changeoverJobRequired == true)
-            val vm: CaptureViewModel = viewModel(key = "capture-$visit") { CaptureViewModel(field, tenantId, route.jobId, ReadingKind.DAILY, target) }
-            CaptureScreen(vm, onDone = pop)
+            InvoicePaymentScreen(viewModel(key = "invoice-payment-$visit") { InvoicePaymentViewModel(field, tenantId, permissions, route.invoiceId) }, onDone = pop)
         }
-        Route.Fuel -> FuelScreen(snapshot, syncing, onRefresh, push)
-        Route.Money -> MoneyScreen(field, tenantId, snapshot, syncing, onRefresh, push, permissions, access)
+        Route.Settings -> SupervisorSettingsScreen(field.push, NOTIFICATION_READ in permissions)
         Route.Inbox -> {
             AskNotificationsOnce(field.push, NOTIFICATION_READ in permissions)
             val notifications by inbox.notifications.collectAsStateWithLifecycle()
             val offline by inbox.offline.collectAsStateWithLifecycle()
             InboxScreen(snapshot, notifications, offline, syncing, onRefresh, onNotification, onAttention, inbox::markAllRead)
         }
-        is Route.JobDetail -> {
-            // The tenant's changeover rule (next job mandatory or not), fresh before the form opens.
-            LaunchedEffect(tenantId, access?.changeover) { if (access?.changeover == true) field.accountability.refresh(tenantId, permissions) }
-            val vm: JobDetailViewModel = viewModel(key = "job-$scope-${route.jobId}") { JobDetailViewModel(field, tenantId, route.jobId) }
-            JobDetailScreen(
-                vm, snapshot,
-                onCapture = { push(Route.Capture(route.jobId, it)) },
-                onAcknowledge = { push(Route.Acknowledge(route.jobId)) },
-                onWorkLogEntry = { push(Route.WorkLogEntry(route.jobId)) },
-                onRoute = push,
-                field = field,
-                access = access,
-                online = rememberOnline(),
-            )
-        }
-        is Route.ExplainNonRevenue -> {
-            val visit = remember(route) { System.nanoTime() }
-            com.asseta.supervisor.ui.accountability.ExplainNonRevenueScreen(
-                viewModel(key = "explain-nonrev-$visit") { com.asseta.supervisor.ui.accountability.ExplainNonRevenueViewModel(field, route.activity) },
-                online = rememberOnline(), onDone = pop,
-            )
-        }
-        is Route.Capture -> {
-            // A new key per visit: each capture gets its own id and fresh GPS attempt.
-            val visit = remember(route) { System.nanoTime() }
-            val vm: CaptureViewModel = viewModel(key = "capture-$visit") { CaptureViewModel(field, tenantId, route.jobId, route.kind) }
-            CaptureScreen(vm, onDone = pop)
-        }
-        is Route.DailyReading, is Route.Baseline, is Route.Correction -> {
-            // The capture screen with its evidence rules, for a reading outside a job, a baseline or a correction.
+        is Route.Baseline, is Route.Correction -> {
+            // The capture screen with its evidence rules, for a baseline or a correction.
             val visit = remember(route) { System.nanoTime() }
             val target = when (route) {
-                is Route.DailyReading -> CaptureTarget.Daily(route.machineId)
-                is Route.Baseline -> CaptureTarget.Baseline(route.machineId, "")
-                is Route.Correction -> CaptureTarget.Correction(route.readingId, "")
-                else -> CaptureTarget.Job
+                is Route.Baseline -> com.asseta.core.sync.usecase.CaptureTarget.Baseline(route.machineId, "")
+                is Route.Correction -> com.asseta.core.sync.usecase.CaptureTarget.Correction(route.readingId, "")
+                else -> com.asseta.core.sync.usecase.CaptureTarget.Job
             }
-            val vm: CaptureViewModel = viewModel(key = "capture-$visit") { CaptureViewModel(field, tenantId, null, ReadingKind.DAILY, target) }
+            val vm: CaptureViewModel = viewModel(key = "capture-$visit") { CaptureViewModel(field, tenantId, null, com.asseta.core.domain.policy.ReadingKind.DAILY, target) }
             CaptureScreen(vm, onDone = pop)
         }
         Route.HoursSale -> {
@@ -681,8 +681,6 @@ private fun RouteContent(
         }
         is Route.RemittanceOverdue -> RemittanceOverdueScreen(viewModel(key = "remittance-overdue-$scope-${route.id}") { RemittanceOverdueViewModel(field, route.id) })
         is Route.RetentionStatus -> RetentionStatusScreen(viewModel(key = "retention-status-$scope-${route.key}") { RetentionStatusViewModel(field, tenantId, route.key) })
-        is Route.Acknowledge -> AcknowledgementScreen(field, tenantId, route.jobId, onDone = pop)
-        is Route.WorkLogEntry -> WorkLogEntryScreen(field, tenantId, route.jobId, onDone = pop)
         Route.RecordExpense -> {
             // A new key per visit: each form gets its own client id (exactly-once) and fresh GPS attempt.
             val visit = remember(route) { System.nanoTime() }
@@ -691,6 +689,8 @@ private fun RouteContent(
             ExpenseScreen(vm, onDone = pop)
         }
         is Route.CashForm -> {
+            // Fuel events only while the company uses fuel capture.
+            if (route.kind == CashFormViewModel.FUEL && !fuelOn) return
             val visit = remember(route) { System.nanoTime() }
             val vm: CashFormViewModel = viewModel(key = "cash-${route.kind}-$visit") { CashFormViewModel(field, tenantId, route.kind, permissions) }
             CashFormScreen(vm, onDone = pop)
@@ -707,15 +707,9 @@ private fun RouteContent(
             ResetRequestScreen(vm, snapshot, onDone = pop)
         }
         is Route.ResetDetail -> ResetDetailScreen(field, snapshot, route.key, push)
-        is Route.FuelDetail -> FuelDetailScreen(snapshot, route.key, push)
+        is Route.FuelDetail -> if (fuelOn) FuelDetailScreen(snapshot, route.key, push)
         is Route.ExpenseDetail -> ExpenseDetailScreen(field, snapshot, route.key, permissions, onRecordExpense, push)
         is Route.CashDetail -> CashDetailScreen(field, tenantId, snapshot, route.key, route.collection, permissions, push)
-        Route.RequestJob -> {
-            // A new key per visit: each form gets its own client id (= the job id, exactly once).
-            val visit = remember(route) { System.nanoTime() }
-            val vm: JobRequestViewModel = viewModel(key = "job-request-$visit") { JobRequestViewModel(field, tenantId) }
-            JobRequestScreen(vm, onDone = pop)
-        }
         Route.PettyCash -> com.asseta.supervisor.ui.pettycash.MyPettyCashScreen(
             viewModel(key = "petty-cash-$scope") { com.asseta.supervisor.ui.pettycash.PettyCashViewModel(field, tenantId) }, access, syncing, onRefresh, push,
         )
@@ -773,44 +767,6 @@ private fun RouteContent(
     }
 }
 
-private fun SupervisorTab.icon(): Int = when (this) {
-    SupervisorTab.JOBS -> R.drawable.ic_nav_jobs
-    SupervisorTab.READINGS -> R.drawable.ic_gauge
-    SupervisorTab.FUEL -> R.drawable.ic_fuel
-    SupervisorTab.MONEY -> R.drawable.ic_wallet
-    SupervisorTab.INBOX -> R.drawable.ic_inbox
-}
-
-/**
- * "+" on the Money tab: the expense, collection and handover forms by permission, and the accountability forms when the
- * server, the user's permissions and the company's policy all allow them.
- */
-@Composable
-private fun MoneyAddMenu(permissions: Set<String>, access: FieldAccess?, onExpense: () -> Unit, onRoute: (Route) -> Unit) {
-    val expenses = "tenant.expense.write" in permissions
-    val cash = "tenant.collection.record" in permissions
-    val extra = access != null && (access.sellHours || access.requestHoursTransfer || access.transferCash || access.askToKeepCash)
-    if (!expenses && !cash && !extra) return
-    var open by remember { mutableStateOf(false) }
-    Box {
-        BarIconButton(R.drawable.ic_add, "Record") { open = true }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            if (expenses) DropdownMenuItem(text = { Text("Record expense") }, onClick = { open = false; onExpense() })
-            if (cash) {
-                DropdownMenuItem(text = { Text("Record cash collection") }, onClick = { open = false; onRoute(Route.CashForm(CashFormViewModel.COLLECTION)) })
-                DropdownMenuItem(text = { Text("Hand over cash") }, onClick = { open = false; onRoute(Route.CashForm(CashFormViewModel.HANDOVER)) })
-            }
-            val t = FieldAccountabilityTexts
-            if (access?.transferCash == true) DropdownMenuItem(text = { Text(t.MENU_TRANSFER_CASH) }, onClick = { open = false; onRoute(Route.CashTransfer) })
-            if (access?.askToKeepCash == true) DropdownMenuItem(text = { Text(t.MENU_KEEP_CASH) }, onClick = { open = false; onRoute(Route.Retention) })
-            if (access?.sellHours == true) DropdownMenuItem(text = { Text(t.MENU_SELL_HOURS) }, onClick = { open = false; onRoute(Route.HoursSale) })
-            if (access?.requestHoursTransfer == true) {
-                DropdownMenuItem(text = { Text(t.MENU_HOURS_TRANSFER) }, onClick = { open = false; onRoute(Route.HoursTransfer) })
-            }
-        }
-    }
-}
-
 private const val NOTIFICATION_READ = "tenant.notification.read"
 
 /** Asks for the notification permission (Android 13+) the first time the Inbox is shown; a refusal is not asked again. */
@@ -823,117 +779,6 @@ private fun AskNotificationsOnce(push: SupervisorPush, canRead: Boolean) {
     LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= 33 && PushTexts.askOnInbox(push.available, canRead, push.permission())) {
             launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-    }
-}
-
-/**
- * Account menu (leading, like the iOS toolbar): "Switch company" when the user has several, "Notifications on this
- * phone" (push status; "Turn on" asks for the permission and registers), "Change password" (Keycloak's page; disabled
- * offline), "Sign out" and "Delete my account" (online only; the session shell shows its screen).
- */
-@Composable
-private fun AccountMenu(push: SupervisorPush, canReadNotifications: Boolean, showSwitchCompany: Boolean, onSwitchCompany: () -> Unit) {
-    val actions = LocalSessionActions.current
-    val online = rememberOnline()
-    val coroutines = rememberCoroutineScope()
-    var open by remember { mutableStateOf(false) }
-    val registered by push.registered.collectAsStateWithLifecycle()
-    var checks by remember { mutableIntStateOf(0) }
-    // Re-read when the menu opens: the permission may have changed in Settings meanwhile.
-    val pushStatus = remember(open, registered, checks) { push.status() }
-    fun turnOn() {
-        coroutines.launch { push.register(); checks++ }
-    }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        push.asked = true
-        turnOn()
-    }
-    IconButton(onClick = { open = true }) {
-        Icon(painterResource(R.drawable.ic_account), contentDescription = "Account", tint = palette.accent)
-    }
-    DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-        if (showSwitchCompany) DropdownMenuItem(text = { Text("Switch company") }, onClick = { open = false; onSwitchCompany() })
-        if (canReadNotifications) {
-            // Its own group, like the iOS section "Notifications on this phone".
-            HorizontalDivider()
-            val canTurnOn = pushStatus == PhonePushStatus.NOT_REGISTERED
-            DropdownMenuItem(
-                text = {
-                    Column {
-                        Text(PushTexts.ROW)
-                        Text(pushStatus.label, style = MaterialTheme.typography.bodySmall, color = palette.secondaryText)
-                    }
-                },
-                trailingIcon = if (canTurnOn) {
-                    { Text(PushTexts.TURN_ON, color = palette.accent, style = MaterialTheme.typography.labelLarge) }
-                } else null,
-                onClick = {
-                    open = false
-                    when {
-                        !canTurnOn -> Unit
-                        Build.VERSION.SDK_INT >= 33 && push.permission() == NotificationPermission.NOT_ASKED ->
-                            permission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        else -> turnOn()
-                    }
-                },
-            )
-            HorizontalDivider()
-        }
-        DropdownMenuItem(
-            text = {
-                Column {
-                    Text(PasswordChangeText.ACTION)
-                    Text(
-                        if (online) PasswordChangeText.FOOTER else PasswordChangeText.OFFLINE,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = palette.secondaryText,
-                    )
-                }
-            },
-            enabled = online && !actions.changingPassword,
-            onClick = { open = false; actions.changePassword() },
-        )
-        DropdownMenuItem(
-            text = { Text("Sign out", color = MaterialTheme.colorScheme.error) },
-            onClick = { open = false; actions.signOut() },
-        )
-        HorizontalDivider()
-        DropdownMenuItem(
-            text = {
-                Column {
-                    Text(com.asseta.core.ui.session.AccountDeletionText.ACTION, color = MaterialTheme.colorScheme.error)
-                    if (!online) {
-                        Text(com.asseta.core.ui.session.AccountDeletionText.OFFLINE, style = MaterialTheme.typography.bodySmall, color = palette.secondaryText)
-                    }
-                }
-            },
-            enabled = online,
-            onClick = { open = false; actions.deleteAccount() },
-        )
-    }
-}
-
-/** Sync state at a glance; opens the sync status screen. Red when anything was rejected or is in conflict. */
-@Composable
-private fun SyncBadge(field: FieldGraph, tenantId: String, syncing: Boolean, onClick: () -> Unit) {
-    val unsynced by remember(tenantId) { field.repository.observeUnsynced(tenantId) }.collectAsStateWithLifecycle(emptyList())
-    val attention = unsynced.count { it.status == ClientOperationStatus.FAILED || it.status == ClientOperationStatus.CONFLICT }
-    val tint = if (attention > 0) palette.offline else palette.accent
-    val label = if (unsynced.isEmpty()) "All synced" else "${unsynced.size} items not synced"
-    TextButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = label }) {
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (syncing) {
-                CircularProgressIndicator(Modifier.size(18.dp), color = palette.secondaryText, strokeWidth = 2.dp)
-            } else {
-                val icon = when {
-                    attention > 0 -> R.drawable.ic_sync_problem
-                    unsynced.isNotEmpty() -> R.drawable.ic_sync
-                    else -> R.drawable.ic_cloud_done
-                }
-                Icon(painterResource(icon), contentDescription = null, tint = tint)
-            }
-            if (unsynced.isNotEmpty()) Text("${unsynced.size}", color = tint, style = MaterialTheme.typography.labelMedium)
         }
     }
 }

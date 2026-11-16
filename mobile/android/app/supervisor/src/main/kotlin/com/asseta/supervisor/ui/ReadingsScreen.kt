@@ -70,54 +70,6 @@ import java.util.UUID
 /** Readings tab: every reading of mine (newest first) with one combined status, and my meter reset requests. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReadingsScreen(
-    snapshot: InboxSnapshot,
-    syncing: Boolean,
-    onRefresh: () -> Unit,
-    onRoute: (Route) -> Unit,
-    showDailyReports: Boolean = false,
-    reportsSentBack: Int = 0,
-) {
-    var attentionOnly by rememberSaveable { mutableStateOf(false) }
-    val readings = snapshot.readings.filter { !attentionOnly || it.status.needsAttention }
-    val resets = snapshot.resets.filter { !attentionOnly || it.status.needsAttention }
-    PullToRefreshBox(isRefreshing = syncing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
-            item(key = "filter") {
-                FilterChipRow(listOf(false to "All", true to "Needs attention"), attentionOnly, { attentionOnly = it }, Modifier.padding(bottom = 8.dp))
-            }
-            if (showDailyReports) {
-                item(key = "daily-reports") {
-                    com.asseta.core.ui.components.NavigationRow(
-                        DailyReportTexts.MENU, badge = reportsSentBack.takeIf { it > 0 }?.toString(), onClick = { onRoute(Route.DailyReports) },
-                    )
-                }
-            }
-            if (snapshot.loaded && readings.isEmpty() && resets.isEmpty()) {
-                item(key = "empty") {
-                    if (attentionOnly) EmptyState("Nothing needs attention", "Flagged or rejected readings appear here.")
-                    else EmptyState("No readings yet", "Readings you capture on your jobs appear here with the office's review.")
-                }
-            }
-            groupedSection(
-                keyPrefix = "readings",
-                header = if (readings.isEmpty()) null else "My readings",
-                items = readings.map { r ->
-                    GroupedItem(r.id, onClick = { onRoute(Route.ReadingDetail(r.id)) }) { ReadingRow(snapshot, r) }
-                },
-            )
-            groupedSection(
-                keyPrefix = "resets",
-                header = if (resets.isEmpty()) null else "Meter reset requests",
-                items = resets.map { r ->
-                    GroupedItem(r.key, onClick = { onRoute(Route.ResetDetail(r.key)) }) { ResetRow(snapshot, r) }
-                },
-            )
-        }
-    }
-}
-
-@Composable
 fun ReadingRow(snapshot: InboxSnapshot, r: ReadingItem) {
     val job = r.jobId?.let(snapshot.jobs::get)?.jobNumber
     val machine = snapshot.machineOf(r)?.let(snapshot.machines::get)?.assetCode
@@ -244,17 +196,9 @@ fun MachineDetailScreen(snapshot: InboxSnapshot, machineId: String, onRoute: (Ro
             LabeledRow("Latest reading", latest?.let { "${it.reading} · ${LocalTime.format(it.atMs)}" } ?: "No readings yet")
             LabeledRow("Meter precision", FieldTexts.meterPrecision(machine.meterDecimalPlaces))
         }
-        if (jobs.isNotEmpty()) {
-            Section("Active job") {
-                jobs.forEach { j -> NavigationRowCompat(j.jobNumber, FieldTexts.jobStatus(j.status)) { onRoute(Route.JobDetail(j.id, j.jobNumber)) } }
-            }
-        }
         Section(null) {
-            if (access?.dailyReading == true) {
-                ActionRow(FieldAccountabilityTexts.RECORD_DAILY, R.drawable.ic_gauge) { onRoute(Route.DailyReading(machineId)) }
-            }
-            if (access?.dailyReport == true) {
-                ActionRow(DailyReportTexts.ACTION, R.drawable.ic_clipboard) { onRoute(Route.DailyReportForm(machineId)) }
+            if (access?.machineReport == true) {
+                ActionRow(com.asseta.supervisor.ui.report.ReportTexts.TITLE, R.drawable.ic_gauge) { onRoute(Route.MachineReport(machineId)) }
             }
             if (access?.proposeBaseline == true) {
                 ActionRow(FieldAccountabilityTexts.PROPOSE_BASELINE, R.drawable.ic_check_seal) { onRoute(Route.Baseline(machineId)) }
