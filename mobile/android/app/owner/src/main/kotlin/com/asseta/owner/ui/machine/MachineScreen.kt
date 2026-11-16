@@ -121,7 +121,7 @@ fun MachineScreen(vm: MachineViewModel, features: OwnerFeatures, online: Boolean
             // The machine's days: the work allocation ledger (DEC-032).
             if (features.machineDays) item {
                 SectionCard(null) {
-                    com.asseta.core.ui.components.NavigationRow(com.asseta.owner.ui.accountability.OwnerAccountabilityTexts.SHEET_OPEN) {
+                    com.asseta.core.ui.components.NavigationRow(com.asseta.owner.ui.accountability.OwnerAccountabilityTexts.MACHINE_DAYS) {
                         onOpen(OwnerDestination.MachineDays(vm.machineId))
                     }
                 }

@@ -90,7 +90,7 @@ object AllocationTexts {
     const val ENTRIES_EMPTY = "No allocations for this day."
     const val DAYS_EMPTY = "No engine hours in the last 14 days."
     const val VALUE_AT_RISK = "Value at risk"
-    const val VALUE_AT_RISK_FOOTER = "Unexplained hours at the job's rate. Not part of expected revenue or the shortfall."
+    const val VALUE_AT_RISK_FOOTER = "Unexplained hours at the machine's rate. Not part of expected revenue or the shortfall."
 
     fun status(wire: String): String = when (wire) {
         "SUBMITTED" -> "To review"

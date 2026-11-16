@@ -306,8 +306,8 @@ object OwnerAccountabilityTexts {
     fun days(n: Int) = if (n == 1) "1 day" else "$n days"
     fun overdueHeldLine(date: String, days: Int) = "Held since $date, longer than the allowed ${days(days)}."
 
-    const val SHEET_OPEN = "Daily machine sheet"
-    const val SHEET_TITLE = "Daily machine sheet"
+    /** A machine's days of the work allocation ledger (opened from the machine and the management view; as iOS). */
+    const val MACHINE_DAYS = "Machine days"
 
     /** Investigation signal names (owner.signal.*); other codes humanized. */
     fun signalName(code: String): String = when (code) {

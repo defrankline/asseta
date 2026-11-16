@@ -89,6 +89,9 @@ class InboxRulesTest {
     fun `finding wording`() {
         assertEquals("Reading lower than before", FindingTexts.type("METER_DECREASE"))
         assertEquals("Brand new", FindingTexts.type("BRAND_NEW"))
+        // No jobs (ADR-008): same words as iOS.
+        assertEquals("Not at the site", FindingTexts.type("LOCATION_MISMATCH"))
+        assertEquals("Overlapping allocation", FindingTexts.type("OVERLAPPING_ALLOCATION"))
         assertEquals("Waiting for review", FindingTexts.review("OPEN"))
     }
 }

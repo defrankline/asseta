@@ -114,7 +114,7 @@ class OversightOwnerTest {
         val m = OversightPresentation.idle(idle, all, zone).single()
         assertEquals("EX-01", m.title)
         assertEquals("Idle since 1 Oct 2026 (25 days)", m.subtitle)
-        assertEquals("Last report MR-2026-00003", m.caption)
+        assertEquals("Last machine report MR-2026-00003", m.caption)
         assertEquals(OwnerDestination.Machine(s2), m.open)
     }
 
@@ -149,6 +149,10 @@ class OversightOwnerTest {
         assertEquals("People scorecard", OwnerNavigation.title(OwnerDestination.Scorecard))
         assertEquals("Baraka", OwnerNavigation.title(OwnerDestination.ScorecardPerson(s1, "Baraka")))
         assertEquals("Idle machines", OwnerNavigation.title(OwnerDestination.IdleMachines))
+        // ADR-008 wording, same as iOS: a machine's ledger days, value at risk at the machine's rate.
+        assertEquals("Machine days", OwnerNavigation.title(OwnerDestination.MachineDays(s1)))
+        assertEquals("Unexplained hours at the machine's rate. Not part of expected revenue or the shortfall.",
+            com.asseta.owner.ui.accountability.AllocationTexts.VALUE_AT_RISK_FOOTER)
         assertEquals("Repeated items to look at for one person", OwnerAccountabilityTexts.signalName("REPEATED_PATTERN"))
     }
 

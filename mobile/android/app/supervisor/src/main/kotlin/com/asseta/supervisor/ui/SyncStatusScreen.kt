@@ -194,7 +194,7 @@ private val GROUPS = listOf(
     ),
     Triple(
         "Needs attention: conflicts", ClientOperationStatus.CONFLICT,
-        "The record changed on the server (for example the machine was reassigned). Nothing was overwritten; your record is kept for review.",
+        "The record changed on the server (for example a report was already waiting, or the machine was reassigned). Nothing was overwritten; your record is kept for review.",
     ),
     Triple(
         "Held: subscription read-only", ClientOperationStatus.QUARANTINED,

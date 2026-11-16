@@ -96,7 +96,7 @@ object OversightTexts {
     fun heldSince(date: String, days: Int?) = "since $date" + (days?.let { " (${days(it)})" } ?: "")
     fun idleFooter(days: Int) = "Machines with no approved machine-report hours for ${days(days)}."
     fun idleSince(date: String, days: Int) = "Idle since $date (${days(days)})"
-    fun idleLastReport(number: String) = "Last report $number"
+    fun idleLastReport(number: String) = "Last machine report $number"
 
     fun item(code: String): String = when (code) {
         "MISSING_DAILY_REPORT" -> "Daily report missing"

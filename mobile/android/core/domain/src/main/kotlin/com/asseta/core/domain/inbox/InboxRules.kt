@@ -197,7 +197,7 @@ object FindingTexts {
         "GPS_UNAVAILABLE" -> "No GPS position"
         "GPS_INACCURATE" -> "GPS position not accurate enough"
         "GPS_STALE" -> "GPS position too old"
-        "LOCATION_MISMATCH" -> "Not at the job site"
+        "LOCATION_MISMATCH" -> "Not at the site"
         "MODE_POLICY_VIOLATION" -> "Capture mode not allowed"
         "PHOTO_MISSING" -> "Photo missing"
         "LOW_OCR_CONFIDENCE" -> "Meter photo hard to read"
@@ -212,7 +212,6 @@ object FindingTexts {
         "HOURS_OVERRUN" -> "Hours beyond purchase"
         "UNEXPLAINED_HOURS" -> "Engine hours not yet explained"
         "MISSING_DAILY_REPORT" -> "Daily report missing"
-        "OVERLAPPING_ALLOCATION" -> "Overlaps another job's hours"
         "OVERLAPPING_ACTIVITY" -> "Overlapping work log entries"
         else -> code.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
     }
