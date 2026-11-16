@@ -17,20 +17,9 @@ const ScorecardPersonPage = page(
   () => import('../pages/tenant/oversight/ScorecardPersonPage'),
   'ScorecardPersonPage',
 );
-const UnbilledWorkPage = page(
-  () => import('../pages/tenant/oversight/UnbilledWorkPage'),
-  'UnbilledWorkPage',
-);
 const IdleMachinesPage = page(
   () => import('../pages/tenant/oversight/IdleMachinesPage'),
   'IdleMachinesPage',
-);
-const loadCheckins = () => import('../pages/tenant/oversight/SiteCheckinsPage');
-const SiteCheckinsPage = page(loadCheckins, 'SiteCheckinsPage');
-const SiteCheckinDetailPage = page(loadCheckins, 'SiteCheckinDetailPage');
-const FieldCheckinPage = page(
-  () => import('../pages/tenant/oversight/FieldCheckinPage'),
-  'FieldCheckinPage',
 );
 
 type Guard = (permission: string, page: ReactNode) => ReactNode;
@@ -54,34 +43,10 @@ export function oversightRouteElements(guard: Guard): ReactNode[] {
       <ScorecardPersonPage key="sp" />,
     ],
     [
-      OVERSIGHT_ROUTES.unbilledWork,
-      CAPABILITY.unbilledWork,
-      PERMISSIONS.tenantOversightRead,
-      <UnbilledWorkPage key="u" />,
-    ],
-    [
       OVERSIGHT_ROUTES.idleMachines,
       CAPABILITY.idleMachines,
       PERMISSIONS.tenantOversightRead,
       <IdleMachinesPage key="i" />,
-    ],
-    [
-      OVERSIGHT_ROUTES.siteCheckins,
-      CAPABILITY.siteCheckin,
-      PERMISSIONS.tenantOversightRead,
-      <SiteCheckinsPage key="c" />,
-    ],
-    [
-      OVERSIGHT_ROUTES.siteCheckinDetail,
-      CAPABILITY.siteCheckin,
-      PERMISSIONS.tenantOversightRead,
-      <SiteCheckinDetailPage key="cd" />,
-    ],
-    [
-      OVERSIGHT_ROUTES.fieldCheckin,
-      CAPABILITY.siteCheckin,
-      PERMISSIONS.tenantSiteCheckinRecord,
-      <FieldCheckinPage key="f" />,
     ],
   ];
   return routes.map(([path, capability, permission, element]) => (

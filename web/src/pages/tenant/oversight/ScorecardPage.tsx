@@ -109,20 +109,6 @@ const columns: DataColumn<ScorecardRowDto>[] = [
   },
   { id: 'refused', header: 'Refused attempts', align: 'right', render: (r) => r.refused_attempts },
   {
-    id: 'checkins',
-    header: 'Check-ins missed',
-    align: 'right',
-    render: (r) =>
-      r.checkins_missed === null ? (
-        '—'
-      ) : (
-        <Box>
-          <span>{r.checkins_missed}</span>
-          {muted(`${String(r.checkins_made)} made`)}
-        </Box>
-      ),
-  },
-  {
     id: 'patterns',
     header: 'Repeats raised',
     align: 'right',

@@ -25,7 +25,6 @@ import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { OVERSIGHT_ROUTES } from '../../../navigation/oversightRoutes';
 import {
-  jobDetailPath,
   employeeAccountabilityPath,
   staffDetailPath,
 } from '../../../navigation/routes';
@@ -106,13 +105,6 @@ function Figures({ row }: { row: ScorecardRowDto }) {
           ),
         },
         { label: 'Refused attempts', value: String(row.refused_attempts) },
-        {
-          label: 'Site check-ins missed / made',
-          value:
-            row.checkins_missed === null
-              ? 'Not required in the period'
-              : `${String(row.checkins_missed)} / ${String(row.checkins_made)}`,
-        },
         { label: 'Repeats raised for review', value: String(row.pattern_signals) },
         { label: 'Items to look at', value: String(row.items_total) },
       ]}
@@ -172,18 +164,6 @@ export function ScorecardPersonPage() {
         r.machine_id == null ? '—' : machineText(r.machine_code, r.machine_name, r.machine_id),
     },
     {
-      id: 'job',
-      header: 'Job',
-      render: (r) =>
-        r.job_id == null ? (
-          '—'
-        ) : (
-          <Link component={RouterLink} to={jobDetailPath(r.job_id)}>
-            {nameOr(r.job_number, r.job_id)}
-          </Link>
-        ),
-    },
-    {
       id: 'value',
       header: 'Amount / hours',
       align: 'right',
@@ -205,7 +185,7 @@ export function ScorecardPersonPage() {
       id: 'open',
       header: 'Record',
       render: (r) => {
-        const link = scorecardRecordLink(r, staffId, disabled);
+        const link = scorecardRecordLink(r, disabled);
         return link === null ? (
           '—'
         ) : (

@@ -1,14 +1,7 @@
 import type { CapabilityCode } from '../../../access/capabilities';
 import { pathCapability } from '../../../access/capabilities';
-import type {
-  CheckinSlotStatus,
-  ScorecardRecordDto,
-  ScorecardRecordItem,
-  SiteCheckinDto,
-} from '../../../api/oversightTypes';
+import type { ScorecardRecordDto, ScorecardRecordItem } from '../../../api/oversightTypes';
 import type { SelectOption } from '../../../components/forms/FormikSelectField';
-import type { StatusTone } from '../../../components/display/StatusChip';
-import { siteCheckinsPath } from '../../../navigation/oversightRoutes';
 import { recordPath } from '../../../navigation/recordRoutes';
 import {
   caseDetailPath,
@@ -27,7 +20,6 @@ export const SCORECARD_ITEM_LABELS: Readonly<Record<ScorecardRecordItem, string>
   CASH_DIFFERENCE: 'Cash differences',
   REVENUE_DIFFERENCE: 'Revenue differences',
   REFUSED_ATTEMPT: 'Refused attempts',
-  MISSED_CHECKIN: 'Missed site check-ins',
   PATTERN_SIGNAL: 'Repeated items raised for review',
 };
 
@@ -41,32 +33,12 @@ export const SCORECARD_RECORD_ORDER: readonly ScorecardRecordItem[] = [
   'CASH_DIFFERENCE',
   'REVENUE_DIFFERENCE',
   'REFUSED_ATTEMPT',
-  'MISSED_CHECKIN',
   'PATTERN_SIGNAL',
 ];
 
 export const SCORECARD_ITEM_OPTIONS: readonly SelectOption[] = SCORECARD_RECORD_ORDER.filter(
   (i) => i !== 'PATTERN_SIGNAL',
 ).map((value) => ({ value, label: SCORECARD_ITEM_LABELS[value] }));
-
-export const SLOT_STATUS_LABELS: Readonly<Record<CheckinSlotStatus, string>> = {
-  MADE: 'Made',
-  MISSED: 'Missed',
-  DUE: 'Due now',
-  UPCOMING: 'Upcoming',
-};
-
-export const SLOT_STATUS_TONES: Readonly<Record<CheckinSlotStatus, StatusTone>> = {
-  MADE: 'success',
-  MISSED: 'warning',
-  DUE: 'info',
-  UPCOMING: 'default',
-};
-
-export const SOURCE_LABELS: Readonly<Record<string, string>> = {
-  API: 'Web',
-  SYNC: 'Supervisor app',
-};
 
 export interface RecordLink {
   to: string;
@@ -79,14 +51,11 @@ const caseIdOf = (r: ScorecardRecordDto): string | null => {
 };
 
 /** The page that opens the record behind a scorecard item (null when there is none to open). */
-function rawRecordLink(r: ScorecardRecordDto, staffId: string): RecordLink | null {
+function rawRecordLink(r: ScorecardRecordDto): RecordLink | null {
   const id = r.record_id;
   switch (r.record_type) {
     case 'job_exception':
-      return {
-        to: r.job_id != null ? exceptionsPath(r.job_id) : exceptionsPath(),
-        label: 'Open exceptions',
-      };
+      return { to: exceptionsPath(), label: 'Open exceptions' };
     case 'engine_interval':
       return r.machine_id != null
         ? { to: engineHoursMachinePath(r.machine_id), label: 'Open engine-hour ledger' }
@@ -105,15 +74,6 @@ function rawRecordLink(r: ScorecardRecordDto, staffId: string): RecordLink | nul
         : { to: recordPath('REVENUE_DIFFERENCE', id), label: 'Open difference' };
     case 'security_event':
       return { to: ROUTES.tenantSecurityEvents, label: 'Open security events' };
-    case 'site_checkin_slot':
-      return {
-        to: siteCheckinsPath({
-          staff_id: staffId,
-          day_from: r.day ?? undefined,
-          day_to: r.day ?? undefined,
-        }),
-        label: 'Check-ins that day',
-      };
     case 'risk_signal': {
       const caseId = caseIdOf(r);
       return caseId === null ? null : { to: caseDetailPath(caseId), label: 'Open investigation' };
@@ -126,22 +86,12 @@ function rawRecordLink(r: ScorecardRecordDto, staffId: string): RecordLink | nul
 /** Record link, dropped when its page belongs to a capability the tenant switched off. */
 export function scorecardRecordLink(
   r: ScorecardRecordDto,
-  staffId: string,
   disabled: ReadonlySet<string>,
 ): RecordLink | null {
-  const link = rawRecordLink(r, staffId);
+  const link = rawRecordLink(r);
   if (link === null) return null;
   const capability: CapabilityCode | null = pathCapability(link.to);
   return capability !== null && disabled.has(capability) ? null : link;
-}
-
-/** "Within the distance" / "Farther than allowed" / distance only. */
-export function distanceText(c: Pick<SiteCheckinDto, 'distance_m' | 'within_distance'>): string {
-  if (c.distance_m === null) return 'Not measured';
-  const metres = `${String(Math.round(c.distance_m))} m from the site`;
-  if (c.within_distance === true) return `${metres} (within the distance)`;
-  if (c.within_distance === false) return `${metres} (farther than set)`;
-  return metres;
 }
 
 export const isDay = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
@@ -156,11 +106,3 @@ export function periodError(from: string, to: string): string | null {
     return `Choose at most ${String(MAX_PERIOD_DAYS)} days.`;
   return null;
 }
-
-export const CHECKIN_ERROR_HINTS: Readonly<Record<string, string>> = {
-  SITE_CHECKIN_DISABLED: 'Site check-ins are switched off for your company.',
-  STAFF_NOT_LINKED: 'Your login is not linked to a staff record; ask an administrator.',
-  CHECKIN_IN_FUTURE: "Your device's clock is ahead; correct the time and try again.",
-  JOB_SITE_NOT_FOUND: 'That site is not known; reload and try again.',
-  CHECKIN_ID_CONFLICT: 'This check-in was already sent with different details; reload.',
-};

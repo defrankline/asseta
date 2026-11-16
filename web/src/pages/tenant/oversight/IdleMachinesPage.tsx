@@ -8,27 +8,18 @@ import { ServerDataTable, type DataColumn } from '../../../components/data/Serve
 import type { FetchPage } from '../../../components/data/useServerPage';
 import { PageHeader } from '../../../components/feedback/PageHeader';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
-import { jobDetailPath, machineDetailPath } from '../../../navigation/routes';
+import { machineDetailPath } from '../../../navigation/routes';
 import { formatInstantIn } from '../../../utils/time';
 import { CategoryFilter } from '../shared/lookupPickers';
-import { machineText, nameOr } from '../shared/names';
+import { machineText } from '../shared/names';
 
 const stop = (e: { stopPropagation: () => void }) => {
   e.stopPropagation();
 };
 
-function JobLink({ id, number }: { id: string | null; number: string | null | undefined }) {
-  if (id === null) return <span>—</span>;
-  return (
-    <Link component={RouterLink} to={jobDetailPath(id)} onClick={stop}>
-      {nameOr(number, id)}
-    </Link>
-  );
-}
-
 /**
- * Idle machines (DEC-031 M2): active machines with no running job and no engine hours for the
- * company's days, longest idle first; an approved job not started yet is shown as planned.
+ * Idle machines (DEC-031 M2): active machines with no approved machine-report hours and no engine
+ * hours for the company's days, longest idle first.
  */
 export function IdleMachinesPage() {
   const timeZone = useDisplayTimeZone();
@@ -52,27 +43,16 @@ export function IdleMachinesPage() {
     { id: 'days', header: 'Idle days', align: 'right', render: (m) => m.idle_days },
     { id: 'since', header: 'Idle since', render: (m) => formatInstantIn(m.idle_since, timeZone) },
     {
-      id: 'last_job',
-      header: 'Last job',
-      render: (m) => <JobLink id={m.last_job_id} number={m.last_job_number} />,
-    },
-    { id: 'last_completed', header: 'Completed', render: (m) => when(m.last_job_completed_at) },
-    {
       id: 'engine',
       header: 'Last engine activity',
       render: (m) => when(m.last_engine_activity_at),
-    },
-    {
-      id: 'planned',
-      header: 'Planned job',
-      render: (m) => <JobLink id={m.planned_job_id} number={m.planned_job_number} />,
     },
   ];
   return (
     <>
       <PageHeader
         title="Idle machines"
-        subtitle="Active machines with no running job and no engine hours for the company's set days"
+        subtitle="Active machines with no reported work and no engine hours for the company's set days"
       />
       <ServerDataTable
         columns={columns}

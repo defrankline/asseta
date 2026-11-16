@@ -225,10 +225,8 @@ export const PERMISSIONS = {
   // ---- Oversight (DEC-031 Phase 5) ----
   /** The people scorecard: per-person items to look at (read). */
   tenantOversightScorecardRead: 'tenant.oversight.scorecard.read',
-  /** Unbilled work, idle machines and everyone's site check-ins (read). */
+  /** Idle machines (read). */
   tenantOversightRead: 'tenant.oversight.read',
-  /** Check in at the site (GPS) and see one's own check-ins and schedule. */
-  tenantSiteCheckinRecord: 'tenant.site_checkin.record',
   // ---- Petty cash funds (DEC-033); approvals never on your own proposal or your own fund ----
   /** See funds and their ledgers (holders: only the funds they hold). */
   tenantPettyCashRead: 'tenant.pettycash.read',

@@ -243,7 +243,6 @@ const RULE_EXPLAIN: Readonly<Record<RuleCode, Explainer>> = {
       CASH_DIFFERENCE: 'cash differences',
       REVENUE_DIFFERENCE: 'revenue differences',
       REFUSED_ATTEMPT: 'refused attempts',
-      MISSED_CHECKIN: 'missed site check-ins',
     };
     const who = f.has('staff_name') ? f.text('staff_name') : 'One person';
     return (
