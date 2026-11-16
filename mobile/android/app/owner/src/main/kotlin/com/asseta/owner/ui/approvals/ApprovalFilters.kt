@@ -51,16 +51,10 @@ object ApprovalsTexts {
     const val RECEIPT_PHOTO = "receipt photo"
     const val EMPTY_TITLE = "Nothing waiting"
     const val EMPTY_MESSAGE = "Nothing here needs your decision."
-    const val CREDIT_REASON_TITLE = "Approve credit"
-    const val CREDIT_REASON_LABEL = "Reason (at least 3 characters)"
-    const val CREDIT_REASON_DEFAULT = "Credit sale approved"
-    const val TURN_DOWN_TITLE = "Reject this credit sale?"
-    const val TURN_DOWN_TEXT = "This asks for the order to be cancelled. The customer's hours stay unusable meanwhile."
-    const val TURN_DOWN_LABEL = "Reason (needed to reject)"
+    /** The reason sent with Approve credit (same as iOS; no reason is asked for). */
+    const val CREDIT_APPROVED_REASON = "Credit approved in the Owner app"
     const val CREDIT_APPROVED = "Credit approved. The customer can use these hours."
-    const val CREDIT_TURNED_DOWN = "Cancellation requested for this order."
     const val OWN_SALE = "You recorded this sale, so someone else must approve its credit."
-    const val CANCEL = "Cancel"
 
     /** "Hours approved on credit" etc.: refusals of a credit approval in plain words. */
     fun creditRefusal(code: String?, fallback: String): String = when (code) {
@@ -111,8 +105,9 @@ object CreditSales {
     fun recordedBy(p: OwnerHoursPurchaseDto, me: String?): Boolean =
         me != null && p.createdBy != null && p.createdBy.equals(me, ignoreCase = true)
 
-    /** The credit reason must be 3–1000 characters (contract). */
-    fun reasonValid(reason: String): Boolean = reason.trim().length in 3..1000
+    /** Hours Approve credit makes usable: everything the order still has waiting (as iOS). */
+    fun awaitingHours(p: OwnerHoursPurchaseDto): BigDecimal =
+        Figures.dec(p.totals.awaitingActivation).stripTrailingZeros().let { if (it.scale() < 0) it.setScale(0) else it }
 }
 
 /** Expense rows: "Hydraulic hose · TZS 185,000" over "receipt photo · Tabata Hydraulics" (pure). */

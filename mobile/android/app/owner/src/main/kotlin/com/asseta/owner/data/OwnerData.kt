@@ -612,10 +612,6 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
     suspend fun approveCredit(purchaseId: String, hours: String, reason: String, key: String) =
         repo.act { activateHoursOnCreditKeyed(purchaseId, CreditActivationIn(hours, reason.trim()), key) }
 
-    /** Turn a credit sale down: ask for its order to be cancelled, with the reason. */
-    suspend fun turnDownCredit(purchaseId: String, reason: String) =
-        repo.act { requestOrderCancellation(purchaseId, com.asseta.core.model.owner.PurchaseCancellationIn(reason.trim())) }
-
     /** Orders recorded on the local days [from]..[to] (not cancelled): sold hours and money by method. */
     suspend fun ordersBetween(from: LocalDate, to: LocalDate): Load<List<com.asseta.core.model.owner.OwnerHoursPurchaseDto>> =
         repo.load(tenantId, "orders:$from:$to", ListSerializer(com.asseta.core.model.owner.OwnerHoursPurchaseDto.serializer())) {

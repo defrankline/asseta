@@ -31,7 +31,3 @@ data class CreditExposureDto(
     val exposure: String,
     val available: String? = null,
 )
-
-/** `CancellationIn` (requestHoursPurchaseCancellation): the reason is 3–1000 characters. */
-@Serializable
-data class PurchaseCancellationIn(val reason: String)

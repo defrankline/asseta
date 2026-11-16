@@ -957,10 +957,6 @@ interface TenantApi {
     @GET("api/v1/tenant/customers/{customer_id}/credit-exposure")
     suspend fun customerCreditExposure(@Path("customer_id") customerId: String): com.asseta.core.model.owner.CreditExposureDto
 
-    /** requestHoursPurchaseCancellation (tenant.hours.cancel): turns a credit sale down; a second person may approve it. */
-    @POST("api/v1/tenant/hours-purchases/{id}/cancellation")
-    suspend fun requestOrderCancellation(@Path("id") id: String, @Body body: com.asseta.core.model.owner.PurchaseCancellationIn): kotlinx.serialization.json.JsonObject
-
     /** activateHoursOnCredit with an Idempotency-Key (one per approval attempt, so a retry never activates twice). */
     @POST("api/v1/tenant/hours-purchases/{id}/credit-activations")
     suspend fun activateHoursOnCreditKeyed(

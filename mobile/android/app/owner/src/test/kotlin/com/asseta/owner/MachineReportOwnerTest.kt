@@ -15,6 +15,7 @@ import com.asseta.owner.ui.OwnerFeatures
 import com.asseta.owner.ui.approvals.ApprovalCounts
 import com.asseta.owner.ui.approvals.ApprovalFilter
 import com.asseta.owner.ui.approvals.ApprovalKind
+import com.asseta.owner.ui.approvals.ApprovalsTexts
 import com.asseta.owner.ui.approvals.ApprovalsViewModel
 import com.asseta.owner.ui.approvals.CreditSales
 import com.asseta.owner.ui.approvals.ExpenseApprovals
@@ -210,8 +211,9 @@ class MachineReportOwnerTest {
         assertEquals("Invoice INV-0042 · TZS 3,800,000", CreditSales.detail(CreditSale(p, null)))
         assertTrue(CreditSales.recordedBy(order(purchase(createdBy = me)), me))
         assertFalse(CreditSales.recordedBy(p, me))
-        assertFalse(CreditSales.reasonValid("ok"))
-        assertTrue(CreditSales.reasonValid("Credit sale approved"))
+        // Approve credit makes every waiting hour usable, with the fixed reason (as iOS).
+        assertEquals(0, BigDecimal("12").compareTo(CreditSales.awaitingHours(order(purchase(awaiting = "12")))))
+        assertEquals("Credit approved in the Owner app", ApprovalsTexts.CREDIT_APPROVED_REASON)
     }
 
     @Test

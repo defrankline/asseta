@@ -3,20 +3,13 @@ package com.asseta.owner.ui.approvals
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -176,15 +169,15 @@ class ApprovalsViewModel(
         )
     }
 
-    /** Make the credit part usable (hours from [CreditSales.creditHours]); one Idempotency-Key per attempt. */
-    fun approveCredit(sale: CreditSale, reason: String) {
+    /** Make the order's waiting hours usable at once (as iOS: no reason asked); one Idempotency-Key per attempt. */
+    fun approveCredit(sale: CreditSale) {
         val p = sale.purchase
-        if (_creditBusy.value != null || !CreditSales.reasonValid(reason)) return
+        val hours = CreditSales.awaitingHours(p)
+        if (_creditBusy.value != null || hours.signum() <= 0) return
         _creditBusy.value = p.id
         _creditError.value = null
         viewModelScope.launch {
-            val hours = CreditSales.creditHours(p).toPlainString()
-            when (val r = data.approveCredit(p.id, hours, reason, UUID.randomUUID().toString())) {
+            when (val r = data.approveCredit(p.id, hours.toPlainString(), ApprovalsTexts.CREDIT_APPROVED_REASON, UUID.randomUUID().toString())) {
                 is ActionResult.Done -> {
                     _message.value = ApprovalsTexts.CREDIT_APPROVED
                     credit?.refresh()
@@ -193,24 +186,6 @@ class ApprovalsViewModel(
                     _creditError.value = CreditError(p.id, ApprovalsTexts.creditRefusal(r.code, r.error.message))
                     if (r.reload || r.code == "EXCEEDS_UNACTIVATED_HOURS" || r.code == "PURCHASE_CANCELLED") credit?.refresh()
                 }
-            }
-            _creditBusy.value = null
-        }
-    }
-
-    /** Turn the credit sale down: ask for the order's cancellation with [reason]. */
-    fun turnDownCredit(sale: CreditSale, reason: String) {
-        val p = sale.purchase
-        if (_creditBusy.value != null || !CreditSales.reasonValid(reason)) return
-        _creditBusy.value = p.id
-        _creditError.value = null
-        viewModelScope.launch {
-            when (val r = data.turnDownCredit(p.id, reason)) {
-                is ActionResult.Done -> {
-                    _message.value = ApprovalsTexts.CREDIT_TURNED_DOWN
-                    credit?.refresh()
-                }
-                is ActionResult.Refused -> _creditError.value = CreditError(p.id, ApprovalsTexts.creditRefusal(r.code, r.error.message))
             }
             _creditBusy.value = null
         }
@@ -241,8 +216,6 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, session: OwnerSession, online: Boole
     val busy by vm.creditBusy.collectAsStateWithLifecycle()
     val creditError by vm.creditError.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
-    var approving by remember { mutableStateOf<CreditSale?>(null) }
-    var turningDown by remember { mutableStateOf<CreditSale?>(null) }
     val zone = ZoneId.systemDefault()
     val now = nowMs()
     Column(Modifier.fillMaxSize()) {
@@ -272,7 +245,10 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, session: OwnerSession, online: Boole
                     cards("credit", st) { list ->
                         list.forEach { sale ->
                             item(key = "cs-${sale.purchase.id}") {
-                                CreditSaleCard(sale, session, online, st, busy, creditError, now, zone, { approving = sale }, { turningDown = sale })
+                                // Reject opens the order (cancel it there); Approve credit makes the waiting hours usable at once.
+                                CreditSaleCard(sale, session, online, st, busy, creditError, now, zone, { vm.approveCredit(sale) }) {
+                                    onOpen(OwnerDestination.HoursPurchase(sale.purchase.id))
+                                }
                                 CardGap()
                             }
                         }
@@ -332,20 +308,6 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, session: OwnerSession, online: Boole
             }
         }
     }
-    approving?.let { sale ->
-        ReasonDialog(
-            title = ApprovalsTexts.CREDIT_REASON_TITLE, text = CreditSales.title(sale.purchase), label = ApprovalsTexts.CREDIT_REASON_LABEL,
-            initial = ApprovalsTexts.CREDIT_REASON_DEFAULT, confirm = ApprovalsTexts.APPROVE_CREDIT, valid = CreditSales::reasonValid,
-            onDismiss = { approving = null },
-        ) { reason -> approving = null; vm.approveCredit(sale, reason) }
-    }
-    turningDown?.let { sale ->
-        ReasonDialog(
-            title = ApprovalsTexts.TURN_DOWN_TITLE, text = ApprovalsTexts.TURN_DOWN_TEXT, label = ApprovalsTexts.TURN_DOWN_LABEL,
-            initial = "", confirm = ApprovalsTexts.REJECT, valid = CreditSales::reasonValid, destructive = true,
-            onDismiss = { turningDown = null },
-        ) { reason -> turningDown = null; vm.turnDownCredit(sale, reason) }
-    }
 }
 
 @Composable
@@ -359,7 +321,7 @@ private fun CreditSaleCard(
     nowMs: Long,
     zone: ZoneId,
     onApprove: () -> Unit,
-    onTurnDown: () -> Unit,
+    onOpenOrder: () -> Unit,
 ) {
     val p = sale.purchase
     ItemCard {
@@ -367,53 +329,20 @@ private fun CreditSaleCard(
         CardTitle(CreditSales.title(p))
         CardDetail(CreditSales.detail(sale))
         val approve = session.can(OwnerAction.ACTIVATE_CREDIT, online, state.snapshot?.source)
-        val turnDown = session.can(OwnerAction.REQUEST_HOURS_CANCELLATION, online, state.snapshot?.source)
         when {
             CreditSales.recordedBy(p, session.userId) -> FootNote(ApprovalsTexts.OWN_SALE)
             approve is MutationCheck.Blocked -> FootNote(approve.reason)
             else -> CardButtons(
-                left = ApprovalsTexts.REJECT.takeIf { turnDown is MutationCheck.Allowed },
+                left = ApprovalsTexts.REJECT,
                 right = ApprovalsTexts.APPROVE_CREDIT,
                 enabled = busy == null,
-                onLeft = onTurnDown, onRight = onApprove,
+                onLeft = onOpenOrder, onRight = onApprove,
             )
         }
         error?.takeIf { it.purchaseId == p.id }?.let {
             Text(it.message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive })
         }
     }
-}
-
-/** A dialog asking for a reason (3–1000 characters) before a decision. */
-@Composable
-fun ReasonDialog(
-    title: String,
-    text: String?,
-    label: String,
-    initial: String,
-    confirm: String,
-    valid: (String) -> Boolean,
-    destructive: Boolean = false,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
-) {
-    var reason by remember { mutableStateOf(initial) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column {
-                text?.let { Text(it, modifier = Modifier.padding(bottom = 8.dp)) }
-                OutlinedTextField(reason, { reason = it.take(1000) }, Modifier.fillMaxWidth(), label = { Text(label) }, minLines = 2)
-            }
-        },
-        confirmButton = {
-            TextButton({ onConfirm(reason.trim()) }, enabled = valid(reason)) {
-                Text(confirm, color = if (destructive) MaterialTheme.colorScheme.error else androidx.compose.ui.graphics.Color.Unspecified)
-            }
-        },
-        dismissButton = { TextButton(onDismiss) { Text(ApprovalsTexts.CANCEL) } },
-    )
 }
 
 /** Cards of one independently loaded list: nothing while first loading, its error, or the items. */
