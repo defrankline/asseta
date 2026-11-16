@@ -64,8 +64,11 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
     /** Fuel is in use (`/me` does not list FUEL as switched off): fuel lists and figures are shown only then. */
     val fuel get() = com.asseta.core.domain.accountability.FuelSwitch.on(disabled)
 
-    /** Machine reports can be read (tenant.machine_report.read): the approval queue, report detail, weekly hours. */
-    val machineReports get() = "tenant.machine_report.read" in permissions
+    /**
+     * Machine reports can be read (tenant.machine_report.read, or tenant.machine_report.approve: an approver reads what
+     * they decide; same as iOS): the approval queue, report detail, weekly hours.
+     */
+    val machineReports get() = "tenant.machine_report.read" in permissions || approveMachineReports
 
     /** May approve / reject machine reports (never their own; the server checks it too). */
     val approveMachineReports get() = com.asseta.core.domain.reports.MachineReportApproval.APPROVE in permissions

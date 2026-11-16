@@ -80,7 +80,10 @@ object MachinesTexts {
             else -> if (days == null || days <= 0) NO_REPORT_YET else noReport(days)
         }
     }
-    fun tracker(engine: String, motion: String) = "Tracker: engine ${engine.lowercase()} · ${motion.lowercase()}"
+    /** The row's supervisor by first name (design "Daudi"); null when there is none. */
+    fun firstName(name: String?): String? = name?.trim()?.split(Regex("\\s+"))?.firstOrNull()?.takeIf { it.isNotEmpty() }
+
+    fun tracker(engine: String, motion: String) ="Tracker: engine ${engine.lowercase()} · ${motion.lowercase()}"
 }
 
 /** One machine of the week (design: "300 h · 220 productive · last reading 1,510 h (pending)"). */
@@ -136,7 +139,7 @@ object MachinesPresentation {
             MachineWeek(
                 machineId = id,
                 title = listOfNotNull(code, name).joinToString(" · "),
-                subtitle = if (overdue) MachinesTexts.pill(status!!, reminderDays) else map?.supervisor?.takeIf { it.isNotBlank() },
+                subtitle = if (overdue) MachinesTexts.pill(status!!, reminderDays) else MachinesTexts.firstName(map?.supervisor),
                 detail = detail,
                 overdue = overdue,
                 hours = hours,

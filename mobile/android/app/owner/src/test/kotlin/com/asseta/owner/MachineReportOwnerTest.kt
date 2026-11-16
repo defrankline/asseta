@@ -150,6 +150,10 @@ class MachineReportOwnerTest {
     @Test
     fun `approvals screen opens for machine report readers and credit approvers`() {
         assertTrue(OwnerFeatures(setOf("tenant.machine_report.read")).approvalsScreen)
+        // Reading machine reports: read OR approve (same as iOS).
+        assertTrue(OwnerFeatures(setOf("tenant.machine_report.approve")).machineReports)
+        assertTrue(OwnerFeatures(setOf("tenant.machine_report.approve")).approvalsScreen)
+        assertFalse(OwnerFeatures(setOf("tenant.hours.read")).machineReports)
         assertTrue(OwnerFeatures(setOf("tenant.hours.read", "tenant.hours.credit_activate")).approvalsScreen)
         assertFalse(OwnerFeatures(setOf("tenant.hours.credit_activate")).creditSales)
         assertFalse(OwnerFeatures(setOf("tenant.hours.read", "tenant.hours.credit_activate"), setOf(com.asseta.core.model.TenantAccess.CUSTOMER_HOURS)).creditSales)

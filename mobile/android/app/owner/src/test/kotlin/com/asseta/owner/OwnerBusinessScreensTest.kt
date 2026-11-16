@@ -113,7 +113,7 @@ class OwnerBusinessScreensTest {
                 {"machine_id":"m2","machine_code":"EX-02","machine_name":"Komatsu PC210","previous_reading":"812.5","days_since_report":3,"last_approved_reading":"812.5"}]""",
         )
         val fleet = listOf(
-            json.decodeFromString(MachineMapDto.serializer(), Samples.machine().replace("\"$ID1\"", "\"$ID2\"").replace("\"open_alerts\":1", "\"open_alerts\":1,\"supervisor\":\"Daudi\"")),
+            json.decodeFromString(MachineMapDto.serializer(), Samples.machine().replace("\"$ID1\"", "\"$ID2\"").replace("\"open_alerts\":1", "\"open_alerts\":1,\"supervisor\":\"Daudi Mollel\"")),
             json.decodeFromString(MachineMapDto.serializer(), Samples.machine().replace("\"$ID1\"", "\"00000000-0000-4000-8000-0000000000m2\"".replace("m2", "02"))),
         )
         val f = OwnerFeatures(setOf("tenant.fleet.read", "tenant.machine_report.read"))
