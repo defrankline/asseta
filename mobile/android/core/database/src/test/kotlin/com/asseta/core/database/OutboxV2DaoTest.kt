@@ -36,7 +36,7 @@ class OutboxV2DaoTest {
 
     private fun op(t: Long, attachment: String? = null) = ClientOperationEntity(
         UUID.randomUUID().toString(), tenant, "METER_CAPTURE", "meter_capture", UUID.randomUUID().toString(), "{}",
-        null, t, PENDING, 0, null, null, jobId = "job", attachmentLocalId = attachment, ownerSub = OWNER,
+        null, t, PENDING, 0, null, null, attachmentLocalId = attachment, ownerSub = OWNER,
     )
 
     private suspend fun ack(id: String) {
@@ -148,14 +148,14 @@ class OutboxV2DaoTest {
     @Test
     fun serverDataUpsertKeepsNewerVersion() = runTest {
         val field = db.fieldDataDao()
-        fun job(v: Long, status: String) = JobEntity("j1", tenant, "J-1", "m1", "c1", null, status, v, "2026-10-21T08:00:00Z", null, null)
-        assertEquals(1, field.upsertJobs(listOf(job(3, "APPROVED"))))
-        assertEquals(0, field.upsertJobs(listOf(job(2, "DRAFT")))) // older replay from the lookback window
-        assertEquals("APPROVED", field.job("j1")!!.status)
-        assertEquals(1, field.upsertJobs(listOf(job(4, "IN_PROGRESS"))))
-        assertEquals("IN_PROGRESS", field.job("j1")!!.status)
-        field.deleteJobsNotIn(tenant, listOf("other"))
-        assertNull(field.job("j1"))
+        fun machine(v: Long, status: String) = MachineEntity("m1", tenant, "EX-01", "Excavator", 1, status, v)
+        assertEquals(1, field.upsertMachines(listOf(machine(3, "ACTIVE"))))
+        assertEquals(0, field.upsertMachines(listOf(machine(2, "INACTIVE")))) // older replay from the lookback window
+        assertEquals("ACTIVE", field.machine("m1")!!.status)
+        assertEquals(1, field.upsertMachines(listOf(machine(4, "RETIRED"))))
+        assertEquals("RETIRED", field.machine("m1")!!.status)
+        field.deleteAllMachines(tenant)
+        assertNull(field.machine("m1"))
     }
 }
 

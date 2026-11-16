@@ -85,7 +85,6 @@ object ExceptionReviewText {
     const val REVIEWED = "Exception reviewed."
     const val NOT_FOUND = "Exception not found"
     const val BLOCKS_BILLING = "Blocks billing until reviewed"
-    const val OPEN_JOB = "Open job"
     const val NOTE_MIN = 5
     const val NOTE_MAX = 2000
 
@@ -97,10 +96,6 @@ object ExceptionReviewText {
 
     /** "Review · Meter decrease" (the review dialog title). */
     fun dialogTitle(e: ExceptionDto): String = "Review · ${ExceptionText.title(e)}"
-
-    /** "Meter decrease on J-1001" (or just the type when the job number is unknown). */
-    fun headline(e: ExceptionDto, jobNumber: String?): String =
-        jobNumber?.takeIf { it.isNotBlank() }?.let { "${ExceptionText.title(e)} on $it" } ?: ExceptionText.title(e)
 
     /** The note's validation message, as on the web; null when valid. */
     fun noteError(note: String): String? {
@@ -116,12 +111,12 @@ object ExceptionReviewText {
     fun canReview(outcome: String?, note: String): Boolean = outcome in OUTCOMES.map { it.first } && noteError(note) == null
 }
 
-/** A row of the Approvals "Exceptions" section: "<type> on <job number>" and when it was recorded. */
+/** A row of the Approvals "Exceptions" section: the type and when it was recorded. */
 @Composable
-fun ExceptionApprovalRow(e: ExceptionDto, jobNumber: String?, zone: ZoneId) {
+fun ExceptionApprovalRow(e: ExceptionDto, zone: ZoneId) {
     Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(ExceptionReviewText.headline(e, jobNumber), style = AssetaType.headline, modifier = Modifier.weight(1f))
+            Text(ExceptionText.title(e), style = AssetaType.headline, modifier = Modifier.weight(1f))
             if (e.blocking) StatusPill(ExceptionText.BLOCKING, OwnerColors.Critical)
         }
         Text(ExceptionText.detail(e, zone), style = AssetaType.subheadline, color = palette.secondaryText)
@@ -131,11 +126,11 @@ fun ExceptionApprovalRow(e: ExceptionDto, jobNumber: String?, zone: ZoneId) {
 /** One exception, found among the open ones or, once reviewed, in the full list; review with outcome and note. */
 class ExceptionDetailViewModel(val data: OwnerData, val exceptionId: String, refreshOn: Flow<Unit>) :
     SnapshotViewModel<PageDto<ExceptionDto>>({
-        val open = data.exceptions("OPEN", null)
+        val open = data.exceptions("OPEN")
         if (open is Load.Ok && open.snapshot.data.items.any { it.id.toString() == exceptionId }) {
             open
         } else {
-            data.exceptions(null, null).let { all -> if (all is Load.Ok) all else open }
+            data.exceptions(null).let { all -> if (all is Load.Ok) all else open }
         }
     }, refreshOn) {
     private val _error = MutableStateFlow<String?>(null)

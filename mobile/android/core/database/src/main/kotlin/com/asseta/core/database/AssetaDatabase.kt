@@ -11,13 +11,10 @@ import androidx.room.TypeConverters
         ClientOperationDependencyEntity::class,
         ClientOperationAttachmentEntity::class,
         AttachmentEntity::class,
-        JobEntity::class,
         MachineEntity::class,
         ReferenceRecordEntity::class,
         PolicySnapshotEntity::class,
         SyncStateEntity::class,
-        MeterCaptureEntity::class,
-        WorkLogEntryEntity::class,
         ExpenseCategoryEntity::class,
         CashCustodyBalanceEntity::class,
         ReadSnapshotEntity::class,
@@ -33,6 +30,7 @@ import androidx.room.TypeConverters
         AutoMigration(from = 6, to = 7),
         AutoMigration(from = 7, to = 8),
         AutoMigration(from = 8, to = 9),
+        AutoMigration(from = 9, to = 10, spec = AssetaMigrations.V9ToV10::class),
     ],
 )
 @TypeConverters(Converters::class)
@@ -46,7 +44,7 @@ abstract class AssetaDatabase : RoomDatabase() {
     abstract fun inboxDao(): InboxDao
 
     companion object {
-        const val VERSION = 9
+        const val VERSION = 10
         const val FILE_NAME = "asseta.db"
     }
 }

@@ -36,9 +36,6 @@ data class ReportAllocationDto(
     val kind: String,
     @SerialName("customer_id") val customerId: String? = null,
     @SerialName("customer_name") val customerName: String? = null,
-    @SerialName("job_id") val jobId: String? = null,
-    @SerialName("job_number") val jobNumber: String? = null,
-    @SerialName("activity_type") val activityType: String? = null,
     @SerialName("start_reading") val startReading: String,
     @SerialName("end_reading") val endReading: String,
     val hours: String,
@@ -88,21 +85,6 @@ data class DailyReportDto(
     }
 }
 
-/** `DailyReportPrefillDto`: what the server knows of a machine-day before a report is written. */
-@Serializable
-data class DailyReportPrefillDto(
-    @SerialName("machine_id") val machineId: String,
-    @SerialName("report_date") val reportDate: String,
-    @SerialName("opening_ref") val openingRef: String? = null,
-    @SerialName("opening_reading") val openingReading: String? = null,
-    @SerialName("opening_at") val openingAt: String? = null,
-    @SerialName("closing_ref") val closingRef: String? = null,
-    @SerialName("closing_reading") val closingReading: String? = null,
-    @SerialName("closing_at") val closingAt: String? = null,
-    @SerialName("total_hours") val totalHours: String? = null,
-    @SerialName("existing_report_ids") val existingReportIds: List<String> = emptyList(),
-)
-
 /** `DailyReportReviewIn` (tenant.meter.review; never the submitter). */
 @Serializable
 data class DailyReportReviewIn(val decision: String, val note: String) {
@@ -136,9 +118,6 @@ data class WorkAllocationDto(
     val kind: String,
     @SerialName("customer_id") val customerId: String? = null,
     @SerialName("customer_name") val customerName: String? = null,
-    @SerialName("job_id") val jobId: String? = null,
-    @SerialName("job_number") val jobNumber: String? = null,
-    @SerialName("activity_type") val activityType: String? = null,
     @SerialName("reason_id") val reasonId: String? = null,
     @SerialName("reason_name") val reasonName: String? = null,
     val lots: List<AllocationLotDto> = emptyList(),

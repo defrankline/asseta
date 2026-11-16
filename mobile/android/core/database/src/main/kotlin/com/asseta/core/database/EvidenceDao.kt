@@ -6,7 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
-/** Device-owned evidence: attachments queued for upload, captures and work-log entries. */
+/** Device-owned evidence: attachments queued for upload. */
 @Dao
 interface EvidenceDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
@@ -70,37 +70,4 @@ interface EvidenceDao {
     )
     fun observeFailedAttachments(tenantId: String, ownerSub: String): Flow<List<AttachmentEntity>>
 
-    @Insert(onConflict = OnConflictStrategy.ABORT)
-    suspend fun insertCapture(capture: MeterCaptureEntity)
-
-    /** [ownerSub]'s captures of a job (through the operation that recorded each one). */
-    @Query(
-        """SELECT * FROM meter_capture WHERE job_id = :jobId
-           AND operation_id IN (SELECT id FROM client_operation WHERE owner_sub = :ownerSub) ORDER BY captured_at ASC""",
-    )
-    fun observeCaptures(jobId: String, ownerSub: String): Flow<List<MeterCaptureEntity>>
-
-    @Insert(onConflict = OnConflictStrategy.ABORT)
-    suspend fun insertWorkLog(entry: WorkLogEntryEntity)
-
-    @Query("SELECT * FROM work_log_entry WHERE client_id = :clientId")
-    suspend fun workLog(clientId: String): WorkLogEntryEntity?
-
-    /** Closes an open entry exactly once (the activity op is queued in the same transaction by the caller). */
-    @Query("UPDATE work_log_entry SET ended_at = :endedAt, operation_id = :operationId WHERE client_id = :clientId AND operation_id IS NULL")
-    suspend fun closeWorkLog(clientId: String, endedAt: Long?, operationId: String): Int
-
-    @Query("SELECT * FROM work_log_entry WHERE job_id = :jobId AND owner_sub = :ownerSub ORDER BY started_at ASC")
-    fun observeWorkLog(jobId: String, ownerSub: String): Flow<List<WorkLogEntryEntity>>
-
-    /** [ownerSub]'s captures in the tenant (every job), newest first: the Readings tab. */
-    @Query(
-        """SELECT * FROM meter_capture WHERE tenant_id = :tenantId
-           AND operation_id IN (SELECT id FROM client_operation WHERE owner_sub = :ownerSub) ORDER BY captured_at DESC""",
-    )
-    fun observeAllCaptures(tenantId: String, ownerSub: String): Flow<List<MeterCaptureEntity>>
-
-    /** [ownerSub]'s work-log entries in the tenant (every job). */
-    @Query("SELECT * FROM work_log_entry WHERE tenant_id = :tenantId AND owner_sub = :ownerSub ORDER BY started_at ASC")
-    fun observeAllWorkLog(tenantId: String, ownerSub: String): Flow<List<WorkLogEntryEntity>>
 }

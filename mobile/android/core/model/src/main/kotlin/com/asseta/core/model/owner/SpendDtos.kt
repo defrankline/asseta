@@ -18,7 +18,6 @@ data class FuelEventDto(
     @SerialName("client_id") val clientId: SerializableUuid? = null,
     @SerialName("unit_price") val unitPrice: DecimalAmount? = null,
     @SerialName("machine_id") val machineId: SerializableUuid? = null,
-    @SerialName("job_id") val jobId: SerializableUuid? = null,
     @SerialName("expense_id") val expenseId: SerializableUuid? = null,
     @SerialName("meter_reading") val meterReading: DecimalAmount? = null,
     val supplier: String? = null,

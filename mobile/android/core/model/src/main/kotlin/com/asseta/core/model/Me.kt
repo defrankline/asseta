@@ -51,14 +51,9 @@ data class TenantAccess(
         /** The DEC-030 cash custody additions (CASH_CUSTODY policy `enabled`); collections, floats and remittances stay. */
         const val CASH_CUSTODY = "CASH_CUSTODY"
 
-        /** Revenue reconciliation (REVENUE_RECONCILIATION policy `enabled`, DEC-031; platform default off). */
-        const val REVENUE_RECONCILIATION = "REVENUE_RECONCILIATION"
-
         /** DEC-031 Phase 5 oversight switches (OVERSIGHT policy; platform default off, listed in `/me` while off). */
         const val SCORECARD = "SCORECARD"
-        const val UNBILLED_WORK = "UNBILLED_WORK"
         const val IDLE_MACHINES = "IDLE_MACHINES"
-        const val SITE_CHECKIN = "SITE_CHECKIN"
 
         /** DEC-032 optional-module switches (off = 422 `<CODE>_DISABLED`); listed in `/me` while off. */
         const val INSIGHTS = "INSIGHTS"

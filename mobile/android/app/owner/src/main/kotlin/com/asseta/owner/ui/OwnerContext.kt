@@ -124,30 +124,14 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
     /** The DEC-030 cash custody additions are in use (CASH_CUSTODY not switched off); the cash basics always stay. */
     val cashCustody get() = TenantAccess.CASH_CUSTODY !in disabled
 
-    /** Revenue reconciliation is in use (DEC-031; platform default off, so `/me` lists it while it is off). */
-    val revenueOn get() = TenantAccess.REVENUE_RECONCILIATION !in disabled
-
-    /** Daily machine sheet, revenue differences and non-revenue hours (tenant.revenue.read). */
-    val revenueRead get() = revenueOn && "tenant.revenue.read" in permissions
-
-    /** Explain a revenue difference (needs read too, for the reason list). */
-    val revenueExplain get() = revenueRead && "tenant.revenue.explain" in permissions
-
-    /** Decide revenue differences and non-revenue hours. */
-    val revenueDecide get() = revenueRead && "tenant.revenue.decide" in permissions
-
-    /** The machine-day ledger (DEC-032): tenant.meter.read with ENGINE_HOURS on, whether or not revenue checks are on. */
-    val machineDayLedger get() = meterEvidence && engineHours
-
-    /** Machine days are open to this role: with money (revenue checks) or the allocations alone. */
-    val machineDays get() = revenueRead || machineDayLedger
+    /** A machine's days of the work allocation ledger (DEC-032): tenant.meter.read with ENGINE_HOURS on. */
+    val machineDays get() = meterEvidence && engineHours
 
     /** People scorecard (DEC-031 M1): SCORECARD on and the role may read it. */
     val scorecard get() = TenantAccess.SCORECARD !in disabled && "tenant.oversight.scorecard.read" in permissions
 
-    /** Oversight lists (unbilled work, idle machines, office check-ins). */
+    /** Oversight lists (idle machines). */
     val oversightRead get() = "tenant.oversight.read" in permissions
-
 
     /** Idle machines list (DEC-031 M2): IDLE_MACHINES on and tenant.oversight.read. */
     val idleMachines get() = oversightRead && TenantAccess.IDLE_MACHINES !in disabled
@@ -160,7 +144,7 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
 
     /** Approvals opens for expense approvers and for adjustment holders, who may hold no tenant.approval.* at all. */
     val approvalsScreen get() =
-        approvals || DecisionKind.visible(this).isNotEmpty() || revenueRead || confirmPayments || pettyCashApprove || machineReports || creditSales
+        approvals || DecisionKind.visible(this).isNotEmpty() || confirmPayments || pettyCashApprove || machineReports || creditSales
 
     /** One customer payment can be read (to mark a reversed one). */
     val paymentDetails get() = finance || adjustmentRead
@@ -185,10 +169,10 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
     fun route(d: OwnerDestination): OwnerDestination = when (d) {
         is OwnerDestination.Decision -> if (DecisionKind.of(d.kind)?.switchedOff(this) == true) OwnerDestination.Approvals() else d
         is OwnerDestination.CashRecord, is OwnerDestination.RemittanceOverdue -> if (cashCustody) d else OwnerDestination.Cash
-        is OwnerDestination.DailySheet -> if (machineDays) d else OwnerDestination.Machine(d.machineId)
-        is OwnerDestination.SheetDay -> if (machineDays) d else OwnerDestination.Machine(d.machineId)
-        // ADR-008: jobs (and job-based unbilled work) are gone; their old links open Home. The More tab is the side menu.
-        OwnerDestination.Jobs, is OwnerDestination.Job, OwnerDestination.UnbilledWork, OwnerDestination.More -> OwnerDestination.Home
+        is OwnerDestination.MachineDays -> if (machineDays) d else OwnerDestination.Machine(d.machineId)
+        is OwnerDestination.MachineDay -> if (machineDays) d else OwnerDestination.Machine(d.machineId)
+        // The More tab is the side menu.
+        OwnerDestination.More -> OwnerDestination.Home
         // The purchase list is now Customers & hours.
         OwnerDestination.CustomerHours -> if (customers) OwnerDestination.Customers else OwnerDestination.Home
         OwnerDestination.Customers -> if (customers) d else OwnerDestination.Home

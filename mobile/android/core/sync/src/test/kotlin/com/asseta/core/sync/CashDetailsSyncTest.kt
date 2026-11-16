@@ -54,7 +54,7 @@ class CashDetailsSyncTest : SyncTestBase() {
     private fun payload(opId: String): JsonObject = json.parseToJsonElement(op(opId).payloadJson).jsonObject
 
     private fun collection(purchaseId: String? = null, opId: String? = null, required: Boolean = false) = CashCollectionRequest(
-        tenant, UUID.randomUUID().toString(), fake.customerId, null, "50000", "TZS", "", "", clock.now,
+        tenant, UUID.randomUUID().toString(), fake.customerId, "50000", "TZS", "", "", clock.now,
         purchaseId = purchaseId, purchaseOperationId = opId, linkRequired = required,
     )
 
@@ -66,57 +66,6 @@ class CashDetailsSyncTest : SyncTestBase() {
     private fun transfer(evidence: List<ByteArray> = emptyList(), required: Boolean = false) = HoursTransferRequest(
         tenant, UUID.randomUUID().toString(), "p1", fake.machineId, "m2", "2", "5".toBigDecimal(), "Machine broke down", null, false, evidence, required, clock.now,
     )
-
-    private fun invoice(id: String, balance: String = "120000", currency: String = "TZS", customer: String = fake.customerId) = buildJsonObject {
-        put("id", id); put("invoice_number", "INV-$id"); put("customer_id", customer); put("customer_name", "Acacia"); put("currency", currency)
-        put("total", "200000"); put("paid", "80000"); put("balance", balance); put("due_date", null as String?); put("issued_at", "2026-11-01T08:00:00Z")
-    }
-
-    @Test
-    fun openInvoicesAreReplacedByEveryPull() = runBlocking {
-        fake.capabilities = fake.capabilities.orEmpty() + SyncCapabilities.SYNC_OPEN_INVOICES
-        fake.inbox = mapOf("open_invoices" to listOf(invoice("i1"), invoice("i2")))
-        synced()
-        assertEquals(setOf("i1", "i2"), financeRepository.observeOpenInvoices(tenant).first().map { it.id }.toSet())
-
-        fake.inbox = mapOf("open_invoices" to listOf(invoice("i2", balance = "5000")))
-        synced()
-        assertEquals("5000", financeRepository.observeOpenInvoices(tenant).first().single().balance)
-
-        fake.inbox = emptyMap()
-        synced()
-        assertTrue(financeRepository.observeOpenInvoices(tenant).first().isEmpty())
-    }
-
-    @Test
-    fun aServerWithoutTheCapabilityLeavesInvoicesAlone() = runBlocking {
-        fake.inbox = mapOf("open_invoices" to listOf(invoice("i1")))
-        synced()
-        assertTrue(financeRepository.observeOpenInvoices(tenant).first().isEmpty())
-    }
-
-    @Test
-    fun aCollectionPaysAnInvoiceUpToWhatItOwes() = runBlocking {
-        fake.capabilities = fake.capabilities.orEmpty() + SyncCapabilities.SYNC_OPEN_INVOICES
-        synced()
-        val base = CashCollectionRequest(tenant, UUID.randomUUID().toString(), fake.customerId, null, "50000", "TZS", "", "", clock.now, invoiceId = "i1", linkRequired = true)
-        val opId = saved(finance.cashCollection(base.copy(invoiceBalance = "20000".toBigDecimal()))).operationId
-        val line = payload(opId)["allocations"]!!.jsonArray.single().jsonObject
-        assertEquals("i1", line["invoice_id"]!!.jsonPrimitive.content)
-        assertEquals("20000", line["amount"]!!.jsonPrimitive.content)
-        assertNull(payload(opId)["purchase_id"])
-
-        // Cash below what it owes: all the cash is allocated.
-        val second = base.copy(clientId = UUID.randomUUID().toString(), invoiceBalance = "90000".toBigDecimal())
-        assertEquals("50000", payload(saved(finance.cashCollection(second)).operationId)["allocations"]!!.jsonArray.single().jsonObject["amount"]!!.jsonPrimitive.content)
-    }
-
-    @Test
-    fun aServerThatDoesNotAnnounceInvoicesRefusesTheLink() = runBlocking {
-        synced()
-        val request = CashCollectionRequest(tenant, UUID.randomUUID().toString(), fake.customerId, null, "50000", "TZS", "", "", clock.now, invoiceId = "i1", invoiceBalance = "20000".toBigDecimal())
-        assertEquals(FinanceResult.Blocked(com.asseta.core.sync.usecase.CaptureMeterReading.SERVER_TOO_OLD), finance.cashCollection(request))
-    }
 
     @Test
     fun collectionLinksThePurchaseAndRespectsTheCompanyRule() = runBlocking {

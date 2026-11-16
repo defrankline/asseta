@@ -29,7 +29,7 @@ sealed interface RealtimeEvent {
     data class Connected(val unreadCount: Int?) : RealtimeEvent
     data class Notification(val notification: NotificationDto) : RealtimeEvent
     data class UnreadCount(val count: Int) : RealtimeEvent
-    /** An entity changed server-side (`alert`, `approval`, `job`, `fleet.position`, `case`, ...): open screens reload. */
+    /** An entity changed server-side (`alert`, `approval`, `machine_report`, `fleet.position`, `case`, ...): open screens reload. */
     data class EntityChanged(val entity: String, val id: String?, val action: String?) : RealtimeEvent
     /** Server asked for a fresh token (~60 s before expiry). */
     data object ReauthRequired : RealtimeEvent

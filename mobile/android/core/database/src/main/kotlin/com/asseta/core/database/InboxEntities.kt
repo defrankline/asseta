@@ -12,14 +12,13 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * v7 supervisor inbox: the signed-in supervisor's own field records as the server knows them (capability
- * SUPERVISOR_INBOX_V1: readings with findings, meter resets, work log, acknowledgements, expenses, fuel, cash
- * collections and handovers). Server-owned and read-only: kept as the server JSON with the columns lists filter and
+ * SUPERVISOR_INBOX_V1: readings with findings, meter resets, expenses, fuel, cash collections and handovers). Server-owned and read-only: kept as the server JSON with the columns lists filter and
  * sort on, upserted by (kind, id, sync_revision) and cleared with the tenant's other server data on a user switch.
  */
 @Entity(
     tableName = "inbox_record",
     primaryKeys = ["kind", "id"],
-    indices = [Index(value = ["tenant_id", "kind", "occurred_at"]), Index(value = ["client_id"]), Index(value = ["job_id"])],
+    indices = [Index(value = ["tenant_id", "kind", "occurred_at"]), Index(value = ["client_id"])],
 )
 data class InboxRecordEntity(
     @ColumnInfo(name = "kind") val kind: String,
@@ -27,7 +26,7 @@ data class InboxRecordEntity(
     @ColumnInfo(name = "tenant_id") val tenantId: String,
     /** Device client id of the record (null for server-created ones); a meter capture's id is its client id. */
     @ColumnInfo(name = "client_id") val clientId: String?,
-    @ColumnInfo(name = "job_id") val jobId: String?,
+
     @ColumnInfo(name = "machine_id") val machineId: String?,
     /** Server status (capture state or review status, expense/settlement/reset status); null when it has none. */
     @ColumnInfo(name = "status") val status: String?,
@@ -39,8 +38,7 @@ data class InboxRecordEntity(
     companion object {
         const val METER_CAPTURE = "METER_CAPTURE"
         const val METER_RESET = "METER_RESET"
-        const val JOB_ACTIVITY = "JOB_ACTIVITY"
-        const val ACKNOWLEDGEMENT = "ACKNOWLEDGEMENT"
+
         const val EXPENSE = "EXPENSE"
         const val FUEL_EVENT = "FUEL_EVENT"
         const val CASH_COLLECTION = "CASH_COLLECTION"

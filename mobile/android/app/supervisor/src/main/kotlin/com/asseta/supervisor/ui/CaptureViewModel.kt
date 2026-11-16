@@ -15,10 +15,6 @@ import com.asseta.core.domain.policy.MeterCapturePolicy
 import com.asseta.core.domain.policy.ReadingKind
 import com.asseta.core.domain.accountability.AccountabilityMessages
 import com.asseta.core.domain.accountability.AccountabilityRules
-import com.asseta.core.domain.accountability.ChangeoverRules
-import com.asseta.supervisor.ui.finance.PickerOption
-import kotlinx.coroutines.flow.first
-import com.asseta.core.sync.usecase.CaptureMeterReading
 import com.asseta.core.sync.usecase.CaptureRequest
 import com.asseta.core.sync.usecase.CaptureTarget
 import com.asseta.core.sync.usecase.CaptureTargetRef
@@ -59,18 +55,12 @@ data class CaptureUi(
     /** A refusal or failure to show in the "Not saved" alert. */
     val error: String? = null,
     val saved: Boolean = false,
-    /** What the reading is for (job reading, daily reading, baseline or correction). */
-    val target: CaptureTarget = CaptureTarget.Job,
+    /** What the reading is for (daily reading, baseline or correction); null for a machine report's reading. */
+    val target: CaptureTarget? = null,
     /** Baseline note / correction reason. */
     val extraText: String = "",
     /** The reading being corrected (correction only). */
     val correctionOf: String? = null,
-    /** Changeover: customers offered as the next one (never the job's current customer). */
-    val changeoverCustomers: List<PickerOption> = emptyList(),
-    /** Changeover: open jobs on this phone with their customer. */
-    val changeoverJobs: List<ChangeoverJob> = emptyList(),
-    val changeoverCustomerId: String? = null,
-    val changeoverJobId: String? = null,
 ) {
     /** The reading field is shown for MANUAL, after a confident OCR read (correction) or after recaptures ran out. */
     val readingEditable: Boolean
@@ -94,9 +84,6 @@ data class CaptureUi(
         get() = CaptureIssues.of(this)
 }
 
-/** A job that can follow a changeover. */
-data class ChangeoverJob(val id: String, val label: String, val customerId: String?)
-
 object CaptureIssues {
     fun of(ui: CaptureUi): List<String> = buildList {
         when (val r = ReadingValidator.validate(ui.readingText, ui.decimals)) {
@@ -113,9 +100,6 @@ object CaptureIssues {
         if (ui.gps == null) add("A location attempt is required for every reading.")
         if (ui.target is CaptureTarget.Correction && !AccountabilityRules.correctionReasonValid(ui.extraText)) {
             add(AccountabilityMessages.CORRECTION_REASON)
-        }
-        (ui.target as? CaptureTarget.Changeover)?.let { t ->
-            ChangeoverRules.problem(ui.changeoverCustomerId, ui.changeoverJobId, t.jobRequired)?.let(::add)
         }
     }
 
@@ -134,9 +118,8 @@ object CaptureIssues {
 class CaptureViewModel(
     private val field: FieldGraph,
     private val tenantId: String,
-    private val jobId: String?,
     kind: ReadingKind,
-    private val target: CaptureTarget = CaptureTarget.Job,
+    private val target: CaptureTarget,
 ) : ViewModel() {
     private val captureId = UUID.randomUUID().toString()
     private val _ui = MutableStateFlow(CaptureUi(kind, target = target))
@@ -148,20 +131,10 @@ class CaptureViewModel(
     }
 
     private suspend fun load() {
-        val (subject, refusal) = field.captureReading.subject(tenantId, CaptureTargetRef(jobId, _ui.value.kind, target))
-        if (subject == null) {
-            val which = if (_ui.value.kind == ReadingKind.OPENING) "Opening" else "Closing"
-            val message = when {
-                target != CaptureTarget.Job -> refusal
-                refusal == CaptureMeterReading.JOB_GONE -> "It is no longer assigned to you on this device."
-                refusal == CaptureMeterReading.MACHINE_DETAILS_MISSING -> "Machine details missing. Connect to refresh rules."
-                else -> "$which reading is not allowed now."
-            } ?: "Not available."
-            return _ui.update { it.copy(loading = false, blocked = message) }
-        }
+        val (subject, refusal) = field.captureReading.subject(tenantId, CaptureTargetRef(_ui.value.kind, target))
+        if (subject == null) return _ui.update { it.copy(loading = false, blocked = refusal ?: "Not available.") }
         val machine = subject.machine
         val correctionOf = (target as? CaptureTarget.Correction)?.let { t -> field.inbox.readingValue(tenantId, t.readingId) }
-        if (target is CaptureTarget.Changeover) loadChangeoverChoices(jobId!!)
         when (val decision = field.repository.capturePolicy(tenantId, machine.id)) {
             is CapturePolicyDecision.Blocked -> _ui.update { it.copy(loading = false, blocked = decision.message) }
             is CapturePolicyDecision.Allowed -> _ui.update {
@@ -178,28 +151,6 @@ class CaptureViewModel(
             }
         }
     }
-
-    private suspend fun loadChangeoverChoices(jobId: String) {
-        val finance = field.financeRepository
-        val running = field.repository.job(jobId)
-        val current = running?.let { finance.customerOfContract(it.contractId) }
-        val synced = finance.changeoverJobs(tenantId)
-        val jobs = synced?.filter { it.id != jobId && it.machineId == running?.machineId && ChangeoverRules.jobOffered(it.status) }
-            ?.map { ChangeoverJob(it.id, it.jobNumber, it.customerId) }
-            ?: finance.observeJobs(tenantId).first() // older servers: only the jobs already on this phone
-                .filter { it.job.id != jobId && it.job.machineId == running?.machineId && ChangeoverRules.jobOffered(it.job.status) }
-                .map { ChangeoverJob(it.job.id, listOfNotNull(it.job.jobNumber, it.siteName).joinToString(" · "), finance.customerOfContract(it.job.contractId)) }
-        // A next job's customer can be one the phone has no other record of.
-        val known = finance.observeCustomers(tenantId).first().map { PickerOption(it.id, it.name, it.code) }
-        val fromJobs = synced.orEmpty().filter { j -> jobs.any { it.id == j.id } && known.none { it.id == j.customerId } }
-            .distinctBy { it.customerId }.map { PickerOption(it.customerId, it.customerName) }
-        val customers = (known + fromJobs).filter { it.id != current }.sortedBy { it.title.lowercase() }
-        _ui.update { it.copy(changeoverCustomers = customers, changeoverJobs = jobs) }
-    }
-
-    fun onChangeoverCustomer(id: String?) = _ui.update { it.copy(changeoverCustomerId = id, changeoverJobId = null) }
-
-    fun onChangeoverJob(id: String?) = _ui.update { it.copy(changeoverJobId = id) }
 
     fun onExtraText(text: String) = _ui.update { it.copy(extraText = text.take(2000)) }
 
@@ -259,15 +210,14 @@ class CaptureViewModel(
             val latest = _ui.value
             val result = field.captureReading(
                 CaptureRequest(
-                    tenantId = tenantId, jobId = jobId, captureId = captureId, kind = latest.kind,
+                    tenantId = tenantId, captureId = captureId, kind = latest.kind,
                     mode = latest.mode!!, readingText = latest.readingText, photoJpeg = latest.photo?.jpeg,
                     ocrAttempts = latest.attempts.takeIf { latest.mode == CaptureMode.AUTOMATIC } ?: 0,
                     latestOcr = latest.ocr, gps = latest.gps, capturedAtMs = capturedAt,
                     target = when (val t = target) {
                         is CaptureTarget.Baseline -> t.copy(note = latest.extraText)
                         is CaptureTarget.Correction -> t.copy(reason = latest.extraText)
-                        is CaptureTarget.Changeover -> t.copy(toCustomerId = latest.changeoverCustomerId, toJobId = latest.changeoverJobId)
-                        else -> t
+                        is CaptureTarget.Daily -> t
                     },
                 ),
             )

@@ -71,7 +71,7 @@ class PhaseThreeOwnerTest {
     @Test
     fun `Approvals opens for any role with a decision to see`() {
         assertTrue(OwnerFeatures(setOf("tenant.finance.read", "tenant.finance.writeoff")).approvalsScreen)
-        assertTrue(OwnerFeatures(setOf("tenant.revenue.read"), emptySet()).approvalsScreen)
+        assertTrue(OwnerFeatures(setOf("tenant.machine_report.read"), emptySet()).approvalsScreen)
         assertFalse(OwnerFeatures(setOf("tenant.expense.read")).approvalsScreen)
     }
 

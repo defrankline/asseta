@@ -14,7 +14,6 @@ import kotlinx.serialization.json.JsonObject
 object SyncCapabilities {
     const val SUPERVISOR_INBOX_V1 = "SUPERVISOR_INBOX_V1"
     const val OP_METER_RESET_REQUEST = "OP_METER_RESET_REQUEST"
-    const val OP_JOB_REQUEST = "OP_JOB_REQUEST"
 
     /** CASH_TRANSFER, CASH_TRANSFER_ACKNOWLEDGEMENT and CASH_FLOAT_ACKNOWLEDGEMENT. */
     const val OP_CASH_TRANSFER = "OP_CASH_TRANSFER"
@@ -24,7 +23,7 @@ object SyncCapabilities {
     const val OP_CASH_RETENTION_REQUEST = "OP_CASH_RETENTION_REQUEST"
     const val OP_HOURS_TRANSFER_REQUEST = "OP_HOURS_TRANSFER_REQUEST"
 
-    /** METER_CAPTURE accepts kind DAILY (no job, machine_id instead). */
+    /** METER_CAPTURE accepts kind DAILY with machine_id. */
     const val METER_DAILY_READING = "METER_DAILY_READING"
     const val OP_METER_BASELINE = "OP_METER_BASELINE"
     const val OP_METER_CORRECTION = "OP_METER_CORRECTION"
@@ -34,24 +33,6 @@ object SyncCapabilities {
      * REMITTANCE_EVIDENCE); SyncData carries deposit_accounts.
      */
     const val REMITTANCE_DETAILS_V1 = "REMITTANCE_DETAILS_V1"
-
-    /** DEC-031 M3: SITE_CHECKIN; announced only while the tenant requires site check-ins. */
-    const val OP_SITE_CHECKIN = "OP_SITE_CHECKIN"
-
-    /** DEC-032 A4: DAILY_REPORT (op id = report id; photos by `evidence_upload_ids`). */
-    const val OP_DAILY_REPORT = "OP_DAILY_REPORT"
-
-    /** DEC-032 A3: METER_CAPTURE kind DAILY on the running job accepts `changeover_to_customer_id` / `changeover_to_job_id`. */
-    const val METER_CHANGEOVER = "METER_CHANGEOVER"
-
-    /** SyncData.changeover_jobs: pending/approved jobs on my machines, office-created included. */
-    const val SYNC_CHANGEOVER_JOBS = "SYNC_CHANGEOVER_JOBS"
-
-    /** SyncData.unbillable_reasons: the tenant's list for daily reports. */
-    const val SYNC_UNBILLABLE_REASONS = "SYNC_UNBILLABLE_REASONS"
-
-    /** DEC-032 Phase 4: SyncData.open_invoices, the recorder's customers' open invoices (full snapshot each pull). */
-    const val SYNC_OPEN_INVOICES = "SYNC_OPEN_INVOICES"
 
     /**
      * DEC-032 Phase 3: CASH_COLLECTION accepts `purchase_id`, CASH_HANDOVER `partial_reason` and `partial_reason_id`,
@@ -96,7 +77,6 @@ data class FindingDto(
     val blocking: Boolean,
     val status: String,
     @SerialName("machine_id") val machineId: String,
-    @SerialName("job_id") val jobId: String? = null,
     @SerialName("meter_capture_id") val meterCaptureId: String? = null,
     @SerialName("policy_version") val policyVersion: String? = null,
     @SerialName("review_note") val reviewNote: String? = null,
@@ -109,8 +89,6 @@ data class FindingDto(
 data class SyncMeterCaptureDto(
     /** The device-generated capture id (also the local capture's id). */
     val id: String,
-    /** Null for a DAILY reading taken outside a job (METER_DAILY_READING): it names only its machine. */
-    @SerialName("job_id") val jobId: String? = null,
     @SerialName("machine_id") val machineId: String,
     val kind: String,
     @SerialName("capture_mode") val captureMode: String,
@@ -154,38 +132,6 @@ data class SyncMeterResetDto(
 )
 
 @Serializable
-data class SyncJobActivityDto(
-    val id: String,
-    @SerialName("job_id") val jobId: String,
-    @SerialName("client_id") val clientId: String,
-    @SerialName("activity_type") val activityType: String,
-    @SerialName("started_at") val startedAt: String,
-    @SerialName("ended_at") val endedAt: String? = null,
-    @SerialName("duration_minutes") val durationMinutes: Long? = null,
-    val billable: Boolean,
-    val note: String? = null,
-    @SerialName("recorded_by") val recordedBy: String? = null,
-    @SerialName("received_at") val receivedAt: String,
-    @SerialName("sync_revision") val syncRevision: Long,
-)
-
-@Serializable
-data class SyncAcknowledgementDto(
-    val id: String,
-    @SerialName("job_id") val jobId: String,
-    @SerialName("client_id") val clientId: String,
-    val method: String,
-    @SerialName("signer_name") val signerName: String,
-    @SerialName("signer_phone") val signerPhone: String? = null,
-    @SerialName("acknowledged_hours") val acknowledgedHours: String? = null,
-    @SerialName("signature_attachment_id") val signatureAttachmentId: String? = null,
-    @SerialName("captured_at") val capturedAt: String,
-    @SerialName("recorded_by") val recordedBy: String? = null,
-    @SerialName("received_at") val receivedAt: String,
-    @SerialName("sync_revision") val syncRevision: Long,
-)
-
-@Serializable
 data class SyncExpenseDto(
     val id: String,
     @SerialName("client_id") val clientId: String? = null,
@@ -203,7 +149,6 @@ data class SyncExpenseDto(
     @SerialName("submitted_at") val submittedAt: String,
     @SerialName("submitted_by") val submittedBy: String? = null,
     @SerialName("custodian_staff_id") val custodianStaffId: String? = null,
-    @SerialName("job_id") val jobId: String? = null,
     @SerialName("machine_id") val machineId: String? = null,
     @SerialName("gps_status") val gpsStatus: String? = null,
     @SerialName("gps_accuracy_m") val gpsAccuracyM: Double? = null,
@@ -231,7 +176,6 @@ data class SyncFuelEventDto(
     @SerialName("attributed_cost") val attributedCost: String,
     val currency: String,
     @SerialName("machine_id") val machineId: String? = null,
-    @SerialName("job_id") val jobId: String? = null,
     @SerialName("expense_id") val expenseId: String? = null,
     @SerialName("meter_reading") val meterReading: String? = null,
     val supplier: String? = null,
@@ -240,17 +184,6 @@ data class SyncFuelEventDto(
     @SerialName("recorded_by") val recordedBy: String? = null,
     val source: String,
     @SerialName("sync_revision") val syncRevision: Long,
-)
-
-/** `HireAllocationDto`: the part of a collection the office allocated to an invoice. */
-@Serializable
-data class HireAllocationDto(
-    val id: String,
-    @SerialName("invoice_id") val invoiceId: String,
-    val amount: String,
-    @SerialName("created_at") val createdAt: String,
-    @SerialName("released_at") val releasedAt: String? = null,
-    @SerialName("release_reason") val releaseReason: String? = null,
 )
 
 @Serializable
@@ -272,7 +205,6 @@ data class SyncCashCollectionDto(
     @SerialName("verified_at") val verifiedAt: String? = null,
     @SerialName("verified_by") val verifiedBy: String? = null,
     val source: String,
-    val allocations: List<HireAllocationDto> = emptyList(),
     @SerialName("collection_number") val collectionNumber: String? = null,
     @SerialName("sync_revision") val syncRevision: Long,
 )

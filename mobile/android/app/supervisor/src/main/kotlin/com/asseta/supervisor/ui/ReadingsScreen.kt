@@ -36,7 +36,6 @@ import androidx.lifecycle.viewModelScope
 import com.asseta.core.domain.accountability.FieldAccess
 import com.asseta.core.domain.inbox.FindingTexts
 import com.asseta.core.sync.usecase.CaptureMeterReading
-import com.asseta.supervisor.ui.accountability.DailyReportTexts
 import com.asseta.supervisor.ui.accountability.FieldAccountabilityTexts
 import com.asseta.core.sync.data.InboxSnapshot
 import com.asseta.core.sync.data.ReadingItem
@@ -71,10 +70,9 @@ import java.util.UUID
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReadingRow(snapshot: InboxSnapshot, r: ReadingItem) {
-    val job = r.jobId?.let(snapshot.jobs::get)?.jobNumber
     val machine = snapshot.machineOf(r)?.let(snapshot.machines::get)?.assetCode
     InboxRow(
-        listOfNotNull(job, InboxTexts.readingKind(r.kind)).joinToString(" · "), r.status,
+        InboxTexts.readingKind(r.kind), r.status,
         listOfNotNull(r.reading, machine).joinToString(" · "),
         LocalTime.format(r.atMs) + if (r.openFindings > 0) " · ${r.openFindings} open finding(s)" else "",
     )
@@ -97,42 +95,42 @@ fun ReadingDetailScreen(field: FieldGraph, snapshot: InboxSnapshot, id: String, 
         return
     }
     val s = r.server
-    val c = r.local
+    // A reading not on the server yet: its queued operation's payload (OCR and GPS as captured on this phone).
+    val c = r.op?.let { field.inbox.payloadText(it) }.orEmpty()
+    val gps = r.op?.let { field.inbox.payloadGps(it) }
     val machineId = snapshot.machineOf(r)
     val machine = machineId?.let(snapshot.machines::get)
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Section(null) {
             LabeledRow("Status", "") { StatusPill(r.status) }
             LabeledRow(InboxTexts.readingKind(r.kind), r.reading)
-            r.jobId?.let(snapshot.jobs::get)?.let { j -> LabeledRow("Job", j.jobNumber) }
             machine?.let { LabeledRow("Machine", InboxTexts.machine(it.assetCode, it.name)) }
             LabeledRow("Captured", LocalTime.format(r.atMs))
             LabeledRow("Capture mode", InboxTexts.captureMode(r.captureMode))
         }
         Section("Photo") {
-            val localPhoto = c?.photoAttachmentLocalId
             val remote = s?.photoAttachmentId
-            if (localPhoto == null && remote == null) {
+            if (remote == null) {
                 Text("No photo with this reading.", style = AssetaType.footnote, color = palette.secondaryText)
             } else {
                 EvidenceImage(
                     "Meter photo",
-                    local = localPhoto?.let { lid -> { field.inbox.localEvidence(lid) } },
-                    remoteUrl = remote?.let { rid -> { field.online.attachmentUrl(rid) } },
+                    local = null,
+                    remoteUrl = { field.online.attachmentUrl(remote) },
                 )
             }
         }
-        val ocr = s?.ocrValue ?: c?.ocrValue
+        val ocr = s?.ocrValue ?: c["ocr_value"]
         Section("Camera reading", footer = if (ocr == null) "Typed in; the camera did not read this meter." else null) {
             LabeledRow("Read by camera", ocr ?: "—")
-            InboxTexts.confidence(s?.ocrConfidence ?: c?.ocrConfidence)?.let { LabeledRow("Confidence", it) }
+            InboxTexts.confidence(s?.ocrConfidence ?: c["ocr_confidence"]?.toDoubleOrNull())?.let { LabeledRow("Confidence", it) }
             LabeledRow("Entered", r.reading)
             if (s?.manuallyCorrected == true || (ocr != null && ocr != r.reading)) LabeledRow("Corrected by hand", "Yes", WarningColor)
         }
         Section("GPS") {
-            val status = s?.gpsStatus ?: c?.gpsStatus
+            val status = s?.gpsStatus ?: gps?.status
             if (status != null) {
-                Text(InboxTexts.gps(status, s?.latitude ?: c?.latitude, s?.longitude ?: c?.longitude, s?.accuracyM ?: c?.accuracyM),
+                Text(InboxTexts.gps(status, s?.latitude ?: gps?.latitude, s?.longitude ?: gps?.longitude, s?.accuracyM ?: gps?.accuracyM),
                     style = AssetaType.subheadline)
             }
         }
@@ -178,7 +176,7 @@ fun ReadingDetailScreen(field: FieldGraph, snapshot: InboxSnapshot, id: String, 
     }
 }
 
-/** A machine of mine: latest reading, active job, my readings and reset requests; "Request meter reset". */
+/** A machine of mine: latest reading, my readings and reset requests; "Request meter reset". */
 @Composable
 fun MachineDetailScreen(snapshot: InboxSnapshot, machineId: String, onRoute: (Route) -> Unit, access: FieldAccess? = null) {
     val machine = snapshot.machines[machineId]
@@ -188,7 +186,6 @@ fun MachineDetailScreen(snapshot: InboxSnapshot, machineId: String, onRoute: (Ro
     }
     val readings = snapshot.readings.filter { snapshot.machineOf(it) == machineId }
     val latest = snapshot.latestReadingByMachine()[machineId]
-    val jobs = snapshot.jobs.values.filter { it.machineId == machineId && it.status in setOf("IN_PROGRESS", "APPROVED") }
     val resets = snapshot.resets.filter { it.machineId == machineId }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Section(null) {

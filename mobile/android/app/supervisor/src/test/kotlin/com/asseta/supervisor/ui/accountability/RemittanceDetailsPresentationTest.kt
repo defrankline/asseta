@@ -78,7 +78,7 @@ class RemittanceDetailsPresentationTest {
             FieldAccountabilityTexts.conflict("DEPOSIT_ACCOUNT_INACTIVE"),
         )
         assertEquals("Waiting for its photos to upload", FieldTexts.waiting(WaitingReason.UPLOAD, OpTypes.CASH_HANDOVER))
-        assertEquals("Waiting for its photo/receipt/signature upload", FieldTexts.waiting(WaitingReason.UPLOAD, OpTypes.EXPENSE))
+        assertEquals("Waiting for its photo/receipt upload", FieldTexts.waiting(WaitingReason.UPLOAD, OpTypes.EXPENSE))
     }
 
     private val held = RemittanceOverdueDto(

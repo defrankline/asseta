@@ -54,10 +54,9 @@ fun FuelScreen(snapshot: InboxSnapshot, syncing: Boolean, onRefresh: () -> Unit,
 @Composable
 private fun FuelRow(snapshot: InboxSnapshot, f: FuelItem) {
     val machine = f.machineId?.let(snapshot.machines::get)?.assetCode
-    val job = f.jobId?.let(snapshot.jobs::get)?.jobNumber
     InboxRow(
         listOfNotNull(InboxTexts.litres(f.litres), machine).joinToString(" · "), f.status,
-        listOfNotNull(job, f.supplier).joinToString(" · ").ifEmpty { null },
+        f.supplier,
         LocalTime.format(f.atMs),
     )
 }
@@ -81,7 +80,6 @@ fun FuelDetailScreen(snapshot: InboxSnapshot, key: String, onRoute: (Route) -> U
         }
         Section("Charge to") {
             LabeledRow("Machine", f.machineId?.let(snapshot.machines::get)?.let { InboxTexts.machine(it.assetCode, it.name) } ?: "None")
-            LabeledRow("Job", f.jobId?.let(snapshot.jobs::get)?.jobNumber ?: "None")
             f.meterReading?.let { LabeledRow("Meter reading", it) }
             f.supplier?.let { LabeledRow("Supplier", it) }
         }

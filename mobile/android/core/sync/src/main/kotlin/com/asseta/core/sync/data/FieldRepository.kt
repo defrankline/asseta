@@ -4,28 +4,18 @@ import com.asseta.core.database.AssetaDatabase
 import com.asseta.core.database.AttachmentEntity
 import com.asseta.core.database.ClientOperationEntity
 import com.asseta.core.database.HeldOwner
-import com.asseta.core.database.JobEntity
 import com.asseta.core.database.MachineEntity
-import com.asseta.core.database.MeterCaptureEntity
 import com.asseta.core.database.SyncStateEntity
-import com.asseta.core.database.WorkLogEntryEntity
-import com.asseta.core.domain.capture.JobStateRules
 import com.asseta.core.domain.policy.CapturePolicyDecision
 import com.asseta.core.domain.policy.PolicySelector
 import com.asseta.core.domain.policy.PolicySnapshot
 import com.asseta.core.domain.sync.ClockAnchor
 import com.asseta.core.domain.sync.ClockCheck
 import com.asseta.core.domain.sync.ClockStatus
-import com.asseta.core.domain.sync.JobOpKind
-import com.asseta.core.domain.sync.JobOperationPlanner
-import com.asseta.core.domain.sync.LocalJobOp
 import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.model.SyncAccount
-import com.asseta.core.model.sync.ContractDto
-import com.asseta.core.model.sync.OpTypes
 import com.asseta.core.sync.SyncClock
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
@@ -33,29 +23,11 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import java.time.Instant
 
-/** A job with the cached entities the job list shows (site and customer from the synced reference data). */
-data class JobSummary(
-    val job: JobEntity,
-    val machine: MachineEntity?,
-    val siteName: String? = null,
-    val customerName: String? = null,
-)
-
 enum class WaitingReason { EARLIER_ITEM, BLOCKED_BY_EARLIER, UPLOAD }
-
-/** What the job screen needs, derived once here (not per screen) from server state + local operations. */
-data class JobFieldState(
-    val effectiveStatus: String,
-    val hasOpening: Boolean,
-    val hasClosing: Boolean,
-    val hasAcknowledgement: Boolean,
-    val startQueued: Boolean,
-    val completeQueued: Boolean,
-)
 
 /**
  * Read side for the UI (Flows over the encrypted DB). All derivations reuse the domain rules. Device-owned records
- * (operations, evidence, work log) are the signed-in [account]'s only; another user's are held, see [observeHeld].
+ * (operations, evidence) are the signed-in [account]'s only; another user's are held, see [observeHeld].
  */
 class FieldRepository(
     private val db: () -> AssetaDatabase,
@@ -66,28 +38,6 @@ class FieldRepository(
     /** The signed-in user's subject (local records are filtered by it; matches nothing when signed out). */
     fun ownerSubject(): String = ownerSubject(account)
 
-    fun observeJobs(tenantId: String): Flow<List<JobSummary>> {
-        val field = db().fieldDataDao()
-        return combine(
-            field.observeJobs(tenantId),
-            field.observeMachines(tenantId),
-            field.observeReferences(tenantId, ServerDataWriter.KIND_SITE),
-            field.observeReferences(tenantId, ServerDataWriter.KIND_CUSTOMER),
-            field.observeReferences(tenantId, ServerDataWriter.KIND_CONTRACT),
-        ) { jobs, machines, sites, customers, contracts ->
-            val byId = machines.associateBy { it.id }
-            val siteNames = sites.associate { it.id to it.title }
-            val customerNames = customers.associate { it.id to it.title }
-            val contractCustomer = contracts.associate { it.id to contractCustomerId(it.json) }
-            jobs.map { job ->
-                JobSummary(job, byId[job.machineId], job.jobSiteId?.let(siteNames::get), contractCustomer[job.contractId]?.let(customerNames::get))
-            }
-        }
-    }
-
-    private fun contractCustomerId(contractJson: String): String? =
-        runCatching { json.decodeFromString(ContractDto.serializer(), contractJson).customerId }.getOrNull()
-
     /** Status counts of the signed-in user's outbox for the tenant (the sync status summary). */
     fun observeStatusCounts(tenantId: String): Flow<Map<ClientOperationStatus, Int>> =
         db().clientOperationDao().observeStatusCounts(tenantId, ownerSubject()).map { rows -> rows.associate { it.status to it.count } }
@@ -97,7 +47,7 @@ class FieldRepository(
 
     /**
      * Why an unsynced operation is not sent yet: an earlier operation it depends on (blocked when that one needs
-     * attention), or its photo/receipt/signature upload. [byId] is the tenant's unsynced operations.
+     * attention), or its photo/receipt upload. [byId] is the tenant's unsynced operations.
      */
     suspend fun waitingReason(op: ClientOperationEntity, byId: Map<String, ClientOperationEntity>): WaitingReason? {
         val parents = (db().clientOperationDao().dependenciesOf(op.id) + listOfNotNull(op.dependsOn)).mapNotNull(byId::get)
@@ -110,23 +60,7 @@ class FieldRepository(
         return if (uploading) WaitingReason.UPLOAD else null
     }
 
-    fun observeJob(jobId: String): Flow<JobEntity?> = db().fieldDataDao().observeJob(jobId)
-
     suspend fun machine(machineId: String): MachineEntity? = db().fieldDataDao().machine(machineId)
-
-    suspend fun job(jobId: String): JobEntity? = db().fieldDataDao().job(jobId)
-
-    fun observeJobOperations(tenantId: String, jobId: String): Flow<List<ClientOperationEntity>> =
-        db().clientOperationDao().observeForJob(tenantId, ownerSubject(), jobId)
-
-    /** The tenant's job operations grouped by job (the job list derives each job's status on this device). */
-    fun observeOperationsByJob(tenantId: String): Flow<Map<String, List<ClientOperationEntity>>> =
-        db().clientOperationDao().observeByOpTypes(tenantId, ownerSubject(), JOB_OP_TYPES)
-            .map { ops -> ops.filter { it.jobId != null }.sortedBy { it.createdAtDevice }.groupBy { it.jobId!! } }
-
-    fun observeCaptures(jobId: String): Flow<List<MeterCaptureEntity>> = db().evidenceDao().observeCaptures(jobId, ownerSubject())
-
-    fun observeWorkLog(jobId: String): Flow<List<WorkLogEntryEntity>> = db().evidenceDao().observeWorkLog(jobId, ownerSubject())
 
     fun observeUnsynced(tenantId: String): Flow<List<ClientOperationEntity>> =
         db().clientOperationDao().observeUnsynced(tenantId, ownerSubject())
@@ -141,23 +75,6 @@ class FieldRepository(
 
     /** Evidence files that can never be uploaded (missing or changed on the device, refused for good by the server). */
     fun observeFailedUploads(tenantId: String): Flow<List<AttachmentEntity>> = db().evidenceDao().observeFailedAttachments(tenantId, ownerSubject())
-
-    fun fieldState(job: JobEntity, ops: List<ClientOperationEntity>): JobFieldState {
-        val local = ops.mapNotNull { op -> FieldOps.kindOf(op)?.let { LocalJobOp(op.id, it, op.status, op.createdAtDevice) } }
-        val start = JobOperationPlanner.hasLive(JobOpKind.START, local)
-        val complete = JobOperationPlanner.hasLive(JobOpKind.COMPLETE, local)
-        return JobFieldState(
-            effectiveStatus = JobStateRules.effectiveStatus(job.status, start, complete),
-            hasOpening = JobOperationPlanner.hasLive(JobOpKind.OPENING_CAPTURE, local),
-            hasClosing = JobOperationPlanner.hasLive(JobOpKind.CLOSING_CAPTURE, local),
-            hasAcknowledgement = JobOperationPlanner.hasLive(JobOpKind.ACKNOWLEDGEMENT, local),
-            startQueued = start,
-            completeQueued = complete,
-        )
-    }
-
-    suspend fun fieldState(tenantId: String, job: JobEntity): JobFieldState =
-        fieldState(job, db().clientOperationDao().forJob(tenantId, ownerSubject(), job.id))
 
     /** Machine snapshot, else tenant snapshot; blocked when expired or past the offline grant. */
     suspend fun capturePolicy(tenantId: String, machineId: String): CapturePolicyDecision =
@@ -190,5 +107,3 @@ class FieldRepository(
         return ClockCheck.evaluate(anchor, clock.nowMs(), clock.elapsedRealtimeMs())
     }
 }
-
-private val JOB_OP_TYPES = listOf(OpTypes.METER_CAPTURE, OpTypes.JOB_ACTIVITY, OpTypes.JOB_ACKNOWLEDGEMENT, OpTypes.JOB_TRANSITION)

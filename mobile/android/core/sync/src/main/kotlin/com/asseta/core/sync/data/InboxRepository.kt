@@ -4,10 +4,7 @@ import com.asseta.core.database.AssetaDatabase
 import com.asseta.core.database.AttachmentEntity
 import com.asseta.core.database.ClientOperationEntity
 import com.asseta.core.database.InboxRecordEntity
-import com.asseta.core.database.JobEntity
 import com.asseta.core.database.MachineEntity
-import com.asseta.core.database.MeterCaptureEntity
-import com.asseta.core.database.WorkLogEntryEntity
 import com.asseta.core.domain.inbox.InboxMerge
 import com.asseta.core.domain.inbox.InboxStatus
 import com.asseta.core.domain.inbox.InboxStatusRules
@@ -15,7 +12,6 @@ import com.asseta.core.domain.inbox.LocalKey
 import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.model.SyncAccount
 import com.asseta.core.model.sync.AccountabilityOps
-import com.asseta.core.model.sync.AcknowledgementPayload
 import com.asseta.core.model.sync.CashCollectionPayload
 import com.asseta.core.model.sync.CashHandoverPayload
 import com.asseta.core.model.sync.ExpensePayload
@@ -24,12 +20,10 @@ import com.asseta.core.model.sync.FuelEventPayload
 import com.asseta.core.model.sync.MeterCaptureIn
 import com.asseta.core.model.sync.MeterResetPayload
 import com.asseta.core.model.sync.OpTypes
-import com.asseta.core.model.sync.SyncAcknowledgementDto
 import com.asseta.core.model.sync.SyncCashCollectionDto
 import com.asseta.core.model.sync.SyncCashHandoverDto
 import com.asseta.core.model.sync.SyncExpenseDto
 import com.asseta.core.model.sync.SyncFuelEventDto
-import com.asseta.core.model.sync.SyncJobActivityDto
 import com.asseta.core.model.sync.SyncMeterCaptureDto
 import com.asseta.core.model.sync.SyncMeterResetDto
 import com.asseta.core.sync.evidence.EvidenceFiles
@@ -41,11 +35,9 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-/** A reading of mine: the server's copy (state, findings, review) and/or this phone's capture and its outbox state. */
+/** A reading of mine: the server's copy (state, findings, review) and/or this phone's queued capture. */
 data class ReadingItem(
     val id: String,
-    /** Null for a DAILY reading taken outside a job (it names only its machine). */
-    val jobId: String?,
     val machineId: String?,
     val kind: String,
     val reading: String,
@@ -53,14 +45,13 @@ data class ReadingItem(
     val atMs: Long,
     val status: InboxStatus,
     val server: SyncMeterCaptureDto?,
-    val local: MeterCaptureEntity?,
     val op: ClientOperationEntity?,
 ) {
     val findings: List<FindingDto> get() = server?.findings.orEmpty()
     val openFindings: Int get() = findings.count { it.status == "OPEN" }
     val blockingFindings: Int get() = findings.count { it.blocking && it.status == "OPEN" }
 
-    /** Counts towards a job's opening/closing figures (not refused by the server or replaced). */
+    /** Counts as the machine's reading (not refused by the server or replaced). */
     val counts: Boolean get() = status != InboxStatus.REJECTED && status != InboxStatus.SUPERSEDED && status != InboxStatus.NOT_SYNCED
 }
 
@@ -88,7 +79,6 @@ data class ExpenseItem(
     val currency: String,
     val paidFrom: String,
     val categoryId: String?,
-    val jobId: String?,
     val machineId: String?,
     val atMs: Long,
     val status: InboxStatus,
@@ -110,7 +100,6 @@ data class FuelItem(
     val attributedCost: String?,
     val currency: String?,
     val machineId: String?,
-    val jobId: String?,
     val expenseId: String?,
     val meterReading: String?,
     val supplier: String?,
@@ -134,40 +123,9 @@ data class CashItem(
     val status: InboxStatus,
     val decisionNote: String?,
     val verifiedAtMs: Long?,
-    val allocations: Int,
     val op: ClientOperationEntity?,
     /** The human number the server gave it (collection or remittance number); null until synced. */
     val number: String? = null,
-)
-
-/** A work-log entry: the server's activity and/or this phone's entry ([running] until stopped). */
-data class ActivityItem(
-    val key: String,
-    val jobId: String,
-    val activityType: String,
-    val startMs: Long,
-    val endMs: Long?,
-    val note: String?,
-    val billable: Boolean?,
-    val running: Boolean,
-    val status: InboxStatus,
-    val server: SyncJobActivityDto?,
-    val op: ClientOperationEntity?,
-    /** The server's activity id: the synced record, else the acknowledged operation's result (DEC-031: matches `NonRevenueActivityDto.activity_id`). */
-    val serverId: String? = null,
-)
-
-data class AcknowledgementItem(
-    val key: String,
-    val jobId: String,
-    val method: String,
-    val signerName: String,
-    val signerPhone: String?,
-    val hours: String?,
-    val signatureAttachmentId: String?,
-    val atMs: Long,
-    val status: InboxStatus,
-    val op: ClientOperationEntity?,
 )
 
 /** Something that needs the supervisor's attention (Inbox "Needs attention"). */
@@ -183,13 +141,10 @@ data class InboxSnapshot(
     val fuel: List<FuelItem> = emptyList(),
     val collections: List<CashItem> = emptyList(),
     val handovers: List<CashItem> = emptyList(),
-    val activities: List<ActivityItem> = emptyList(),
-    val acknowledgements: List<AcknowledgementItem> = emptyList(),
-    /** Refused operations that are not one of the records above (job start/complete), and evidence that failed for good. */
+    /** Refused operations that are not one of the records above, and evidence that failed for good. */
     val problemOperations: List<ClientOperationEntity> = emptyList(),
     val failedUploads: List<AttachmentEntity> = emptyList(),
     val machines: Map<String, MachineEntity> = emptyMap(),
-    val jobs: Map<String, JobEntity> = emptyMap(),
     /** This phone's accountability operations (hours sales/transfers, cash transfers and answers, baselines, corrections). */
     val accountabilityOps: List<ClientOperationEntity> = emptyList(),
     val loaded: Boolean = false,
@@ -207,22 +162,17 @@ data class InboxSnapshot(
             failedUploads.forEach { add(AttentionItem("u-${it.id}", AttentionItem.Kind.UPLOAD, it.id, it.createdAt, InboxStatus.NOT_SYNCED)) }
         }.sortedByDescending { it.atMs }
 
-    fun readingsOfJob(jobId: String) = readings.filter { it.jobId == jobId }
-    fun machineOf(reading: ReadingItem): String? = reading.machineId ?: reading.jobId?.let(jobs::get)?.machineId
+    fun machineOf(reading: ReadingItem): String? = reading.machineId
 
     /** Latest counted reading per machine (my captures). */
     fun latestReadingByMachine(): Map<String, ReadingItem> =
         readings.filter { it.counts }.mapNotNull { r -> machineOf(r)?.let { it to r } }
             .groupBy({ it.first }, { it.second }).mapValues { (_, list) -> list.maxBy { it.atMs } }
-
-    /** The latest counted opening / closing reading of a job. */
-    fun jobReading(jobId: String, kind: String): ReadingItem? =
-        readings.filter { it.jobId == jobId && it.kind == kind && it.counts }.maxByOrNull { it.atMs }
 }
 
 /**
  * Read side of the supervisor tabs: the server's copies of my records (`inbox_record`) merged with this phone's own
- * records (outbox operations, captures, work-log entries) of the signed-in [account]. Local records show "Waiting to
+ * records (outbox operations) of the signed-in [account]. Local records show "Waiting to
  * sync" until acknowledged, then merge with the server record (matched by client id or the acknowledged server id).
  */
 class InboxRepository(
@@ -238,71 +188,40 @@ class InboxRepository(
         val database = db()
         val owner = owner()
         val ops = database.clientOperationDao().observeByOpTypes(tenantId, owner, ALL_OP_TYPES)
-        val local = combine(
-            database.evidenceDao().observeAllCaptures(tenantId, owner),
-            database.evidenceDao().observeAllWorkLog(tenantId, owner),
-            database.evidenceDao().observeFailedAttachments(tenantId, owner),
-        ) { captures, log, failed -> Triple(captures, log, failed) }
         return combine(
             database.inboxDao().observeAll(tenantId),
             ops,
-            local,
+            database.evidenceDao().observeFailedAttachments(tenantId, owner),
             database.fieldDataDao().observeMachines(tenantId),
-            database.fieldDataDao().observeJobs(tenantId),
-        ) { records, operations, (captures, log, failed), machines, jobs ->
-            build(records, operations, captures, log, failed, machines, jobs)
-        }
+        ) { records, operations, failed, machines -> build(records, operations, failed, machines) }
     }
 
     /** Pure merge of one state of the store (unit-tested). */
     fun build(
         records: List<InboxRecordEntity>,
         operations: List<ClientOperationEntity>,
-        captures: List<MeterCaptureEntity>,
-        workLog: List<WorkLogEntryEntity>,
         failedUploads: List<AttachmentEntity>,
         machines: List<MachineEntity>,
-        jobs: List<JobEntity>,
     ): InboxSnapshot {
         val byKind = records.groupBy { it.kind }
         fun <T> parse(kind: String, serializer: KSerializer<T>): List<T> =
             byKind[kind].orEmpty().mapNotNull { runCatching { json.decodeFromString(serializer, it.json) }.getOrNull() }
         val opsByType = operations.groupBy { it.opType }
-        val opsById = operations.associateBy { it.id }
         fun ops(type: String) = opsByType[type].orEmpty()
 
-        val readings = InboxMerge.merge(
-            parse(InboxRecordEntity.METER_CAPTURE, SyncMeterCaptureDto.serializer()), captures,
-            { setOf(it.id) }, { LocalKey(it.id, null) },
-        ).map { m ->
-            val s = m.server
-            val c = m.local
-            val op = c?.operationId?.let(opsById::get)
-            val status = InboxStatusRules.combined(
-                op?.status,
-                s?.let { InboxStatusRules.reading(it.state, it.reviewStatus, it.findings.map { f -> f.status }) },
-            )
-            ReadingItem(
-                id = s?.id ?: c!!.id, jobId = s?.jobId ?: c?.jobId, machineId = s?.machineId, kind = s?.kind ?: c!!.kind,
-                reading = s?.reading ?: c!!.reading, captureMode = s?.captureMode ?: c!!.captureMode,
-                atMs = c?.capturedAt ?: ms(s!!.capturedAt), status = status, server = s, local = c, op = op,
-            )
-        }
-
-        // DAILY readings outside a job have no local capture row: their operation is this phone's copy.
+        // A reading on this phone is its DAILY METER_CAPTURE operation, until the server's copy replaces it.
         val dailyType = FieldOps.captureEntityType(com.asseta.core.domain.policy.ReadingKind.DAILY)
-        val dailyOps = ops(OpTypes.METER_CAPTURE).filter { it.entityType == dailyType }.associateBy { it.entityId }
-        val readingIds = readings.map { it.id }.toSet()
-        val allReadings = readings.map { r ->
-            val op = dailyOps[r.id]?.takeIf { r.op == null } ?: return@map r
-            r.copy(op = op, status = InboxStatusRules.combined(op.status, r.server?.let {
-                InboxStatusRules.reading(it.state, it.reviewStatus, it.findings.map { f -> f.status })
-            }))
-        } + dailyOps.values.filter { it.entityId !in readingIds }.mapNotNull { op ->
-            val p = payload(op, MeterCaptureIn.serializer()) ?: return@mapNotNull null
+        val readings = merge(
+            parse(InboxRecordEntity.METER_CAPTURE, SyncMeterCaptureDto.serializer()), ops(OpTypes.METER_CAPTURE).filter { it.entityType == dailyType },
+            { setOf(it.id) },
+        ) { s, op ->
+            val p = op?.let { payload(it, MeterCaptureIn.serializer()) }
             ReadingItem(
-                id = op.entityId, jobId = p.jobId, machineId = p.machineId, kind = p.kind, reading = p.reading, captureMode = p.captureMode,
-                atMs = ms(p.capturedAt), status = InboxStatusRules.combined(op.status, null), server = null, local = null, op = op,
+                id = s?.id ?: op!!.entityId, machineId = s?.machineId ?: p?.machineId, kind = s?.kind ?: p?.kind ?: DAILY,
+                reading = s?.reading ?: p?.reading.orEmpty(), captureMode = s?.captureMode ?: p?.captureMode.orEmpty(),
+                atMs = (s?.capturedAt ?: p?.capturedAt)?.let(::ms) ?: op?.createdAtDevice ?: 0,
+                status = InboxStatusRules.combined(op?.status, s?.let { InboxStatusRules.reading(it.state, it.reviewStatus, it.findings.map { f -> f.status }) }),
+                server = s, op = op,
             )
         }
 
@@ -324,7 +243,7 @@ class InboxRepository(
                 key = s?.id ?: op!!.id, serverId = s?.id, description = s?.description ?: p?.description.orEmpty(),
                 supplier = s?.supplier ?: p?.supplier, amount = s?.amount ?: p?.amount?.toPlainString().orEmpty(),
                 currency = s?.currency ?: p?.currency.orEmpty(), paidFrom = s?.paidFrom ?: p?.paidFrom.orEmpty(),
-                categoryId = s?.categoryId ?: p?.categoryId, jobId = s?.jobId ?: p?.jobId, machineId = s?.machineId ?: p?.machineId,
+                categoryId = s?.categoryId ?: p?.categoryId, machineId = s?.machineId ?: p?.machineId,
                 atMs = (s?.incurredAt ?: p?.incurredAt)?.let(::ms) ?: op?.createdAtDevice ?: 0,
                 status = InboxStatusRules.combined(op?.status, s?.let { InboxStatusRules.expense(it.status) }),
                 decisionNote = s?.decisionNote, decidedAtMs = s?.decidedAt?.let(::ms),
@@ -339,7 +258,7 @@ class InboxRepository(
                 key = s?.id ?: op!!.id, eventType = s?.eventType ?: p?.eventType.orEmpty(),
                 litres = s?.litres ?: p?.litres?.toPlainString().orEmpty(), unitPrice = s?.unitPrice ?: p?.unitPrice?.toPlainString(),
                 attributedCost = s?.attributedCost, currency = s?.currency ?: p?.currency, machineId = s?.machineId ?: p?.machineId,
-                jobId = s?.jobId ?: p?.jobId, expenseId = s?.expenseId, meterReading = s?.meterReading ?: p?.meterReading?.toPlainString(),
+                expenseId = s?.expenseId, meterReading = s?.meterReading ?: p?.meterReading?.toPlainString(),
                 supplier = s?.supplier ?: p?.supplier, note = s?.note ?: p?.note,
                 atMs = (s?.occurredAt ?: p?.occurredAt)?.let(::ms) ?: op?.createdAtDevice ?: 0,
                 status = InboxStatusRules.combined(op?.status, s?.let { InboxStatus.RECORDED }), server = s, op = op,
@@ -354,7 +273,7 @@ class InboxRepository(
                 reference = s?.reference ?: p?.reference, note = s?.note ?: p?.note,
                 atMs = (s?.receivedAt ?: p?.receivedAt)?.let(::ms) ?: op?.createdAtDevice ?: 0,
                 status = InboxStatusRules.combined(op?.status, s?.let { InboxStatusRules.settlement(it.status) }),
-                decisionNote = s?.decisionNote, verifiedAtMs = s?.verifiedAt?.let(::ms), allocations = s?.allocations?.size ?: 0, op = op,
+                decisionNote = s?.decisionNote, verifiedAtMs = s?.verifiedAt?.let(::ms), op = op,
                 number = s?.collectionNumber,
             )
         }
@@ -367,53 +286,23 @@ class InboxRepository(
                 reference = s?.reference ?: p?.reference, note = s?.note ?: p?.note,
                 atMs = (s?.handedAt ?: p?.handedAt)?.let(::ms) ?: op?.createdAtDevice ?: 0,
                 status = InboxStatusRules.combined(op?.status, s?.let { InboxStatusRules.settlement(it.status) }),
-                decisionNote = s?.decisionNote, verifiedAtMs = s?.verifiedAt?.let(::ms), allocations = 0, op = op,
+                decisionNote = s?.decisionNote, verifiedAtMs = s?.verifiedAt?.let(::ms), op = op,
                 number = s?.remittanceNumber,
             )
         }
 
-        val activities = InboxMerge.merge(
-            parse(InboxRecordEntity.JOB_ACTIVITY, SyncJobActivityDto.serializer()), workLog,
-            { setOfNotNull(it.id, it.clientId) }, { LocalKey(it.clientId, null) },
-        ).map { m ->
-            val s = m.server
-            val e = m.local
-            val op = e?.operationId?.let(opsById::get)
-            ActivityItem(
-                key = s?.clientId ?: e!!.clientId, jobId = s?.jobId ?: e!!.jobId, activityType = s?.activityType ?: e!!.activityType,
-                startMs = s?.startedAt?.let(::ms) ?: e!!.startedAt, endMs = s?.endedAt?.let(::ms) ?: e?.endedAt,
-                note = s?.note ?: e?.note, billable = s?.billable, running = s == null && e?.operationId == null,
-                status = InboxStatusRules.combined(op?.status, s?.let { InboxStatus.RECORDED }), server = s, op = op,
-                serverId = s?.id ?: op?.let(::serverIdOf),
-            )
-        }
-
-        val acks = merge(parse(InboxRecordEntity.ACKNOWLEDGEMENT, SyncAcknowledgementDto.serializer()), ops(OpTypes.JOB_ACKNOWLEDGEMENT), { setOf(it.id, it.clientId) }) { s, op ->
-            val p = op?.let { payload(it, AcknowledgementPayload.serializer()) }
-            AcknowledgementItem(
-                key = s?.id ?: op!!.id, jobId = s?.jobId ?: p?.jobId ?: op?.jobId.orEmpty(), method = s?.method ?: p?.method.orEmpty(),
-                signerName = s?.signerName ?: p?.signerName.orEmpty(), signerPhone = s?.signerPhone ?: p?.signerPhone,
-                hours = s?.acknowledgedHours ?: p?.acknowledgedHours, signatureAttachmentId = s?.signatureAttachmentId,
-                atMs = (s?.capturedAt ?: p?.capturedAt)?.let(::ms) ?: op?.createdAtDevice ?: 0,
-                status = InboxStatusRules.combined(op?.status, s?.let { InboxStatus.RECORDED }), op = op,
-            )
-        }
-
-        // Refused job steps have no list of their own: they are listed under "Needs attention" as sync items.
-        val problems = operations.filter { (it.opType in JOB_STEP_TYPES || it.opType in ACCOUNTABILITY_OP_TYPES) && it.status.isRefused() }
+        // Refused operations without a list of their own are listed under "Needs attention" as sync items.
+        val problems = operations.filter { it.opType in ACCOUNTABILITY_OP_TYPES && it.status.isRefused() }
         return InboxSnapshot(
-            readings = allReadings.sortedByDescending { it.atMs },
+            readings = readings.sortedByDescending { it.atMs },
             resets = resets.sortedByDescending { it.atMs },
             expenses = expenses.sortedByDescending { it.atMs },
             fuel = fuel.sortedByDescending { it.atMs },
             collections = collections.sortedByDescending { it.atMs },
             handovers = handovers.sortedByDescending { it.atMs },
-            activities = activities.sortedBy { it.startMs },
-            acknowledgements = acks.sortedByDescending { it.atMs },
             problemOperations = problems,
             failedUploads = failedUploads,
             machines = machines.associateBy { it.id },
-            jobs = jobs.associateBy { it.id },
             accountabilityOps = operations.filter { it.opType in ACCOUNTABILITY_OP_TYPES }.sortedByDescending { it.createdAtDevice },
             loaded = true,
         )
@@ -424,18 +313,21 @@ class InboxRepository(
         json.parseToJsonElement(op.payloadJson).jsonObject.mapValues { (_, v) -> (v as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull }
     }.getOrDefault(emptyMap())
 
+    /** The GPS attempt a queued reading carries (its METER_CAPTURE payload), or null. */
+    fun payloadGps(op: ClientOperationEntity): com.asseta.core.model.sync.GpsIn? = payload(op, MeterCaptureIn.serializer())?.gps
+
     /** The reading value of one of my readings as the server has it (shown on the correction form), or null. */
     suspend fun readingValue(tenantId: String, id: String): String? =
         db().inboxDao().kind(tenantId, InboxRecordEntity.METER_CAPTURE).firstOrNull { it.id == id }
             ?.let { runCatching { json.decodeFromString(SyncMeterCaptureDto.serializer(), it.json).reading }.getOrNull() }
 
-    /** Decrypted local evidence (meter photo, signature, reset evidence) of an attachment, or null. */
+    /** Decrypted local evidence (meter photo, reset evidence, receipts) of an attachment, or null. */
     suspend fun localEvidence(attachmentLocalId: String): ByteArray? {
         val row = db().evidenceDao().attachment(attachmentLocalId) ?: return null
         return runCatching { files.read(row.fileName) }.getOrNull()
     }
 
-    /** The local evidence files an operation carries (signature, reset photo, receipts). */
+    /** The local evidence files an operation carries (meter photo, reset photo, receipts). */
     suspend fun attachmentsOf(operationId: String): List<String> = db().clientOperationDao().attachmentsOf(operationId)
 
     private fun <S, R> merge(
@@ -445,7 +337,7 @@ class InboxRepository(
         item: (S?, ClientOperationEntity?) -> R,
     ): List<R> = InboxMerge.merge(server, local, serverKeys) { LocalKey(it.entityId, serverIdOf(it)) }.map { item(it.server, it.local) }
 
-    /** The server id an acknowledgement returned (`result.entity.id`), if any. */
+    /** The server id an acknowledged operation returned (`result.entity.id`), if any. */
     private fun serverIdOf(op: ClientOperationEntity): String? = op.resultJson?.let { text ->
         runCatching { json.parseToJsonElement(text).jsonObject["entity"]?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull }.getOrNull()
     }
@@ -458,19 +350,19 @@ class InboxRepository(
     private fun ClientOperationStatus.isRefused() = this == ClientOperationStatus.FAILED || this == ClientOperationStatus.CONFLICT
 
     companion object {
-        private val JOB_STEP_TYPES = setOf(OpTypes.JOB_TRANSITION, OpTypes.JOB_ACTIVITY, OpTypes.JOB_ACKNOWLEDGEMENT)
+        private const val DAILY = "DAILY"
         val ACCOUNTABILITY_OP_TYPES = setOf(
             AccountabilityOps.CASH_TRANSFER, AccountabilityOps.CASH_TRANSFER_ACKNOWLEDGEMENT, AccountabilityOps.CASH_FLOAT_ACKNOWLEDGEMENT,
             AccountabilityOps.HOURS_PURCHASE, AccountabilityOps.HOURS_TRANSFER_REQUEST, AccountabilityOps.METER_BASELINE,
-            AccountabilityOps.METER_CORRECTION, AccountabilityOps.CASH_RETENTION_REQUEST, AccountabilityOps.SITE_CHECKIN,
+            AccountabilityOps.METER_CORRECTION, AccountabilityOps.CASH_RETENTION_REQUEST,
             com.asseta.core.model.sync.MachineReportOps.MACHINE_REPORT, com.asseta.core.model.sync.MachineReportOps.CREDIT_INVOICE_PAYMENT,
         )
         val ALL_OP_TYPES = listOf(
-            OpTypes.METER_CAPTURE, OpTypes.JOB_ACTIVITY, OpTypes.JOB_ACKNOWLEDGEMENT, OpTypes.JOB_TRANSITION, OpTypes.EXPENSE,
+            OpTypes.METER_CAPTURE, OpTypes.EXPENSE,
             OpTypes.CASH_COLLECTION, OpTypes.CASH_HANDOVER, OpTypes.FUEL_EVENT, OpTypes.METER_RESET_REQUEST,
             AccountabilityOps.CASH_TRANSFER, AccountabilityOps.CASH_TRANSFER_ACKNOWLEDGEMENT, AccountabilityOps.CASH_FLOAT_ACKNOWLEDGEMENT,
             AccountabilityOps.HOURS_PURCHASE, AccountabilityOps.HOURS_TRANSFER_REQUEST, AccountabilityOps.METER_BASELINE,
-            AccountabilityOps.METER_CORRECTION, AccountabilityOps.CASH_RETENTION_REQUEST, AccountabilityOps.SITE_CHECKIN,
+            AccountabilityOps.METER_CORRECTION, AccountabilityOps.CASH_RETENTION_REQUEST,
             com.asseta.core.model.sync.MachineReportOps.MACHINE_REPORT, com.asseta.core.model.sync.MachineReportOps.CREDIT_INVOICE_PAYMENT,
         )
     }

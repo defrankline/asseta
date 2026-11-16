@@ -5,15 +5,6 @@ import com.asseta.core.model.SerializableUuid
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-/** `HireAllocationDto`: the part of a payment set against one invoice (released once the payment is rejected). */
-@Serializable
-data class PaymentAllocationDto(
-    val id: SerializableUuid,
-    @SerialName("invoice_id") val invoiceId: SerializableUuid,
-    val amount: DecimalAmount,
-    @SerialName("released_at") val releasedAt: String? = null,
-)
-
 /** `PurchaseLinkDto`: the hours purchase a customer payment is linked to. */
 @Serializable
 data class PaymentPurchaseLinkDto(
@@ -49,7 +40,6 @@ data class CustomerPaymentDto(
     @SerialName("verified_at") val verifiedAt: String? = null,
     @SerialName("decision_note") val decisionNote: String? = null,
     @SerialName("reversed_at") val reversedAt: String? = null,
-    val allocations: List<PaymentAllocationDto> = emptyList(),
     @SerialName("purchase_links") val purchaseLinks: List<PaymentPurchaseLinkDto>? = null,
 )
 
@@ -57,18 +47,13 @@ data class CustomerPaymentDto(
 @Serializable
 data class PaymentEvidenceDto(@SerialName("attachment_id") val attachmentId: String)
 
-/** `HireInvoiceDto`, only what names an invoice beside a payment. */
-@Serializable
-data class InvoiceNumberDto(val id: SerializableUuid, @SerialName("invoice_number") val invoiceNumber: String? = null)
-
 /**
  * One payment with what the app reads beside it: its evidence photos ([evidenceFailed] when they could not be read, which
- * is not the same as having none) and the numbers of the invoices it is set against (best effort).
+ * is not the same as having none).
  */
 @Serializable
 data class PaymentReview(
     val payment: CustomerPaymentDto,
     val evidenceIds: List<String> = emptyList(),
     val evidenceFailed: Boolean = false,
-    val invoiceNumbers: Map<String, String> = emptyMap(),
 )

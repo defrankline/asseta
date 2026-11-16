@@ -23,6 +23,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -49,13 +50,12 @@ class FinanceSyncTest : SyncTestBase() {
         gps: GpsOutcome? = fix(),
         paidFrom: PaidFrom = PaidFrom.CASH_CUSTODY,
         clientId: String = UUID.randomUUID().toString(),
-        jobId: String? = null,
         machineId: String? = fake.machineId,
-    ) = ExpenseRequest(tenant, clientId, fake.categoryId, "Hydraulic oil", "Puma", amount, "TZS", paidFrom, machineId, jobId,
+    ) = ExpenseRequest(tenant, clientId, fake.categoryId, "Hydraulic oil", "Puma", amount, "TZS", paidFrom, machineId,
         receipts, gps, clock.now)
 
-    private fun collection(amount: String = "250000", jobId: String? = null, clientId: String = UUID.randomUUID().toString()) =
-        CashCollectionRequest(tenant, clientId, fake.customerId, jobId, amount, "TZS", "RCPT-1", "", clock.now)
+    private fun collection(amount: String = "250000", clientId: String = UUID.randomUUID().toString()) =
+        CashCollectionRequest(tenant, clientId, fake.customerId, amount, "TZS", "RCPT-1", "", clock.now)
 
     private fun handover(amount: String = "100000") =
         CashHandoverRequest(tenant, UUID.randomUUID().toString(), amount, "tzs", "", "To office", clock.now)
@@ -267,7 +267,7 @@ class FinanceSyncTest : SyncTestBase() {
         val fuel = saved(
             finance.fuelEvent(
                 FuelEventRequest(tenant, UUID.randomUUID().toString(), FuelEventType.PURCHASE, "40.5", "3000", "TZS",
-                    fake.machineId, null, "1234.5", "Puma", "", clock.now),
+                    fake.machineId, "1234.5", "Puma", "", clock.now),
             ),
         )
         val view = financeRepository.observeCashView(tenant).first()
@@ -300,16 +300,15 @@ class FinanceSyncTest : SyncTestBase() {
         assertTrue(finance.expense(expense(amount = "1,250.50")) is FinanceResult.Invalid)
         assertTrue(db.clientOperationDao().observeUnsynced(tenant, USER_A.subject).first().isEmpty())
 
-        val small = saved(finance.expense(expense(amount = "80", receipts = emptyList(), jobId = fake.jobId, machineId = null)))
+        val small = saved(finance.expense(expense(amount = "80", receipts = emptyList())))
         assertTrue(db.clientOperationDao().attachmentsOf(small.operationId).isEmpty()) // no receipt: nothing to wait for
-        assertEquals(fake.machineId, payload(small.operationId)["machine_id"]!!.jsonPrimitive.content) // from the job
+        assertEquals(fake.machineId, payload(small.operationId)["machine_id"]!!.jsonPrimitive.content)
+        assertFalse("job_id" in payload(small.operationId))
 
         val issue = finance.fuelEvent(
-            FuelEventRequest(tenant, UUID.randomUUID().toString(), FuelEventType.ISSUE, "10", "2900", "TZS", null, null, "", "", "", clock.now),
+            FuelEventRequest(tenant, UUID.randomUUID().toString(), FuelEventType.ISSUE, "10", "2900", "TZS", null, "", "", "", clock.now),
         ) as FinanceResult.Invalid
-        assertEquals(listOf("Choose the machine or job the fuel went to."), issue.messages)
-        val withJob = saved(finance.cashCollection(collection(jobId = fake.jobId)))
-        assertTrue(payload(withJob.operationId)["note"]!!.jsonPrimitive.content.startsWith("Job J-0001"))
+        assertEquals(listOf("Choose the machine the fuel went to."), issue.messages)
 
         clock.advance(25 * 3_600_000L) // snapshot valid 24 h
         val expired = finance.expense(expense()) as FinanceResult.Blocked

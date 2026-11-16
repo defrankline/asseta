@@ -19,12 +19,11 @@ object OwnerNavigation {
         OwnerDestination.Home, OwnerDestination.Customers, OwnerDestination.Machines, OwnerDestination.Money, OwnerDestination.Reports,
         OwnerDestination.Dashboard, OwnerDestination.Fleet, OwnerDestination.Accountability, OwnerDestination.Lookup,
         OwnerDestination.Scorecard, OwnerDestination.FieldSpend, OwnerDestination.Cash, OwnerDestination.Cases, OwnerDestination.Settings,
-        OwnerDestination.SetupChecklist, OwnerDestination.IdleMachines,
+        OwnerDestination.SetupChecklist, OwnerDestination.IdleMachines, OwnerDestination.Exceptions,
         -> true
         is OwnerDestination.Approvals -> d.approvalId == null
         is OwnerDestination.Notifications -> d.notificationId == null
         is OwnerDestination.Alerts -> d.alertId == null
-        is OwnerDestination.Exceptions -> d.jobId == null
         else -> false
     }
 
@@ -56,7 +55,7 @@ object OwnerNavigation {
         is OwnerDestination.RecordPayment -> com.asseta.owner.ui.money.PaymentTexts.TITLE
         OwnerDestination.Fleet -> "Fleet map"
         is OwnerDestination.Machine -> "Machine"
-        OwnerDestination.Jobs, is OwnerDestination.Job, OwnerDestination.More, OwnerDestination.UnbilledWork -> "Home"
+        OwnerDestination.More -> "Home"
         is OwnerDestination.Alerts -> if (d.alertId == null) "Alerts" else "Alert"
         is OwnerDestination.Approvals -> if (d.approvalId == null) "Approvals" else "Approval"
         is OwnerDestination.MeterReset -> "Meter reset"
@@ -79,8 +78,8 @@ object OwnerNavigation {
             if (d.kind == RecordKinds.CASH_FLOAT) OwnerAccountabilityTexts.RECORD_FLOAT_TITLE else OwnerAccountabilityTexts.RECORD_TRANSFER_TITLE
         is OwnerDestination.RemittanceOverdue ->
             if (d.id == null) OwnerAccountabilityTexts.OVERDUE_TITLE else OwnerAccountabilityTexts.OVERDUE_DETAIL_TITLE
-        is OwnerDestination.DailySheet -> OwnerAccountabilityTexts.SHEET_TITLE
-        is OwnerDestination.SheetDay -> com.asseta.owner.ui.accountability.RevenuePresentation.day(d.day)
+        is OwnerDestination.MachineDays -> OwnerAccountabilityTexts.SHEET_TITLE
+        is OwnerDestination.MachineDay -> com.asseta.owner.ui.accountability.RecordFormat.day(d.day)
         OwnerDestination.CustomerHours -> "Customers & hours"
         is OwnerDestination.HoursPurchase -> OwnerAccountabilityTexts.HOURS_PURCHASE_TITLE
         is OwnerDestination.HoursStatement -> OwnerAccountabilityTexts.STMT_TITLE

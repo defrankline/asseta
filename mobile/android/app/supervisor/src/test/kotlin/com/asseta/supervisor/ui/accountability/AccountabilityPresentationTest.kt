@@ -63,21 +63,6 @@ class AccountabilityPresentationTest {
     }
 
     @Test
-    fun `purchases show hours in use by running jobs beside hours left`() {
-        val p = FieldHoursPurchaseDto("p1", "HP-2026-00001", "c1", "Joe", "m1", "20", "ACTIVE",
-            PurchaseTotalsDto("20", "20", "4", "12.00", "0", provisional = "4.00"),
-            listOf(MachineHoursDto("m1", "8", provisional = "4.00"), MachineHoursDto("m2", "4")))
-        assertEquals("HP-2026-00001 · 12 h left · 4 h in use by running jobs", purchaseOptions(listOf(p)).single().title)
-        assertEquals("4", inUseOn(p, "m1"))
-        assertEquals(null, inUseOn(p, "m2"))
-        assertEquals("4", inUseOn(p, null))
-        assertEquals("4 h in use by running jobs", FieldAccountabilityTexts.hoursInUse("4"))
-        val none = p.copy(totals = p.totals.copy(provisional = "0"), machines = emptyList())
-        assertEquals("HP-2026-00001 · 12 h left", purchaseOptions(listOf(none)).single().title)
-        assertEquals(null, inUseOn(none, "m1"))
-    }
-
-    @Test
     fun `hours sale total wording`() {
         val book = com.asseta.core.domain.accountability.HoursPriceBook(
             prices = mapOf("ex01" to com.asseta.core.domain.accountability.HoursPrice("ex01", java.math.BigDecimal("95000.0000"), java.math.BigDecimal.ZERO, "TZS")),

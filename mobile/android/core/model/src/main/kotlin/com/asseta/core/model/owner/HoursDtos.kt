@@ -55,7 +55,6 @@ data class HoursStatementTotalsDto(
     val expired: String,
     val cancelled: String,
     @SerialName("closing_balance") val closingBalance: String,
-    @SerialName("provisional_at_close") val provisionalAtClose: String,
     @SerialName("awaiting_activation") val awaitingActivation: String,
     val refunded: String = "0",
     /** Net approved corrections, signed. */
@@ -73,24 +72,17 @@ data class HoursStatementLineDto(
     val reason: String? = null,
 )
 
-/** `HoursStatementUsageDto`: hours used on one day for one job (DAILY drawdown or the FINAL allocation). */
+/** `HoursStatementUsageDto`: hours used on one day by one approved machine report. */
 @Serializable
 data class HoursStatementUsageDto(
     val day: String,
-    @SerialName("job_id") val jobId: String? = null,
-    @SerialName("job_number") val jobNumber: String? = null,
+    @SerialName("machine_report_id") val machineReportId: String?,
+    @SerialName("machine_report_number") val machineReportNumber: String? = null,
     @SerialName("machine_id") val machineId: String,
     @SerialName("machine_code") val machineCode: String? = null,
     @SerialName("machine_name") val machineName: String? = null,
     val hours: String,
-    val basis: String,
-    @SerialName("job_running") val jobRunning: Boolean,
-) {
-    companion object {
-        const val DAILY = "DAILY"
-        const val FINAL = "FINAL"
-    }
-}
+)
 
 /** `HoursStatementDto` (getCustomerHoursStatement), without the purchases the app does not show. */
 @Serializable

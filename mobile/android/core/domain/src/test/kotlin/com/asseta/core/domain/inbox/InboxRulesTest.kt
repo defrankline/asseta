@@ -70,23 +70,8 @@ class InboxRulesTest {
     }
 
     @Test
-    fun `work totals per type and meter hours`() {
-        val h = 3_600_000L
-        val totals = JobFigures.minutesByType(
-            listOf(WorkSpan("WORK", 0, 2 * h), WorkSpan("STANDBY", 2 * h, 3 * h), WorkSpan("WORK", 3 * h, null), WorkSpan("NOTE", 0, null)),
-            nowMs = 3 * h + 30 * 60_000,
-        )
-        assertEquals(listOf("WORK" to 150L, "STANDBY" to 60L), totals)
-        assertEquals("2 h 30 min", JobFigures.duration(150))
-        assertEquals("45 min", JobFigures.duration(45))
-        assertEquals(0, BigDecimal("8.5").compareTo(JobFigures.meterHours("100.0", "108.5")))
-        assertNull(JobFigures.meterHours("100", null))
-        assertNull(JobFigures.meterHours("100", "90"))
-    }
-
-    @Test
     fun `notification targets open the related item`() {
-        assertEquals(InboxLink.Job("j"), InboxLinks.from("job", "j"))
+        assertEquals(InboxLink.None, InboxLinks.from("job", "j"))
         assertEquals(InboxLink.Expense("e"), InboxLinks.from("expense", "e"))
         assertEquals(InboxLink.Money, InboxLinks.from("staff_member", "s"))
         assertEquals(InboxLink.None, InboxLinks.from("screen", null))

@@ -1,7 +1,6 @@
 package com.asseta.owner
 
 import com.asseta.core.domain.owner.OwnerDestination
-import com.asseta.core.model.owner.ActivityDto
 import com.asseta.core.model.owner.CashSupervisorSummaryDto
 import com.asseta.core.model.owner.ExceptionDto
 import com.asseta.core.model.owner.ExpenseDto
@@ -30,18 +29,13 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 
 /**
- * Owner R1 depth pass: work log, job spend, meter exceptions, field spend, cash with supervisors and meter resets.
+ * Owner R1 depth pass: meter exceptions, field spend, cash with supervisors and meter resets.
  * Wording must match the iOS Owner app exactly (same inputs, same strings); change both together.
  */
 class DepthPresentationTest {
     private val json = NetworkFactory.json
     private val utc = ZoneOffset.UTC
 
-    private fun activity(start: String, end: String?, billable: Boolean = true) = json.decodeFromString(
-        ActivityDto.serializer(),
-        """{"id":"$ID1","client_id":"$ID2","activity_type":"STANDBY","started_at":"$start","ended_at":${end?.let { "\"$it\"" } ?: "null"},
-        "billable":$billable,"note":null}""",
-    )
 
     private fun expense(status: String = "APPROVED", currency: String = "TZS", amount: String = "150000.0000", supplier: String? = "Tyre shop") =
         json.decodeFromString(ExpenseDto.serializer(), Samples.expense(ID1, status, currency, amount, supplier))
@@ -74,8 +68,6 @@ class DepthPresentationTest {
         assertEquals("Purchase · 40.5 L", SpendText.fuelTitle(fuel()))
         assertEquals("Puma · 21 Oct 2026", SpendText.fuelDetail(fuel(), utc))
         assertEquals("21 Oct 2026", SpendText.fuelDetail(fuel(supplier = null), utc))
-        assertEquals("No expenses on this job.", SpendText.NO_JOB_EXPENSES)
-        assertEquals("No fuel recorded on this job.", SpendText.NO_JOB_FUEL)
         assertEquals("No expenses yet.", SpendText.NO_EXPENSES)
         assertEquals("No fuel recorded yet.", SpendText.NO_FUEL)
     }
@@ -176,18 +168,17 @@ class DepthPresentationTest {
             OwnerMenu.entries(all).map { it.first },
         )
         assertEquals(
-            listOf(OwnerDestination.Exceptions(), OwnerDestination.FieldSpend, OwnerDestination.Cash),
+            listOf(OwnerDestination.Exceptions, OwnerDestination.FieldSpend, OwnerDestination.Cash),
             OwnerMenu.entries(all).map { it.second }.subList(6, 9),
         )
         assertEquals(listOf("Home", "Field spend", "Settings"), OwnerMenu.entries(OwnerFeatures(setOf("tenant.expense.read"))).map { it.first })
         assertTrue(OwnerFeatures(setOf("tenant.meter.approve")).meterApprove)
         assertFalse(OwnerFeatures(setOf("tenant.meter.read")).meterApprove)
-        assertEquals("Meter exceptions", OwnerNavigation.title(OwnerDestination.Exceptions(ID1)))
+        assertEquals("Meter exceptions", OwnerNavigation.title(OwnerDestination.Exceptions))
         assertEquals("Field spend", OwnerNavigation.title(OwnerDestination.FieldSpend))
         assertEquals("Cash with supervisors", OwnerNavigation.title(OwnerDestination.Cash))
         assertEquals("Meter reset", OwnerNavigation.title(OwnerDestination.MeterReset(ID1)))
-        assertTrue(OwnerNavigation.isMenuRoot(OwnerDestination.Exceptions()))
-        assertFalse(OwnerNavigation.isMenuRoot(OwnerDestination.Exceptions(ID1)))
+        assertTrue(OwnerNavigation.isMenuRoot(OwnerDestination.Exceptions))
     }
 
     @Test
@@ -198,7 +189,7 @@ class DepthPresentationTest {
             "work":{"jobs_by_status":{},"open_exceptions":3}}""",
         )
         val row = OverviewPresentation.sections(o, cached = false, nowMs = 0).single().groups.single().rows.single { it.label == "Open meter exceptions" }
-        assertEquals(OwnerDestination.Exceptions(), row.target)
+        assertEquals(OwnerDestination.Exceptions, row.target)
         assertEquals(KpiTone.WARNING, row.tone)
     }
 }

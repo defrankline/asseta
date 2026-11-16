@@ -6,33 +6,6 @@ import com.asseta.core.domain.policy.MeterCapturePolicy
 import com.asseta.core.domain.policy.ReadingKind
 import java.math.BigDecimal
 
-/** Server job states (strings so an unknown future state never crashes the app; unknown => no field actions). */
-object JobStatus {
-    const val APPROVED = "APPROVED"
-    const val IN_PROGRESS = "IN_PROGRESS"
-    const val COMPLETED = "COMPLETED"
-    const val CANCELLED = "CANCELLED"
-}
-
-/** Job state as the supervisor sees it offline: server state plus their own not-yet-rejected transitions. */
-object JobStateRules {
-    fun effectiveStatus(serverStatus: String, localStartPending: Boolean, localCompletePending: Boolean): String = when {
-        serverStatus == JobStatus.CANCELLED -> serverStatus
-        localCompletePending -> JobStatus.COMPLETED
-        localStartPending && serverStatus == JobStatus.APPROVED -> JobStatus.IN_PROGRESS
-        else -> serverStatus
-    }
-
-    /** OPENING only on an APPROVED job, CLOSING only on an IN_PROGRESS job (mirrors server READING_NOT_ALLOWED). */
-    fun readingAllowed(kind: ReadingKind, effectiveStatus: String): Boolean = when (kind) {
-        ReadingKind.OPENING -> effectiveStatus == JobStatus.APPROVED
-        ReadingKind.CLOSING -> effectiveStatus == JobStatus.IN_PROGRESS
-        ReadingKind.DAILY -> effectiveStatus == JobStatus.APPROVED || effectiveStatus == JobStatus.IN_PROGRESS
-    }
-
-    fun canLogWork(effectiveStatus: String): Boolean = effectiveStatus == JobStatus.APPROVED || effectiveStatus == JobStatus.IN_PROGRESS
-}
-
 sealed interface ReadingInput {
     data class Valid(val normalized: String) : ReadingInput
     data class Invalid(val error: ReadingError) : ReadingInput

@@ -5,30 +5,6 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-/** Server-owned job cached for offline work; upserted only when the server `version` is not older. */
-@Entity(tableName = "job", indices = [Index(value = ["tenant_id", "status"])])
-data class JobEntity(
-    @PrimaryKey @ColumnInfo(name = "id") val id: String,
-    @ColumnInfo(name = "tenant_id") val tenantId: String,
-    @ColumnInfo(name = "job_number") val jobNumber: String,
-    @ColumnInfo(name = "machine_id") val machineId: String,
-    @ColumnInfo(name = "contract_id") val contractId: String,
-    @ColumnInfo(name = "job_site_id") val jobSiteId: String?,
-    @ColumnInfo(name = "status") val status: String,
-    @ColumnInfo(name = "version") val version: Long,
-    @ColumnInfo(name = "planned_start") val plannedStart: String,
-    @ColumnInfo(name = "planned_end") val plannedEnd: String?,
-    @ColumnInfo(name = "standby_treatment") val standbyTreatment: String?,
-    /** Contract currency (v3, nullable): the device's hint for the tenant currency of field-finance forms. */
-    @ColumnInfo(name = "currency") val currency: String? = null,
-    /** v8: why the job was cancelled (a declined field request shows the owner's reason). */
-    @ColumnInfo(name = "cancellation_reason") val cancellationReason: String? = null,
-    /** v8: the supervisor's staff id when the job was requested from the field (`JOB_REQUEST`). */
-    @ColumnInfo(name = "requested_by_staff_id") val requestedByStaffId: String? = null,
-    /** v8: what the customer asked for, as written in the field request. */
-    @ColumnInfo(name = "request_note") val requestNote: String? = null,
-)
-
 @Entity(tableName = "machine", indices = [Index(value = ["tenant_id"])])
 data class MachineEntity(
     @PrimaryKey @ColumnInfo(name = "id") val id: String,
@@ -87,7 +63,7 @@ data class SyncStateEntity(
     @ColumnInfo(name = "owner_sub") val ownerSub: String? = null,
     /** v7: optional protocol features the server advertised on the last pull (comma separated), e.g. SUPERVISOR_INBOX_V1. */
     @ColumnInfo(name = "capabilities") val capabilities: String? = null,
-    /** v9: the tenant's IANA zone as sync last sent it (daily report day boundaries). */
+    /** v9: the tenant's IANA zone as sync last sent it (local day boundaries). */
     @ColumnInfo(name = "tenant_timezone") val tenantTimezone: String? = null,
 ) {
     fun supports(capability: String): Boolean = capabilities?.split(',')?.contains(capability) == true

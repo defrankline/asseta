@@ -138,8 +138,6 @@ data class FieldAccess(
     val hours: CustomerHoursPolicy? = null,
     /** Tenant capabilities switched off by policy (`/me` `disabled_capabilities`, e.g. CUSTOMER_HOURS). */
     val disabled: Set<String> = emptySet(),
-    /** The tenant's ENGINE_HOURS switches the field forms need; null when unknown (the server still applies them). */
-    val engine: EngineHoursPolicy? = null,
 ) {
     private fun supports(capability: String) = capabilities?.contains(capability) == true
     private fun can(permission: String) = permission in permissions
@@ -204,36 +202,6 @@ data class FieldAccess(
     val proposeBaseline: Boolean get() = engineHours && supports(SyncCapabilities.OP_METER_BASELINE) && can(METER_CAPTURE)
     val proposeCorrection: Boolean get() = engineHours && supports(SyncCapabilities.OP_METER_CORRECTION) && can(METER_CAPTURE)
 
-    /** Send a daily report (DEC-032 A4, outbox operation; ENGINE_HOURS on and the capture permission). */
-    val dailyReport: Boolean get() = engineHours && supports(SyncCapabilities.OP_DAILY_REPORT) && can(METER_CAPTURE)
-
-    /** See the daily reports of my machines (online read, saved on the phone). */
-    val readDailyReports: Boolean get() = dailyReport && can(METER_READ)
-
-    /** Record a mid-job changeover reading (DEC-032 A3). */
-    val changeover: Boolean get() = engineHours && supports(SyncCapabilities.METER_CHANGEOVER) && can(METER_CAPTURE)
-
-    /** The next job is mandatory on a changeover (the tenant bills the hours after it to that job). */
-    val changeoverJobRequired: Boolean get() = engine?.changeoverSplitsBilling == true
-
-    /** At least one photo is mandatory on a daily report. */
-    val dailyReportEvidenceRequired: Boolean get() = engine?.dailyReportEvidenceRequired == true
-
-    /** Revenue checks are in use (REVENUE_RECONCILIATION, platform default off, listed in `/me` while off). */
-    val revenueOn: Boolean get() = TenantAccess.REVENUE_RECONCILIATION !in disabled
-
-    /** Work-log entries show their non-revenue status (online read, DEC-031 R1). */
-    val nonRevenueStatus: Boolean get() = revenueOn && can(REVENUE_READ)
-
-    /** "Explain" on a non-revenue entry (online only; the reason list needs read too). */
-    val explainNonRevenue: Boolean get() = nonRevenueStatus && can(REVENUE_EXPLAIN)
-
-    /**
-     * Site check-ins (DEC-031 M3): the server announces OP_SITE_CHECKIN only while the tenant requires them; the role
-     * records check-ins and SITE_CHECKIN is not switched off.
-     */
-    val siteCheckin: Boolean
-        get() = TenantAccess.SITE_CHECKIN !in disabled && supports(SyncCapabilities.OP_SITE_CHECKIN) && can(SITE_CHECKIN_RECORD)
 
     /** The handover form offers method, deposit account and deposit slip photos (DEC-031 D2). */
     val remittanceDetails: Boolean get() = supports(SyncCapabilities.REMITTANCE_DETAILS_V1)
@@ -253,8 +221,6 @@ data class FieldAccess(
     val collectionLink: Boolean get() = cashDetailsV2 && can(COLLECTION_RECORD)
     val collectionLinkRequired: Boolean get() = collectionLink && cash?.collectionLinkRequired == true
 
-    /** "Pays for" also lists open invoices (DEC-032 Phase 4, SYNC_OPEN_INVOICES). */
-    val openInvoices: Boolean get() = collectionLink && supports(SyncCapabilities.SYNC_OPEN_INVOICES)
 
     /** Under the full-remittance policy the handover asks why part of the balance stays with the custodian. */
     val partialReason: Boolean get() = cashDetailsV2 && cashCustody && cash?.remitFullBalance == true
@@ -294,9 +260,6 @@ data class FieldAccess(
         const val COLLECTION_RECORD = "tenant.collection.record"
         const val METER_CAPTURE = "tenant.meter.capture"
         const val METER_READ = "tenant.meter.read"
-        const val REVENUE_READ = "tenant.revenue.read"
-        const val REVENUE_EXPLAIN = "tenant.revenue.explain"
-        const val SITE_CHECKIN_RECORD = "tenant.site_checkin.record"
     }
 }
 

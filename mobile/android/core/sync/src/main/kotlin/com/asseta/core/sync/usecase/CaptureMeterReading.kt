@@ -4,18 +4,13 @@ import com.asseta.core.database.AssetaDatabase
 import com.asseta.core.database.AttachmentEntity
 import com.asseta.core.database.InboxRecordEntity
 import com.asseta.core.database.MachineEntity
-import com.asseta.core.database.MeterCaptureEntity
 import com.asseta.core.database.inTransaction
 import com.asseta.core.domain.capture.CaptureDraft
 import com.asseta.core.domain.capture.CaptureValidator
 import com.asseta.core.domain.capture.CaptureViolation
 import com.asseta.core.domain.accountability.AccountabilityMessages
 import com.asseta.core.domain.accountability.AccountabilityRules
-import com.asseta.core.domain.accountability.ChangeoverRules
-import com.asseta.core.domain.capture.JobStatus
-import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.domain.capture.GpsOutcome
-import com.asseta.core.domain.capture.JobStateRules
 import com.asseta.core.domain.capture.ReadingInput
 import com.asseta.core.domain.capture.ReadingValidator
 import com.asseta.core.domain.ocr.MeterReadingParser
@@ -23,7 +18,6 @@ import com.asseta.core.domain.ocr.OcrReading
 import com.asseta.core.domain.policy.CaptureMode
 import com.asseta.core.domain.policy.CapturePolicyDecision
 import com.asseta.core.domain.policy.ReadingKind
-import com.asseta.core.domain.sync.JobOpKind
 import com.asseta.core.model.sync.AccountabilityOps
 import com.asseta.core.model.sync.BaselinePayload
 import com.asseta.core.model.sync.BlobPurpose
@@ -39,32 +33,24 @@ import com.asseta.core.sync.data.FieldRepository
 import com.asseta.core.sync.data.IsoTime
 import com.asseta.core.sync.evidence.EvidenceFiles
 import com.asseta.core.sync.evidence.Sha256
-import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import java.util.UUID
 
 /**
- * What a capture is for. [Job] is an opening/closing reading of a job (the default); [Daily] a DAILY reading outside a
- * job (METER_DAILY_READING); [Baseline] a proposed initial reading (METER_BASELINE); [Correction] the corrected reading
- * replacing one of my live readings (METER_CORRECTION). All share the same evidence rules (photo, OCR, fresh GPS).
+ * What a capture is for. [Daily] a DAILY reading of a machine (METER_DAILY_READING); [Baseline] a proposed initial
+ * reading (METER_BASELINE); [Correction] the corrected reading replacing one of my live readings (METER_CORRECTION). All
+ * share the same evidence rules (photo, OCR, fresh GPS).
  */
 sealed interface CaptureTarget {
-    data object Job : CaptureTarget
     data class Daily(val machineId: String) : CaptureTarget
     data class Baseline(val machineId: String, val note: String) : CaptureTarget
     data class Correction(val readingId: String, val reason: String) : CaptureTarget
-
-    /** A DAILY reading on the running job ([CaptureRequest.jobId]) that moves the machine to the next customer (DEC-032 A3). */
-    data class Changeover(val toCustomerId: String?, val toJobId: String?, val jobRequired: Boolean) : CaptureTarget
 }
 
 /** One capture as produced by the capture screen. [captureId] is generated once per capture (idempotency key). */
 data class CaptureRequest(
     val tenantId: String,
-    /** The job of an opening/closing reading; null for the other [target]s. */
-    val jobId: String?,
     val captureId: String,
     val kind: ReadingKind,
     val mode: CaptureMode,
@@ -75,7 +61,7 @@ data class CaptureRequest(
     val latestOcr: OcrReading?,
     val gps: GpsOutcome?,
     val capturedAtMs: Long,
-    val target: CaptureTarget = CaptureTarget.Job,
+    val target: CaptureTarget,
 )
 
 sealed interface CaptureResult {
@@ -85,14 +71,13 @@ sealed interface CaptureResult {
     data object AlreadySaved : CaptureResult
 }
 
-/** The machine, kind and job a capture is validated against (resolved from its target). */
-data class CaptureSubject(val machine: MachineEntity, val kind: ReadingKind, val jobId: String?)
+/** The machine and kind a capture is validated against (resolved from its target). */
+data class CaptureSubject(val machine: MachineEntity, val kind: ReadingKind)
 
 /**
  * Validates a capture against the locally enforced policy snapshot (same rules as the UI), then atomically stores the
- * encrypted photo reference, the local evidence row and the operation. A job reading waits for the photo upload
- * (attachment gate) and for its workflow parents (dependency chain); daily readings, baselines and corrections wait
- * only for their photo. The server applies every control (second person, baseline gate, overlaps).
+ * encrypted photo reference, the local evidence row and the operation, which waits only for its photo upload
+ * (attachment gate). The server applies every control (second person, baseline gate).
  */
 class CaptureMeterReading(
     private val db: () -> AssetaDatabase,
@@ -103,61 +88,38 @@ class CaptureMeterReading(
     private val json: Json,
     private val onQueued: () -> Unit = {},
 ) {
-    /** The machine/kind/job the capture is for, or why it cannot be recorded (also used by the screen when it opens). */
+    /** The machine/kind the capture is for, or why it cannot be recorded (also used by the screen when it opens). */
     suspend fun subject(tenantId: String, request: CaptureTargetRef): Pair<CaptureSubject?, String?> {
         val target = request.target
         val capability = when (target) {
-            CaptureTarget.Job -> null
             is CaptureTarget.Daily -> SyncCapabilities.METER_DAILY_READING
             is CaptureTarget.Baseline -> SyncCapabilities.OP_METER_BASELINE
             is CaptureTarget.Correction -> SyncCapabilities.OP_METER_CORRECTION
-            is CaptureTarget.Changeover -> SyncCapabilities.METER_CHANGEOVER
         }
-        if (capability != null) {
-            val state = db().syncStateDao().get(tenantId)
-            if (state?.capabilities == null) return null to NEEDS_SYNC
-            if (!state.supports(capability)) return null to SERVER_TOO_OLD
-        }
+        val state = db().syncStateDao().get(tenantId)
+        if (state?.capabilities == null) return null to NEEDS_SYNC
+        if (!state.supports(capability)) return null to SERVER_TOO_OLD
         return when (target) {
-            CaptureTarget.Job -> {
-                val job = request.jobId?.let { repository.job(it) } ?: return null to JOB_GONE
-                val machine = repository.machine(job.machineId) ?: return null to MACHINE_DETAILS_MISSING
-                val state = repository.fieldState(tenantId, job)
-                if (!JobStateRules.readingAllowed(request.kind, state.effectiveStatus)) {
-                    return null to "A ${request.kind.name.lowercase()} reading is not allowed while the job is ${state.effectiveStatus}."
-                }
-                CaptureSubject(machine, request.kind, job.id) to null
-            }
-            is CaptureTarget.Daily -> machineOnly(target.machineId)?.let { CaptureSubject(it, ReadingKind.DAILY, null) to null }
+            is CaptureTarget.Daily -> machineOnly(target.machineId)?.let { CaptureSubject(it, ReadingKind.DAILY) to null }
                 ?: (null to MACHINE_MISSING)
-            is CaptureTarget.Baseline -> machineOnly(target.machineId)?.let { CaptureSubject(it, ReadingKind.DAILY, null) to null }
+            is CaptureTarget.Baseline -> machineOnly(target.machineId)?.let { CaptureSubject(it, ReadingKind.DAILY) to null }
                 ?: (null to MACHINE_MISSING)
-            is CaptureTarget.Changeover -> {
-                val job = request.jobId?.let { repository.job(it) } ?: return null to JOB_GONE
-                val machine = repository.machine(job.machineId) ?: return null to MACHINE_DETAILS_MISSING
-                if (repository.fieldState(tenantId, job).effectiveStatus != JobStatus.IN_PROGRESS) return null to CHANGEOVER_NOT_RUNNING
-                CaptureSubject(machine, ReadingKind.DAILY, job.id) to null
-            }
             is CaptureTarget.Correction -> {
                 val old = serverReading(tenantId, target.readingId) ?: return null to CORRECTION_NOT_SYNCED
-                if (old.state !in LIVE_STATES) return null to CORRECTION_NOT_LIVE
+                if (old.state !in LIVE_STATES || old.kind != ReadingKind.DAILY.name) return null to CORRECTION_NOT_LIVE
                 val machine = repository.machine(old.machineId) ?: return null to MACHINE_MISSING
-                val kind = runCatching { ReadingKind.valueOf(old.kind) }.getOrNull() ?: return null to CORRECTION_NOT_LIVE
-                CaptureSubject(machine, kind, old.jobId) to null
+                CaptureSubject(machine, ReadingKind.DAILY) to null
             }
         }
     }
 
     suspend operator fun invoke(request: CaptureRequest): CaptureResult {
-        val (subject, refusal) = subject(request.tenantId, CaptureTargetRef(request.jobId, request.kind, request.target))
+        val (subject, refusal) = subject(request.tenantId, CaptureTargetRef(request.kind, request.target))
         if (subject == null) return CaptureResult.Blocked(refusal ?: MACHINE_MISSING)
         val machine = subject.machine
         val target = request.target
         if (target is CaptureTarget.Correction && !AccountabilityRules.correctionReasonValid(target.reason)) {
             return CaptureResult.Blocked(AccountabilityMessages.CORRECTION_REASON)
-        }
-        if (target is CaptureTarget.Changeover) {
-            ChangeoverRules.problem(target.toCustomerId, target.toJobId, target.jobRequired)?.let { return CaptureResult.Blocked(it) }
         }
         val decision = repository.capturePolicy(request.tenantId, machine.id)
         if (decision is CapturePolicyDecision.Blocked) return CaptureResult.Blocked(decision.message)
@@ -178,7 +140,6 @@ class CaptureMeterReading(
         val ocr = request.latestOcr.takeIf { request.mode == CaptureMode.AUTOMATIC }
         val payload = MeterCaptureIn(
             id = request.captureId,
-            jobId = subject.jobId,
             kind = subject.kind.name,
             captureMode = request.mode.name,
             reading = reading,
@@ -191,9 +152,7 @@ class CaptureMeterReading(
             deviceId = deviceId(),
             capturedAt = IsoTime.format(request.capturedAtMs),
             policyVersionIds = decision.snapshot.versionIds,
-            machineId = if (subject.jobId == null) machine.id else null,
-            changeoverToCustomerId = (target as? CaptureTarget.Changeover)?.toCustomerId,
-            changeoverToJobId = (target as? CaptureTarget.Changeover)?.toJobId,
+            machineId = machine.id,
         )
         return database.inTransaction {
             if (photoFile != null && attachmentId != null) {
@@ -205,43 +164,10 @@ class CaptureMeterReading(
             }
             val attachments = listOfNotNull(attachmentId)
             val opId = when (target) {
-                CaptureTarget.Job -> {
-                    val jobId = subject.jobId!!
-                    val kind = if (subject.kind == ReadingKind.OPENING) JobOpKind.OPENING_CAPTURE else JobOpKind.CLOSING_CAPTURE
-                    val id = outbox.enqueue(
-                        request.tenantId, jobId, kind, FieldOps.captureEntityType(subject.kind), request.captureId,
-                        json.encodeToJsonElement(MeterCaptureIn.serializer(), payload).jsonObject, attachmentId,
-                    )
-                    val fix = gps as? GpsOutcome.Fix
-                    database.evidenceDao().insertCapture(
-                        MeterCaptureEntity(
-                            id = request.captureId, tenantId = request.tenantId, jobId = jobId, kind = subject.kind.name,
-                            captureMode = request.mode.name, reading = reading, ocrValue = ocr?.value, ocrRawText = ocr?.rawText,
-                            ocrConfidence = ocr?.confidence, photoAttachmentLocalId = attachmentId, gpsStatus = gps.status,
-                            latitude = fix?.latitude, longitude = fix?.longitude, accuracyM = fix?.accuracyM,
-                            gpsCapturedAt = fix?.capturedAt?.toEpochMilli(), gpsProvider = fix?.provider,
-                            capturedAt = request.capturedAtMs,
-                            policyVersionIdsJson = json.encodeToString(ListSerializer(String.serializer()), decision.snapshot.versionIds),
-                            operationId = id,
-                        ),
-                    )
-                    id
-                }
                 is CaptureTarget.Daily -> outbox.enqueueOperation(
                     request.tenantId, OpTypes.METER_CAPTURE, FieldOps.captureEntityType(ReadingKind.DAILY), request.captureId,
                     json.encodeToJsonElement(MeterCaptureIn.serializer(), payload).jsonObject, attachments,
                 )
-                is CaptureTarget.Changeover -> {
-                    val jobId = subject.jobId!!
-                    // The server refuses a changeover on a job it does not yet know as running: wait for this phone's START.
-                    val start = outbox.localJobOps(request.tenantId, jobId).filter {
-                        it.kind == JobOpKind.START && it.status in WAITING_STATES
-                    }.map { it.id }
-                    outbox.enqueueOperation(
-                        request.tenantId, OpTypes.METER_CAPTURE, FieldOps.captureEntityType(ReadingKind.DAILY), request.captureId,
-                        json.encodeToJsonElement(MeterCaptureIn.serializer(), payload).jsonObject, attachments, start, jobId,
-                    )
-                }
                 is CaptureTarget.Baseline -> outbox.enqueueOperation(
                     request.tenantId, AccountabilityOps.METER_BASELINE, FieldOps.BASELINE, request.captureId,
                     json.encodeToJsonElement(
@@ -269,8 +195,7 @@ class CaptureMeterReading(
     private suspend fun alreadySaved(request: CaptureRequest, target: CaptureTarget): Boolean {
         val dao = db().clientOperationDao()
         return when (target) {
-            CaptureTarget.Job -> dao.forJob(request.tenantId, repository.ownerSubject(), request.jobId!!).any { it.entityId == request.captureId }
-            is CaptureTarget.Daily, is CaptureTarget.Changeover -> dao.findByEntity(request.tenantId, FieldOps.captureEntityType(ReadingKind.DAILY), request.captureId) != null
+            is CaptureTarget.Daily -> dao.findByEntity(request.tenantId, FieldOps.captureEntityType(ReadingKind.DAILY), request.captureId) != null
             is CaptureTarget.Baseline -> dao.findByEntity(request.tenantId, FieldOps.BASELINE, request.captureId) != null
             is CaptureTarget.Correction -> dao.findByEntity(request.tenantId, FieldOps.CORRECTION, request.captureId) != null
         }
@@ -285,27 +210,21 @@ class CaptureMeterReading(
 
     companion object {
         const val OCR_ENGINE = "mlkit-text-latin-16.0.1/spec-${MeterReadingParser.SPEC_VERSION}"
-        const val JOB_GONE = "This job is no longer assigned to you."
-        const val MACHINE_DETAILS_MISSING = "Machine details are missing. Connect to refresh."
         const val NEEDS_SYNC = "Sync once while online before recording this."
         const val SERVER_TOO_OLD = "Your company's server does not accept this from the app yet."
         const val MACHINE_MISSING = "This machine is not on this device."
         const val CORRECTION_NOT_SYNCED = "A reading can be corrected once the server has it."
         const val CORRECTION_NOT_LIVE = "Only a reading the server still counts can be corrected."
-        const val CHANGEOVER_NOT_RUNNING = "A changeover can be recorded only while this job is running."
         private const val NOTE_MAX = 2000
         private const val REASON_MAX = 2000
 
         /** Server capture states a correction may replace (`LIVE`). */
         val LIVE_STATES = setOf("PROVISIONAL", "ACCEPTED")
-
-        /** Operations a later one must still wait for (neither acknowledged nor refused). */
-        private val WAITING_STATES = setOf(ClientOperationStatus.PENDING, ClientOperationStatus.SENT, ClientOperationStatus.QUARANTINED)
     }
 }
 
 /** The part of a [CaptureRequest] that decides what is being read (the screen resolves it when it opens). */
-data class CaptureTargetRef(val jobId: String?, val kind: ReadingKind, val target: CaptureTarget)
+data class CaptureTargetRef(val kind: ReadingKind, val target: CaptureTarget)
 
 /** Wire form of the GPS attempt: coordinates only for a real FIX. */
 fun GpsOutcome.toWire(): GpsIn = when (this) {

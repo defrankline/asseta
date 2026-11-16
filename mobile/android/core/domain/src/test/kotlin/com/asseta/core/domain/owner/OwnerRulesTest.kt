@@ -100,7 +100,6 @@ class MutationGateTest {
     fun `ADR-008 owner actions need their permission, online live data and a writable company`() {
         assertEquals("tenant.machine_report.approve", OwnerAction.DECIDE_MACHINE_REPORT.permission)
         assertEquals("tenant.hours.credit_activate", OwnerAction.ACTIVATE_CREDIT.permission)
-        assertEquals("tenant.hours.cancel", OwnerAction.REQUEST_HOURS_CANCELLATION.permission)
         assertEquals("tenant.hours.invoice_payment", OwnerAction.RECORD_INVOICE_PAYMENT.permission)
         val approve = setOf("tenant.machine_report.approve")
         val a = OwnerAction.DECIDE_MACHINE_REPORT
@@ -112,7 +111,7 @@ class MutationGateTest {
     }
 
     @Test
-    fun `job links and machine report links resolve`() {
+    fun `machine report links resolve`() {
         val id = "11111111-1111-4111-8111-111111111111"
         assertEquals(OwnerDestination.MachineReport(id), DeepLinkRouter.fromTarget("machine_report", id, null))
         assertEquals(OwnerDestination.Approvals(), DeepLinkRouter.fromTarget("machine_report", null, null))

@@ -40,32 +40,22 @@ data class PolicySnapshotDto(
 
 @Serializable
 data class SyncData(
-    val jobs: List<JobDto> = emptyList(),
     val machines: List<MachineDto> = emptyList(),
     val sites: List<JobSiteDto> = emptyList(),
     val customers: List<CustomerDto> = emptyList(),
-    val contracts: List<ContractDto> = emptyList(),
     val staff: List<StaffDto> = emptyList(),
     @SerialName("expense_categories") val expenseCategories: List<ExpenseCategoryDto> = emptyList(),
-    /** SYNC_CHANGEOVER_JOBS: jobs a changeover can name on my machines; a delta may carry one that no longer applies (see its status). */
-    @SerialName("changeover_jobs") val changeoverJobs: List<SyncChangeoverJobDto> = emptyList(),
-    /** SYNC_UNBILLABLE_REASONS: the tenant's list for daily reports; deltas carry deactivations. */
-    @SerialName("unbillable_reasons") val unbillableReasons: List<SyncUnbillableReasonDto> = emptyList(),
     /** Null when the server did not send the field (older server): the stored custody is then left untouched. */
     @SerialName("cash_custody") val cashCustody: List<CashCustodyBalanceDto>? = null,
     // Supervisor inbox (SUPERVISOR_INBOX_V1). Null when the server did not send the field (older server): nothing changes.
     @SerialName("my_meter_captures") val myMeterCaptures: List<SyncMeterCaptureDto>? = null,
     @SerialName("my_meter_resets") val myMeterResets: List<SyncMeterResetDto>? = null,
-    @SerialName("my_job_activities") val myJobActivities: List<SyncJobActivityDto>? = null,
-    @SerialName("my_acknowledgements") val myAcknowledgements: List<SyncAcknowledgementDto>? = null,
     @SerialName("my_expenses") val myExpenses: List<SyncExpenseDto>? = null,
     @SerialName("my_fuel_events") val myFuelEvents: List<SyncFuelEventDto>? = null,
     @SerialName("my_cash_collections") val myCashCollections: List<SyncCashCollectionDto>? = null,
     @SerialName("my_cash_handovers") val myCashHandovers: List<SyncCashHandoverDto>? = null,
     /** Company deposit accounts (REMITTANCE_DETAILS_V1), by sync revision; deactivations arrive with is_active=false. */
     @SerialName("deposit_accounts") val depositAccounts: List<SyncDepositAccountDto>? = null,
-    /** SYNC_OPEN_INVOICES: a full snapshot on every pull (invoices carry no revision), so the local set is replaced. */
-    @SerialName("open_invoices") val openInvoices: List<SyncOpenInvoiceDto> = emptyList(),
     /** OP_PETTY_CASH (DEC-033): full snapshots on every pull, so each local set is replaced. */
     @SerialName("petty_cash_funds") val pettyCashFunds: List<PettyCashFundDto> = emptyList(),
     @SerialName("petty_cash_awaiting") val pettyCashAwaiting: List<PettyCashMovementDto> = emptyList(),
@@ -84,21 +74,6 @@ data class SyncData(
     @SerialName("my_machine_reports") val myMachineReports: List<MachineReportDto> = emptyList(),
     /** OP_CREDIT_INVOICE_PAYMENT: credit invoices with a balance, oldest due first (full snapshot). */
     @SerialName("open_credit_invoices") val openCreditInvoices: List<CreditInvoiceDto> = emptyList(),
-)
-
-/** `SyncOpenInvoiceDto`: an issued invoice with money still owed, so a collection can name it. */
-@Serializable
-data class SyncOpenInvoiceDto(
-    val id: String,
-    @SerialName("invoice_number") val invoiceNumber: String,
-    @SerialName("customer_id") val customerId: String,
-    @SerialName("customer_name") val customerName: String,
-    val currency: String,
-    val total: String,
-    val paid: String,
-    val balance: String,
-    @SerialName("due_date") val dueDate: String?,
-    @SerialName("issued_at") val issuedAt: String,
 )
 
 /** `SyncDepositAccountDto`: a company account remittances are paid into (account number masked by the server). */
@@ -198,9 +173,6 @@ data class BlobSessionDto(
 
 object OpTypes {
     const val METER_CAPTURE = "METER_CAPTURE"
-    const val JOB_ACTIVITY = "JOB_ACTIVITY"
-    const val JOB_ACKNOWLEDGEMENT = "JOB_ACKNOWLEDGEMENT"
-    const val JOB_TRANSITION = "JOB_TRANSITION"
     const val EXPENSE = "EXPENSE"
     const val CASH_COLLECTION = "CASH_COLLECTION"
     const val CASH_HANDOVER = "CASH_HANDOVER"
@@ -208,23 +180,16 @@ object OpTypes {
 
     /** Needs the server capability [SyncCapabilities.OP_METER_RESET_REQUEST]. */
     const val METER_RESET_REQUEST = "METER_RESET_REQUEST"
-
-    /** A supervisor's job request from the field (owner approval; permission tenant.job.request). */
-    const val JOB_REQUEST = "JOB_REQUEST"
 }
 
 object BlobPurpose {
     const val METER_PHOTO = "METER_PHOTO"
-    const val SIGNATURE = "SIGNATURE"
     const val EXPENSE_RECEIPT = "EXPENSE_RECEIPT"
     const val RESET_EVIDENCE = "RESET_EVIDENCE"
     const val PAYMENT_EVIDENCE = "PAYMENT_EVIDENCE"
 
     /** Deposit slip / payment confirmation of a remittance (CASH_HANDOVER `evidence_upload_ids`). */
     const val REMITTANCE_EVIDENCE = "REMITTANCE_EVIDENCE"
-
-    /** Photos of a daily operational report (`DAILY_REPORT` `evidence_upload_ids`). */
-    const val DAILY_REPORT_EVIDENCE = "DAILY_REPORT_EVIDENCE"
 
     /** Evidence of an hours transfer request (`HOURS_TRANSFER_REQUEST` `evidence_upload_ids`, CASH_DETAILS_V2). */
     const val ADJUSTMENT_EVIDENCE = "ADJUSTMENT_EVIDENCE"

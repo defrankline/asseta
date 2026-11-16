@@ -1,8 +1,6 @@
 package com.asseta.core.sync.data
 
 import com.asseta.core.model.sync.SyncCapabilities
-import com.asseta.core.model.sync.SyncChangeoverJobDto
-import com.asseta.core.model.sync.SyncUnbillableReasonDto
 import kotlinx.coroutines.flow.first
 import com.asseta.core.database.AssetaDatabase
 import com.asseta.core.database.CashCustodyBalanceEntity
@@ -15,7 +13,6 @@ import com.asseta.core.domain.accountability.HoursPriceBook
 import com.asseta.core.domain.accountability.HoursPricing
 import com.asseta.core.model.sync.CustomerDiscountRateDto
 import com.asseta.core.model.sync.HoursPriceDto
-import com.asseta.core.domain.accountability.LinkableInvoice
 import com.asseta.core.domain.accountability.UnsyncedPurchase
 import com.asseta.core.domain.finance.CustodyBalance
 import com.asseta.core.domain.finance.CustodyLine
@@ -27,11 +24,9 @@ import com.asseta.core.domain.finance.PendingCashItem
 import com.asseta.core.domain.finance.PendingCashKind
 import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.model.sync.AccountabilityOps
-import com.asseta.core.model.sync.ContractDto
 import com.asseta.core.model.sync.CustomerDto
 import com.asseta.core.model.sync.OpTypes
 import com.asseta.core.model.sync.SyncDepositAccountDto
-import com.asseta.core.model.sync.SyncOpenInvoiceDto
 import com.asseta.core.sync.SyncClock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -117,13 +112,6 @@ class FinanceRepository(
             }
         }
 
-    /** Open invoices of the last pull (SYNC_OPEN_INVOICES), for the "Pays for" picker. */
-    fun observeOpenInvoices(tenantId: String): Flow<List<LinkableInvoice>> =
-        db().fieldDataDao().observeReferences(tenantId, ServerDataWriter.KIND_OPEN_INVOICE).map { rows ->
-            rows.mapNotNull { runCatching { json.decodeFromString(SyncOpenInvoiceDto.serializer(), it.json) }.getOrNull() }
-                .map { LinkableInvoice(it.id, it.invoiceNumber, it.customerId, it.currency, it.balance) }
-        }
-
     suspend fun depositAccount(id: String): DepositAccountOption? =
         db().fieldDataDao().reference(ServerDataWriter.KIND_DEPOSIT_ACCOUNT, id)
             ?.let { runCatching { json.decodeFromString(SyncDepositAccountDto.serializer(), it.json) }.getOrNull() }
@@ -133,29 +121,6 @@ class FinanceRepository(
         db().fieldDataDao().reference(ServerDataWriter.KIND_CUSTOMER, id)
             ?.let { runCatching { json.decodeFromString(CustomerDto.serializer(), it.json) }.getOrNull() }
             ?.takeIf { it.isActive }
-
-    /** The customer of a job's contract, when the contract was synced. */
-    suspend fun customerOfContract(contractId: String): String? =
-        db().fieldDataDao().reference(ServerDataWriter.KIND_CONTRACT, contractId)
-            ?.let { runCatching { json.decodeFromString(ContractDto.serializer(), it.json) }.getOrNull() }
-            ?.customerId
-
-    private suspend fun announced(tenantId: String, capability: String) = db().syncStateDao().get(tenantId)?.supports(capability) == true
-
-    /** Jobs a changeover can name, as sync delivered them; null while the server does not announce the list. */
-    suspend fun changeoverJobs(tenantId: String): List<SyncChangeoverJobDto>? {
-        if (!announced(tenantId, SyncCapabilities.SYNC_CHANGEOVER_JOBS)) return null
-        return db().fieldDataDao().observeReferences(tenantId, ServerDataWriter.KIND_CHANGEOVER_JOB).first()
-            .mapNotNull { runCatching { json.decodeFromString(SyncChangeoverJobDto.serializer(), it.json) }.getOrNull() }
-    }
-
-    /** Active unbillable reasons by name, as sync delivered them; null while the server does not announce the list. */
-    suspend fun unbillableReasons(tenantId: String): List<SyncUnbillableReasonDto>? {
-        if (!announced(tenantId, SyncCapabilities.SYNC_UNBILLABLE_REASONS)) return null
-        return db().fieldDataDao().observeReferences(tenantId, ServerDataWriter.KIND_UNBILLABLE_REASON).first()
-            .mapNotNull { runCatching { json.decodeFromString(SyncUnbillableReasonDto.serializer(), it.json) }.getOrNull() }
-            .filter { it.isActive }.sortedBy { it.name.lowercase() }
-    }
 
     /** Machine rates and customer discounts of the last pull (SYNC_HOURS_PRICES), for the hours sale total offline. */
     fun observeHoursPrices(tenantId: String): Flow<HoursPriceBook> {
@@ -180,16 +145,13 @@ class FinanceRepository(
     fun observeMachines(tenantId: String): Flow<List<MachineEntity>> =
         db().fieldDataDao().observeMachines(tenantId).map { list -> list.sortedBy { it.assetCode } }
 
-    fun observeJobs(tenantId: String): Flow<List<JobSummary>> = field.observeJobs(tenantId)
-
     /** Tenant `EXPENSE_CAPTURE` snapshot; blocked when missing, expired or past the offline grant. */
     suspend fun expensePolicy(tenantId: String): ExpensePolicyDecision =
         ExpensePolicySelector.select(field.policySnapshots(tenantId), Instant.ofEpochMilli(clock.nowMs()), field.offlineGrant(tenantId))
 
-    /** Best local knowledge of the tenant currency (custody currency, else the jobs' currency); null when unknown. */
+    /** Best local knowledge of the tenant currency (the custody currency); null when unknown. */
     suspend fun baseCurrency(tenantId: String): String? = CustodySummary.baseCurrencyHint(
         db().financeDataDao().custody(tenantId).map { it.currency },
-        db().fieldDataDao().jobCurrencies(tenantId),
     )
 
     fun observeRecords(tenantId: String): Flow<List<FinanceRecord>> =

@@ -52,7 +52,7 @@ class InboxSyncTest : SyncTestBase() {
     }
 
     private fun captureRow(id: String, revision: Long, findingStatus: String?) = buildJsonObject {
-        put("id", id); put("job_id", fake.jobId); put("machine_id", fake.machineId); put("kind", "OPENING"); put("capture_mode", "AUTOMATIC")
+        put("id", id); put("machine_id", fake.machineId); put("kind", "DAILY"); put("capture_mode", "AUTOMATIC")
         put("reading", "1234.5"); put("state", "PROVISIONAL"); put("gps_status", "FIX"); put("latitude", -15.4); put("longitude", 28.3)
         put("accuracy_m", 8.0); put("location_captured_at", "2026-10-21T08:00:00Z"); put("photo_attachment_id", null as String?)
         put("photo_sha256", null as String?); put("ocr_value", "1234.5"); put("ocr_confidence", 0.95); put("manually_corrected", false)
@@ -62,7 +62,7 @@ class InboxSyncTest : SyncTestBase() {
         put("findings", buildJsonArray {
             if (findingStatus != null) add(buildJsonObject {
                 put("id", "f-$id"); put("exception_type", "METER_DECREASE"); put("severity", "HIGH"); put("blocking", true)
-                put("status", findingStatus); put("machine_id", fake.machineId); put("job_id", fake.jobId); put("meter_capture_id", id)
+                put("status", findingStatus); put("machine_id", fake.machineId); put("meter_capture_id", id)
                 put("policy_version", null as String?); put("review_note", if (findingStatus == "OPEN") null else "Meter was replaced")
                 put("reviewed_at", null as String?); put("created_at", "2026-10-21T08:01:00Z"); put("evidence", JsonObject(emptyMap()))
             })
@@ -122,7 +122,7 @@ class InboxSyncTest : SyncTestBase() {
         success(engine().sync(tenant))
         var reading = inbox.observe(tenant).first().readings.single()
         assertEquals(InboxStatus.FLAGGED, reading.status)
-        assertNotNull(reading.local) // local evidence (photo) stays attached to the server's copy
+        assertNotNull(reading.op) // this phone's operation stays attached to the server's copy
         assertEquals(1, reading.blockingFindings)
 
         fake.inbox = mapOf("my_meter_captures" to listOf(captureRow(local.captureId, 31, "EXPLAINED")))
@@ -130,7 +130,7 @@ class InboxSyncTest : SyncTestBase() {
         reading = inbox.observe(tenant).first().readings.single()
         assertEquals(InboxStatus.REVIEWED, reading.status)
         assertEquals("Meter was replaced", reading.findings.single().reviewNote)
-        assertEquals("1234.5", inbox.observe(tenant).first().jobReading(fake.jobId, "OPENING")?.reading)
+        assertEquals("1234.5", inbox.observe(tenant).first().latestReadingByMachine()[fake.machineId]?.reading)
     }
 
     @Test
@@ -193,14 +193,14 @@ class InboxSyncTest : SyncTestBase() {
 
     @Test
     fun bootstrapStartsTheInboxAfreshAndOldFinishedRecordsArePruned() = runBlocking {
-        db.inboxDao().upsert(listOf(InboxRecordEntity(InboxRecordEntity.EXPENSE, "gone", tenant, null, null, null, "APPROVED", 1, 1, "{}")))
+        db.inboxDao().upsert(listOf(InboxRecordEntity(InboxRecordEntity.EXPENSE, "gone", tenant, null, null, "APPROVED", 1, 1, "{}")))
         success(engine().sync(tenant)) // bootstrap with SUPERVISOR_INBOX_V1
         assertEquals(0, db.inboxDao().count(tenant))
         val old = clock.now - 40L * 24 * 3600 * 1000
         db.inboxDao().upsert(
             listOf(
-                InboxRecordEntity(InboxRecordEntity.EXPENSE, "old-done", tenant, null, null, null, "APPROVED", old, 1, "{}"),
-                InboxRecordEntity(InboxRecordEntity.EXPENSE, "old-open", tenant, null, null, null, "PENDING_APPROVAL", old, 1, "{}"),
+                InboxRecordEntity(InboxRecordEntity.EXPENSE, "old-done", tenant, null, null, "APPROVED", old, 1, "{}"),
+                InboxRecordEntity(InboxRecordEntity.EXPENSE, "old-open", tenant, null, null, "PENDING_APPROVAL", old, 1, "{}"),
             ),
         )
         fake.inbox = mapOf("my_expenses" to emptyList())

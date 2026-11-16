@@ -32,7 +32,7 @@ class ManagementViewOwnerTest {
     private val id = "11111111-1111-4111-8111-111111111111"
     private val all = OwnerFeatures(
         setOf(
-            "tenant.finance.read", "tenant.finance.verify", "tenant.hours.read", "tenant.meter.read", "tenant.fleet.read", "tenant.job.read", "tenant.case.read",
+            "tenant.finance.read", "tenant.finance.verify", "tenant.hours.read", "tenant.meter.read", "tenant.fleet.read", "tenant.case.read",
             "tenant.accountability.read", "tenant.accountability.employee.read", "tenant.lookup.read", "tenant.approval.read", "tenant.adjustment.read",
         ),
     )
@@ -60,7 +60,7 @@ class ManagementViewOwnerTest {
         assertEquals(OwnerDestination.HoursStatement(id), app("/tenant/hours/balances?customer_id=$id"))
         assertEquals(OwnerDestination.Cash, app("/tenant/finance/cash"))
         assertEquals(OwnerDestination.RemittanceOverdue(), app("/tenant/finance/cash/remittance-overdue?local_day=2026-11-09"))
-        assertEquals(OwnerDestination.Exceptions(), app("/tenant/exceptions?status=OPEN&exception_type=METER_DECREASE"))
+        assertEquals(OwnerDestination.Exceptions, app("/tenant/exceptions?status=OPEN&exception_type=METER_DECREASE"))
         assertEquals(OwnerDestination.Cases, app("/tenant/cases?closure_proposed=true"))
         assertEquals(OwnerDestination.Approvals(), app("/tenant/accountability/pending-adjustments"))
         assertEquals(OwnerDestination.Approvals(), app("/tenant/hours/transfers?status=PENDING"))
@@ -88,10 +88,10 @@ class ManagementViewOwnerTest {
     }
 
     @Test
-    fun `revenue differences open Approvals only while waiting`() {
-        assertEquals(OwnerDestination.Approvals(), app("/tenant/revenue-differences"))
-        assertEquals(OwnerDestination.Approvals(), app("/tenant/revenue-differences?status=EXPLANATION_PROPOSED"))
-        assertEquals("https://example.test/tenant/revenue-differences?status=RESOLVED", webOf("/tenant/revenue-differences?status=RESOLVED"))
+    fun `daily reports open Approvals only while waiting`() {
+        assertEquals(OwnerDestination.Approvals(), app("/tenant/daily-reports?status=SUBMITTED"))
+        // ADR-008: revenue differences are gone; an old link opens the web.
+        assertEquals("https://example.test/tenant/revenue-differences", webOf("/tenant/revenue-differences"))
     }
 
     @Test
@@ -117,7 +117,7 @@ class ManagementViewOwnerTest {
     @Test
     fun `excavator rows open the daily sheet, else the machine`() {
         val r = ManagementLinks.excavatorTarget(id, "/tenant/work-allocations?machine_id=$id", all, web)
-        assertEquals(FigureTarget.App(OwnerDestination.DailySheet(id)), r)
+        assertEquals(FigureTarget.App(OwnerDestination.MachineDays(id)), r)
         val fleet = OwnerFeatures(setOf("tenant.fleet.read"))
         assertEquals(FigureTarget.App(OwnerDestination.Machine(id)), ManagementLinks.excavatorTarget(id, "/tenant/x", fleet, web))
     }
@@ -188,11 +188,10 @@ class ManagementViewOwnerTest {
     }
 
     @Test
-    fun `changeover rows and approval kinds open their records`() {
+    fun `approval kinds open their records and changeover rows are gone`() {
         val s = summary(exceptionsSection)
-        // ADR-008: a changeover job opens on the web (no job screen in the app).
-        assertTrue(row("exceptions_section", "changeover-$id", s).target is FigureTarget.Web)
-        assertEquals("Oldest 5 days", row("exceptions_section", "changeover", s).caption)
+        // ADR-008: changeover jobs are gone even when an older server still sends them.
+        assertTrue(presentation().groups(s).flatMap { it.rows }.none { it.key.startsWith("changeover") })
         val kind = row("exceptions_section", "approval-hours_transfers", s)
         assertEquals("Hours transfers", kind.label)
         assertEquals(FigureTarget.App(OwnerDestination.Approvals()), kind.target)
@@ -256,7 +255,6 @@ class ManagementViewOwnerTest {
         val short = id.take(8)
         assertEquals(short, row("hours_section", "customer-$id", nameless).label)
         assertEquals(short, row("cash_section", "held-$id-TZS", nameless).label)
-        assertEquals(ManagementTexts.changeoverRow(short, short, short), row("exceptions_section", "changeover-$id", nameless).label)
         assertFalse(presentation().groups(nameless).flatMap { it.rows }.any { id in it.label })
     }
 

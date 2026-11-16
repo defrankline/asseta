@@ -30,7 +30,6 @@ import com.asseta.core.domain.finance.DecimalLimit
 import com.asseta.core.domain.finance.FormCheck
 import com.asseta.core.domain.finance.FuelEventType
 import com.asseta.core.domain.finance.formatMoney
-import com.asseta.core.sync.data.JobSummary
 import com.asseta.core.sync.usecase.CashCollectionRequest
 import com.asseta.core.sync.usecase.CashHandoverRequest
 import com.asseta.core.sync.usecase.FinanceResult
@@ -50,7 +49,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -63,7 +61,6 @@ private val T = FieldAccountabilityTexts
 data class CashForm(
     val kind: String = "", // COLLECTION | HANDOVER | FUEL
     val customerId: String? = null,
-    val jobId: String? = null,
     val machineId: String? = null,
     val fuelType: FuelEventType? = FuelEventType.ISSUE,
     val amount: String = "",
@@ -83,8 +80,6 @@ data class CashForm(
     val photos: List<CapturedPhoto> = emptyList(),
     /** The purchase this collection pays for (id, or an unsynced purchase's client id). */
     val purchaseId: String? = null,
-    /** The open invoice this collection pays (either this or [purchaseId]). */
-    val invoiceId: String? = null,
     /** Why part of the balance stays with the holder (DEC-032, full-remittance policy). */
     val partialReason: String = "",
     val partialReasonId: String? = null,
@@ -124,20 +119,7 @@ object RemittanceForm {
 
     /** What the collection form may not save yet about its link (empty = fine). */
     fun linkIssue(access: RemittanceAccess, form: CashForm): String? =
-        T.COLLECTION_LINK_REQUIRED.takeIf { access.linkRequired && form.purchaseId == null && form.invoiceId == null }
-
-    /** Choosing a "Pays for" row sets the purchase or the invoice, never both. */
-    fun selectLink(form: CashForm, id: String?, links: List<CollectionLinkOption>): CashForm {
-        val invoice = links.firstOrNull { it.id == id }?.isInvoice == true
-        return form.copy(purchaseId = id.takeIf { !invoice }, invoiceId = id.takeIf { invoice })
-    }
-
-    /** Which "Pays for" footer applies to the row chosen. */
-    fun linkFooter(form: CashForm): String = if (form.invoiceId != null) T.COLLECTION_INVOICE_FOOTER else T.COLLECTION_LINK_FOOTER
-
-    /** A chosen invoice leaves when the options no longer list it (currency changed, paid off at the last pull). */
-    fun dropMissingInvoice(form: CashForm, links: List<CollectionLinkOption>): CashForm =
-        if (form.invoiceId != null && links.none { it.id == form.invoiceId }) form.copy(invoiceId = null) else form
+        T.COLLECTION_LINK_REQUIRED.takeIf { access.linkRequired && form.purchaseId == null }
 
     /** Valid when the reason is optional and left empty, or at least 3 characters. */
     fun partialReasonOk(mode: PartialReasonMode, reason: String): Boolean =
@@ -179,8 +161,6 @@ data class RemittanceAccess(
     val linkOffered: Boolean = false,
     val linkRequired: Boolean = false,
     val partial: Boolean = false,
-    /** "Pays for" also lists open invoices (SYNC_OPEN_INVOICES). */
-    val openInvoices: Boolean = false,
 )
 
 /** Collection, handover and fuel forms share one view model; the client id is generated once per visit. */
@@ -197,8 +177,6 @@ class CashFormViewModel(
 
     val customers: StateFlow<List<PickerOption>> = repo.observeCustomers(tenantId)
         .map { list -> list.map { PickerOption(it.id, it.name, it.code, it.contactName) } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-    val jobs: StateFlow<List<JobSummary>> = repo.observeJobs(tenantId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val machines: StateFlow<List<PickerOption>> = repo.observeMachines(tenantId)
         .map { list -> list.map { PickerOption(it.id, it.assetCode, it.name) } }
@@ -217,15 +195,12 @@ class CashFormViewModel(
 
     /** "Pays for" options of the chosen customer: cached open purchases and this phone's unsynced ones. */
     val purchaseLinks: StateFlow<List<CollectionLinkOption>> = combine(
-        field.accountability.cache, repo.observeUnsyncedPurchases(tenantId), repo.observeOpenInvoices(tenantId),
-        remittance.map { it.openInvoices }.distinctUntilChanged(), form.map { it.customerId to it.currency }.distinctUntilChanged(),
-    ) { cache, unsynced, invoices, invoicesOn, (customer, currency) ->
+        field.accountability.cache, repo.observeUnsyncedPurchases(tenantId), form.map { it.customerId }.distinctUntilChanged(),
+    ) { cache, unsynced, customer ->
         CollectionLinks.options(
             customer, cache.purchases.map { LinkablePurchase(it.id, it.purchaseNumber, it.customerId, it.status, it.totals.remaining, it.clientId) }, unsynced,
-            if (invoicesOn) invoices else emptyList(), currency,
         )
-    }.onEach { links -> form.update { RemittanceForm.dropMissingInvoice(it, links) } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** The tenant's reasons for leaving part of the balance (cached on the phone). */
     val partialReasons: StateFlow<List<PickerOption>> = field.accountability.cache.map { c -> c.partialReasons.map { PickerOption(it.id, it.label, it.description) } }
@@ -241,7 +216,7 @@ class CashFormViewModel(
             me.value = field.accountability.myStaffId(tenantId)
             val access = field.accountability.access(tenantId, permissions)
             remittance.value = RemittanceAccess(access.remittanceDetails, access.remittanceRequirements, access.depositAccounts,
-                access.collectionLink, access.collectionLinkRequired, access.partialReason, access.openInvoices)
+                access.collectionLink, access.collectionLinkRequired, access.partialReason)
             if (access.recordForOthers) {
                 holders.value = com.asseta.supervisor.ui.accountability.custodianOptions(field.accountability.cache.value.custodians, me.value)
             }
@@ -258,20 +233,11 @@ class CashFormViewModel(
     }
 
     /** Choosing another customer drops a purchase of the previous one. */
-    fun selectCustomer(id: String?) = edit { it.copy(customerId = id, purchaseId = null, invoiceId = null) }
+    fun selectCustomer(id: String?) = edit { it.copy(customerId = id, purchaseId = null) }
 
     fun edit(change: (CashForm) -> CashForm) {
         form.update(change)
         save.update { it.copy(messages = emptyList()) }
-    }
-
-    /** A job pre-selects its contract's customer (collection) or its machine (fuel). */
-    fun selectJob(jobId: String?) = viewModelScope.launch {
-        val job = jobs.value.firstOrNull { it.job.id == jobId }?.job
-        val customer = job?.let { repo.customerOfContract(it.contractId) }
-        edit { it.copy(jobId = jobId, customerId = customer ?: it.customerId, machineId = job?.machineId ?: it.machineId,
-            purchaseId = it.purchaseId.takeIf { _ -> customer == null || customer == it.customerId },
-            invoiceId = it.invoiceId.takeIf { _ -> customer == null || customer == it.customerId }) }
     }
 
     fun save() {
@@ -282,10 +248,9 @@ class CashFormViewModel(
             val at = f.atMs.coerceAtMost(field.clock.nowMs())
             val result: FinanceResult = when (f.kind) {
                 COLLECTION -> field.finance.cashCollection(
-                    CashCollectionRequest(tenantId, clientId, f.customerId, f.jobId, f.amount, f.currency, f.reference, f.note, at, holder(),
+                    CashCollectionRequest(tenantId, clientId, f.customerId, f.amount, f.currency, f.reference, f.note, at, holder(),
                         purchaseId = f.purchaseId, purchaseOperationId = purchaseLinks.value.firstOrNull { it.id == f.purchaseId }?.operationId,
-                        linkRequired = remittance.value.linkRequired, invoiceId = f.invoiceId,
-                        invoiceBalance = purchaseLinks.value.firstOrNull { it.id == f.invoiceId }?.invoiceBalance),
+                        linkRequired = remittance.value.linkRequired),
                 )
                 HANDOVER -> {
                     val r = remittance.value
@@ -299,7 +264,7 @@ class CashFormViewModel(
                     )
                 }
                 else -> field.finance.fuelEvent(
-                    FuelEventRequest(tenantId, clientId, f.fuelType, f.amount, f.unitPrice, f.currency, f.machineId, f.jobId,
+                    FuelEventRequest(tenantId, clientId, f.fuelType, f.amount, f.unitPrice, f.currency, f.machineId,
                         f.meter, if (f.fuelType == FuelEventType.PURCHASE) f.supplier else "", f.note, at),
                 )
             }
@@ -321,7 +286,6 @@ fun CashFormScreen(vm: CashFormViewModel, onDone: () -> Unit) {
     val form by vm.form.collectAsStateWithLifecycle()
     val save by vm.save.collectAsStateWithLifecycle()
     val customers by vm.customers.collectAsStateWithLifecycle()
-    val jobs by vm.jobs.collectAsStateWithLifecycle()
     val machines by vm.machines.collectAsStateWithLifecycle()
     val custody by vm.custody.collectAsStateWithLifecycle()
     val holders by vm.holders.collectAsStateWithLifecycle()
@@ -343,15 +307,14 @@ fun CashFormScreen(vm: CashFormViewModel, onDone: () -> Unit) {
         when (form.kind) {
             CashFormViewModel.COLLECTION -> {
                 Section(null) {
-                    SearchablePickerField("Job (optional)", jobOptions(jobs), form.jobId, { vm.selectJob(it) }, noneLabel = "No job", enabled = editable)
                     SearchablePickerField("Customer", customers, form.customerId, { id -> vm.selectCustomer(id) },
-                        emptyText = "Customers of your jobs appear here after a sync.", enabled = editable)
+                        emptyText = "Customers appear here after a sync.", enabled = editable)
                     holderPicker()
                     if (remittance.linkOffered) {
-                        SearchablePickerField(if (remittance.linkRequired) T.COLLECTION_LINK else T.COLLECTION_LINK_OPTIONAL, RemittanceForm.linkOptions(links), form.purchaseId ?: form.invoiceId,
-                            { id -> vm.edit { RemittanceForm.selectLink(it, id, links) } }, noneLabel = T.COLLECTION_LINK_NONE.takeIf { !remittance.linkRequired },
-                            emptyText = if (remittance.openInvoices) T.COLLECTION_LINK_EMPTY_ALL else T.COLLECTION_LINK_EMPTY, enabled = editable)
-                        Text(RemittanceForm.linkFooter(form), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        SearchablePickerField(if (remittance.linkRequired) T.COLLECTION_LINK else T.COLLECTION_LINK_OPTIONAL, RemittanceForm.linkOptions(links), form.purchaseId,
+                            { id -> vm.edit { it.copy(purchaseId = id) } }, noneLabel = T.COLLECTION_LINK_NONE.takeIf { !remittance.linkRequired },
+                            emptyText = T.COLLECTION_LINK_EMPTY, enabled = editable)
+                        Text(T.COLLECTION_LINK_FOOTER, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 Section(null, footer = "The cash is added to your custody once the server accepts it. The office verifies it later.") {
@@ -416,7 +379,7 @@ fun CashFormScreen(vm: CashFormViewModel, onDone: () -> Unit) {
                 if (!partialOk && save.messages.isEmpty() && form.amount.isNotEmpty()) Section(null) { Text(T.HANDOVER_PARTIAL_ERROR, color = WarningColor) }
                 SaveSection(save, vm::save, onDone, enabled = form.amount.isNotEmpty() && issues.isEmpty() && partialOk)
             }
-            else -> FuelFields(vm, form, save, jobOptions(jobs), machines, editable, now, onDone)
+            else -> FuelFields(vm, form, save, machines, editable, now, onDone)
         }
     }
 }
@@ -426,7 +389,6 @@ private fun FuelFields(
     vm: CashFormViewModel,
     form: CashForm,
     save: SaveState,
-    jobOptions: List<PickerOption>,
     machines: List<PickerOption>,
     editable: Boolean,
     now: Long,
@@ -448,10 +410,9 @@ private fun FuelFields(
         DateTimeField("When", form.atMs, { v -> vm.edit { it.copy(atMs = v) } }, editable, notAfter = now)
     }
     Section("Machine") {
-        SearchablePickerField("Job", jobOptions, form.jobId, { vm.selectJob(it) }, noneLabel = "No job", enabled = editable)
         SearchablePickerField(
             "Machine", machines, form.machineId, { id -> vm.edit { it.copy(machineId = id) } },
-            noneLabel = if (form.fuelType == FuelEventType.PURCHASE) "No machine (stock)" else null, enabled = editable && form.jobId == null,
+            noneLabel = if (form.fuelType == FuelEventType.PURCHASE) "No machine (stock)" else null, enabled = editable,
         )
         DecimalField("Meter reading (optional)", form.meter, { v -> vm.edit { it.copy(meter = v) } }, editable)
     }

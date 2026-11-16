@@ -36,7 +36,6 @@ data class OverviewSection(
  */
 object OverviewPresentation {
     const val NO_SECTIONS = "Your role has no dashboard sections in this company."
-    val JOB_STATUS_ORDER = listOf("IN_PROGRESS", "APPROVED", "PENDING_APPROVAL", "DRAFT", "COMPLETED", "CANCELLED")
 
     fun asOf(o: TenantOverviewDto): String = "Figures as of ${OwnerFormat.dateTime(o.asOf, OwnerFormat.zone(o.timezone))} (${o.timezone})"
 
@@ -75,7 +74,7 @@ object OverviewPresentation {
                 f.reportedWorkState.toSortedMap().map { (k, v) -> OverviewRow("Reported ${OwnerFormat.humanize(k).lowercase()}", "$v") } + alertRows
             OverviewSection("Fleet", freshnessLine(f.latestSourceAt, nowMs), listOf(OverviewGroup(null, rows)), listOf(OverviewAction("Open fleet map", OwnerDestination.Fleet)))
         },
-        // ADR-008: jobs are gone, so no job counts; the approvals and readings figures stay.
+        // The approvals and readings figures (ADR-008: machine reports have their own screens).
         o.work?.let { w ->
             val rows = listOfNotNull(
                 w.pendingApprovals?.let {
@@ -83,7 +82,7 @@ object OverviewPresentation {
                 },
                 w.readingsNeedingReview?.let { OverviewRow("Readings needing review", "$it") },
                 w.openExceptions?.let {
-                    OverviewRow("Open meter exceptions", "$it", tone = if (it > 0) KpiTone.WARNING else KpiTone.NORMAL, target = OwnerDestination.Exceptions())
+                    OverviewRow("Open meter exceptions", "$it", tone = if (it > 0) KpiTone.WARNING else KpiTone.NORMAL, target = OwnerDestination.Exceptions)
                 },
             )
             OverviewSection("Approvals and readings", freshnessLine(w.latestSourceAt, nowMs), listOf(OverviewGroup(null, rows)))

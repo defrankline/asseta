@@ -76,25 +76,4 @@ class SyncRulesTest {
         assertEquals(ClockStatus.Unknown, ClockCheck.evaluate(anchor, 1_000_000_000L, 10_000L)) // rebooted
     }
 
-    @Test
-    fun jobDependencyChain() {
-        fun op(id: String, kind: JobOpKind, t: Long, s: ClientOperationStatus = PENDING) = LocalJobOp(id, kind, s, t)
-        val P = JobOperationPlanner
-        assertEquals(emptyList<String>(), P.dependenciesFor(JobOpKind.OPENING_CAPTURE, emptyList()))
-        val ops = mutableListOf(op("open1", JobOpKind.OPENING_CAPTURE, 1, CONFLICT), op("open2", JobOpKind.OPENING_CAPTURE, 2))
-        assertEquals(listOf("open2"), P.dependenciesFor(JobOpKind.START, ops)) // rejected/conflicted capture is not a parent
-        ops += op("start", JobOpKind.START, 3)
-        assertEquals(listOf("start"), P.dependenciesFor(JobOpKind.ACTIVITY, ops))
-        assertEquals(listOf("start"), P.dependenciesFor(JobOpKind.CLOSING_CAPTURE, ops))
-        ops += op("act1", JobOpKind.ACTIVITY, 4)
-        ops += op("act2", JobOpKind.ACTIVITY, 5, ACKED)
-        ops += op("close", JobOpKind.CLOSING_CAPTURE, 6)
-        assertEquals(listOf("close"), P.dependenciesFor(JobOpKind.ACKNOWLEDGEMENT, ops))
-        ops += op("ack", JobOpKind.ACKNOWLEDGEMENT, 7)
-        assertEquals(listOf("close", "ack", "act1"), P.dependenciesFor(JobOpKind.COMPLETE, ops))
-        val many = ops + (1..40).map { op("a$it", JobOpKind.ACTIVITY, 100L + it) }
-        assertEquals(JobOperationPlanner.MAX_DEPENDENCIES, P.dependenciesFor(JobOpKind.COMPLETE, many).size)
-        assertTrue(P.hasLive(JobOpKind.START, ops))
-        assertFalse(P.hasLive(JobOpKind.COMPLETE, ops))
-    }
 }

@@ -1,11 +1,8 @@
 package com.asseta.supervisor.ui
 
-import com.asseta.core.database.JobEntity
 import com.asseta.core.domain.capture.GpsOutcome
-import com.asseta.core.domain.capture.JobStatus
 import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.model.sync.OpTypes
-import com.asseta.core.sync.data.JobSummary
 import com.asseta.core.sync.data.WaitingReason
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -17,45 +14,18 @@ import org.junit.Test
 class FieldTextsTest {
     private fun payload(text: String) = Json.parseToJsonElement(text).jsonObject
 
-    private fun job(id: String, status: String) = JobSummary(
-        JobEntity(id, "t", "J-$id", "m", "c", null, status, 1, "2026-10-23T08:00:00Z", null, null), null,
-    )
-
     @Test
-    fun statusBadgeMarksLocalStateNotYetSynced() {
-        assertEquals("Approved", FieldTexts.statusBadge(JobStatus.APPROVED, JobStatus.APPROVED))
-        assertEquals("In progress · not synced", FieldTexts.statusBadge(JobStatus.IN_PROGRESS, JobStatus.APPROVED))
-        assertEquals("Pending approval", FieldTexts.jobStatus("PENDING_APPROVAL"))
-    }
-
-    @Test
-    fun jobsAreGroupedLikeTheIosHomeList() {
-        val jobs = listOf(job("1", JobStatus.COMPLETED), job("2", JobStatus.APPROVED), job("3", JobStatus.APPROVED))
-        val display = mapOf("1" to JobStatus.COMPLETED, "2" to JobStatus.IN_PROGRESS, "3" to JobStatus.APPROVED)
-        val sections = FieldTexts.jobSections(jobs) { display.getValue(it.job.id) }
-        assertEquals(listOf("In progress", "Ready to start", "Other"), sections.map { it.first })
-        assertEquals(listOf("2"), sections[0].second.map { it.job.id })
-        assertEquals(listOf("1"), sections[2].second.map { it.job.id })
-        assertEquals(emptyList<String>(), FieldTexts.jobSections(emptyList()) { it.job.status }.map { it.first })
-    }
-
-    @Test
-    fun operationTitlesMatchIos() {
-        assertEquals("Opening reading 1234.5", FieldTexts.operationTitle(OpTypes.METER_CAPTURE, payload("""{"kind":"OPENING","reading":"1234.5"}""")))
-        assertEquals("Work log: Downtime", FieldTexts.operationTitle(OpTypes.JOB_ACTIVITY, payload("""{"activity_type":"DOWNTIME"}""")))
-        assertEquals("Acknowledged by Jane", FieldTexts.operationTitle(OpTypes.JOB_ACKNOWLEDGEMENT, payload("""{"signer_name":"Jane"}""")))
-        assertEquals("Job completed", FieldTexts.operationTitle(OpTypes.JOB_TRANSITION, payload("""{"action":"COMPLETE"}""")))
-        assertEquals("Fuel issue: 40 L", FieldTexts.operationTitle(OpTypes.FUEL_EVENT, payload("""{"event_type":"ISSUE","litres":"40"}""")))
-        assertEquals("Complete job", FieldTexts.outboxTitle(OpTypes.JOB_TRANSITION, payload("""{"action":"COMPLETE"}""")))
-        assertEquals("Start job", FieldTexts.outboxTitle(OpTypes.JOB_TRANSITION, payload("""{"action":"START"}""")))
+    fun outboxTitlesMatchIos() {
         assertEquals("Cash handover", FieldTexts.outboxTitle(OpTypes.CASH_HANDOVER, null))
+        assertEquals("Fuel event", FieldTexts.outboxTitle(OpTypes.FUEL_EVENT, payload("""{"event_type":"ISSUE","litres":"40"}""")))
+        assertEquals("JOB_TRANSITION", FieldTexts.outboxTitle("JOB_TRANSITION", null)) // ADR-008: no job items any more
     }
 
     @Test
     fun syncWording() {
         assertEquals("Held", FieldTexts.syncState(ClientOperationStatus.QUARANTINED))
         assertEquals("Rejected", FieldTexts.syncState(ClientOperationStatus.FAILED))
-        assertEquals("Waiting for its photo/receipt/signature upload", FieldTexts.waiting(WaitingReason.UPLOAD))
+        assertEquals("Waiting for its photo/receipt upload", FieldTexts.waiting(WaitingReason.UPLOAD))
         assertEquals("You can sign in again at any time.", FieldTexts.signOutMessage(0))
         assertEquals(
             "3 item(s) are not synced yet. They stay encrypted on this phone and sync after you sign in again.",

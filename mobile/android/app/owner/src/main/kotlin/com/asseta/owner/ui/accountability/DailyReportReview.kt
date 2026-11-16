@@ -56,7 +56,7 @@ import kotlinx.coroutines.launch
 import java.time.ZoneId
 
 private val T = AllocationTexts
-private val R = RevenuePresentation
+private val R = RecordFormat
 
 /** Pure rows of the review screen (unit-tested). */
 object DailyReportPresentation {

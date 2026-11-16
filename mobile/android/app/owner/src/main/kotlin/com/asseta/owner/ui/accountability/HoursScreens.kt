@@ -92,15 +92,14 @@ object HoursPresentation {
     private fun num(raw: String?) = OwnerFormat.hoursNumber(raw)
     private fun hours(raw: String?) = "${num(raw)} h"
 
-    /** Open (not cancelled) purchases with hours left or in use by running jobs, newest first. */
+    /** Open (not cancelled) purchases with hours left, newest first. */
     fun open(items: List<OwnerHoursPurchaseDto>): List<OwnerHoursPurchaseDto> =
-        items.filter { it.cancelledAt == null && (positive(it.totals.remaining) || positive(it.totals.provisional)) }.sortedByDescending { it.createdAt }
+        items.filter { it.cancelledAt == null && positive(it.totals.remaining) }.sortedByDescending { it.createdAt }
 
-    /** "{left} h left[ · {n} h in use by running jobs]" (provisional is already out of remaining: never subtracted again). */
-    fun leftLine(remaining: String?, provisional: String?): String =
-        T.hoursLeft(num(remaining)) + if (positive(provisional)) " · " + T.hoursInUse(num(provisional)) else ""
+    /** "{left} h left". */
+    fun leftLine(remaining: String?): String = T.hoursLeft(num(remaining))
 
-    fun machine(p: OwnerHoursPurchaseDto): String = RevenuePresentation.machine(p.machineCode, p.machineName, p.machineId)
+    fun machine(p: OwnerHoursPurchaseDto): String = RecordFormat.machine(p.machineCode, p.machineName, p.machineId)
 
     fun customer(p: OwnerHoursPurchaseDto): String = DisplayNames.or(p.customerName, p.customerId)
 
@@ -113,7 +112,6 @@ object HoursPresentation {
         add(T.HOURS_BOUGHT to hours(t.purchased))
         add(T.HOURS_ACTIVATED to hours(t.activated))
         add(T.HOURS_USED to hours(t.consumed))
-        if (positive(t.provisional)) add(T.HOURS_PROVISIONAL to hours(t.provisional))
         if (positive(t.transferred)) add(T.HOURS_TRANSFERRED to hours(t.transferred))
         if (positive(t.expired)) add(T.HOURS_EXPIRED to hours(t.expired))
         if (positive(t.refunded)) add(T.HOURS_REFUNDED to hours(t.refunded))
@@ -126,10 +124,10 @@ object HoursPresentation {
     /** Per-machine rows, only when the hours are on more than one machine. */
     fun machineRows(p: OwnerHoursPurchaseDto): List<Pair<String, String>> =
         if (p.machines.size < 2) emptyList()
-        else p.machines.map { m -> RevenuePresentation.machine(m.machineCode, m.machineName, m.machineId) to leftLine(m.remaining, m.provisional) }
+        else p.machines.map { m -> RecordFormat.machine(m.machineCode, m.machineName, m.machineId) to leftLine(m.remaining) }
 
     fun period(from: String, to: String): String =
-        if (from == to) RevenuePresentation.day(from) else "${RevenuePresentation.day(from)} – ${RevenuePresentation.day(to)}"
+        if (from == to) RecordFormat.day(from) else "${RecordFormat.day(from)} – ${RecordFormat.day(to)}"
 
     fun header(s: HoursStatementDto, fallbackName: String?): String =
         T.stmtHeader(DisplayNames.or(s.customerName ?: fallbackName, s.customerId), period(s.dateFrom, s.dateTo))
@@ -141,7 +139,6 @@ object HoursPresentation {
         add(T.STMT_BOUGHT to hours(t.bought))
         add(T.STMT_ACTIVATED to hours(t.activated))
         add(T.STMT_USED to hours(t.used))
-        if (positive(t.provisionalAtClose)) add(T.STMT_PROVISIONAL_AT_CLOSE to hours(t.provisionalAtClose))
         if (positive(t.transferredIn)) add(T.STMT_TRANSFERRED_IN to hours(t.transferredIn))
         if (positive(t.transferredOut)) add(T.STMT_TRANSFERRED_OUT to hours(t.transferredOut))
         if (positive(t.expired)) add(T.STMT_EXPIRED to hours(t.expired))
@@ -156,11 +153,11 @@ object HoursPresentation {
 
     /** Corrections, refunds and reversals of the period, newest first. */
     fun adjustmentLines(s: HoursStatementDto): List<UsageLine> = s.lines.filter { it.entryType in ADJUSTMENT_ENTRIES }.sortedByDescending { it.occurredAt }.map { l ->
-        UsageLine(T.stmtUsageRow(RevenuePresentation.day(l.day), T.stmtLine(l.entryType)), AdjustmentPresentation.signedHours(l.hours), listOfNotNull(l.purchaseNumber, l.reason?.takeIf { it.isNotBlank() }).joinToString(" · "))
+        UsageLine(T.stmtUsageRow(RecordFormat.day(l.day), T.stmtLine(l.entryType)), AdjustmentPresentation.signedHours(l.hours), listOfNotNull(l.purchaseNumber, l.reason?.takeIf { it.isNotBlank() }).joinToString(" · "))
     }
 
     private fun localDay(raw: String, zone: ZoneId): String =
-        RevenuePresentation.day(runCatching { java.time.OffsetDateTime.parse(raw).atZoneSameInstant(zone).toLocalDate().toString() }.getOrDefault(raw))
+        RecordFormat.day(runCatching { java.time.OffsetDateTime.parse(raw).atZoneSameInstant(zone).toLocalDate().toString() }.getOrDefault(raw))
 
     /** The purchase's payments; a reversed one says so, whatever its settlement status. */
     fun payments(d: HoursPurchaseDetail, zone: ZoneId): List<PaymentLine> = d.purchase.allocations.map { a ->
@@ -174,11 +171,12 @@ object HoursPresentation {
         PaymentLine(amount, status, reversedAt != null, a.releasedAt != null)
     }
 
-    /** Usage lines, newest day first. */
+    /** Usage lines (per day and machine report), newest day first. */
     fun usage(s: HoursStatementDto): List<UsageLine> = s.usage.sortedByDescending { it.day }.map { u: HoursStatementUsageDto ->
-        val caption = listOf(RevenuePresentation.machine(u.machineCode, u.machineName, u.machineId), T.stmtBasis(u.basis)) +
-            listOfNotNull(T.STMT_RUNNING.takeIf { u.jobRunning })
-        UsageLine(T.stmtUsageRow(RevenuePresentation.day(u.day), u.jobNumber ?: "—"), hours(u.hours), caption.joinToString(" · "))
+        UsageLine(
+            T.stmtUsageRow(RecordFormat.day(u.day), u.machineReportNumber ?: "—"), hours(u.hours),
+            RecordFormat.machine(u.machineCode, u.machineName, u.machineId),
+        )
     }
 }
 
@@ -248,7 +246,7 @@ fun CustomerHoursScreen(vm: CustomerHoursViewModel, onOpen: (OwnerDestination) -
                         Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(T.hoursRow(p.purchaseNumber, HoursPresentation.customer(p)), style = AssetaType.headline)
                             Text(HoursPresentation.machine(p), style = AssetaType.subheadline, color = palette.secondaryText)
-                            Text(HoursPresentation.leftLine(p.totals.remaining, p.totals.provisional), style = AssetaType.caption, color = palette.secondaryText)
+                            Text(HoursPresentation.leftLine(p.totals.remaining), style = AssetaType.caption, color = palette.secondaryText)
                         }
                     }
                 },
@@ -264,7 +262,7 @@ fun HoursPurchaseScreen(vm: HoursPurchaseViewModel, onOpen: (OwnerDestination) -
         val p = detail.purchase
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)) {
             item {
-                SectionCard(T.HOURS_HOURS, footer = T.HOURS_PROVISIONAL_FOOTER) {
+                SectionCard(T.HOURS_HOURS) {
                     Text(p.purchaseNumber, style = AssetaType.headline)
                     HoursPresentation.purchaseRows(p).forEach { (l, v) -> KeyValue(l, v) }
                 }

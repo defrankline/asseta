@@ -108,35 +108,8 @@ object InboxMerge {
     }
 }
 
-/** Work-log entry for totals (server activity or local entry); [endMs] null while running. */
-data class WorkSpan(val activityType: String, val startMs: Long, val endMs: Long?)
-
-object JobFigures {
-    /** Total minutes per activity type of finished entries (running entries count up to [nowMs]), types in first-seen order. */
-    fun minutesByType(spans: List<WorkSpan>, nowMs: Long): List<Pair<String, Long>> {
-        val totals = LinkedHashMap<String, Long>()
-        spans.sortedBy { it.startMs }.forEach { s ->
-            if (s.activityType == "NOTE") return@forEach
-            val end = s.endMs ?: nowMs
-            totals[s.activityType] = (totals[s.activityType] ?: 0L) + ((end - s.startMs).coerceAtLeast(0) / 60_000)
-        }
-        return totals.toList()
-    }
-
-    /** Closing minus opening reading (meter hours), or null until both are known (or when the result is negative). */
-    fun meterHours(opening: String?, closing: String?): BigDecimal? {
-        val o = opening?.toBigDecimalOrNull() ?: return null
-        val c = closing?.toBigDecimalOrNull() ?: return null
-        return (c - o).takeIf { it.signum() >= 0 }
-    }
-
-    /** "2 h 05 min" / "45 min". */
-    fun duration(minutes: Long): String = if (minutes >= 60) "${minutes / 60} h ${(minutes % 60).toString().padStart(2, '0')} min" else "$minutes min"
-}
-
 /** What tapping a server notification opens (from its `target`). */
 sealed interface InboxLink {
-    data class Job(val jobId: String) : InboxLink
     data class Expense(val expenseId: String) : InboxLink
     data object Money : InboxLink
     /** A cash transfer ([isFloat] false) or float sent to me: its acknowledge screen while it waits, else Money. */
@@ -145,10 +118,8 @@ sealed interface InboxLink {
     data class Retention(val id: String) : InboxLink
     /** My overdue remittance flag (read online; the Money tab when it cannot be read). */
     data class RemittanceOverdue(val id: String) : InboxLink
-    /** A machine of mine (missing daily report, unexplained engine hours). */
+    /** A machine of mine (unexplained engine hours). */
     data class Machine(val machineId: String) : InboxLink
-    /** A daily report of mine (DAILY_REPORT_RETURNED): its detail, read online when not on the phone. */
-    data class DailyReport(val id: String) : InboxLink
     /** A remittance of mine (DEC-032: the partial reason was decided): its detail once on the phone, else Money. */
     data class Handover(val id: String) : InboxLink
     /** ADR-008: one of my machine reports (submitted, approved or rejected): its machine's report screen. */
@@ -167,8 +138,7 @@ object InboxLinks {
                 "CASH_FLOAT" -> return InboxLink.CashAck(recordId, isFloat = true)
                 "CASH_RETENTION" -> return InboxLink.Retention(recordId)
                 "REMITTANCE_OVERDUE" -> return InboxLink.RemittanceOverdue(recordId)
-                "JOB" -> return InboxLink.Job(recordId)
-                "DAILY_REPORT" -> return InboxLink.DailyReport(recordId)
+
                 // DEC-032: my partial remittance reason was decided.
                 "CASH_REMITTANCE" -> return InboxLink.Handover(recordId)
                 "MACHINE_REPORT" -> return InboxLink.MachineReport(recordId)
@@ -179,7 +149,7 @@ object InboxLinks {
     }
 
     private fun fromTarget(entity: String?, id: String?): InboxLink = when {
-        entity == "job" && id != null -> InboxLink.Job(id)
+
         entity == "expense" && id != null -> InboxLink.Expense(id)
         entity == "staff_member" || entity == "cash_custody" -> InboxLink.Money
         // Cash transfers and floats to acknowledge are answered on their own screen (else the Money tab).
@@ -189,7 +159,7 @@ object InboxLinks {
         entity == "cash_transfer" || entity == "supervisor_cash_custody" || entity == "cash_remittance_overdue" -> InboxLink.Money
         entity == "cash_retention" && id != null -> InboxLink.Retention(id)
         entity == "machine" && id != null -> InboxLink.Machine(id)
-        entity == "daily_report" && id != null -> InboxLink.DailyReport(id)
+
         entity == "cash_handover" && id != null -> InboxLink.Handover(id)
         entity == "machine_report" && id != null -> InboxLink.MachineReport(id)
         entity == "credit_invoice" && id != null -> InboxLink.CreditInvoice(id)

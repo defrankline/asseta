@@ -203,16 +203,9 @@ object FieldAccountabilityTexts {
     const val PURCHASE = "Purchase"
     /** [hours] is shown in the phone's number format, 0–2 decimals ("12", "1,234.5"; never "12.0000"). */
     fun purchaseOption(number: String, hours: String) = "$number · ${hoursNumber(hours)} h left"
-    fun hoursInUse(hours: String) = "${hoursNumber(hours)} h in use by running jobs"
 
     /** An hours figure as every customer-hours screen shows it (same as iOS). */
     fun hoursNumber(raw: String): String = com.asseta.core.domain.owner.OwnerFormat.hoursNumber(raw)
-
-    /** Picker row: "{purchase} · {left} h left[ · {n} h in use by running jobs]" (provisional already out of left). */
-    fun purchaseOption(number: String, hours: String, provisional: String?): String {
-        val inUse = provisional?.toBigDecimalOrNull()?.takeIf { it.signum() > 0 }
-        return purchaseOption(number, hours) + (inUse?.let { " · " + hoursInUse(it.toPlainString()) } ?: "")
-    }
     const val PURCHASES_EMPTY = "No purchases with hours left. Purchases appear here after you connect."
     const val FROM_MACHINE = "From machine"
     const val TO_MACHINE = "To machine"
@@ -272,7 +265,7 @@ object FieldAccountabilityTexts {
     const val RECORD_DAILY = "Record daily reading"
     const val PROPOSE_BASELINE = "Propose meter baseline"
     const val PROPOSE_CORRECTION = "Propose a correction"
-    const val DAILY_FOOTER = "A daily reading outside a job keeps the machine's engine hours accounted for."
+    const val DAILY_FOOTER = "A daily reading keeps the machine's engine hours accounted for."
     const val BASELINE_FOOTER = "Someone else approves the baseline before it counts."
     const val BASELINE_NOTE = "Note (optional)"
     const val CORRECTION_OF = "Reading to correct"
@@ -362,8 +355,6 @@ object FieldAccountabilityTexts {
     const val COLLECTION_LINK_OPTIONAL = "Pays for (optional)"
     const val COLLECTION_LINK_NONE = "Not linked"
     const val COLLECTION_LINK_EMPTY = "No open purchases for this customer on this phone."
-    const val COLLECTION_LINK_EMPTY_ALL = "No open purchases or invoices for this customer on this phone."
-    const val COLLECTION_INVOICE_FOOTER = "The cash pays this invoice up to what it still owes; anything above stays as customer credit."
     const val COLLECTION_LINK_REQUIRED = "Your company requires every collection to name its purchase or invoice."
     const val COLLECTION_LINK_FOOTER = "The cash pays this purchase up to what it still owes; anything above stays as customer credit."
     const val HANDOVER_PARTIAL_TITLE = "Part of your cash stays with you"
@@ -415,7 +406,7 @@ object FieldAccountabilityTexts {
         "CREDIT_NOT_ALLOWED" -> "Your company does not sell on credit now. The sale is kept for review."
         "WALK_IN_NO_CREDIT" -> "A walk-in customer cannot buy on credit. The sale is kept for review."
         "PAYMENTS_EXCEED_TOTAL" -> "The payments add up to more than the sale. The sale is kept for review."
-        else -> com.asseta.supervisor.ui.report.ReportTexts.conflict(code) ?: DailyReportTexts.conflict(code)
+        else -> com.asseta.supervisor.ui.report.ReportTexts.conflict(code)
     }
 
     /** A colleague's name from the server, else from the saved cash holders, else the short id (DEC-030 G2). */

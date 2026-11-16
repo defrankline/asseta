@@ -21,6 +21,7 @@ import org.robolectric.RobolectricTestRunner
  * v5 -> v6 records the owning user of sync state, outbox operations, attachments and work-log entries.
  * v6 -> v7 adds the supervisor inbox table `inbox_record` (server copies of the supervisor's own records).
  * v7 -> v8 adds the nullable job request columns (`cancellation_reason`, `requested_by_staff_id`, `request_note`).
+ * v9 -> v10 (ADR-008) drops the job, job-reading and work-log tables and the `job_id` columns, keeping unsynced work.
  */
 @RunWith(RobolectricTestRunner::class)
 class MigrationTest {
@@ -276,7 +277,7 @@ class MigrationTest {
             runBlocking {
                 val inbox = room.inboxDao()
                 fun rec(rev: Long, status: String, at: Long) =
-                    InboxRecordEntity(InboxRecordEntity.EXPENSE, "e1", "t", "c1", null, null, status, at, rev, "{\"rev\":$rev}")
+                    InboxRecordEntity(InboxRecordEntity.EXPENSE, "e1", "t", "c1", null, status, at, rev, "{\"rev\":$rev}")
                 assertEquals(1, inbox.upsert(listOf(rec(5, "PENDING_APPROVAL", 10))))
                 // An older (replayed) revision never overwrites a newer one; a newer one does.
                 assertEquals(0, inbox.upsert(listOf(rec(4, "APPROVED", 10))))
@@ -320,6 +321,75 @@ class MigrationTest {
                 c.moveToFirst()
                 assertEquals(true, c.isNull(0))
             }
+        }
+    }
+
+    @Test
+    fun migrate9To10DropsTheJobTablesAndKeepsUnsyncedWork() {
+        helper.createDatabase(DB, 9).use { db ->
+            db.execSQL(
+                """INSERT INTO attachment (id, tenant_id, purpose, file_name, sha256, size_bytes, content_type, status,
+                   attempt_count, created_at, owner_sub) VALUES ('a1', 't', 'METER_PHOTO', 'f.bin', 'abc', 10, 'image/jpeg', 'PENDING', 0, 1, 'u')""",
+            )
+            db.execSQL(
+                """INSERT INTO client_operation (id, tenant_id, op_type, entity_type, entity_id, payload_json, depends_on,
+                   created_at_device, status, attempt_count, last_error, server_revision, job_id, owner_sub) VALUES
+                   ('c', 't', 'METER_CAPTURE', 'meter_capture.DAILY', 'x', '{"reading":"1.5"}', NULL, 1, 'PENDING', 0, NULL, NULL, NULL, 'u'),
+                   ('r', 't', 'MACHINE_REPORT', 'machine_report', 'r', '{}', NULL, 2, 'PENDING', 0, NULL, NULL, NULL, 'u'),
+                   ('j', 't', 'JOB_TRANSITION', 'job_transition.START', 'j', '{}', NULL, 3, 'PENDING', 0, NULL, NULL, 'j', 'u')""",
+            )
+            db.execSQL("INSERT INTO client_operation_attachment (operation_id, attachment_local_id) VALUES ('c', 'a1')")
+            db.execSQL("INSERT INTO client_operation_dependency (operation_id, depends_on_id) VALUES ('r', 'c')")
+            db.execSQL(
+                """INSERT INTO job (id, tenant_id, job_number, machine_id, contract_id, job_site_id, status, version,
+                   planned_start, planned_end, standby_treatment) VALUES ('j', 't', 'J-1', 'm', 'c', NULL, 'APPROVED', 3,
+                   '2026-10-21T06:00:00Z', NULL, NULL)""",
+            )
+            db.execSQL(
+                """INSERT INTO work_log_entry (client_id, tenant_id, job_id, activity_type, started_at, ended_at, note, operation_id)
+                   VALUES ('w', 't', 'j', 'WORK', 1, NULL, NULL, NULL)""",
+            )
+            db.execSQL(
+                """INSERT INTO inbox_record (kind, id, tenant_id, client_id, job_id, machine_id, status, occurred_at, sync_revision, json)
+                   VALUES ('EXPENSE', 'e1', 't', 'c1', NULL, 'm', 'PENDING_APPROVAL', 10, 5, '{}'),
+                          ('JOB_ACTIVITY', 'a1', 't', 'c2', 'j', NULL, NULL, 10, 6, '{}'),
+                          ('ACKNOWLEDGEMENT', 'k1', 't', 'c3', 'j', NULL, NULL, 10, 7, '{}')""",
+            )
+            db.execSQL(
+                """INSERT INTO reference_record (kind, id, tenant_id, title, json) VALUES ('customer', 'cu', 't', 'Msasani', '{}'),
+                   ('contract', 'k', 't', 'C-1', '{}'), ('changeover_job', 'cj', 't', 'J-2', '{}'), ('open_invoice', 'i', 't', 'INV-1', '{}')""",
+            )
+        }
+        helper.runMigrationsAndValidate(DB, 10, true).use { db ->
+            fun count(sql: String) = db.query(sql).use { c -> c.moveToFirst(); c.getInt(0) }
+            fun tables(name: String) = count("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = '$name'")
+            assertEquals(0, tables("job") + tables("meter_capture") + tables("work_log_entry"))
+            // Every queued operation, its dependency and its evidence gate survive (forward-only, never destructive).
+            assertEquals(3, count("SELECT COUNT(*) FROM client_operation WHERE owner_sub = 'u'"))
+            assertEquals(1, count("SELECT COUNT(*) FROM client_operation WHERE id = 'c' AND payload_json = '{\"reading\":\"1.5\"}'"))
+            assertEquals(1, count("SELECT COUNT(*) FROM client_operation_dependency WHERE operation_id = 'r' AND depends_on_id = 'c'"))
+            assertEquals(1, count("SELECT COUNT(*) FROM client_operation_attachment WHERE operation_id = 'c' AND attachment_local_id = 'a1'"))
+            assertEquals(1, count("SELECT COUNT(*) FROM attachment WHERE id = 'a1' AND status = 'PENDING'"))
+            assertEquals(0, count("SELECT COUNT(*) FROM pragma_table_info('client_operation') WHERE name = 'job_id'"))
+            assertEquals(0, count("SELECT COUNT(*) FROM pragma_table_info('inbox_record') WHERE name = 'job_id'"))
+            // The inbox keeps the supervisor's other records; server copies of job activities and acknowledgements go.
+            assertEquals(1, count("SELECT COUNT(*) FROM inbox_record"))
+            assertEquals(1, count("SELECT COUNT(*) FROM inbox_record WHERE kind = 'EXPENSE' AND machine_id = 'm'"))
+            assertEquals(listOf("customer"), db.query("SELECT kind FROM reference_record").use { c -> buildList { while (c.moveToNext()) add(c.getString(0)) } })
+        }
+        // The migrated outbox keeps working through Room: the reading waits for its photo, then the report for the reading.
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val room = Room.databaseBuilder(context, AssetaDatabase::class.java, DB).allowMainThreadQueries()
+            .addMigrations(*AssetaMigrations.all(LEGACY)).build()
+        try {
+            runBlocking {
+                val ops = room.clientOperationDao()
+                assertEquals(listOf("j"), ops.dispatchable("t", "u", 10).map { it.id })
+                room.evidenceDao().markAttachmentComplete("a1", "srv-1")
+                assertEquals(listOf("c", "j"), ops.dispatchable("t", "u", 10).map { it.id })
+            }
+        } finally {
+            room.close()
         }
     }
 

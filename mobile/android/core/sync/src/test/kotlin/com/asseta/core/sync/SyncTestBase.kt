@@ -21,8 +21,8 @@ import com.asseta.core.sync.evidence.EncryptedEvidenceStore
 import com.asseta.core.sync.usecase.CaptureMeterReading
 import com.asseta.core.sync.usecase.CaptureRequest
 import com.asseta.core.sync.usecase.CaptureResult
+import com.asseta.core.sync.usecase.CaptureTarget
 import com.asseta.core.sync.usecase.FinanceCapture
-import com.asseta.core.sync.usecase.JobWorkflow
 import kotlinx.coroutines.runBlocking
 import mockwebserver3.MockWebServer
 import org.junit.After
@@ -56,7 +56,6 @@ abstract class SyncTestBase {
     protected var account: SyncAccount? = USER_A
     protected lateinit var repository: FieldRepository
     protected lateinit var capture: CaptureMeterReading
-    protected lateinit var workflow: JobWorkflow
     protected lateinit var financeRepository: FinanceRepository
     protected lateinit var finance: FinanceCapture
     protected val photo = ByteArray(10) { (it * 7 + 1).toByte() } // 3 chunks of 4 bytes
@@ -72,7 +71,6 @@ abstract class SyncTestBase {
         repository = FieldRepository({ db }, json, clock, { account })
         val outbox = FieldOutbox({ db }, json, clock, { account })
         capture = CaptureMeterReading({ db }, repository, outbox, files, { DEVICE }, json)
-        workflow = JobWorkflow({ db }, repository, outbox, files, { DEVICE }, clock, json)
         financeRepository = FinanceRepository({ db }, repository, json, clock)
         finance = FinanceCapture({ db }, repository, financeRepository, outbox, files, { DEVICE }, json)
     }
@@ -93,16 +91,17 @@ abstract class SyncTestBase {
         )
     }
 
+    /** A DAILY reading of the test machine (the only kind since ADR-008). */
     protected fun captureRequest(
-        kind: ReadingKind = ReadingKind.OPENING,
         mode: CaptureMode = CaptureMode.AUTOMATIC,
         reading: String = "1234.5",
         photoBytes: ByteArray? = photo,
         ocr: OcrReading? = OcrReading("1234.5", 0.95, "1234.5 HRS", "OK", emptySet()),
         gps: GpsOutcome? = GpsOutcome.Fix(-15.4, 28.3, 8.0, Instant.ofEpochMilli(clock.now), "fused"),
         attempts: Int = 1,
-    ) = CaptureRequest(tenant, fake.jobId, UUID.randomUUID().toString(), kind, mode, reading, photoBytes,
-        if (ocr == null) 0 else attempts, ocr, gps, clock.now)
+        target: CaptureTarget = CaptureTarget.Daily(fake.machineId),
+    ) = CaptureRequest(tenant, UUID.randomUUID().toString(), ReadingKind.DAILY, mode, reading, photoBytes,
+        if (ocr == null) 0 else attempts, ocr, gps, clock.now, target)
 
     protected fun saved(result: CaptureResult): CaptureResult.Saved {
         assertTrue("expected Saved but was $result", result is CaptureResult.Saved)

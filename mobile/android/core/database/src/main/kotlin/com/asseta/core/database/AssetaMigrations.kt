@@ -1,5 +1,7 @@
 package com.asseta.core.database
 
+import androidx.room.DeleteColumn
+import androidx.room.DeleteTable
 import androidx.room.migration.AutoMigrationSpec
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -74,6 +76,30 @@ object AssetaMigrations {
                 """INSERT OR IGNORE INTO client_operation_attachment (operation_id, attachment_local_id)
                    SELECT id, attachment_local_id FROM client_operation WHERE attachment_local_id IS NOT NULL""",
             )
+        }
+    }
+
+    /**
+     * v9 -> v10 (ADR-008, machine reports replace jobs): the job cache (`job`), the job readings kept on the phone
+     * (`meter_capture`, only ever written for job opening/closing readings) and the work log (`work_log_entry`) are
+     * dropped, with `client_operation.job_id` and `inbox_record.job_id`. Forward-only Room AutoMigration (tables with a
+     * dropped column are rebuilt keeping every row): queued operations and their evidence are untouched; the inbox's
+     * server copies of job activities and acknowledgements and the synced contracts, changeover jobs, unbillable reasons
+     * and open hire invoices are deleted (server data, nothing unsent).
+     */
+    @DeleteTable.Entries(
+        DeleteTable(tableName = "job"),
+        DeleteTable(tableName = "meter_capture"),
+        DeleteTable(tableName = "work_log_entry"),
+    )
+    @DeleteColumn.Entries(
+        DeleteColumn(tableName = "client_operation", columnName = "job_id"),
+        DeleteColumn(tableName = "inbox_record", columnName = "job_id"),
+    )
+    class V9ToV10 : AutoMigrationSpec {
+        override fun onPostMigrate(db: SupportSQLiteDatabase) {
+            db.execSQL("DELETE FROM inbox_record WHERE kind IN ('JOB_ACTIVITY', 'ACKNOWLEDGEMENT')")
+            db.execSQL("DELETE FROM reference_record WHERE kind IN ('contract', 'changeover_job', 'unbillable_reason', 'open_invoice')")
         }
     }
 

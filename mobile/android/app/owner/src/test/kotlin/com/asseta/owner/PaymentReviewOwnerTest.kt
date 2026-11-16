@@ -62,17 +62,15 @@ class PaymentReviewOwnerTest {
     }
 
     @Test
-    fun `a payment opens by id with evidence and invoice numbers`() = runBlocking {
+    fun `a payment opens by id with its evidence`() = runBlocking {
         h.ok(json())
         h.ok("""[{"id":"$att","payment_id":"$ID1","attachment_id":"$att","created_by":null,"created_at":"2026-11-01T08:00:00Z"}]""")
-        h.ok("""{"id":"$inv","invoice_number":"INV-4"}""")
         val review = (h.data.paymentReview(ID1) as Load.Ok).snapshot.data
         assertTrue(h.server.takeRequest().url.toString().endsWith("/customer-payments/$ID1"))
         assertTrue(h.server.takeRequest().url.toString().endsWith("/customer-payments/$ID1/evidence"))
-        assertTrue(h.server.takeRequest().url.toString().endsWith("/hire-invoices/$inv"))
         assertEquals(listOf(att), review.evidenceIds)
         assertFalse(review.evidenceFailed)
-        assertEquals(listOf("INV-4 · TZS 30,000.00"), t.invoices(review))
+        assertEquals(2, h.server.requestCount) // ADR-008: no hire-invoice lookups
     }
 
     @Test
@@ -82,13 +80,6 @@ class PaymentReviewOwnerTest {
         val review = (h.data.paymentReview(ID1) as Load.Ok).snapshot.data
         assertTrue(review.evidenceFailed)
         assertTrue(review.evidenceIds.isEmpty())
-    }
-
-    @Test
-    fun `an invoice without a known number shows its short id and released ones are left out`() {
-        val released = """[{"id":"$att","invoice_id":"$ID2","amount":"1.00","created_at":"2026-11-01T08:00:00Z","released_at":"2026-11-02T08:00:00Z","release_reason":"Payment rejected"},
-            {"id":"$att","invoice_id":"$inv","amount":"30000.00","created_at":"2026-11-01T08:00:00Z","released_at":null,"release_reason":null}]"""
-        assertEquals(listOf("33333333 · TZS 30,000.00"), t.invoices(PaymentReview(payment(json(allocations = released)))))
     }
 
     @Test

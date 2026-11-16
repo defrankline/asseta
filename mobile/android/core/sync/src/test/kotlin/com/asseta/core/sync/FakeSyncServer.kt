@@ -35,10 +35,8 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
         var attachmentId: String? = null
     }
 
-    val jobId = "11111111-1111-4111-8111-111111111111"
     val machineId = "22222222-2222-4222-8222-222222222222"
     val tenantVersionId = "33333333-3333-4333-8333-333333333333"
-    val contractId = "55555555-5555-4555-8555-555555555555"
     val customerId = "66666666-6666-4666-8666-666666666666"
     val categoryId = "77777777-7777-4777-8777-777777777777"
     val staffId = "88888888-8888-4888-8888-888888888888"
@@ -46,8 +44,8 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
     @Volatile var revoked = false
     @Volatile var readOnly = false
     @Volatile var snapshotValidHours = 24L
-    @Volatile var openingMode = "AUTOMATIC"
-    @Volatile var closingMode = "MANUAL"
+    /** METER_CAPTURE `capture_mode` (ADR-008: one mode for every reading). */
+    @Volatile var captureMode = "AUTOMATIC"
     var chunkSize = 4
     var cursor = 10L
     var failChunkOnce: Int? = null
@@ -58,17 +56,18 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
     val deferOnce = mutableSetOf<String>()
     /** Optional per-op override: returns (status, result) or null for the default behaviour. */
     var handler: (op: JsonObject) -> Pair<String, JsonObject>? = { null }
-    var changesJobs: List<JsonObject> = emptyList()
+    /** Machines of the next changes page (empty: none sent). */
+    var changesMachines: List<JsonObject> = emptyList()
 
-    /** Jobs of the next bootstrap (null: the default approved job); e.g. another user's own assignments. */
-    @Volatile var bootstrapJobs: List<JsonObject>? = null
+    /** Machines of the next bootstrap (null: the default machine); e.g. another user's own assignments. */
+    @Volatile var bootstrapMachines: List<JsonObject>? = null
 
     /** `Authorization` header of every push, in order (whose token sent which batch). */
     val pushAuthorizations = mutableListOf<String?>()
     /** Advertised protocol capabilities (null: an older server that sends none). */
     /** The tenant's zone in bootstrap and changes (null: an older server). */
     @Volatile var tenantTimezone: String? = null
-    @Volatile var capabilities: List<String>? = listOf("SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST", "OP_JOB_REQUEST")
+    @Volatile var capabilities: List<String>? = listOf("SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST", "METER_DAILY_READING")
 
     /** Supervisor inbox lists sent with the next bootstrap/changes (`my_expenses` -> rows); empty: not sent. */
     var inbox: Map<String, List<JsonObject>> = emptyMap()
@@ -145,11 +144,9 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
         put("last_clock_offset_s", JsonNull); put("revoked_at", JsonNull); put("revoke_reason", JsonNull)
     }
 
-    fun job(status: String, version: Long, id: String = jobId) = buildJsonObject {
-        put("id", id); put("job_number", "J-0001"); put("contract_id", "55555555-5555-4555-8555-555555555555")
-        put("machine_id", machineId); put("job_site_id", JsonNull); put("supervisor_id", JsonNull); put("status", status)
-        put("version", version); put("planned_start", "2026-10-21T06:00:00Z"); put("hourly_rate", "120.00")
-        put("standby_treatment", "EXCLUDED"); put("currency", "TZS")
+    fun machine(status: String, version: Long, id: String = machineId, code: String = "EX-01") = buildJsonObject {
+        put("id", id); put("asset_code", code); put("name", "Excavator 01")
+        put("meter_decimal_places", 1); put("status", status); put("version", version)
     }
 
     fun category(name: String, active: Boolean, revision: Long, id: String = categoryId) = buildJsonObject {
@@ -162,10 +159,6 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
         put("contact_email", JsonNull); put("tax_id", JsonNull); put("payment_terms_days", 30); put("is_active", active)
     }
 
-    private fun contract() = buildJsonObject {
-        put("id", contractId); put("contract_number", "CT-01"); put("customer_id", customerId); put("status", "ACTIVE")
-    }
-
     private fun custody() = buildJsonArray {
         if (sendCustody) add(buildJsonObject {
             put("staff_member_id", staffId); put("currency", custodyCurrency); put("outstanding", custodyOutstanding)
@@ -173,16 +166,9 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
         })
     }
 
-    private fun data(jobs: List<JsonObject>, categories: List<JsonObject>, customers: List<JsonObject>) = buildJsonObject {
-        put("jobs", JsonArray(jobs))
-        putJsonArray("machines") {
-            add(buildJsonObject {
-                put("id", machineId); put("asset_code", "EX-01"); put("name", "Excavator 01")
-                put("meter_decimal_places", 1); put("status", "ACTIVE"); put("version", 1)
-            })
-        }
+    private fun data(machines: List<JsonObject>, categories: List<JsonObject>, customers: List<JsonObject>) = buildJsonObject {
+        put("machines", JsonArray(machines))
         putJsonArray("sites") {}; put("customers", JsonArray(customers)); putJsonArray("staff") {}
-        put("contracts", JsonArray(if (customers.isEmpty()) emptyList() else listOf(contract())))
         put("expense_categories", JsonArray(categories)); put("cash_custody", custody())
         inbox.forEach { (key, rows) -> put(key, JsonArray(rows)) }
     }
@@ -193,7 +179,7 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
             putJsonArray("version_ids") { add(JsonPrimitive(tenantVersionId)) }
             put("version_stamp", "v1")
             putJsonObject("values") {
-                put("opening_mode", openingMode); put("closing_mode", closingMode); put("manual_photo_required", false)
+                put("capture_mode", captureMode); put("manual_photo_required", false)
                 put("min_ocr_confidence", 0.85); put("max_recapture_attempts", 2); put("manual_correction_requires_review", true)
                 put("gps_enforcement", "SOFT"); put("gps_max_accuracy_m", 50.0); put("gps_max_age_seconds", 120)
             }
@@ -211,7 +197,7 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
         put("protocol_version", 1); put("server_time", now().toString()); put("cursor", cursor)
         capabilities?.let { c -> put("capabilities", JsonArray(c.map { JsonPrimitive(it) })) }
         tenantTimezone?.let { put("tenant_timezone", it) }
-        put("device_session", deviceSession()); put("data", data(bootstrapJobs ?: listOf(job("APPROVED", 1)), listOf(category("Fuel & oil", true, 5)), listOf(customer(true))))
+        put("device_session", deviceSession()); put("data", data(bootstrapMachines ?: listOf(machine("ACTIVE", 1)), listOf(category("Fuel & oil", true, 5)), listOf(customer(true))))
         put("policy_snapshots", snapshots())
     }
 
@@ -219,7 +205,7 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
         put("protocol_version", 1); put("server_time", now().toString()); put("cursor", cursor); put("has_more", false)
         capabilities?.let { c -> put("capabilities", JsonArray(c.map { JsonPrimitive(it) })) }
         tenantTimezone?.let { put("tenant_timezone", it) }
-        put("data", data(changesJobs, changesCategories, changesCustomers)); put("policy_snapshots", snapshots())
+        put("data", data(changesMachines, changesCategories, changesCustomers)); put("policy_snapshots", snapshots())
     }
 
     private fun push(body: JsonObject): MockResponse {

@@ -13,10 +13,6 @@ object OwnerErrors {
         "ALERT_CLOSED" -> "This alert was already closed by someone else. The list has been refreshed."
         "APPROVAL_ALREADY_DECIDED" -> "This request was already decided by someone else. The list has been refreshed."
         "RESET_DECIDED" -> RESET_DECIDED
-        "PRICE_REQUIRED" -> PRICE_REQUIRED
-        "NO_RATE" -> NO_RATE
-        "DUPLICATE_JOB" -> DUPLICATE_JOB
-        "MACHINE_BUSY" -> "This machine already has an approved or running job; complete or cancel that job first."
         "HANDOVER_ALREADY_DECIDED" -> HANDOVER_DECIDED
         "PAYMENT_ALREADY_DECIDED" -> PAYMENT_DECIDED
         "ALREADY_REVIEWED" -> EXCEPTION_REVIEWED
@@ -48,9 +44,6 @@ object OwnerErrors {
     }
 
     const val RESET_DECIDED = "This reset was already decided."
-    const val PRICE_REQUIRED = "Set an hourly rate before approving this job."
-    const val NO_RATE = "No rate card applies to this machine; choose Negotiated rate and enter a price."
-    const val DUPLICATE_JOB = "That job number is already used."
     const val HANDOVER_DECIDED = "Someone already decided this handover. Reload to see it."
     const val PAYMENT_DECIDED = "Someone already decided this payment. Reload to see it."
     const val PAYMENT_SEGREGATION = "You recorded this payment, so someone else must confirm or reject it."

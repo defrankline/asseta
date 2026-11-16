@@ -10,14 +10,7 @@ data class CollectionLinkOption(
     val subtitle: String?,
     /** The outbox operation of a purchase not synced yet; the collection waits for it. */
     val operationId: String? = null,
-    /** An open invoice: what it still owes (the collection pays it up to this). Null for a purchase. */
-    val invoiceBalance: BigDecimal? = null,
-) {
-    val isInvoice: Boolean get() = invoiceBalance != null
-}
-
-/** An open invoice delivered by sync, as the picker needs it. */
-data class LinkableInvoice(val id: String, val number: String, val customerId: String, val currency: String, val balance: String)
+)
 
 /** A purchase recorded on this phone and not acknowledged yet (HOURS_PURCHASE outbox operation pending, sent or held). */
 data class UnsyncedPurchase(val clientId: String, val customerId: String?, val hours: String, val operationId: String)
@@ -33,8 +26,6 @@ object CollectionLinks {
         customerId: String?,
         purchases: List<LinkablePurchase>,
         unsynced: List<UnsyncedPurchase>,
-        invoices: List<LinkableInvoice> = emptyList(),
-        currency: String = "",
     ): List<CollectionLinkOption> {
         if (customerId.isNullOrBlank()) return emptyList()
         val synced = purchases.filter { it.customerId == customerId && it.status != CANCELLED }.map {
@@ -44,20 +35,8 @@ object CollectionLinks {
         val local = unsynced.filter { it.customerId == customerId && it.clientId !in known }.distinctBy { it.clientId }.map {
             CollectionLinkOption(it.clientId, unsyncedTitle(it.hours), null, it.operationId)
         }
-        return synced + local + invoiceOptions(customerId, invoices, currency)
+        return synced + local
     }
-
-    /** The customer's open invoices in the collection's [currency] (the server refuses another currency), by invoice order as delivered. */
-    private fun invoiceOptions(customerId: String, invoices: List<LinkableInvoice>, currency: String): List<CollectionLinkOption> =
-        invoices.filter { it.customerId == customerId && it.currency.equals(currency, ignoreCase = true) }.mapNotNull { inv ->
-            val balance = inv.balance.toBigDecimalOrNull()?.takeIf { it.signum() > 0 } ?: return@mapNotNull null
-            CollectionLinkOption(inv.id, inv.number, invoiceSubtitle(balance, inv.currency), invoiceBalance = balance)
-        }
-
-    /** What a collection allocates to an invoice: at most what it owes, at most the cash received. */
-    fun allocationAmount(amount: BigDecimal, balance: BigDecimal): BigDecimal = amount.min(balance)
-
-    fun invoiceSubtitle(balance: BigDecimal, currency: String): String = "Invoice · ${AccountabilityRules.plain(balance)} $currency due"
 
     fun unsyncedTitle(hours: String): String = "Not synced yet · ${AccountabilityRules.plain(hours.toBigDecimalOrNull() ?: BigDecimal.ZERO)} h"
 }

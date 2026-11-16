@@ -183,23 +183,6 @@ data class VarianceSourceDto(val source: String, val unit: String, val count: In
 data class UnresolvedVariancesDto(val total: Int, @SerialName("by_source") val bySource: List<VarianceSourceDto> = emptyList())
 
 @Serializable
-data class ChangeoverJobDto(
-    @SerialName("job_id") val jobId: String,
-    @SerialName("job_number") val jobNumber: String? = null,
-    @SerialName("machine_id") val machineId: String,
-    @SerialName("machine_code") val machineCode: String? = null,
-    @SerialName("machine_name") val machineName: String? = null,
-    @SerialName("customer_id") val customerId: String,
-    @SerialName("customer_name") val customerName: String? = null,
-    @SerialName("changed_over_at") val changedOverAt: String,
-    @SerialName("days_waiting") val daysWaiting: Int,
-    val route: String,
-)
-
-@Serializable
-data class ChangeoverJobsDto(val count: Int, @SerialName("oldest_days") val oldestDays: Int?, val items: List<ChangeoverJobDto> = emptyList())
-
-@Serializable
 data class ExceptionsSectionDto(
     @SerialName("unexplained_engine_hours") val unexplainedEngineHours: HoursFigureDto,
     val shortages: MoneyFigureDto,
@@ -212,7 +195,6 @@ data class ExceptionsSectionDto(
     @SerialName("outstanding_approvals") val outstandingApprovals: OutstandingApprovalsDto,
     @SerialName("overdue_reports") val overdueReports: OverdueReportsDto,
     @SerialName("unresolved_variances") val unresolvedVariances: UnresolvedVariancesDto,
-    @SerialName("changeover_jobs_awaiting_approval") val changeoverJobsAwaitingApproval: ChangeoverJobsDto,
 )
 
 // --- one employee ------------------------------------------------------------------------------------------------

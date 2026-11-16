@@ -51,21 +51,11 @@ data class FieldAccountabilityCache(
     val purchases: List<FieldHoursPurchaseDto> = emptyList(),
     @SerialName("transfer_reasons") val transferReasons: List<ReasonCodeDto> = emptyList(),
     @SerialName("retention_reasons") val retentionReasons: List<CashReasonDto> = emptyList(),
-    /** My site check-in schedule and check-ins (DEC-031 M3), from the last successful read. */
-    @SerialName("site_checkins") val siteCheckins: com.asseta.core.model.owner.MySiteCheckinsDto? = null,
-    /** When [siteCheckins] was read (0 = never). */
-    @SerialName("site_checkins_at_ms") val siteCheckinsAtMs: Long = 0,
-    /** ENGINE_HOURS effective policy; stays null while the server does not let this role read it. */
-    @SerialName("engine_hours_policy") val engineHoursPolicy: EffectivePolicyDto? = null,
-    /** Active unbillable reasons (daily report form), by name. */
-    @SerialName("unbillable_reasons") val unbillableReasons: List<com.asseta.core.model.owner.EngineHourReasonDto> = emptyList(),
     /** The tenant's PARTIAL_REMITTANCE reasons (handover form, DEC-032). */
     @SerialName("partial_reasons") val partialReasons: List<CashReasonDto> = emptyList(),
 ) {
     val cash: CashCustodyPolicy? get() = cashPolicy?.values?.let(CashCustodyPolicy::fromValues)
     val hours: CustomerHoursPolicy? get() = hoursPolicy?.values?.let(CustomerHoursPolicy::fromValues)
-    val engine: com.asseta.core.domain.accountability.EngineHoursPolicy?
-        get() = engineHoursPolicy?.values?.let(com.asseta.core.domain.accountability.EngineHoursPolicy::fromValues)
 
     fun custodianName(staffId: String?): String? = custodians.firstOrNull { it.staffMemberId == staffId }?.fullName
 
@@ -76,12 +66,6 @@ data class FieldAccountabilityCache(
     /** Open purchases with hours left (on any machine). */
     fun purchasesWithHours(): List<FieldHoursPurchaseDto> =
         purchases.filter { (it.totals.remaining.toBigDecimalOrNull() ?: BigDecimal.ZERO).signum() > 0 }
-}
-
-/** Outcome of explaining non-revenue time (online only): the server's record, or the refusal [code] and message. */
-sealed interface NonRevenueResult {
-    data class Sent(val approval: com.asseta.core.model.owner.NonRevenueApprovalDto) : NonRevenueResult
-    data class Refused(val code: String?, val message: String) : NonRevenueResult
 }
 
 /** Outcome of the online retention request. */
@@ -148,7 +132,7 @@ class FieldAccountabilityData(
         load(tenantId)
         val capabilities = db().syncStateDao().get(tenantId)?.capabilities?.split(',')?.filter { it.isNotBlank() }?.toSet()
         val c = _cache.value
-        return FieldAccess(capabilities, permissions, c.cash, c.hours, disabledFor(tenantId), c.engine)
+        return FieldAccess(capabilities, permissions, c.cash, c.hours, disabledFor(tenantId))
     }
 
     /**
@@ -178,7 +162,6 @@ class FieldAccountabilityData(
         // A capability the tenant switched off is not read at all (its entry points are hidden).
         val hoursOn = TenantAccess.CUSTOMER_HOURS !in disabledFor(tenantId)
         val hoursRead = hoursOn && FieldAccess.HOURS_READ in permissions
-        val engineOn = TenantAccess.ENGINE_HOURS !in disabledFor(tenantId)
         val next = FieldAccountabilityCache(
             fetchedAtMs = old.fetchedAtMs,
             cashPolicy = part(record, old.cashPolicy, null) { effectivePolicy(CashCustodyPolicy.TYPE) },
@@ -195,65 +178,10 @@ class FieldAccountabilityData(
             transferReasons = part(hoursRead, old.transferReasons, emptyList()) { hoursReasonCodes(kind = "TRANSFER").items.filter { it.isActive } },
             retentionReasons = part(record, old.retentionReasons, emptyList()) { cashReasons(kind = "RETENTION").items.filter { it.isActive } },
             partialReasons = part(record, old.partialReasons, emptyList()) { cashReasons(kind = PARTIAL_REMITTANCE).items.filter { it.isActive } },
-            engineHoursPolicy = part(engineOn && FieldAccess.METER_CAPTURE in permissions, old.engineHoursPolicy, null) {
-                effectivePolicy(com.asseta.core.domain.accountability.EngineHoursPolicy.TYPE)
-            },
-            // Servers that announce SYNC_UNBILLABLE_REASONS deliver the list through sync instead.
-            unbillableReasons = part(engineOn && FieldAccess.METER_READ in permissions && !syncedReasons(tenantId), old.unbillableReasons, emptyList()) {
-                engineHourReasons(kind = com.asseta.core.model.owner.EngineHourReasonDto.UNBILLABLE_REASON).items
-                    .filter { it.isActive }.sortedBy { it.name.lowercase() }
-            },
-        ).let { if (fresh) it.copy(fetchedAtMs = nowMs()) else it }.let { c ->
-            when (val r = readSiteCheckins(tenantId, permissions)) {
-                null -> c.copy(siteCheckins = null, siteCheckinsAtMs = 0)
-                SiteCheckinRead.Failed -> c.copy(siteCheckins = old.siteCheckins, siteCheckinsAtMs = old.siteCheckinsAtMs)
-                is SiteCheckinRead.Fresh -> {
-                    fresh = true
-                    c.copy(siteCheckins = r.mine, siteCheckinsAtMs = nowMs(), fetchedAtMs = nowMs())
-                }
-            }
-        }
+        ).let { if (fresh) it.copy(fetchedAtMs = nowMs()) else it }
         _cache.value = next
         save(tenantId, next)
         return fresh
-    }
-
-    private suspend fun syncedReasons(tenantId: String) =
-        db().syncStateDao().get(tenantId)?.supports(com.asseta.core.model.sync.SyncCapabilities.SYNC_UNBILLABLE_REASONS) == true
-
-    private sealed interface SiteCheckinRead {
-        data class Fresh(val mine: com.asseta.core.model.owner.MySiteCheckinsDto) : SiteCheckinRead
-        data object Failed : SiteCheckinRead
-    }
-
-    /** Null when site check-ins are not offered (nothing is read or kept), else the online read's outcome. */
-    private suspend fun readSiteCheckins(tenantId: String, permissions: Set<String>): SiteCheckinRead? {
-        // Only while the server announces OP_SITE_CHECKIN (the tenant requires check-ins) and the role records them.
-        val capabilities = db().syncStateDao().get(tenantId)?.capabilities?.split(',')?.filter { it.isNotBlank() }?.toSet()
-        if (!FieldAccess(capabilities, permissions, disabled = disabledFor(tenantId)).siteCheckin) return null
-        return try {
-            SiteCheckinRead.Fresh(api().mySiteCheckins())
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            SiteCheckinRead.Failed
-        }
-    }
-
-    /**
-     * Refreshes only my site check-in schedule and check-ins (the check-in screen and the Jobs tab); returns true when
-     * read from the server. A failed read keeps the saved copy.
-     */
-    suspend fun refreshSiteCheckins(tenantId: String, permissions: Set<String>): Boolean {
-        load(tenantId)
-        val r = readSiteCheckins(tenantId, permissions)
-        if (r == SiteCheckinRead.Failed) return false
-        val next = _cache.value.let { c ->
-            if (r is SiteCheckinRead.Fresh) c.copy(siteCheckins = r.mine, siteCheckinsAtMs = nowMs()) else c.copy(siteCheckins = null, siteCheckinsAtMs = 0)
-        }
-        _cache.value = next
-        save(tenantId, next)
-        return r is SiteCheckinRead.Fresh
     }
 
     private suspend fun save(tenantId: String, value: FieldAccountabilityCache) {
@@ -314,41 +242,6 @@ class FieldAccountabilityData(
         throw e
     } catch (e: Exception) {
         null
-    }
-
-    // --- DEC-031 R1: non-revenue time inside a job (online only; tenant.revenue.read / .explain) ----------------
-
-    /**
-     * The job's non-revenue work-log entries with their approval status (`GET /non-revenue-activities?job_id=`; the
-     * server applies the tenant's declared types). Null offline, on any refusal, or while revenue checks are off.
-     */
-    suspend fun nonRevenueActivities(tenantId: String, jobId: String): List<com.asseta.core.model.owner.NonRevenueActivityDto>? {
-        if (TenantAccess.REVENUE_RECONCILIATION in disabledFor(tenantId)) return null
-        return try {
-            api().nonRevenueActivities(jobId = jobId, pageSize = PAGE).items
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    /** Active revenue reasons by name (the explain picker); null offline or on a refusal. */
-    suspend fun revenueReasons(): List<com.asseta.core.model.owner.RevenueReasonDto>? = try {
-        api().revenueReasons(pageSize = PAGE).items.filter { it.isActive }.sortedBy { it.name.lowercase() }
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        null
-    }
-
-    /** Explain a non-revenue entry (`POST /non-revenue-approvals`); someone else approves it. */
-    suspend fun explainNonRevenue(activityId: String, reasonId: String, note: String): NonRevenueResult = try {
-        NonRevenueResult.Sent(api().proposeNonRevenue(com.asseta.core.model.owner.NonRevenueApprovalIn(activityId, reasonId, note.trim())))
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        NonRevenueResult.Refused((e as? com.asseta.core.network.ApiException)?.code, e.message ?: "The explanation could not be sent.")
     }
 
     /** The server request id from an acked `CASH_RETENTION_REQUEST` result (`{"entity": CashRetentionDto}`). */

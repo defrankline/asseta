@@ -28,13 +28,6 @@ import com.asseta.core.model.owner.AccountabilitySummaryDto
 import com.asseta.core.model.owner.DecisionIn
 import com.asseta.core.model.owner.MeterDecisionIn
 import com.asseta.core.model.owner.RemittanceOverdueDto
-import com.asseta.core.model.owner.DailyMachineSheetDetailDto
-import com.asseta.core.model.owner.DailyMachineSheetRowDto
-import com.asseta.core.model.owner.NonRevenueDecisionIn
-import com.asseta.core.model.owner.RevenueDecisionIn
-import com.asseta.core.model.owner.RevenueDifferenceDto
-import com.asseta.core.model.owner.RevenueExplanationIn
-import com.asseta.core.model.owner.RevenueReasonDto
 import com.asseta.owner.ui.accountability.CashRecord
 import com.asseta.owner.ui.accountability.CashRecords
 import com.asseta.owner.ui.accountability.DecisionItem
@@ -77,10 +70,9 @@ data class HoursPurchaseDetail(
     val reversedPayments: Map<String, String> = emptyMap(),
 )
 
-/** Open meter exceptions ([jobNumbers]: kept so snapshots saved before ADR-008 still decode; no longer filled). */
+/** Open meter exceptions. */
 @Serializable
-data class ExceptionList(val items: List<ExceptionDto>, val jobNumbers: Map<String, String> = emptyMap()) {
-    fun jobNumber(e: ExceptionDto): String? = e.jobId?.let { jobNumbers[it.toString()] }
+data class ExceptionList(val items: List<ExceptionDto>) {
 }
 
 /** ADR-008: a machine report with its meter reading when the role may read it ([capture] null otherwise). */
@@ -125,10 +117,10 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
         return repo.load(tenantId, "machine_track:$id", HistoryDto.serializer()) { machineHistory(id, from.toString(), to.toString()) }
     }
 
-    /** Meter exceptions, [status] OPEN or null (all), optionally of one job. */
-    suspend fun exceptions(status: String?, jobId: String?): Load<PageDto<ExceptionDto>> =
-        repo.load(tenantId, "exceptions:${status ?: "ALL"}:${jobId ?: "ALL"}", PageDto.serializer(ExceptionDto.serializer())) {
-            exceptions(status = status, jobId = jobId, pageSize = LIST_PAGE)
+    /** Meter exceptions, [status] OPEN or null (all). */
+    suspend fun exceptions(status: String?): Load<PageDto<ExceptionDto>> =
+        repo.load(tenantId, "exceptions:${status ?: "ALL"}", PageDto.serializer(ExceptionDto.serializer())) {
+            exceptions(status = status, pageSize = LIST_PAGE)
         }
 
     /** Expenses, [status] PENDING_APPROVAL (cached as "expenses:PENDING", as on iOS) or null (all). */
@@ -202,16 +194,13 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
     suspend fun decidePettyCashAdjustment(id: String, approve: Boolean, note: String?) =
         repo.act { decidePettyCashAdjustment(id, com.asseta.core.model.owner.PettyCashDecisionIn(approve, note?.trim()?.takeIf { it.isNotEmpty() })) }
 
-    /** One payment by id, with its evidence photos and the invoice numbers (both read beside it; never fails the payment). */
+    /** One payment by id, with its evidence photos (read beside it; never fails the payment). */
     suspend fun paymentReview(id: String): Load<PaymentReview> =
         repo.load(tenantId, "payment:$id", PaymentReview.serializer()) {
             val payment = customerPaymentDetail(id)
             val evidence = runCatching { paymentEvidence(id).map { it.attachmentId } }
                 .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
-            val invoices = payment.allocations.filter { it.releasedAt == null }.map { it.invoiceId.toString() }.distinct().mapNotNull { invoice ->
-                runCatching { invoiceNumber(invoice).invoiceNumber }.getOrNull()?.takeIf { it.isNotBlank() }?.let { invoice to it }
-            }.toMap()
-            PaymentReview(payment, evidence.getOrDefault(emptyList()), evidence.isFailure, invoices)
+            PaymentReview(payment, evidence.getOrDefault(emptyList()), evidence.isFailure)
         }
 
     /** Open exceptions for the Approvals section. */
@@ -260,10 +249,6 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
                 DecisionKind.PARTIAL_REMITTANCE -> cashHandovers(pageSize = LIST_PAGE).items.filter { it.partialApproval?.status == "PENDING" }.map(DecisionMapper::partialRemittance)
                 DecisionKind.RETENTION -> cashRetentions(status).items.map { DecisionMapper.retention(it, zone) }
                 DecisionKind.ADJUSTMENT -> custodyAdjustments(status).items.map { DecisionMapper.adjustment(it, zone) }
-                // Waiting for someone: to explain (OPEN) and explanations waiting for a decision.
-                DecisionKind.REVENUE_DIFFERENCE -> (revenueDifferences("OPEN").items + revenueDifferences(status).items)
-                    .map { DecisionMapper.revenueDifference(it, zone) }
-                DecisionKind.NON_REVENUE -> nonRevenueApprovals(status).items.map { DecisionMapper.nonRevenue(it, zone) }
                 DecisionKind.DAILY_REPORT -> dailyReports(status = status, pageSize = LIST_PAGE).items.map(DecisionMapper::dailyReport)
                 DecisionKind.ALLOCATION_CORRECTION -> DecisionMapper.allocationCorrections(workAllocations(status = status, pageSize = LIST_PAGE).items)
                 DecisionKind.ADJUSTMENT_REQUEST -> adjustmentRequests(status, LIST_PAGE).items.map(com.asseta.owner.ui.accountability.AdjustmentPresentation::item)
@@ -293,8 +278,6 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
                     DecisionKind.PARTIAL_REMITTANCE -> DecisionMapper.partialRemittance(cashHandover(id))
                     DecisionKind.RETENTION -> DecisionMapper.retention(cashRetention(id), zone)
                     DecisionKind.ADJUSTMENT -> DecisionMapper.adjustment(custodyAdjustment(id), zone)
-                    DecisionKind.REVENUE_DIFFERENCE -> DecisionMapper.revenueDifference(revenueDifference(id), zone)
-                    DecisionKind.NON_REVENUE -> DecisionMapper.nonRevenue(nonRevenueApproval(id), zone)
                     DecisionKind.DAILY_REPORT -> DecisionMapper.dailyReport(dailyReport(id))
                     DecisionKind.ALLOCATION_CORRECTION -> {
                         val c = workAllocationCorrection(id)
@@ -347,8 +330,6 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
                 DecisionKind.PARTIAL_REMITTANCE -> decidePartialRemittanceReason(id, decision)
                 DecisionKind.RETENTION -> decideCashRetention(id, decision)
                 DecisionKind.ADJUSTMENT -> decideCustodyAdjustment(id, decision)
-                DecisionKind.REVENUE_DIFFERENCE -> decideRevenueDifference(id, RevenueDecisionIn(meter.decision, meter.note))
-                DecisionKind.NON_REVENUE -> decideNonRevenue(id, NonRevenueDecisionIn(meter.decision, meter.note))
                 DecisionKind.DAILY_REPORT -> reviewDailyReport(
                     id, com.asseta.core.model.owner.DailyReportReviewIn(if (approve) com.asseta.core.model.owner.DailyReportReviewIn.REVIEWED else com.asseta.core.model.owner.DailyReportReviewIn.RETURNED, note.trim()),
                 )
@@ -364,36 +345,6 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
     /** The proposer takes back an adjustment request that still waits (online only). */
     suspend fun withdrawAdjustmentRequest(id: String, reason: String) =
         repo.act { withdrawAdjustmentRequest(id, com.asseta.core.model.owner.AdjustmentWithdrawIn(reason.trim())) }
-
-    // --- revenue reconciliation (DEC-031 Phase 1; online actions, cached reads) ----------------------------------
-    /** One revenue difference (any status), cached per record for offline viewing. */
-    suspend fun revenueDifference(id: String): Load<RevenueDifferenceDto> =
-        repo.load(tenantId, "revenue_difference:$id", RevenueDifferenceDto.serializer()) { revenueDifference(id) }
-
-    /** The tenant's active revenue reasons, by name (the explain picker). */
-    suspend fun revenueReasons(): Load<List<RevenueReasonDto>> =
-        repo.load(tenantId, "revenue_reasons", ListSerializer(RevenueReasonDto.serializer())) {
-            revenueReasons(pageSize = LIST_PAGE).items.filter { it.isActive }.sortedBy { it.name.lowercase() }
-        }
-
-    /** Explain an OPEN difference (tenant.revenue.explain); someone else decides. */
-    suspend fun explainRevenue(id: String, reasonId: String, note: String) =
-        repo.act { explainRevenueDifference(id, RevenueExplanationIn(reasonId, note.trim())) }
-
-    /** APPROVE / REJECT the explanation, or CONFIRM the difference (tenant.revenue.decide; never the explainer). */
-    suspend fun decideRevenue(id: String, decision: String, note: String) =
-        repo.act { decideRevenueDifference(id, RevenueDecisionIn(decision, note.trim())) }
-
-    /** The daily machine sheet of [machineId] for the local days [from]..[to] (newest first). */
-    suspend fun dailySheet(machineId: String, from: java.time.LocalDate, to: java.time.LocalDate): Load<List<DailyMachineSheetRowDto>> =
-        repo.load(tenantId, "daily_sheet:$machineId", ListSerializer(DailyMachineSheetRowDto.serializer())) {
-            dailyMachineSheet(machineId = machineId, dayFrom = from.toString(), dayTo = to.toString(), pageSize = LIST_PAGE).items
-                .sortedByDescending { it.day }
-        }
-
-    /** One machine on one local day, with its readings, jobs, money and flags. */
-    suspend fun sheetDay(machineId: String, day: String): Load<DailyMachineSheetDetailDto> =
-        repo.load(tenantId, "sheet_day:$machineId:$day", DailyMachineSheetDetailDto.serializer()) { dailyMachineSheetDay(machineId, day) }
 
     // --- work allocation ledger and daily reports (DEC-032 Phase 1) ---------------------------------------------------
     suspend fun dailyReport(id: String): Load<com.asseta.core.model.owner.DailyReportDto> =
@@ -412,14 +363,14 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
             )
         }
 
-    /** The machine's days of the ledger for [from]..[to], newest first (the day list while revenue checks are off). */
+    /** The machine's days of the ledger for [from]..[to], newest first. */
     suspend fun allocationDays(machineId: String, from: java.time.LocalDate, to: java.time.LocalDate): Load<List<com.asseta.core.model.owner.AllocationDayDto>> =
         repo.load(tenantId, "allocation_days:$machineId", ListSerializer(com.asseta.core.model.owner.AllocationDayDto.serializer())) {
             workAllocationReconciliation(from.toString(), to.toString(), machineId).sortedByDescending { it.day }
         }
 
     // --- customer hours, read-only (DEC-031 P4) --------------------------------------------------------------------
-    /** Open purchases with hours left or in use by running jobs, newest first. */
+    /** Open purchases with hours left, newest first. */
     suspend fun hoursPurchases(): Load<List<com.asseta.core.model.owner.OwnerHoursPurchaseDto>> =
         repo.load(tenantId, "hours_purchases", ListSerializer(com.asseta.core.model.owner.OwnerHoursPurchaseDto.serializer())) {
             com.asseta.owner.ui.accountability.HoursPresentation.open(ownerHoursPurchases(pageSize = LIST_PAGE).items)

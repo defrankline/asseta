@@ -7,7 +7,6 @@ import com.asseta.core.model.TenantAccess
 import com.asseta.core.model.owner.AllocationDayDto
 import com.asseta.core.model.owner.DailyReportDto
 import com.asseta.core.model.owner.ReportAllocationDto
-import com.asseta.core.model.owner.SheetMoneyDto
 import com.asseta.core.model.owner.WorkAllocationDto
 import com.asseta.core.network.NetworkFactory
 import com.asseta.owner.ui.OwnerFeatures
@@ -16,7 +15,7 @@ import com.asseta.owner.ui.accountability.AllocationTexts
 import com.asseta.owner.ui.accountability.DailyReportPresentation
 import com.asseta.owner.ui.accountability.DecisionKind
 import com.asseta.owner.ui.accountability.DecisionMapper
-import com.asseta.owner.ui.accountability.RevenuePresentation
+import com.asseta.owner.ui.accountability.RecordFormat
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -62,10 +61,10 @@ class AllocationOwnerTest {
         assertEquals(DailyReportPresentation.flags(r), item.flags)
         val allocation = NetworkFactory.json.decodeFromString(
             ReportAllocationDto.serializer(),
-            """{"allocation_id":"a1","kind":"CUSTOMER_WORK","customer_id":"abcdef12-0000-4000-8000-000000000001","job_number":"J-1","start_reading":"10","end_reading":"12","hours":"2.00"}""",
+            """{"allocation_id":"a1","kind":"CUSTOMER_WORK","customer_id":"abcdef12-0000-4000-8000-000000000001","start_reading":"10","end_reading":"12","hours":"2.00"}""",
         )
         assertEquals(
-            listOf(AllocationTexts.kind("CUSTOMER_WORK") to "2 h · abcdef12 · J-1"),
+            listOf(AllocationTexts.kind("CUSTOMER_WORK") to "2 h · abcdef12"),
             DailyReportPresentation.allocationRows(r.copy(allocations = listOf(allocation))),
         )
         assertTrue(DailyReportPresentation.isOwn(r, me))
@@ -76,7 +75,7 @@ class AllocationOwnerTest {
     @Test
     fun `corrections become one row per group and show the original`() {
         val parts = listOf(
-            allocation("CUSTOMER_WORK", "3.00", ""","customer_name":"Mgodi Ltd","job_number":"J-9""""),
+            allocation("CUSTOMER_WORK", "3.00", ""","customer_name":"Mgodi Ltd""""),
             allocation("UNEXPLAINED", "2.00"),
         )
         val row = DecisionMapper.allocationCorrections(parts).single()
@@ -91,7 +90,7 @@ class AllocationOwnerTest {
         val fields = item.fields.associate { it.label to it.value }
         assertNull(fields[AllocationTexts.ORIGINAL])
         assertEquals("Asha", fields["Proposed by"])
-        assertEquals("3 h · Mgodi Ltd · J-9", fields[AllocationTexts.part("CUSTOMER_WORK")])
+        assertEquals("3 h · Mgodi Ltd", fields[AllocationTexts.part("CUSTOMER_WORK")])
         assertEquals("2 h", fields[AllocationTexts.part("UNEXPLAINED")])
     }
 
@@ -125,30 +124,24 @@ class AllocationOwnerTest {
         assertEquals("1.5 h", rows[AllocationTexts.DAY_UNEXPLAINED])
         val a = allocation("CUSTOMER_WORK", "3.00", ""","lots":[{"purchase_id":"p1","purchase_number":"HP-7","hours":"3.00"}]""")
         assertEquals(listOf("From HP-7: 3 h"), AllocationPresentation.lots(a))
-        assertNull(AllocationPresentation.who("UNEXPLAINED", "x", "y", "z", "w"))
-        assertEquals("Maintenance", AllocationPresentation.who("AUTHORIZED_ACTIVITY", null, null, null, "MAINTENANCE"))
+        assertNull(AllocationPresentation.who("UNEXPLAINED", "x", "z"))
+        assertEquals("Servicing", AllocationPresentation.who("AUTHORIZED_ACTIVITY", null, "Servicing"))
+        assertEquals("Msasani Bay", AllocationPresentation.who("CUSTOMER_WORK", "Msasani Bay", null))
     }
 
     @Test
-    fun `machine days open with meter read when revenue checks are off`() {
-        val ledgerOnly = OwnerFeatures(setOf("tenant.meter.read"), setOf(TenantAccess.REVENUE_RECONCILIATION))
-        assertFalse(ledgerOnly.revenueRead)
-        assertTrue(ledgerOnly.machineDays)
-        val day = OwnerDestination.SheetDay("m1", "2026-10-26")
-        assertEquals(day, ledgerOnly.route(day))
-        val none = OwnerFeatures(emptySet(), setOf(TenantAccess.REVENUE_RECONCILIATION))
-        assertEquals(OwnerDestination.Machine("m1"), none.route(day))
-        val engineOff = OwnerFeatures(setOf("tenant.meter.read"), setOf(TenantAccess.REVENUE_RECONCILIATION, TenantAccess.ENGINE_HOURS))
+    fun `machine days open with meter read and engine hours on`() {
+        val ledger = OwnerFeatures(setOf("tenant.meter.read"))
+        assertTrue(ledger.machineDays)
+        val day = OwnerDestination.MachineDay("m1", "2026-10-26")
+        assertEquals(day, ledger.route(day))
+        assertEquals(OwnerDestination.Machine("m1"), OwnerFeatures(emptySet()).route(day))
+        val engineOff = OwnerFeatures(setOf("tenant.meter.read"), setOf(TenantAccess.ENGINE_HOURS))
         assertFalse(engineOff.machineDays)
-        assertTrue(OwnerFeatures(setOf("tenant.revenue.read")).machineDays)
     }
 
     @Test
-    fun `value at risk stays apart from expected and the difference`() {
-        val m = SheetMoneyDto("TZS", "500", "0", "400", "100", valueAtRisk = "75")
-        val rows = RevenuePresentation.moneyRows(m)
-        assertEquals(AllocationTexts.VALUE_AT_RISK, rows.last().first)
-        assertTrue(RevenuePresentation.moneyRows(SheetMoneyDto("TZS", "500", "0", "400", "100")).none { it.first == AllocationTexts.VALUE_AT_RISK })
+    fun `value at risk rows of the dashboard tile`() {
         val tile = json.parseToJsonElement("""{"value_at_risk":[{"currency":"TZS","amount":"75.00"},{"currency":"USD","amount":"3.00"}]}""").jsonObject
         assertEquals(2, AllocationPresentation.valueAtRiskRows(tile).size)
         assertTrue(AllocationPresentation.valueAtRiskRows(json.parseToJsonElement("{}").jsonObject).isEmpty())

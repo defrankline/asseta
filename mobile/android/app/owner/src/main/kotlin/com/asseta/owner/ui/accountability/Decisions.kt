@@ -18,8 +18,6 @@ import com.asseta.core.model.owner.DiscountDto
 import com.asseta.core.model.owner.WorkAllocationDto
 import com.asseta.core.model.owner.HoursCancellationDto
 import com.asseta.core.model.owner.HoursTransferDto
-import com.asseta.core.model.owner.NonRevenueApprovalDto
-import com.asseta.core.model.owner.RevenueDifferenceDto
 import com.asseta.owner.ui.OwnerFeatures
 import kotlinx.serialization.Serializable
 import java.time.ZoneId
@@ -53,18 +51,6 @@ enum class DecisionKind(
     WRITE_OFF(DecisionKinds.WRITE_OFF, T.WRITE_OFFS, T.WRITE_OFFS_EMPTY, T.TITLE_WRITE_OFF, OwnerAction.DECIDE_WRITE_OFF, false, "WRITE_OFF_PROPOSED", { it.finance }, TenantAccess.CASH_CUSTODY),
     RETENTION(DecisionKinds.RETENTION, T.RETENTIONS, T.RETENTIONS_EMPTY, T.TITLE_RETENTION, OwnerAction.DECIDE_RETENTION, false, "PENDING", { it.custodyRead }, TenantAccess.CASH_CUSTODY),
     ADJUSTMENT(DecisionKinds.ADJUSTMENT, T.ADJUSTMENTS, T.ADJUSTMENTS_EMPTY, T.TITLE_ADJUSTMENT, OwnerAction.DECIDE_ADJUSTMENT, false, "PENDING", { it.finance }, TenantAccess.CASH_CUSTODY),
-
-    /** DEC-031 R3: listed while OPEN (to explain) or EXPLANATION_PROPOSED; its own screen (explain, approve/reject/confirm). */
-    REVENUE_DIFFERENCE(
-        DecisionKinds.REVENUE_DIFFERENCE, T.REV_SECTION_DIFFERENCES, T.REV_DIFFERENCES_EMPTY, T.REV_TITLE_DIFFERENCE, OwnerAction.DECIDE_REVENUE, true,
-        "EXPLANATION_PROPOSED", { it.revenueRead }, TenantAccess.REVENUE_RECONCILIATION,
-    ),
-
-    /** DEC-031 R1: non-revenue work-log time explained by one person, approved by another (note of at least 5 characters). */
-    NON_REVENUE(
-        DecisionKinds.NON_REVENUE, T.REV_SECTION_NON_REVENUE, T.REV_NON_REVENUE_EMPTY, T.REV_TITLE_NON_REVENUE, OwnerAction.DECIDE_NON_REVENUE, true,
-        "PROPOSED", { it.revenueRead }, TenantAccess.REVENUE_RECONCILIATION,
-    ),
 
     /** DEC-032 A4: reports waiting for review; its own screen (mark as reviewed / send back). */
     DAILY_REPORT(
@@ -171,8 +157,8 @@ object DecisionMapper {
     fun dailyReport(r: DailyReportDto): DecisionItem {
         val machine = DisplayNames.or(r.machineCode ?: r.machineName, r.machineId)
         return DecisionItem(
-            DecisionKinds.DAILY_REPORT, r.id, AllocationTexts.reportRow(machine, RevenuePresentation.day(r.reportDate)),
-            AllocationTexts.reportLine(RevenuePresentation.num(r.totalHours), RevenuePresentation.num(r.billableHours), RevenuePresentation.num(r.unbillableHours)),
+            DecisionKinds.DAILY_REPORT, r.id, AllocationTexts.reportRow(machine, RecordFormat.day(r.reportDate)),
+            AllocationTexts.reportLine(RecordFormat.num(r.totalHours), RecordFormat.num(r.billableHours), RecordFormat.num(r.unbillableHours)),
             r.submittedAt, r.submittedBy, r.status, r.status == DailyReportDto.SUBMITTED, emptyList(),
             proposedByName = name(r.submittedByName, r.submittedBy),
             flags = DailyReportPresentation.flags(r),
@@ -189,10 +175,10 @@ object DecisionMapper {
         val A = AllocationTexts
         val machine = DisplayNames.or(first.machineCode ?: first.machineName, first.machineId)
         val total = parts.mapNotNull { it.hours.toBigDecimalOrNull() }.fold(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)
-        val originalLine = original?.let { listOfNotNull(A.kind(it.kind), A.partValue(RevenuePresentation.hours(it.hours), AllocationPresentation.who(it))).joinToString(" · ") }
-        val rows = parts.map { A.part(it.kind) to A.partValue(RevenuePresentation.hours(it.hours), AllocationPresentation.who(it)) }
+        val originalLine = original?.let { listOfNotNull(A.kind(it.kind), A.partValue(RecordFormat.hours(it.hours), AllocationPresentation.who(it))).joinToString(" · ") }
+        val rows = parts.map { A.part(it.kind) to A.partValue(RecordFormat.hours(it.hours), AllocationPresentation.who(it)) }
         return DecisionItem(
-            DecisionKinds.ALLOCATION_CORRECTION, groupId, A.correctionRow(machine, RevenuePresentation.day(first.workDate), RevenuePresentation.num(total.toPlainString())),
+            DecisionKinds.ALLOCATION_CORRECTION, groupId, A.correctionRow(machine, RecordFormat.day(first.workDate), RecordFormat.num(total.toPlainString())),
             first.correctionReason, first.createdAt, first.recordedBy, status, status == WorkAllocationDto.PROPOSED,
             fields(T.F_MACHINE to DisplayNames.machine(first.machineCode, first.machineName, first.machineId), *rows.toTypedArray(),
                 T.F_PROPOSED_BY to name(first.recordedByName, first.recordedBy), *decided(first.decidedByName, first.decidedBy, first.decisionNote)),
@@ -259,7 +245,7 @@ object DecisionMapper {
         DecisionKinds.CORRECTION, c.id,
         T.rowCorrection(num(c.oldReading), num(c.newReading), DisplayNames.or(c.machineCode ?: c.machineName, c.machineId)), c.reason,
         c.proposedAt, c.proposedBy, c.status, c.status == "PROPOSED",
-        fields(T.F_MACHINE to DisplayNames.machine(c.machineCode, c.machineName, c.machineId), T.F_JOB to DisplayNames.of(c.jobNumber, c.jobId),
+        fields(T.F_MACHINE to DisplayNames.machine(c.machineCode, c.machineName, c.machineId),
             T.F_OLD_READING to num(c.oldReading), T.F_NEW_READING to num(c.newReading),
             T.F_PROPOSED_BY to name(c.proposedByName, c.proposedBy), *decided(c.decidedByName, c.decidedBy, c.decisionNote)),
         proposedByName = name(c.proposedByName, c.proposedBy),
@@ -329,7 +315,7 @@ object DecisionMapper {
         fields(T.VARIANCE_CHECK to T.varianceCheck(v.checkCode), T.F_CUSTODIAN to name(v.staffMemberName, v.staffMemberId),
             T.F_COUNTERPARTY to name(v.counterpartyStaffName, v.counterpartyStaffId),
             T.F_CUSTOMER to name(v.customerName, v.customerId), T.F_MACHINE to DisplayNames.machine(v.machineCode, v.machineName, v.machineId),
-            T.F_PURCHASE to name(v.purchaseNumber, v.purchaseId), T.F_JOB to name(v.jobNumber, v.jobId),
+            T.F_PURCHASE to name(v.purchaseNumber, v.purchaseId),
             T.F_SOURCE to OwnerFormat.humanize(v.sourceType), T.F_DECLARED to varianceFigure(v.declaredAmount, v),
             T.F_RECEIVED to varianceFigure(v.receivedAmount, v), difference,
             T.VARIANCE_ASSIGNEE to name(v.assigneeUserName, v.assigneeUserId), T.VARIANCE_ASSIGNED_BY to name(v.assignedByName, v.assignedBy),
@@ -363,44 +349,11 @@ object DecisionMapper {
     fun reasonLine(item: DecisionItem): String? =
         item.reason?.takeIf { it.isNotBlank() && item.fields.none { f -> f.label == T.F_REASON } }
 
-    /** Waiting for someone: to explain (OPEN) or for a decision on the explanation. */
-    fun revenuePending(status: String): Boolean =
-        status == RevenueDifferenceDto.OPEN || status == RevenueDifferenceDto.EXPLANATION_PROPOSED
-
     /** "26 Oct 2026" or "19 Oct 2026 – 25 Oct 2026" from the local days of a period. */
     fun period(from: String, to: String): String {
-        val f = RevenuePresentation.day(from)
-        val t = RevenuePresentation.day(to)
+        val f = RecordFormat.day(from)
+        val t = RecordFormat.day(to)
         return if (from == to) f else "$f – $t"
-    }
-
-    fun revenueDifference(d: RevenueDifferenceDto, zone: ZoneId): DecisionItem {
-        val machine = DisplayNames.or(d.machineCode ?: d.machineName, d.machineId)
-        val shown = d.adjustedDifference ?: d.difference
-        return DecisionItem(
-            DecisionKinds.REVENUE_DIFFERENCE, d.id, T.rowDifference(money(shown, d.currency), machine),
-            "${period(d.localFrom, d.localTo)} · ${T.revStatus(d.status)}", d.explainedAt, d.explainedBy, d.status, revenuePending(d.status),
-            fields(T.REV_MACHINE to DisplayNames.machine(d.machineCode, d.machineName, d.machineId), T.REV_PERIOD to period(d.localFrom, d.localTo),
-                T.REV_JOB to d.jobId?.let { DisplayNames.of(d.jobNumber, it) }, T.REV_EXPECTED to money(d.expectedAmount, d.currency),
-                T.REV_ATTRIBUTED to money(d.attributedAmount, d.currency), T.REV_DIFFERENCE to money(shown, d.currency),
-                T.REV_REASON to d.reasonName, T.REV_EXPLAINED_BY to d.explainedBy?.let { name(d.explainedByName, it) },
-                *decided(d.decidedByName, d.decidedBy, d.decisionNote)),
-            proposedByName = d.explainedBy?.let { name(d.explainedByName, it) },
-        )
-    }
-
-    fun nonRevenue(a: NonRevenueApprovalDto, zone: ZoneId): DecisionItem {
-        val machine = DisplayNames.or(a.machineCode ?: a.machineName, a.machineId)
-        val type = OwnerFormat.humanize(a.activityType)
-        return DecisionItem(
-            DecisionKinds.NON_REVENUE, a.id, T.rowNonRevenue(num(a.hours), type, machine), a.reasonName ?: a.note, a.proposedAt, a.proposedBy, a.status,
-            a.status == "PROPOSED",
-            fields(T.REV_MACHINE to DisplayNames.machine(a.machineCode, a.machineName, a.machineId), T.REV_JOB to DisplayNames.of(a.jobNumber, a.jobId),
-                T.NONREV_TYPE to type, T.NONREV_TIME to "${date(a.startedAt, zone)} – ${date(a.endedAt, zone)}", T.NONREV_HOURS to num(a.hours),
-                T.REV_REASON to a.reasonName, T.REV_NOTE to a.note, T.F_PROPOSED_BY to name(a.proposedByName, a.proposedBy),
-                *decided(a.decidedByName, a.decidedBy, a.decisionNote)),
-            proposedByName = name(a.proposedByName, a.proposedBy),
-        )
     }
 
     fun outcome(code: String): String = when (code) {

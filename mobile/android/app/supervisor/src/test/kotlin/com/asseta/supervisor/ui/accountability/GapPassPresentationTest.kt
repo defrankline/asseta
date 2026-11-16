@@ -21,7 +21,7 @@ import org.junit.Test
 class GapPassPresentationTest {
     private fun op(entity: String, status: ClientOperationStatus, code: String? = null) =
         ClientOperationEntity("o-$entity", "t", AccountabilityOps.CASH_RETENTION_REQUEST, "cash_retention", entity, "{}", null, 1_000L, status, 0, null,
-            null, null, errorCode = code)
+            null, errorCode = code)
 
     private fun retention(status: String) = CashRetentionDto(id = "r1", staffMemberId = "s1", amount = "20000", currency = "TZS", reason = "Fuel", status = status, createdAt = "2026-10-25T08:00:00Z",
         decidedByName = "Neema")

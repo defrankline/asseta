@@ -68,10 +68,6 @@ object ManagementTexts {
     fun attemptsCaption(denied: Int, sod: Int) = "Denied $denied · Second person required $sod"
     const val EXC_MISSING_REPORTS = "Daily reports missing"
     const val EXC_OVERDUE_REMITTANCES = "Remittances overdue today"
-    const val EXC_CHANGEOVER = "Changeover jobs waiting"
-    fun changeoverCaption(days: Int) = "Oldest $days days"
-    fun changeoverRow(job: String, machine: String, customer: String) = listOf(job, machine, customer).filter { it.isNotBlank() }.joinToString(" · ")
-    fun changeoverDays(days: Int) = "$days days"
     fun approvals(total: Int) = "Outstanding approvals ($total)"
     fun pending(total: Int) = "Pending adjustments ($total)"
     fun variances(total: Int) = "Unresolved variances ($total)"
@@ -80,7 +76,6 @@ object ManagementTexts {
         "REMITTANCE" -> "Remittances"
         "FLOAT" -> "Floats"
         "CUSTOMER_HOUR" -> "Customer hours"
-        "REVENUE_DIFFERENCE" -> "Revenue differences"
         else -> OwnerFormat.humanize(source)
     }
 
@@ -93,7 +88,6 @@ object ManagementTexts {
         "meter_corrections" -> "Meter corrections"
         "allocation_corrections" -> "Allocation corrections"
         "classifications" -> "Engine-hour classifications"
-        "non_revenue_approvals" -> "Non-revenue time"
         "custody_adjustments" -> "Custody adjustments"
         "write_offs" -> "Write-offs"
         "variance_closures" -> "Variance closures"
@@ -104,10 +98,9 @@ object ManagementTexts {
         "approval_requests" -> "Expense approvals"
         "payments_to_verify" -> "Payments to verify"
         "remittances_to_verify" -> "Remittances to verify"
-        "jobs_awaiting_approval" -> "Jobs awaiting approval"
+        "machine_reports" -> "Machine reports"
         "daily_reports_to_review" -> "Daily reports to review"
         "case_closures" -> "Case closures"
-        "revenue_decisions" -> "Revenue decisions"
         else -> OwnerFormat.humanize(kind)
     }
 
@@ -155,8 +148,8 @@ object ManagementTexts {
 
     fun recordType(type: String) = when (type) {
         "hours_purchase" -> "Hours purchase"
-        "hire_invoice" -> "Invoice"
-        "job" -> "Job"
+        "machine_report" -> "Machine report"
+        "credit_invoice" -> "Credit invoice"
         "customer_payment" -> "Collection"
         "cash_handover" -> "Remittance"
         "cash_transfer" -> "Cash transfer"
@@ -170,9 +163,7 @@ object ManagementTexts {
         "daily_report" -> "Daily report"
         "meter_correction" -> "Meter correction"
         "classification" -> "Engine-hour classification"
-        "non_revenue_approval" -> "Non-revenue approval"
         "meter_reset" -> "Meter reset"
-        "revenue_difference" -> "Revenue difference"
         "hours_cancellation" -> "Hours cancellation"
         "approval_request" -> "Expense approval"
         "expense" -> "Expense"

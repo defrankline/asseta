@@ -1,9 +1,7 @@
 package com.asseta.supervisor.ui
 
-import com.asseta.core.domain.capture.JobStatus
 import com.asseta.core.domain.inbox.InboxStatus
 import com.asseta.core.sync.data.AttentionItem
-import com.asseta.core.sync.data.JobSummary
 import java.math.BigDecimal
 
 /** TRANSFERS is shown only when the server accepts cash transfers and the user records cash. */
@@ -12,7 +10,7 @@ enum class MoneySegment(val label: String) { EXPENSES("Expenses"), COLLECTIONS("
 enum class FuelSegment(val code: String, val label: String) { PURCHASE("PURCHASE", "Purchase"), ISSUE("ISSUE", "Issue"), USAGE("USAGE", "Usage") }
 
 /**
- * Wording of the supervisor tabs (Readings, Fuel, Money, Inbox and the job summary), word for word the iOS
+ * Wording of the supervisor tabs (Readings, Fuel, Money, Inbox), word for word the iOS
  * `InboxTexts`. Pure functions so wording and the small display rules are unit-tested.
  */
 object InboxTexts {
@@ -20,12 +18,8 @@ object InboxTexts {
     fun notificationDetail(title: String, body: String): String? =
         body.trim().takeUnless { it.isEmpty() || it.equals(title.trim(), ignoreCase = true) }
 
-
-    fun readingKind(kind: String): String = when (kind) {
-        "OPENING" -> "Opening reading"
-        "DAILY" -> "Daily reading"
-        else -> "Closing reading"
-    }
+    /** Every reading is a daily reading since ADR-008; another kind (an old record) reads as its code. */
+    fun readingKind(kind: String): String = if (kind == "DAILY") "Daily reading" else sentence(kind)
 
     fun captureMode(mode: String): String = when (mode) {
         "AUTOMATIC" -> "Camera (automatic)"
@@ -64,12 +58,6 @@ object InboxTexts {
         else -> sentence(code)
     }
 
-    fun ackMethod(code: String): String = when (code) {
-        "SIGNATURE" -> "Signature"
-        "NAME_CONFIRMATION" -> "Name confirmation"
-        else -> sentence(code)
-    }
-
     fun money(amount: String, currency: String?): String =
         (amount.toBigDecimalOrNull()?.stripTrailingZeros()?.let { if (it.scale() < 0) it.setScale(0) else it }?.toPlainString() ?: amount) +
             (currency?.let { " $it" } ?: "")
@@ -101,8 +89,8 @@ object InboxTexts {
         AttentionItem.Kind.FUEL -> "Fuel event"
         AttentionItem.Kind.COLLECTION -> "Cash collection"
         AttentionItem.Kind.HANDOVER -> "Cash handover"
-        AttentionItem.Kind.OPERATION -> "Job step"
-        AttentionItem.Kind.UPLOAD -> "Photo or signature upload"
+        AttentionItem.Kind.OPERATION -> "Sync item"
+        AttentionItem.Kind.UPLOAD -> "Photo upload"
     }
 
     fun attentionDetail(status: InboxStatus): String = when (status) {
@@ -116,8 +104,6 @@ object InboxTexts {
     fun inboxBadge(unread: Int, attention: Int): Int = unread + attention
 
     fun machine(assetCode: String?, name: String?): String = listOfNotNull(assetCode, name).joinToString(" · ").ifEmpty { "Machine" }
-
-    fun jobLine(summary: JobSummary): String = listOfNotNull(FieldTexts.machine(summary), summary.siteName).joinToString(" · ")
 
     const val RECONCILIATION_FOOTER = "From the office's books today: opening balance, floats, collections, approved spending and " +
         "verified handovers."

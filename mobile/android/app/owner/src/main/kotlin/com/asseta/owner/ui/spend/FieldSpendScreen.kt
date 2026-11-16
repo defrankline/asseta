@@ -42,7 +42,7 @@ import java.time.ZoneId
 
 enum class SpendSegment { EXPENSES, FUEL }
 
-/** Field spend and job spend wording shared with iOS (`FieldSpendView` / job detail). */
+/** Field spend wording shared with iOS (`FieldSpendView`). */
 object SpendText {
     val SEGMENTS: List<Pair<SpendSegment, String>> = listOf(SpendSegment.EXPENSES to "Expenses", SpendSegment.FUEL to "Fuel")
 
@@ -58,8 +58,6 @@ object SpendText {
 
     const val NO_EXPENSES = "No expenses yet."
     const val NO_FUEL = "No fuel recorded yet."
-    const val NO_JOB_EXPENSES = "No expenses on this job."
-    const val NO_JOB_FUEL = "No fuel recorded on this job."
 
     fun expenseTone(status: String): KpiTone = when (status) {
         "PENDING", "PENDING_APPROVAL", "SUBMITTED" -> KpiTone.WARNING
@@ -151,7 +149,7 @@ fun FieldSpendScreen(vm: FieldSpendViewModel, features: OwnerFeatures, @Suppress
     }
 }
 
-/** Description with amount, "<supplier · >date" with the status pill, and the decision note (also on job detail). */
+/** Description with amount, "<supplier · >date" with the status pill, and the decision note. */
 @Composable
 fun ExpenseRow(e: ExpenseDto, zone: ZoneId) {
     Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -171,7 +169,7 @@ fun ExpenseRow(e: ExpenseDto, zone: ZoneId) {
     }
 }
 
-/** "<type> · <litres> L" with the attributed cost, then "<supplier · >date" (also on job detail). */
+/** "<type> · <litres> L" with the attributed cost, then "<supplier · >date". */
 @Composable
 fun FuelRow(f: FuelEventDto, zone: ZoneId) {
     Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {

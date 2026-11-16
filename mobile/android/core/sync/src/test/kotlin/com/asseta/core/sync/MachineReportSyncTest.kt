@@ -55,6 +55,7 @@ class MachineReportSyncTest : SyncTestBase() {
     }
 
     private fun snapshots(previous: String? = "1210.0", pending: String? = null) {
+        fake.captureMode = "MANUAL" // the test company reads meters by hand
         fake.capabilities = fake.capabilities.orEmpty() + SyncCapabilities.OP_MACHINE_REPORT + SyncCapabilities.OP_CREDIT_INVOICE_PAYMENT
         fake.inbox = mapOf(
             "machine_report_states" to listOf(buildJsonObject {

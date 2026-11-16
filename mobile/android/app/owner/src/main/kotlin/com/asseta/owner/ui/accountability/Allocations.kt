@@ -138,18 +138,18 @@ object AllocationTexts {
 /** Pure presentation of the ledger (unit-tested). */
 object AllocationPresentation {
     private val A = AllocationTexts
-    private val R = RevenuePresentation
+    private val R = RecordFormat
 
-    /** Customer + job, the reason or activity of authorized time, nothing for unexplained time. */
-    fun who(kind: String, customer: String?, job: String?, reason: String?, activity: String?): String? = when (kind) {
-        WorkAllocationDto.CUSTOMER_WORK -> listOfNotNull(customer, job).joinToString(" · ").ifEmpty { null }
-        WorkAllocationDto.AUTHORIZED_ACTIVITY -> reason ?: activity?.let(OwnerFormat::humanize)
+    /** The customer of customer work, the reason of authorized time, nothing for unexplained time. */
+    fun who(kind: String, customer: String?, reason: String?): String? = when (kind) {
+        WorkAllocationDto.CUSTOMER_WORK -> customer
+        WorkAllocationDto.AUTHORIZED_ACTIVITY -> reason
         else -> null
     }
 
-    fun who(a: WorkAllocationDto) = who(a.kind, DisplayNames.of(a.customerName, a.customerId), a.jobNumber, a.reasonName, a.activityType)
+    fun who(a: WorkAllocationDto) = who(a.kind, DisplayNames.of(a.customerName, a.customerId), a.reasonName)
 
-    fun who(a: ReportAllocationDto) = who(a.kind, DisplayNames.of(a.customerName, a.customerId), a.jobNumber, null, a.activityType)
+    fun who(a: ReportAllocationDto) = who(a.kind, DisplayNames.of(a.customerName, a.customerId), null)
 
     fun dayRows(d: AllocationDayDto): List<Pair<String, String>> = listOf(
         A.DAY_TOTAL to R.hours(d.totalEngineHours),
@@ -195,19 +195,19 @@ fun AllocationCards(data: MachineDayAllocations) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(T.kind(a.kind), style = AssetaType.headline, color = if (a.kind == WorkAllocationDto.UNEXPLAINED) OwnerColors.Warning else androidx.compose.ui.graphics.Color.Unspecified)
                 AllocationPresentation.who(a)?.let { Text(it, style = AssetaType.subheadline) }
-                Text(T.entryLine(RevenuePresentation.num(a.startReading), RevenuePresentation.num(a.endReading), RevenuePresentation.num(a.hours)), style = AssetaType.subheadline, color = palette.secondaryText)
+                Text(T.entryLine(RecordFormat.num(a.startReading), RecordFormat.num(a.endReading), RecordFormat.num(a.hours)), style = AssetaType.subheadline, color = palette.secondaryText)
                 AllocationPresentation.lots(a).forEach { Text(it, style = AssetaType.caption, color = palette.secondaryText) }
             }
         }
     }
 }
 
-// --- machine days while revenue checks are off: the ledger alone, no money ------------------------------------------
+// --- machine days: the ledger ----------------------------------------------------------------------------------------
 
-/** The last 14 local days of the ledger of one machine (the daily sheet needs revenue checks on). */
+/** The last 14 local days of the ledger of one machine. */
 class LedgerDaysViewModel(data: OwnerData, val machineId: String, refreshOn: Flow<Unit>, today: () -> LocalDate = { LocalDate.now() }) :
     SnapshotViewModel<List<AllocationDayDto>>({
-        val (from, to) = RevenuePresentation.window(today())
+        val (from, to) = RecordFormat.window(today())
         data.allocationDays(machineId, from, to)
     }, refreshOn)
 
@@ -218,7 +218,7 @@ class LedgerDayViewModel(data: OwnerData, machineId: String, day: String, refres
 fun LedgerDaysScreen(vm: LedgerDaysViewModel, onOpen: (OwnerDestination) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val T = AllocationTexts
-    val R = RevenuePresentation
+    val R = RecordFormat
     SnapshotScaffold(state, vm::refresh) { days ->
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
             if (days.isEmpty()) {
@@ -228,7 +228,7 @@ fun LedgerDaysScreen(vm: LedgerDaysViewModel, onOpen: (OwnerDestination) -> Unit
             groupedSection(
                 keyPrefix = "ledger-days", header = null,
                 items = days.map { d ->
-                    GroupedItem(d.day, onClick = { onOpen(OwnerDestination.SheetDay(d.machineId, d.day)) }) {
+                    GroupedItem(d.day, onClick = { onOpen(OwnerDestination.MachineDay(d.machineId, d.day)) }) {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(R.day(d.day), style = AssetaType.headline)
                             Text(T.dayLine(R.num(d.totalEngineHours), R.num(d.allocatedHours)), style = AssetaType.subheadline, color = palette.secondaryText)

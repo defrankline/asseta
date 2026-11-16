@@ -18,9 +18,7 @@ import com.asseta.core.domain.finance.PaidFrom
 import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.model.DecimalAmount
 import com.asseta.core.model.sync.BlobPurpose
-import com.asseta.core.domain.accountability.CollectionLinks
 import com.asseta.core.model.sync.CashCollectionPayload
-import com.asseta.core.model.sync.CollectionAllocationPayload
 import com.asseta.core.model.sync.CashHandoverPayload
 import com.asseta.core.model.sync.ExpensePayload
 import com.asseta.core.model.sync.FuelEventPayload
@@ -56,7 +54,6 @@ data class ExpenseRequest(
     val currency: String,
     val paidFrom: PaidFrom?,
     val machineId: String?,
-    val jobId: String?,
     /** Original receipt JPEG bytes from the camera, one per photo (encrypted at rest, never re-encoded); at most ten. */
     val receiptJpegs: List<ByteArray>,
     val gps: GpsOutcome?,
@@ -70,7 +67,6 @@ data class CashCollectionRequest(
     val tenantId: String,
     val clientId: String,
     val customerId: String?,
-    val jobId: String?,
     val amountText: String,
     val currency: String,
     val reference: String,
@@ -82,11 +78,8 @@ data class CashCollectionRequest(
     val purchaseId: String? = null,
     /** The unsynced purchase's outbox operation (the collection waits for it). */
     val purchaseOperationId: String? = null,
-    /** The tenant requires a purchase or invoice on every collection. */
+    /** The tenant requires a purchase on every collection. */
     val linkRequired: Boolean = false,
-    /** The open invoice this cash pays (never together with [purchaseId]) and what it still owes. */
-    val invoiceId: String? = null,
-    val invoiceBalance: java.math.BigDecimal? = null,
 )
 
 data class CashHandoverRequest(
@@ -123,7 +116,6 @@ data class FuelEventRequest(
     val unitPriceText: String,
     val currency: String,
     val machineId: String?,
-    val jobId: String?,
     val meterReadingText: String,
     val supplier: String,
     val note: String,
@@ -158,12 +150,10 @@ class FinanceCapture(
         if (r.categoryId != null && finance.category(r.categoryId)?.isActive != true) {
             return FinanceResult.Blocked("This category is no longer available. Choose another one.")
         }
-        val job = r.jobId?.let { field.job(it) ?: return FinanceResult.Blocked("This job is no longer assigned to you.") }
-        val machineId = r.machineId ?: job?.machineId
+        val machineId = r.machineId
         if (machineId != null && field.machine(machineId) == null) return FinanceResult.Blocked("This machine is not on this device.")
         val draft = ExpenseDraft(
-            r.categoryId, r.description, r.supplier, r.amountText, r.currency, r.paidFrom, machineId, r.jobId, job?.machineId,
-            receipts.isNotEmpty(), r.gps,
+            r.categoryId, r.description, r.supplier, r.amountText, r.currency, r.paidFrom, machineId, receipts.isNotEmpty(), r.gps,
         )
         val assessment = ExpenseRules.assess(draft, decision.policy, finance.baseCurrency(r.tenantId))
         if (!assessment.isValid) return FinanceResult.Invalid(assessment.issues.map { it.message })
@@ -186,7 +176,6 @@ class FinanceCapture(
             currency = assessment.currency!!,
             incurredAt = IsoTime.format(r.incurredAtMs),
             machineId = machineId,
-            jobId = r.jobId,
             paidFrom = r.paidFrom!!.name,
             receiptUploadIds = emptyList(), // filled in as each receipt upload completes, before the op is ever sent
             gps = r.gps!!.toWire(),
@@ -219,27 +208,15 @@ class FinanceCapture(
             is FormCheck.Valid -> check.value
         }
         finance.activeCustomer(r.customerId!!) ?: return FinanceResult.Blocked("This customer is no longer active. Choose another one.")
-        val job = r.jobId?.let { field.job(it) ?: return FinanceResult.Blocked("This job is no longer assigned to you.") }
-        if (job != null) {
-            val jobCustomer = finance.customerOfContract(job.contractId)
-            if (jobCustomer != null && jobCustomer != r.customerId) return FinanceResult.Invalid(listOf("Job ${job.jobNumber} belongs to another customer."))
-        }
-        if (r.linkRequired && r.purchaseId == null && r.invoiceId == null) return FinanceResult.Invalid(listOf(AccountabilityMessages.COLLECTION_LINK_REQUIRED))
+        if (r.linkRequired && r.purchaseId == null) return FinanceResult.Invalid(listOf(AccountabilityMessages.COLLECTION_LINK_REQUIRED))
         if (r.purchaseId != null && !supports(r.tenantId, SyncCapabilities.CASH_DETAILS_V2)) return FinanceResult.Blocked(CaptureMeterReading.SERVER_TOO_OLD)
-        if (r.invoiceId != null && !supports(r.tenantId, SyncCapabilities.SYNC_OPEN_INVOICES)) return FinanceResult.Blocked(CaptureMeterReading.SERVER_TOO_OLD)
         val purchaseOp = r.purchaseOperationId?.let { db().clientOperationDao().findById(it) }
         if (purchaseOp != null && (purchaseOp.status == ClientOperationStatus.FAILED || purchaseOp.status == ClientOperationStatus.CONFLICT)) {
             return FinanceResult.Blocked(AccountabilityMessages.PURCHASE_GONE)
         }
-        // The collection contract has no job field: the job is recorded in the note so the office can see it.
-        val note = listOfNotNull(job?.let { "Job ${it.jobNumber}" }, values.note).joinToString(" · ").takeIf { it.isNotEmpty() }?.take(CashRules.MAX_NOTE)
-        val invoiceLine = r.invoiceId?.takeIf { r.purchaseId == null }?.let { id ->
-            CollectionAllocationPayload(id, DecimalAmount.of(CollectionLinks.allocationAmount(values.amount, r.invoiceBalance ?: values.amount)))
-        }
         val payload = CashCollectionPayload(
-            r.clientId, r.customerId, DecimalAmount.of(values.amount), values.currency, IsoTime.format(r.receivedAtMs), values.reference, note,
-            r.cashHolderId, r.purchaseId,
-            allocations = invoiceLine?.let { listOf(it) },
+            r.clientId, r.customerId, DecimalAmount.of(values.amount), values.currency, IsoTime.format(r.receivedAtMs), values.reference,
+            values.note, r.cashHolderId, r.purchaseId,
         )
         val dependsOn = purchaseOp?.takeIf { it.status != ClientOperationStatus.ACKED }?.let { listOf(it.id) } ?: emptyList()
         return queue(r.tenantId, OpTypes.CASH_COLLECTION, FieldOps.CASH_COLLECTION, r.clientId, CashCollectionPayload.serializer(), payload, dependsOn)
@@ -301,15 +278,13 @@ class FinanceCapture(
         db().syncStateDao().get(tenantId)?.supports(capability) == true
 
     suspend fun fuelEvent(r: FuelEventRequest): FinanceResult {
-        val job = r.jobId?.let { field.job(it) ?: return FinanceResult.Blocked("This job is no longer assigned to you.") }
-        val machineId = r.machineId ?: job?.machineId
+        val machineId = r.machineId
         val values = when (
             val check = CashRules.fuel(r.eventType, r.litresText, r.unitPriceText, r.currency, machineId, r.meterReadingText, r.supplier, r.note)
         ) {
             is FormCheck.Invalid -> return FinanceResult.Invalid(check.messages)
             is FormCheck.Valid -> check.value
         }
-        if (job != null && machineId != job.machineId) return FinanceResult.Invalid(listOf("The selected machine is not the machine of job ${job.jobNumber}."))
         if (machineId != null && field.machine(machineId) == null) return FinanceResult.Blocked("This machine is not on this device.")
         val payload = FuelEventPayload(
             clientId = r.clientId,
@@ -318,7 +293,6 @@ class FinanceCapture(
             unitPrice = values.unitPrice?.let(DecimalAmount::of),
             currency = values.currency,
             machineId = machineId,
-            jobId = r.jobId,
             meterReading = values.meterReading?.let(DecimalAmount::of),
             supplier = values.supplier,
             occurredAt = IsoTime.format(r.occurredAtMs),

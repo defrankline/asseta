@@ -5,52 +5,6 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
-/**
- * Server-owned entities delivered by bootstrap/changes. Only the fields the supervisor app uses are typed; unknown
- * fields are ignored (additive server changes never break the app). Money/hours stay decimal strings.
- */
-@Serializable
-data class JobDto(
-    val id: String,
-    @SerialName("job_number") val jobNumber: String,
-    @SerialName("contract_id") val contractId: String,
-    @SerialName("machine_id") val machineId: String,
-    @SerialName("job_site_id") val jobSiteId: String? = null,
-    @SerialName("supervisor_id") val supervisorId: String? = null,
-    val status: String,
-    val version: Long,
-    @SerialName("planned_start") val plannedStart: String,
-    @SerialName("planned_end") val plannedEnd: String? = null,
-    @SerialName("started_at") val startedAt: String? = null,
-    @SerialName("completed_at") val completedAt: String? = null,
-    @SerialName("standby_treatment") val standbyTreatment: String? = null,
-    /** Contract currency of the job (rates); a hint for the tenant currency on the device. */
-    val currency: String? = null,
-    /** Why the job was cancelled (a declined field request carries the owner's reason). */
-    @SerialName("cancellation_reason") val cancellationReason: String? = null,
-    /** Set when a supervisor requested the job from the field (`JOB_REQUEST`). */
-    @SerialName("requested_by_staff_id") val requestedByStaffId: String? = null,
-    @SerialName("request_note") val requestNote: String? = null,
-)
-
-/**
- * `FieldContractDto` (listFieldContracts, `GET /tenant/field/contracts`): an active contract a supervisor can request
- * a job under, with the customer and site names.
- */
-@Serializable
-data class FieldContractDto(
-    val id: String,
-    @SerialName("contract_number") val contractNumber: String,
-    @SerialName("customer_id") val customerId: String,
-    @SerialName("customer_name") val customerName: String,
-    @SerialName("job_site_id") val jobSiteId: String? = null,
-    @SerialName("job_site_name") val jobSiteName: String? = null,
-    val currency: String? = null,
-    @SerialName("starts_on") val startsOn: String? = null,
-    @SerialName("ends_on") val endsOn: String? = null,
-    val reference: String? = null,
-)
-
 @Serializable
 data class MachineDto(
     val id: String,
@@ -82,15 +36,6 @@ data class CustomerDto(
     @SerialName("contact_name") val contactName: String? = null,
     @SerialName("contact_phone") val contactPhone: String? = null,
     @SerialName("is_active") val isActive: Boolean = true,
-)
-
-@Serializable
-data class ContractDto(
-    val id: String,
-    @SerialName("contract_number") val contractNumber: String,
-    @SerialName("customer_id") val customerId: String,
-    @SerialName("job_site_id") val jobSiteId: String? = null,
-    val status: String,
 )
 
 @Serializable

@@ -3,9 +3,6 @@ package com.asseta.core.sync.data
 import com.asseta.core.database.AssetaDatabase
 import com.asseta.core.database.ClientOperationEntity
 import com.asseta.core.domain.policy.ReadingKind
-import com.asseta.core.domain.sync.JobOpKind
-import com.asseta.core.domain.sync.JobOperationPlanner
-import com.asseta.core.domain.sync.LocalJobOp
 import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.model.SyncAccount
 import com.asseta.core.model.sync.OpTypes
@@ -14,12 +11,9 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import java.util.UUID
 
-/** Outbox entity-type tags; they let the planner recover each operation's place in the job workflow. */
+/** Outbox entity-type tags (what each queued operation records). */
 object FieldOps {
     fun captureEntityType(kind: ReadingKind) = "meter_capture.${kind.name}"
-    fun transitionEntityType(action: String) = "job_transition.$action"
-    const val ACTIVITY = "job_activity"
-    const val ACKNOWLEDGEMENT = "job_acknowledgement"
     const val EXPENSE = "expense"
     const val CASH_COLLECTION = "cash_collection"
     const val CASH_HANDOVER = "cash_handover"
@@ -32,40 +26,20 @@ object FieldOps {
     const val CASH_TRANSFER_ACK = "cash_transfer_ack"
     const val CASH_FLOAT_ACK = "cash_float_ack"
     const val CASH_RETENTION = "cash_retention"
-    const val SITE_CHECKIN = "site_checkin"
-    const val DAILY_REPORT = "daily_report"
     const val MACHINE_REPORT = "machine_report"
     const val CREDIT_INVOICE_PAYMENT = "credit_invoice_payment"
 
-    /** Field-finance op types (not part of a job workflow chain). */
+    /** Field-finance op types. */
     val FINANCE_OP_TYPES = listOf(OpTypes.EXPENSE, OpTypes.CASH_COLLECTION, OpTypes.CASH_HANDOVER, OpTypes.FUEL_EVENT)
-
-    fun kindOf(op: ClientOperationEntity): JobOpKind? = when (op.entityType) {
-        captureEntityType(ReadingKind.OPENING) -> JobOpKind.OPENING_CAPTURE
-        captureEntityType(ReadingKind.CLOSING) -> JobOpKind.CLOSING_CAPTURE
-        transitionEntityType("START") -> JobOpKind.START
-        transitionEntityType("COMPLETE") -> JobOpKind.COMPLETE
-        ACTIVITY -> JobOpKind.ACTIVITY
-        ACKNOWLEDGEMENT -> JobOpKind.ACKNOWLEDGEMENT
-        else -> null
-    }
-
-    fun opTypeOf(kind: JobOpKind): String = when (kind) {
-        JobOpKind.OPENING_CAPTURE, JobOpKind.CLOSING_CAPTURE -> OpTypes.METER_CAPTURE
-        JobOpKind.START, JobOpKind.COMPLETE -> OpTypes.JOB_TRANSITION
-        JobOpKind.ACTIVITY -> OpTypes.JOB_ACTIVITY
-        JobOpKind.ACKNOWLEDGEMENT -> OpTypes.JOB_ACKNOWLEDGEMENT
-    }
 }
 
 /**
- * The single place that turns a field action into an outbox operation with its dependency chain
- * (opening capture -> START -> activities/closing -> acknowledgement -> COMPLETE), or a field-finance operation with
- * its explicit dependencies and evidence gate (an expense waits for all of its receipt uploads). Must be called inside the
+ * The single place that turns a field action into an outbox operation with its explicit dependencies and evidence gate
+ * (an expense waits for all of its receipt uploads; a machine report waits for its reading). Must be called inside the
  * caller's transaction so the domain record and its operation are written atomically.
  *
  * Every operation and its evidence files are recorded with the signed-in [account] (their owner): they are only ever
- * pushed under that user's token, and only that user's operations shape a job's dependency chain.
+ * pushed under that user's token.
  */
 class FieldOutbox(
     private val db: () -> AssetaDatabase,
@@ -73,25 +47,6 @@ class FieldOutbox(
     private val clock: SyncClock,
     private val account: () -> SyncAccount?,
 ) {
-
-    suspend fun localJobOps(tenantId: String, jobId: String): List<LocalJobOp> =
-        db().clientOperationDao().forJob(tenantId, ownerSubject(account), jobId).mapNotNull { op ->
-            FieldOps.kindOf(op)?.let { LocalJobOp(op.id, it, op.status, op.createdAtDevice) }
-        }
-
-    suspend fun enqueue(
-        tenantId: String,
-        jobId: String,
-        kind: JobOpKind,
-        entityType: String,
-        entityId: String,
-        payload: JsonObject,
-        attachmentLocalId: String? = null,
-    ): String {
-        val deps = JobOperationPlanner.dependenciesFor(kind, localJobOps(tenantId, jobId))
-        return enqueueOperation(tenantId, FieldOps.opTypeOf(kind), entityType, entityId, payload, listOfNotNull(attachmentLocalId), deps, jobId)
-    }
-
     /**
      * Enqueues one operation. [attachmentLocalIds] gate dispatch until every one of those evidence uploads completed
      * (their server ids are then written into the never-sent payload; an expense may carry up to ten receipts);
@@ -105,11 +60,10 @@ class FieldOutbox(
         payload: JsonObject,
         attachmentLocalIds: List<String> = emptyList(),
         dependsOn: List<String> = emptyList(),
-        jobId: String? = null,
         /** The operation id when the server uses it as the record's id (MACHINE_REPORT, CREDIT_INVOICE_PAYMENT). */
         operationId: String? = null,
     ): String {
-        require(dependsOn.size <= JobOperationPlanner.MAX_DEPENDENCIES) { "Too many dependencies" }
+        require(dependsOn.size <= MAX_DEPENDENCIES) { "Too many dependencies" }
         val owner = checkNotNull(account()) { "Sign in to record field work" }
         val op = ClientOperationEntity(
             id = operationId ?: UUID.randomUUID().toString(),
@@ -124,13 +78,17 @@ class FieldOutbox(
             attemptCount = 0,
             lastError = null,
             serverRevision = null,
-            jobId = jobId,
             ownerSub = owner.subject,
             ownerLabel = owner.label,
         )
         check(db().clientOperationDao().enqueueWithDependencies(op, dependsOn, attachmentLocalIds) != -1L) { "Operation id collision" }
         if (attachmentLocalIds.isNotEmpty()) db().evidenceDao().assignOwner(attachmentLocalIds.distinct(), owner.subject)
         return op.id
+    }
+
+    companion object {
+        /** The contract's limit of parents per operation (`OperationIn.depends_on` maxItems). */
+        const val MAX_DEPENDENCIES = 20
     }
 }
 

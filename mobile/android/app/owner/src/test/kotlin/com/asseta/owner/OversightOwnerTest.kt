@@ -7,7 +7,6 @@ import com.asseta.core.model.owner.AccountabilitySummaryDto
 import com.asseta.core.model.owner.IdleMachineDto
 import com.asseta.core.model.owner.ScorecardDetailDto
 import com.asseta.core.model.owner.ScorecardRowDto
-import com.asseta.core.model.owner.UnbilledJobDto
 import com.asseta.core.network.NetworkFactory
 import com.asseta.owner.ui.OwnerFeatures
 import com.asseta.owner.ui.OwnerNavigation
@@ -26,7 +25,7 @@ import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneId
 
-/** DEC-031 Phase 5 in the Owner app: people scorecard, unbilled work, idle machines, REPEATED_PATTERN, hours format. */
+/** DEC-031 Phase 5 in the Owner app: people scorecard, idle machines, REPEATED_PATTERN, hours format. */
 class OversightOwnerTest {
     private val json = NetworkFactory.json
     private val zone = ZoneId.of("UTC")
@@ -36,7 +35,7 @@ class OversightOwnerTest {
     private val all = OwnerFeatures(
         setOf(
             "tenant.oversight.scorecard.read", "tenant.oversight.read", "tenant.meter.read", "tenant.fleet.read", "tenant.finance.read",
-            "tenant.case.read", "tenant.revenue.read", "tenant.job.read",
+            "tenant.case.read",
         ),
     )
 
@@ -44,8 +43,8 @@ class OversightOwnerTest {
         "staff_kind":"SUPERVISOR","employee_code":null,"is_active":true,"day_from":"2026-09-27","day_to":"2026-10-26","machines":2,
         "daily_reports_missing":2,"daily_reports_late":0,"unexplained_hours":"3.50","unexplained_items":1,"alerts":4,"alerts_open":1,
         "alerts_acknowledged":3,"avg_hours_to_acknowledge":"1.25","max_hours_to_acknowledge":"6.00","cash_held_too_long":0,"cash_differences":1,
-        "cash_difference_totals":[{"currency":"TZS","count":1,"amount":"-5000.0000"}],"cash_differences_near_threshold":1,"revenue_differences":0,
-        "revenue_difference_totals":[],"refused_attempts":0,"checkins_missed":null,"checkins_made":0,"pattern_signals":0,"items_total":$total,
+        "cash_difference_totals":[{"currency":"TZS","count":1,"amount":"-5000.0000"}],"cash_differences_near_threshold":1,
+        "refused_attempts":0,"pattern_signals":0,"items_total":$total,
         "cash_held":[{"currency":"TZS","amount":"120000.0000","held_since":"2026-10-24T09:00:00Z","held_days":2}]$extra}"""
 
     private fun rows(vararg r: String) = json.decodeFromString(ListSerializer(ScorecardRowDto.serializer()), "[${r.joinToString(",")}]")
@@ -73,10 +72,9 @@ class OversightOwnerTest {
         val d = json.decodeFromString(
             ScorecardDetailDto.serializer(),
             """{"row":${row(s1, "Baraka", 5)},"records":[
-              {"item":"MISSING_DAILY_REPORT","record_type":"job_exception","record_id":"$case1","at":"2026-10-20T00:00:00Z","day":"2026-10-20","machine_code":"EX-01","status":"OPEN"},
+              {"item":"MISSING_DAILY_REPORT","record_type":"meter_exception","record_id":"$case1","at":"2026-10-20T00:00:00Z","day":"2026-10-20","machine_code":"EX-01","status":"OPEN"},
               {"item":"CASH_DIFFERENCE","record_type":"cash_variance","record_id":"$s2","at":"2026-10-22T10:00:00Z","day":"2026-10-22","amount":"-5000.0000","currency":"TZS","near_threshold":true},
               {"item":"PATTERN_SIGNAL","record_type":"risk_signal","record_id":"$s1","at":"2026-10-23T10:00:00Z","day":"2026-10-23","detail":{"case_id":"$case1"}},
-              {"item":"MISSED_CHECKIN","record_type":"site_checkin_slot","record_id":null,"at":"2026-10-24T05:00:00Z","day":"2026-10-24","detail":{"scheduled_at":"2026-10-24T05:00:00Z"}},
               {"item":"UNEXPLAINED_HOURS","record_type":"engine_interval","record_id":null,"at":"2026-10-21T05:00:00Z","day":"2026-10-21","machine_id":"$s2","hours":"3.50"}]}""",
         )
         val figures = OversightPresentation.figureRows(d.row).toMap()
@@ -86,21 +84,20 @@ class OversightOwnerTest {
         assertEquals("average 1.25 h · longest 6 h", figures["Time to acknowledge"])
         assertEquals("1 · TZS -5,000.00", figures["Cash differences"])
         assertEquals("1", figures["Near the case threshold"])
-        assertFalse("Site check-ins" in figures) // never required in the period
+        assertFalse("Site check-ins" in figures) // ADR-008: gone
+        assertFalse("Revenue differences" in figures)
         assertEquals(listOf("TZS 120,000.00" to "since 24 Oct 2026 (2 days)"), OversightPresentation.cashHeld(d.row, zone))
 
         val records = OversightPresentation.records(d, all, zone)
-        assertEquals(listOf("Missed site check-in", "Repeated pattern", "Cash difference", "Unexplained engine hours", "Daily report missing"), records.map { it.title })
-        assertEquals("24 Oct 2026 · Scheduled 05:00", records[0].caption)
-        assertNull(records[0].open)
-        assertEquals(OwnerDestination.Case(case1), records[1].open)
-        assertEquals("TZS -5,000.00", records[2].value)
-        assertTrue(records[2].caption!!.endsWith("Near the case threshold"))
-        assertEquals(OwnerDestination.Decision(DecisionKinds.WRITE_OFF, s2), records[2].open)
-        assertEquals(OwnerDestination.Machine(s2), records[3].open)
-        assertEquals("3.5 h", records[3].value)
-        assertEquals(OwnerDestination.MeterException(case1), records[4].open)
-        assertEquals("20 Oct 2026 · EX-01 · Open", records[4].caption)
+        assertEquals(listOf("Repeated pattern", "Cash difference", "Unexplained engine hours", "Daily report missing"), records.map { it.title })
+        assertEquals(OwnerDestination.Case(case1), records[0].open)
+        assertEquals("TZS -5,000.00", records[1].value)
+        assertTrue(records[1].caption!!.endsWith("Near the case threshold"))
+        assertEquals(OwnerDestination.Decision(DecisionKinds.WRITE_OFF, s2), records[1].open)
+        assertEquals(OwnerDestination.Machine(s2), records[2].open)
+        assertEquals("3.5 h", records[2].value)
+        assertEquals(OwnerDestination.MeterException(case1), records[3].open)
+        assertEquals("20 Oct 2026 · EX-01 · Open", records[3].caption)
 
         // Without the permissions, the records show their details and open nothing.
         val none = OwnerFeatures(setOf("tenant.oversight.scorecard.read"))
@@ -111,13 +108,13 @@ class OversightOwnerTest {
     fun `idle machines list`() {
         val idle = json.decodeFromString(
             ListSerializer(IdleMachineDto.serializer()),
-            """[{"machine_id":"$s2","machine_code":"EX-01","category_id":null,"idle_since":"2026-10-01T00:00:00Z","idle_days":25,"last_job_id":"$s1",
-               "last_job_number":"J-3","last_job_completed_at":"2026-09-30T12:00:00Z","last_engine_activity_at":null,"planned_job_id":null}]""",
+            """[{"machine_id":"$s2","machine_code":"EX-01","category_id":null,"idle_since":"2026-10-01T00:00:00Z","idle_days":25,
+               "last_machine_report_id":"$s1","last_machine_report_number":"MR-2026-00003","last_engine_activity_at":null}]""",
         )
         val m = OversightPresentation.idle(idle, all, zone).single()
         assertEquals("EX-01", m.title)
         assertEquals("Idle since 1 Oct 2026 (25 days)", m.subtitle)
-        assertEquals("Last job J-3 completed 30 Sep 2026", m.caption)
+        assertEquals("Last report MR-2026-00003", m.caption)
         assertEquals(OwnerDestination.Machine(s2), m.open)
     }
 
@@ -137,20 +134,18 @@ class OversightOwnerTest {
 
         val noList = DashboardPresentation.tiles(summary, OwnerFeatures(emptySet())).associateBy { it.key }
         assertNull(noList.getValue("idle_machines").link)
-        val off = DashboardPresentation.tiles(summary, OwnerFeatures(all.permissions, setOf(TenantAccess.UNBILLED_WORK, TenantAccess.IDLE_MACHINES)))
+        val off = DashboardPresentation.tiles(summary, OwnerFeatures(all.permissions, setOf(TenantAccess.IDLE_MACHINES)))
         assertTrue(off.none { it.key == "unbilled_work" || it.key == "idle_machines" })
     }
 
     @Test
     fun `more entry, titles and fallbacks follow the gates`() {
         assertTrue(OwnerMenu.entries(all).any { it.second == OwnerDestination.Scorecard })
-        val off = OwnerFeatures(all.permissions, setOf(TenantAccess.SCORECARD, TenantAccess.UNBILLED_WORK, TenantAccess.IDLE_MACHINES))
+        val off = OwnerFeatures(all.permissions, setOf(TenantAccess.SCORECARD, TenantAccess.IDLE_MACHINES))
         assertFalse(OwnerMenu.entries(off).any { it.second == OwnerDestination.Scorecard })
         assertEquals(OwnerDestination.Accountability, off.route(OwnerDestination.Scorecard))
         assertEquals(OwnerDestination.Accountability, off.route(OwnerDestination.ScorecardPerson(s1)))
-        assertEquals(OwnerDestination.Home, off.route(OwnerDestination.UnbilledWork))
         assertEquals(OwnerDestination.Accountability, off.route(OwnerDestination.IdleMachines))
-        assertEquals(OwnerDestination.Home, all.route(OwnerDestination.UnbilledWork))
         assertEquals("People scorecard", OwnerNavigation.title(OwnerDestination.Scorecard))
         assertEquals("Baraka", OwnerNavigation.title(OwnerDestination.ScorecardPerson(s1, "Baraka")))
         assertEquals("Idle machines", OwnerNavigation.title(OwnerDestination.IdleMachines))
@@ -162,8 +157,8 @@ class OversightOwnerTest {
         val before = java.util.Locale.getDefault()
         java.util.Locale.setDefault(java.util.Locale.US)
         try {
-            assertEquals("1,234.5 h left", HoursPresentation.leftLine("1234.5000", "0.00"))
-            assertEquals("12 h left · 4 h in use by running jobs", HoursPresentation.leftLine("12.00", "4.0000"))
+            assertEquals("1,234.5 h left", HoursPresentation.leftLine("1234.5000"))
+            assertEquals("12 h left", HoursPresentation.leftLine("12.00"))
         } finally {
             java.util.Locale.setDefault(before)
         }

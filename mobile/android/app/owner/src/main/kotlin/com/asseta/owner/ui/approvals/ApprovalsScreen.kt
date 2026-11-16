@@ -95,8 +95,6 @@ class ApprovalsViewModel(
     payments: Boolean = false,
     exceptions: Boolean = false,
     decisions: List<DecisionKind> = emptyList(),
-    /** Also list revenue differences still to explain (explain or decide holders); otherwise only proposed ones. */
-    revenueOpen: Boolean = true,
     /** The role may read expense requests (`tenant.approval.read`); otherwise they are neither asked for nor shown. */
     val expenseRequests: Boolean = true,
     /** Petty cash fundings, top-ups and fund adjustments waiting for approval (read and approve, DEC-033). */
@@ -122,9 +120,7 @@ class ApprovalsViewModel(
 
     /** Accountability requests waiting for a decision, one independently loaded section per kind the role may see. */
     val decisionSections: List<Pair<DecisionKind, Section<List<DecisionItem>>>> = decisions.map { k ->
-        k to Section(viewModelScope) {
-            data.decisions(k).map { list -> if (k == DecisionKind.REVENUE_DIFFERENCE && !revenueOpen) list.filter { it.status != "OPEN" } else list }
-        }
+        k to Section(viewModelScope) { data.decisions(k) }
     }
 
     private val sections: List<Section<*>> =
@@ -293,7 +289,7 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, session: OwnerSession, online: Boole
                 }
                 exceptions?.let { x ->
                     sectionRows(x) { list ->
-                        list.items.map { e -> GroupedItem(e.id.toString(), onClick = { onOpen(OwnerDestination.MeterException(e.id.toString())) }) { ExceptionApprovalRow(e, null, zone) } }
+                        list.items.map { e -> GroupedItem(e.id.toString(), onClick = { onOpen(OwnerDestination.MeterException(e.id.toString())) }) { ExceptionApprovalRow(e, zone) } }
                     }?.let { groupedSection("exceptions", it, header = ExceptionReviewText.SECTION) }
                 }
                 resets?.let { r ->

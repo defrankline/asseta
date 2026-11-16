@@ -16,7 +16,6 @@ import com.asseta.core.model.ClientOperationStatus
         Index(value = ["tenant_id", "status", "created_at_device"]),
         Index(value = ["depends_on"]),
         Index(value = ["entity_type", "entity_id"]),
-        Index(value = ["job_id"]),
         Index(value = ["attachment_local_id"]),
     ],
 )
@@ -35,8 +34,7 @@ data class ClientOperationEntity(
     @ColumnInfo(name = "attempt_count") val attemptCount: Int,
     @ColumnInfo(name = "last_error") val lastError: String?,
     @ColumnInfo(name = "server_revision") val serverRevision: Long?,
-    /** Job this field operation belongs to (UI grouping and dependency planning). */
-    @ColumnInfo(name = "job_id") val jobId: String? = null,
+
     /** Server error code of the last outcome (REJECTED/CONFLICT/QUARANTINED/DEFERRED), shown to the user. */
     @ColumnInfo(name = "error_code") val errorCode: String? = null,
     /** Server per-op `result` (entity on ACK, `server_state` on CONFLICT); kept for audit and display. */

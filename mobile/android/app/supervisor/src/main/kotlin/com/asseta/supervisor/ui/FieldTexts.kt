@@ -1,12 +1,10 @@
 package com.asseta.supervisor.ui
 
 import com.asseta.core.domain.capture.GpsOutcome
-import com.asseta.core.domain.capture.JobStatus
 import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.model.sync.AccountabilityOps
 import com.asseta.core.model.sync.OpTypes
 import com.asseta.supervisor.ui.accountability.FieldAccountabilityTexts
-import com.asseta.core.sync.data.JobSummary
 import com.asseta.core.sync.data.WaitingReason
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -18,20 +16,6 @@ import kotlin.math.abs
  * so the wording and the small display rules are unit-tested.
  */
 object FieldTexts {
-    fun jobStatus(status: String): String = when (status) {
-        JobStatus.APPROVED -> "Approved"
-        JobStatus.IN_PROGRESS -> "In progress"
-        JobStatus.COMPLETED -> "Completed"
-        JobStatus.CANCELLED -> "Cancelled"
-        "DRAFT" -> "Draft"
-        "PENDING_APPROVAL" -> "Pending approval"
-        else -> status.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
-    }
-
-    /** Status badge text: the device's view, marked when it differs from the server's (local action not synced). */
-    fun statusBadge(displayStatus: String, serverStatus: String): String =
-        jobStatus(displayStatus) + if (displayStatus != serverStatus) " · not synced" else ""
-
     fun syncState(status: ClientOperationStatus): String = when (status) {
         ClientOperationStatus.PENDING -> "Waiting to sync"
         ClientOperationStatus.SENT -> "Sending"
@@ -43,42 +27,9 @@ object FieldTexts {
 
     fun meterPrecision(decimalPlaces: Int): String = if (decimalPlaces == 0) "Whole hours" else "$decimalPlaces decimal place(s)"
 
-    fun machine(summary: JobSummary): String? = summary.machine?.let { "${it.assetCode} · ${it.name}" }
-
-    /** Home list sections in display order; empty sections are dropped. */
-    fun jobSections(jobs: List<JobSummary>, displayStatus: (JobSummary) -> String): List<Pair<String, List<JobSummary>>> {
-        val inProgress = jobs.filter { displayStatus(it) == JobStatus.IN_PROGRESS }
-        val ready = jobs.filter { displayStatus(it) == JobStatus.APPROVED }
-        val other = jobs - (inProgress + ready).toSet()
-        return listOf("In progress" to inProgress, "Ready to start" to ready, "Other" to other).filter { it.second.isNotEmpty() }
-    }
-
-    /** Title of an operation in a job's "Recorded on this phone" list. */
-    fun operationTitle(opType: String, payload: JsonObject?): String {
-        fun text(key: String) = (payload?.get(key) as? JsonPrimitive)?.contentOrNull.orEmpty()
-        return when (opType) {
-            OpTypes.METER_CAPTURE -> (if (text("kind") == "OPENING") "Opening" else "Closing") + " reading ${text("reading")}"
-            OpTypes.JOB_ACTIVITY -> "Work log: ${activityType(text("activity_type"))}"
-            OpTypes.JOB_ACKNOWLEDGEMENT -> "Acknowledged by ${text("signer_name")}"
-            OpTypes.JOB_TRANSITION -> if (text("action") == "START") "Job started" else "Job completed"
-            OpTypes.EXPENSE -> "Expense ${text("amount")}"
-            OpTypes.FUEL_EVENT -> "Fuel ${text("event_type").lowercase()}: ${text("litres")} L"
-            OpTypes.CASH_COLLECTION -> "Cash collection ${text("amount")}"
-            OpTypes.CASH_HANDOVER -> "Cash handover ${text("amount")}"
-            OpTypes.METER_RESET_REQUEST -> "Meter reset request"
-            OpTypes.JOB_REQUEST -> "Job request"
-            else -> opType
-        }
-    }
-
     /** Title of an item on the sync status screen. */
     fun outboxTitle(opType: String, payload: JsonObject?): String = when (opType) {
-        OpTypes.METER_CAPTURE -> when {
-            (payload?.get("changeover_to_customer_id") as? JsonPrimitive)?.contentOrNull != null -> com.asseta.supervisor.ui.accountability.DailyReportTexts.CHANGEOVER_OUTBOX
-            (payload?.get("kind") as? JsonPrimitive)?.contentOrNull == "DAILY" -> FieldAccountabilityTexts.OUTBOX_DAILY
-            else -> "Meter reading"
-        }
-        AccountabilityOps.DAILY_REPORT -> com.asseta.supervisor.ui.accountability.DailyReportTexts.OUTBOX
+        OpTypes.METER_CAPTURE -> FieldAccountabilityTexts.OUTBOX_DAILY
         AccountabilityOps.HOURS_PURCHASE -> FieldAccountabilityTexts.outboxHoursSale(payload)
         AccountabilityOps.HOURS_TRANSFER_REQUEST -> FieldAccountabilityTexts.OUTBOX_HOURS_TRANSFER
         AccountabilityOps.CASH_TRANSFER -> FieldAccountabilityTexts.OUTBOX_CASH_TRANSFER
@@ -87,30 +38,21 @@ object FieldTexts {
         AccountabilityOps.METER_BASELINE -> FieldAccountabilityTexts.OUTBOX_BASELINE
         AccountabilityOps.METER_CORRECTION -> FieldAccountabilityTexts.OUTBOX_CORRECTION
         AccountabilityOps.CASH_RETENTION_REQUEST -> FieldAccountabilityTexts.OUTBOX_RETENTION
-        AccountabilityOps.SITE_CHECKIN -> "Site check-in"
         com.asseta.core.model.sync.MachineReportOps.MACHINE_REPORT -> com.asseta.supervisor.ui.report.ReportTexts.OUTBOX
         com.asseta.core.model.sync.MachineReportOps.CREDIT_INVOICE_PAYMENT -> com.asseta.supervisor.ui.report.ReportTexts.OUTBOX_INVOICE_PAYMENT
-        OpTypes.JOB_ACTIVITY -> "Work log entry"
-        OpTypes.JOB_ACKNOWLEDGEMENT -> "Customer acknowledgement"
-        OpTypes.JOB_TRANSITION ->
-            if ((payload?.get("action") as? JsonPrimitive)?.contentOrNull == "COMPLETE") "Complete job" else "Start job"
         OpTypes.EXPENSE -> "Expense"
         OpTypes.CASH_COLLECTION -> "Cash collection"
         OpTypes.CASH_HANDOVER -> "Cash handover"
         OpTypes.FUEL_EVENT -> "Fuel event"
         OpTypes.METER_RESET_REQUEST -> "Meter reset request"
-        OpTypes.JOB_REQUEST -> "Job request"
         else -> com.asseta.supervisor.ui.pettycash.PettyCashTexts.outboxTitle(opType) ?: opType
     }
-
-    /** "WORK" -> "Work". */
-    fun activityType(type: String): String = type.lowercase().replaceFirstChar { it.uppercase() }
 
     fun waiting(reason: WaitingReason, opType: String? = null): String = when (reason) {
         WaitingReason.EARLIER_ITEM -> "Waiting for an earlier item"
         WaitingReason.BLOCKED_BY_EARLIER -> "Blocked by an earlier item that needs attention"
-        WaitingReason.UPLOAD -> if (opType == OpTypes.CASH_HANDOVER || opType == AccountabilityOps.DAILY_REPORT ||
-            opType == com.asseta.core.model.sync.PettyCashOps.RETURN || opType == com.asseta.core.model.sync.PettyCashOps.COUNT) FieldAccountabilityTexts.OUTBOX_WAITING_PHOTOS else "Waiting for its photo/receipt/signature upload"
+        WaitingReason.UPLOAD -> if (opType == OpTypes.CASH_HANDOVER ||
+            opType == com.asseta.core.model.sync.PettyCashOps.RETURN || opType == com.asseta.core.model.sync.PettyCashOps.COUNT) FieldAccountabilityTexts.OUTBOX_WAITING_PHOTOS else "Waiting for its photo/receipt upload"
     }
 
     fun signOutMessage(unsynced: Int): String =

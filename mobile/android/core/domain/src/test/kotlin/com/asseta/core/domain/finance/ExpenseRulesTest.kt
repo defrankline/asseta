@@ -25,9 +25,7 @@ class ExpenseRulesTest {
         receipt: Boolean = false,
         gps: GpsOutcome? = fix,
         machine: String? = null,
-        job: String? = null,
-        jobMachine: String? = null,
-    ) = ExpenseDraft("cat", "Hydraulic oil", "Fuel Depot", amount, currency, PaidFrom.CASH_CUSTODY, machine, job, jobMachine, receipt, gps)
+    ) = ExpenseDraft("cat", "Hydraulic oil", "Fuel Depot", amount, currency, PaidFrom.CASH_CUSTODY, machine, receipt, gps)
 
     private fun codes(a: ExpenseAssessment) = a.issues.map { it.code }
 
@@ -83,19 +81,19 @@ class ExpenseRulesTest {
     }
 
     @Test
-    fun formFieldsAndAttributionAreValidated() {
+    fun formFieldsAreValidated() {
         val bad = ExpenseRules.assess(
-            ExpenseDraft(null, " ", "", "12.34567", "ZM", null, "m2", "j1", "m1", false, fix), policy, "ZMW",
+            ExpenseDraft(null, " ", "", "12.34567", "ZM", null, "m2", false, fix), policy, "ZMW",
         )
         assertEquals(
             listOf(
                 ExpenseViolation.CATEGORY_REQUIRED, ExpenseViolation.DESCRIPTION_REQUIRED, ExpenseViolation.AMOUNT_INVALID,
-                ExpenseViolation.CURRENCY_INVALID, ExpenseViolation.PAID_FROM_REQUIRED, ExpenseViolation.ATTRIBUTION_MISMATCH,
+                ExpenseViolation.CURRENCY_INVALID, ExpenseViolation.PAID_FROM_REQUIRED,
             ),
             codes(bad),
         )
         assertNull(bad.approval)
-        assertTrue(ExpenseRules.assess(draft(machine = "m1", job = "j1", jobMachine = "m1"), policy, "ZMW").isValid)
+        assertTrue(ExpenseRules.assess(draft(machine = "m1"), policy, "ZMW").isValid)
     }
 
     @Test

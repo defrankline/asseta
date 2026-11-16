@@ -55,7 +55,7 @@ fun OwnerHome(graph: OwnerGraph, session: OwnerSession, modifier: Modifier = Mod
     var confirmSignOut by remember { mutableStateOf(false) }
     val drawer = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    // A destination of a capability the tenant switched off (or a job link) falls back (follow-up F1, ADR-008).
+    // A destination of a capability the tenant switched off falls back (follow-up F1).
     val open: (OwnerDestination) -> Unit = { stack = OwnerNavigation.navigate(stack, features.route(it)) }
     val online by graph.network.online.collectAsStateWithLifecycle()
     val unread by graph.liveUpdates.unread.collectAsStateWithLifecycle()

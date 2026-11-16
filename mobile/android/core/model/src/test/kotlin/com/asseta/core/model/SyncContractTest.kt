@@ -5,21 +5,23 @@ import com.asseta.core.model.sync.CashReconciliationDayDto
 import com.asseta.core.model.sync.CashReconciliationDto
 import com.asseta.core.model.sync.ChangesDto
 import com.asseta.core.model.sync.FindingDto
-import com.asseta.core.model.sync.HireAllocationDto
-import com.asseta.core.model.sync.SyncAcknowledgementDto
 import com.asseta.core.model.sync.SyncCapabilities
 import com.asseta.core.model.sync.SyncCashCollectionDto
 import com.asseta.core.model.sync.SyncCashHandoverDto
 import com.asseta.core.model.sync.SyncData
 import com.asseta.core.model.sync.SyncExpenseDto
 import com.asseta.core.model.sync.SyncFuelEventDto
-import com.asseta.core.model.sync.SyncJobActivityDto
+
 import com.asseta.core.model.sync.SyncMeterCaptureDto
 import com.asseta.core.model.sync.SyncMeterResetDto
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -29,30 +31,41 @@ class SyncContractTest {
     private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
 
     @Test
+    fun `every operation type the phone queues is in the contract and the ADR-008 removed ones are gone`() {
+        val schema = ContractCheck.schemas["OperationIn"]!!.jsonObject["properties"]!!.jsonObject["op_type"]!!.jsonObject
+        val accepted = schema["enum"]!!.jsonArray.map { it.jsonPrimitive.content }.toSet()
+        val queued = listOf(
+            com.asseta.core.model.sync.OpTypes.METER_CAPTURE, com.asseta.core.model.sync.OpTypes.EXPENSE, com.asseta.core.model.sync.OpTypes.CASH_COLLECTION,
+            com.asseta.core.model.sync.OpTypes.CASH_HANDOVER, com.asseta.core.model.sync.OpTypes.FUEL_EVENT, com.asseta.core.model.sync.OpTypes.METER_RESET_REQUEST,
+            com.asseta.core.model.sync.AccountabilityOps.HOURS_PURCHASE, com.asseta.core.model.sync.AccountabilityOps.HOURS_TRANSFER_REQUEST,
+            com.asseta.core.model.sync.AccountabilityOps.CASH_TRANSFER, com.asseta.core.model.sync.AccountabilityOps.CASH_TRANSFER_ACKNOWLEDGEMENT,
+            com.asseta.core.model.sync.AccountabilityOps.CASH_FLOAT_ACKNOWLEDGEMENT, com.asseta.core.model.sync.AccountabilityOps.CASH_RETENTION_REQUEST,
+            com.asseta.core.model.sync.AccountabilityOps.METER_BASELINE, com.asseta.core.model.sync.AccountabilityOps.METER_CORRECTION,
+            com.asseta.core.model.sync.MachineReportOps.MACHINE_REPORT, com.asseta.core.model.sync.MachineReportOps.CREDIT_INVOICE_PAYMENT,
+        ) + com.asseta.core.model.sync.PettyCashOps.ALL
+        assertEquals(emptyList<String>(), queued.filter { it !in accepted })
+        listOf("JOB_ACTIVITY", "JOB_ACKNOWLEDGEMENT", "JOB_TRANSITION", "JOB_REQUEST", "SITE_CHECKIN").forEach { assertFalse(it in accepted) }
+    }
+
+    @Test
     fun `sync inbox DTOs match the contract schemas`() {
         mapOf<String, KSerializer<*>>(
             "SyncData" to SyncData.serializer(),
-            "SyncChangeoverJobDto" to com.asseta.core.model.sync.SyncChangeoverJobDto.serializer(),
-            "SyncUnbillableReasonDto" to com.asseta.core.model.sync.SyncUnbillableReasonDto.serializer(),
+
             "BootstrapDto" to BootstrapDto.serializer(),
             "ChangesDto" to ChangesDto.serializer(),
             "SyncMeterCaptureDto" to SyncMeterCaptureDto.serializer(),
             "ExceptionDto" to FindingDto.serializer(),
             "SyncMeterResetDto" to SyncMeterResetDto.serializer(),
-            "SyncJobActivityDto" to SyncJobActivityDto.serializer(),
-            "SyncAcknowledgementDto" to SyncAcknowledgementDto.serializer(),
+
             "SyncExpenseDto" to SyncExpenseDto.serializer(),
             "SyncFuelEventDto" to SyncFuelEventDto.serializer(),
             "SyncCashCollectionDto" to SyncCashCollectionDto.serializer(),
-            "HireAllocationDto" to HireAllocationDto.serializer(),
+
             "SyncCashHandoverDto" to SyncCashHandoverDto.serializer(),
             "CashReconciliationDto" to CashReconciliationDto.serializer(),
             "CashReconciliationDayDto" to CashReconciliationDayDto.serializer(),
-            "FieldContractDto" to com.asseta.core.model.sync.FieldContractDto.serializer(),
-            "JobRequestIn" to com.asseta.core.model.sync.JobRequestPayload.serializer(),
         ).forEach { (name, serializer) -> ContractCheck.check(name, serializer.descriptor) }
-        ContractCheck.check("SyncOpenInvoiceDto", com.asseta.core.model.sync.SyncOpenInvoiceDto.serializer().descriptor)
-        ContractCheck.check("HireAllocationIn", com.asseta.core.model.sync.CollectionAllocationPayload.serializer().descriptor, request = true)
         // DEC-033 petty cash: the parts the field app shows (subsets) and the operation payloads it sends.
         ContractCheck.check("PettyCashFundDto", com.asseta.core.model.sync.PettyCashFundDto.serializer().descriptor, subset = true)
         ContractCheck.check("PettyCashBalanceDto", com.asseta.core.model.sync.PettyCashBalanceDto.serializer().descriptor, subset = true)
@@ -83,7 +96,7 @@ class SyncContractTest {
 
     @Test
     fun `older server without inbox lists leaves them absent`() {
-        val data = json.decodeFromString(SyncData.serializer(), """{"jobs":[],"machines":[]}""")
+        val data = json.decodeFromString(SyncData.serializer(), """{"machines":[]}""")
         assertNull(data.myMeterCaptures)
         assertNull(data.myExpenses)
         val changes = json.decodeFromString(
@@ -96,24 +109,23 @@ class SyncContractTest {
     @Test
     fun `parses capture with findings and an unknown enum value`() {
         val body = """{"capabilities":["SUPERVISOR_INBOX_V1","OP_METER_RESET_REQUEST"],"server_time":"2026-10-23T08:00:00Z","cursor":9,
-            "has_more":true,"policy_snapshots":[],"data":{"my_meter_captures":[{"id":"c1","job_id":"j1","machine_id":"m1","kind":"OPENING",
+            "has_more":true,"policy_snapshots":[],"data":{"my_meter_captures":[{"id":"c1","machine_id":"m1","kind":"DAILY",
             "capture_mode":"AUTOMATIC","reading":"1234.5","state":"PROVISIONAL","gps_status":"FIX","latitude":-6.8,"longitude":39.2,
             "accuracy_m":12.0,"location_captured_at":"2026-10-23T07:59:00Z","photo_attachment_id":"a1","photo_sha256":"ab","ocr_value":"1234.5",
             "ocr_confidence":0.91,"manually_corrected":false,"policy_version":"p1","supersedes_id":null,"tracker_comparison":null,
             "captured_at":"2026-10-23T07:59:30Z","received_at":"2026-10-23T08:00:00Z","sync_revision":42,"review_status":"PENDING_REVIEW",
             "findings":[{"id":"f1","exception_type":"SOMETHING_NEW","severity":"HIGH","blocking":true,"status":"OPEN","machine_id":"m1",
-            "job_id":"j1","meter_capture_id":"c1","policy_version":null,"review_note":null,"reviewed_at":null,"created_at":"2026-10-23T08:00:00Z",
+            "meter_capture_id":"c1","policy_version":null,"review_note":null,"reviewed_at":null,"created_at":"2026-10-23T08:00:00Z",
             "evidence":{"delta":"12"}}]}],
             "my_expenses":[{"id":"e1","client_id":"x1","category_id":"k1","description":"Diesel","supplier":null,"amount":"25000.00",
             "currency":"TZS","paid_from":"CASH_CUSTODY","status":"REJECTED","decision_note":"No receipt","decided_at":"2026-10-23T09:00:00Z",
             "decided_by":null,"incurred_at":"2026-10-23T07:00:00Z","submitted_at":"2026-10-23T07:10:00Z","submitted_by":null,
-            "custodian_staff_id":null,"job_id":null,"machine_id":null,"gps_status":"FIX","gps_accuracy_m":5.0,"latitude":1.0,"longitude":2.0,
+            "custodian_staff_id":null,"machine_id":null,"gps_status":"FIX","gps_accuracy_m":5.0,"latitude":1.0,"longitude":2.0,
             "policy_version":"p","receipt_required":true,"source":"SYNC","receipt_attachment_ids":["r1","r2"],"approval_request_id":"ap1",
             "sync_revision":7}],
             "my_cash_collections":[{"id":"p1","client_id":"x2","customer_id":"cu1","amount":"10","currency":"TZS","method":"CASH",
             "status":"VERIFIED","decision_note":null,"reference":null,"note":null,"received_at":"2026-10-23T07:00:00Z","received_by_staff_id":"s1",
             "recorded_at":"2026-10-23T07:00:00Z","recorded_by":null,"verified_at":"2026-10-23T10:00:00Z","verified_by":null,"source":"SYNC",
-            "allocations":[{"id":"al","invoice_id":"i1","amount":"10","created_at":"2026-10-23T10:00:00Z","released_at":null,"release_reason":null}],
             "sync_revision":3}]}}"""
         val dto = json.decodeFromString(ChangesDto.serializer(), body)
         assertTrue(SyncCapabilities.SUPERVISOR_INBOX_V1 in dto.capabilities)
@@ -125,7 +137,7 @@ class SyncContractTest {
         val expense = dto.data.myExpenses!!.single()
         assertEquals("No receipt", expense.decisionNote)
         assertEquals(listOf("r1", "r2"), expense.receiptAttachmentIds)
-        assertEquals("10", dto.data.myCashCollections!!.single().allocations.single().amount)
+        assertEquals("10", dto.data.myCashCollections!!.single().amount)
         assertNull(dto.data.myFuelEvents)
     }
 

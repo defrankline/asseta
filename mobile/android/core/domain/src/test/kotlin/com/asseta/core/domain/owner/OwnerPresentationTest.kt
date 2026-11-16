@@ -13,7 +13,7 @@ class DeepLinkRouterTest {
     fun `targets map to owner screens`() {
         assertEquals(OwnerDestination.Alerts(id), DeepLinkRouter.fromTarget("alert", id, "/tenant/alerts"))
         assertEquals(OwnerDestination.Approvals(id), DeepLinkRouter.fromTarget("approval", id, null))
-        assertEquals(OwnerDestination.Job(id), DeepLinkRouter.fromTarget("job", id, null))
+        assertEquals(OwnerDestination.MeterException(id), DeepLinkRouter.fromTarget("meter_exception", id, null))
         assertEquals(OwnerDestination.Case(id), DeepLinkRouter.fromTarget("case", id, null))
         assertEquals(OwnerDestination.Machine(id), DeepLinkRouter.fromTarget("fleet.position", id, null))
     }
@@ -21,21 +21,22 @@ class DeepLinkRouterTest {
     @Test
     fun `console only targets open the inbox and bad ids are dropped`() {
         assertEquals(OwnerDestination.Notifications(id), DeepLinkRouter.fromTarget("tenant_user", "x", "/tenant/users", id))
-        assertEquals(OwnerDestination.Jobs, DeepLinkRouter.fromTarget("job", "../../etc", null))
+        // ADR-008: jobs are gone; an old job notification opens itself.
+        assertEquals(OwnerDestination.Notifications(id), DeepLinkRouter.fromTarget("job", id, "/tenant/jobs/$id", id))
     }
 
     @Test
     fun `meter reset and exception targets`() {
         assertEquals(OwnerDestination.MeterReset(id), DeepLinkRouter.fromTarget("meter_reset", id, null))
         assertEquals(OwnerDestination.Approvals(), DeepLinkRouter.fromTarget("meter_reset", null, null))
-        assertEquals(OwnerDestination.Exceptions(), DeepLinkRouter.fromTarget("exception", id, null))
+        assertEquals(OwnerDestination.Exceptions, DeepLinkRouter.fromTarget("exception", id, null))
         assertEquals(OwnerDestination.MeterReset(id), DeepLinkRouter.fromPath("/tenant/meter-resets/$id"))
-        assertEquals(OwnerDestination.Exceptions(), DeepLinkRouter.fromPath("/tenant/exceptions"))
+        assertEquals(OwnerDestination.Exceptions, DeepLinkRouter.fromPath("/tenant/exceptions"))
     }
 
     @Test
     fun `console paths`() {
-        assertEquals(OwnerDestination.Job(id), DeepLinkRouter.fromPath("/tenant/jobs/$id"))
+        assertNull(DeepLinkRouter.fromPath("/tenant/jobs/$id"))
         assertEquals(OwnerDestination.Machine(id), DeepLinkRouter.fromPath("/tenant/fleet/machines/$id"))
         assertEquals(OwnerDestination.Approvals(null), DeepLinkRouter.fromPath("/tenant/approvals?x=1"))
         assertNull(DeepLinkRouter.fromPath("/platform/models/$id"))

@@ -77,9 +77,10 @@ class TenantApiTest {
         assertEquals("2026-10-01", cash.queryParameter("from"))
         assertEquals("2026-10-22", cash.queryParameter("to"))
         server.enqueue(MockResponse.Builder().body("""{"items":[],"total":0,"page":1,"page_size":100}""").build())
-        api.fuelEvents(jobId = tenant, pageSize = 100)
+        api.fuelEvents(eventType = "PURCHASE", pageSize = 100)
         val fuel = server.takeRequest().url
-        assertEquals(tenant, fuel.queryParameter("job_id"))
+        assertEquals("PURCHASE", fuel.queryParameter("event_type"))
+        assertEquals(null, fuel.queryParameter("job_id"))
         assertEquals("100", fuel.queryParameter("page_size"))
     }
 

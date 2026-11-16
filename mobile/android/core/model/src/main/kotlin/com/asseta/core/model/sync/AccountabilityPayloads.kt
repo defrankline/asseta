@@ -24,12 +24,6 @@ object AccountabilityOps {
     const val METER_BASELINE = "METER_BASELINE"
     const val METER_CORRECTION = "METER_CORRECTION"
 
-    /** DEC-031 M3: a GPS check-in at the site (`SiteCheckinIn`), when the server announces OP_SITE_CHECKIN. */
-    const val SITE_CHECKIN = "SITE_CHECKIN"
-
-    /** DEC-032 A4: a daily operational report ([DailyReportPayload]), when the server announces OP_DAILY_REPORT. */
-    const val DAILY_REPORT = "DAILY_REPORT"
-
     /** Blob purpose of hours-sale payment evidence (receipt, mobile-money screenshot). */
     const val PAYMENT_EVIDENCE = "PAYMENT_EVIDENCE"
 
@@ -246,8 +240,6 @@ data class PurchaseTotalsDto(
     @SerialName("awaiting_activation") val awaitingActivation: String,
     val transferred: String = "0",
     val expired: String = "0",
-    /** Hours held by running jobs (daily drawdown, DEC-031 P4), already taken out of [remaining]. */
-    val provisional: String = "0",
     /** Unused hours refunded (DEC-032). */
     val refunded: String = "0",
     /** Net approved corrections, signed (DEC-032). */
@@ -262,8 +254,6 @@ data class MachineHoursDto(
     val remaining: String,
     @SerialName("machine_code") val machineCode: String? = null,
     @SerialName("machine_name") val machineName: String? = null,
-    /** Hours held by running jobs on this machine, already taken out of [remaining]. */
-    val provisional: String = "0",
 )
 
 /** `HoursPurchaseDto` (listHoursPurchases), the part the hours-transfer form needs. */
@@ -316,14 +306,3 @@ data class CashRetentionIn(
     @SerialName("client_id") val clientId: String? = null,
 )
 
-/**
- * `SiteCheckinIn`: the sync op `SITE_CHECKIN` (DEC-031 M3). [clientId] is the check-in's idempotency key; the GPS
- * attempt is sent as it happened (no coordinates on failure). No [jobSiteId]: the server takes the running job's site.
- */
-@Serializable
-data class SiteCheckinPayload(
-    @SerialName("client_id") val clientId: String,
-    @SerialName("captured_at") val capturedAt: String,
-    val gps: GpsIn,
-    @SerialName("job_site_id") val jobSiteId: String? = null,
-)

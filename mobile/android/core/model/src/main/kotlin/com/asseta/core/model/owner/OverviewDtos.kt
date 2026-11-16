@@ -48,7 +48,7 @@ data class OverviewSeverityCountsDto(val info: Int = 0, val warning: Int = 0, va
 
 @Serializable
 data class OverviewWorkSectionDto(
-    @SerialName("jobs_by_status") val jobsByStatus: Map<String, Int> = emptyMap(),
+    @SerialName("machine_reports_by_status") val machineReportsByStatus: Map<String, Int> = emptyMap(),
     @SerialName("open_exceptions") val openExceptions: Int? = null,
     @SerialName("pending_approvals") val pendingApprovals: Int? = null,
     @SerialName("readings_needing_review") val readingsNeedingReview: Int? = null,

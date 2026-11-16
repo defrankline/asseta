@@ -4,23 +4,24 @@ import com.asseta.core.domain.capture.CaptureViolation
 import com.asseta.core.domain.capture.GpsOutcome
 import com.asseta.core.domain.ocr.OcrReading
 import com.asseta.core.domain.policy.CaptureMode
-import com.asseta.core.domain.policy.ReadingKind
 import com.asseta.core.domain.sync.ClockStatus
 import com.asseta.core.model.ClientOperationStatus
+import com.asseta.core.model.sync.MachineReportOps
+import com.asseta.core.sync.data.FieldOps
+import com.asseta.core.sync.data.FieldOutbox
 import com.asseta.core.sync.data.WaitingReason
 import com.asseta.core.sync.engine.SyncReport
 import com.asseta.core.sync.evidence.Sha256
 import com.asseta.core.sync.usecase.CaptureResult
-import com.asseta.core.sync.usecase.JobWorkflow
-import com.asseta.core.sync.usecase.WorkflowResult
+import com.asseta.core.sync.usecase.CaptureTarget
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -36,7 +37,7 @@ class FieldUseCaseTest : SyncTestBase() {
     @Test
     fun noRulesYetBlocksCapture() = runBlocking {
         val result = capture(captureRequest())
-        assertTrue(result is CaptureResult.Blocked) // no job/snapshot downloaded yet
+        assertTrue(result is CaptureResult.Blocked) // no machine/snapshot downloaded yet
     }
 
     @Test
@@ -65,8 +66,9 @@ class FieldUseCaseTest : SyncTestBase() {
         val lowConfidence = OcrReading("1234.5", 0.4, "1234.5", "OK", emptySet())
         val recapture = capture(captureRequest(ocr = lowConfidence, attempts = 1)) as CaptureResult.Invalid
         assertEquals(listOf(CaptureViolation.RECAPTURE_REQUIRED), recapture.violations)
-        val closingTooEarly = capture(captureRequest(ReadingKind.CLOSING, CaptureMode.MANUAL, ocr = null))
-        assertTrue(closingTooEarly is CaptureResult.Blocked)
+        // A machine that is not on this phone cannot be read.
+        val unknown = capture(captureRequest(target = CaptureTarget.Daily("99999999-9999-4999-8999-999999999999")))
+        assertTrue(unknown is CaptureResult.Blocked)
     }
 
     @Test
@@ -103,73 +105,21 @@ class FieldUseCaseTest : SyncTestBase() {
     }
 
     @Test
-    fun workflowGuardsFollowLocalState() = runBlocking {
+    fun waitingReasonsAndRejectedItemsCanBeRequeued() = runBlocking {
         bootstrap()
-        assertTrue(workflow.transition(tenant, fake.jobId, JobWorkflow.START) is WorkflowResult.Refused)
-        saved(capture(captureRequest()))
-        assertTrue(workflow.transition(tenant, fake.jobId, JobWorkflow.START) is WorkflowResult.Done)
-        assertTrue(workflow.transition(tenant, fake.jobId, JobWorkflow.START) is WorkflowResult.Refused)
-        val entry = workflow.startEntry(tenant, fake.jobId, "DOWNTIME", "hydraulic leak") as WorkflowResult.Done
-        assertTrue(workflow.startEntry(tenant, fake.jobId, "WORK") is WorkflowResult.Refused) // one running entry
-        assertTrue(workflow.addNote(tenant, fake.jobId, "Waiting for fitter") is WorkflowResult.Done)
-        saved(capture(captureRequest(ReadingKind.CLOSING, CaptureMode.MANUAL, "1240.0", photoBytes = null, ocr = null)))
-        assertTrue(workflow.acknowledge(tenant, fake.jobId, "SIGNATURE", "Jane", null, null) is WorkflowResult.Refused)
-        assertTrue(workflow.acknowledge(tenant, fake.jobId, "NAME_CONFIRMATION", "Jane", "+260", null) is WorkflowResult.Done)
-        assertTrue(workflow.transition(tenant, fake.jobId, JobWorkflow.COMPLETE) is WorkflowResult.Refused) // entry running
-        workflow.stopEntry(tenant, entry.id)
-        assertTrue(workflow.transition(tenant, fake.jobId, JobWorkflow.COMPLETE) is WorkflowResult.Done)
-    }
-
-    @Test
-    fun workLogFormEntriesCarryTimesAndBillable() = runBlocking {
-        bootstrap()
-        saved(capture(captureRequest()))
-        val start = clock.now - 3_600_000
-        assertEquals(
-            WorkflowResult.Refused("The end time is before the start time."),
-            workflow.addEntry(tenant, fake.jobId, "STANDBY", start, start - 1, false, null),
-        )
-        val done = workflow.addEntry(tenant, fake.jobId, "STANDBY", start, start + 1_800_000, false, " rain ") as WorkflowResult.Done
-        val payload = json.parseToJsonElement(op(done.id).payloadJson).jsonObject
-        assertEquals("false", payload["billable"]!!.jsonPrimitive.content)
-        assertEquals("rain", payload["note"]!!.jsonPrimitive.content)
-        assertNotNull(payload["ended_at"])
-        // Not ended: a backdated running entry, queued only when stopped (without billable = contract default).
-        val running = workflow.startEntry(tenant, fake.jobId, "WORK", startedAtMs = start) as WorkflowResult.Done
-        assertEquals(start, db.evidenceDao().workLog(running.id)!!.startedAt)
-        val stopped = workflow.stopEntry(tenant, running.id) as WorkflowResult.Done
-        assertNull(json.parseToJsonElement(op(stopped.id).payloadJson).jsonObject["billable"])
-        assertEquals(WorkflowResult.Refused("Write a note first."), workflow.addNote(tenant, fake.jobId, "  "))
-    }
-
-    @Test
-    fun acknowledgedHoursAreValidatedAndSent() = runBlocking {
-        bootstrap()
-        saved(capture(captureRequest()))
-        workflow.transition(tenant, fake.jobId, JobWorkflow.START)
-        saved(capture(captureRequest(ReadingKind.CLOSING, CaptureMode.MANUAL, "1240.0", photoBytes = null, ocr = null)))
-        assertEquals(
-            WorkflowResult.Refused("Hours must be a number with at most 2 decimals."),
-            workflow.acknowledge(tenant, fake.jobId, "NAME_CONFIRMATION", "Jane", null, null, "5.125"),
-        )
-        val ack = workflow.acknowledge(tenant, fake.jobId, "NAME_CONFIRMATION", "Jane", null, null, "5,5") as WorkflowResult.Done
-        assertEquals("5.5", json.parseToJsonElement(op(ack.id).payloadJson).jsonObject["acknowledged_hours"]!!.jsonPrimitive.content)
-    }
-
-    @Test
-    fun jobListShowsCustomerAndRejectedItemsCanBeRequeued() = runBlocking {
-        bootstrap()
-        assertEquals("Road Builders Ltd", repository.observeJobs(tenant).first().single().customerName)
         val saved = saved(capture(captureRequest()))
-        val start = workflow.transition(tenant, fake.jobId, JobWorkflow.START) as WorkflowResult.Done
+        // A machine report waits for its reading (the dependency) and the reading for its photo.
+        val report = FieldOutbox({ db }, json, clock, { account }).enqueueOperation(
+            tenant, MachineReportOps.MACHINE_REPORT, FieldOps.MACHINE_REPORT, "r1", JsonObject(emptyMap()), dependsOn = listOf(saved.operationId),
+        )
         val unsynced = db.clientOperationDao().observeUnsynced(tenant, USER_A.subject).first().associateBy { it.id }
-        assertEquals(WaitingReason.EARLIER_ITEM, repository.waitingReason(op(start.id), unsynced))
+        assertEquals(WaitingReason.EARLIER_ITEM, repository.waitingReason(op(report), unsynced))
         assertEquals(WaitingReason.UPLOAD, repository.waitingReason(op(saved.operationId), unsynced))
         assertFalse(repository.requeue(saved.operationId)) // only rejected (FAILED) items go back to the queue
         db.clientOperationDao().markSent(saved.operationId)
         db.clientOperationDao().markRejected(saved.operationId, "VALIDATION_FAILED", "bad", null)
         val blocked = db.clientOperationDao().observeUnsynced(tenant, USER_A.subject).first().associateBy { it.id }
-        assertEquals(WaitingReason.BLOCKED_BY_EARLIER, repository.waitingReason(op(start.id), blocked))
+        assertEquals(WaitingReason.BLOCKED_BY_EARLIER, repository.waitingReason(op(report), blocked))
         assertTrue(repository.requeue(saved.operationId))
         assertEquals(ClientOperationStatus.PENDING, status(saved.operationId))
     }

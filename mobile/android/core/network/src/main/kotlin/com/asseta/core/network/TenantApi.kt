@@ -1,7 +1,5 @@
 package com.asseta.core.network
 
-import com.asseta.core.model.owner.AcknowledgementDto
-import com.asseta.core.model.owner.ActivityDto
 import com.asseta.core.model.owner.AlertActionIn
 import com.asseta.core.model.owner.AlertDto
 import com.asseta.core.model.owner.AnomalyCaseDetailDto
@@ -13,15 +11,10 @@ import com.asseta.core.model.owner.CashFloatIn
 import com.asseta.core.model.owner.CashHandoverDto
 import com.asseta.core.model.owner.RemittanceOverdueDto
 import com.asseta.core.model.owner.CashSupervisorSummaryDto
-import com.asseta.core.model.owner.ContractDto
 import com.asseta.core.model.owner.ExceptionDto
 import com.asseta.core.model.owner.ExpenseDto
 import com.asseta.core.model.owner.FuelEventDto
 import com.asseta.core.model.owner.HistoryDto
-import com.asseta.core.model.owner.JobDto
-import com.asseta.core.model.owner.JobIn
-import com.asseta.core.model.owner.JobSiteDto
-import com.asseta.core.model.owner.JobSummaryDto
 import com.asseta.core.model.owner.MachineDto
 import com.asseta.core.model.owner.MachineMapDto
 import com.asseta.core.model.owner.MeterCaptureDto
@@ -38,9 +31,7 @@ import com.asseta.core.model.owner.PhotoUrlDto
 import com.asseta.core.model.owner.PushDeviceDto
 import com.asseta.core.model.owner.PushDeviceIn
 import com.asseta.core.model.owner.SettlementDecisionIn
-import com.asseta.core.model.owner.StaffDto
 import com.asseta.core.model.owner.TenantOverviewDto
-import com.asseta.core.model.owner.JobTransitionIn
 import com.asseta.core.model.owner.AccountabilitySummaryDto
 import com.asseta.core.model.owner.BaselineDto
 import com.asseta.core.model.owner.CashRetentionDto
@@ -60,7 +51,6 @@ import com.asseta.core.model.sync.CashRetentionIn
 import com.asseta.core.model.sync.CashTransferDto
 import com.asseta.core.model.sync.CustodianDto
 import com.asseta.core.model.sync.EffectivePolicyDto
-import com.asseta.core.model.sync.FieldContractDto
 import com.asseta.core.model.sync.FieldHoursPurchaseDto
 import com.asseta.core.model.sync.FloatEntryDto
 import com.asseta.core.model.sync.ReasonCodeDto
@@ -99,73 +89,9 @@ interface TenantApi {
     @GET("api/v1/tenant/machines/{id}")
     suspend fun machine(@Path("id") machineId: String): MachineDto
 
-    /** listJobs */
-    @GET("api/v1/tenant/jobs")
-    suspend fun jobs(
-        @Query("status") status: String? = null,
-        @Query("machine_id") machineId: String? = null,
-        @Query("q") q: String? = null,
-        @Query("page") page: Int = 1,
-        @Query("page_size") pageSize: Int = 50,
-        @Query("sort") sort: String? = null,
-    ): PageDto<JobDto>
-
-    /**
-     * transitionJob: SUBMIT (tenant.job.write), APPROVE (with hourly_rate for a PENDING_PRICE job) or CANCEL with a
-     * reason (tenant.job.approve). [idempotencyKey]: a stable key so a retried step is not applied twice (else random).
-     */
-    @POST("api/v1/tenant/jobs/{id}/transitions")
-    suspend fun transitionJob(
-        @Path("id") jobId: String,
-        @Body body: JobTransitionIn,
-        @Header(AssetaHeaders.IDEMPOTENCY_KEY) idempotencyKey: String? = null,
-    ): JobDto
-
-    /** createJob (needs tenant.job.write): a DRAFT job; [idempotencyKey] is kept for the whole form visit. */
-    @POST("api/v1/tenant/jobs")
-    suspend fun createJob(@Body body: JobIn, @Header(AssetaHeaders.IDEMPOTENCY_KEY) idempotencyKey: String): JobDto
-
-    /** listContracts: CLOSED contracts are hidden by default; `q` searches number / reference. */
-    @GET("api/v1/tenant/contracts")
-    suspend fun contracts(
-        @Query("q") q: String? = null,
-        @Query("status") status: String? = null,
-        @Query("page") page: Int = 1,
-        @Query("page_size") pageSize: Int = 20,
-    ): PageDto<ContractDto>
-
     /** listMachines: `q` searches asset code / name. */
     @GET("api/v1/tenant/machines")
     suspend fun machines(@Query("q") q: String? = null, @Query("page") page: Int = 1, @Query("page_size") pageSize: Int = 20): PageDto<MachineDto>
-
-    /** listStaff: `kind=SUPERVISOR` for the job's supervisor. */
-    @GET("api/v1/tenant/staff")
-    suspend fun staff(
-        @Query("q") q: String? = null,
-        @Query("kind") kind: String? = null,
-        @Query("page") page: Int = 1,
-        @Query("page_size") pageSize: Int = 20,
-    ): PageDto<StaffDto>
-
-    /** listJobSites (plain list): `q` searches code and name (needs tenant.geofence.read). */
-    @GET("api/v1/tenant/job-sites")
-    suspend fun jobSites(@Query("q") q: String? = null): List<JobSiteDto>
-
-    /** getJobSummary */
-    @GET("api/v1/tenant/jobs/{id}")
-    suspend fun jobSummary(@Path("id") jobId: String): JobSummaryDto
-
-    /** listJobCaptures */
-    @GET("api/v1/tenant/jobs/{id}/meter-captures")
-    suspend fun jobCaptures(@Path("id") jobId: String): List<MeterCaptureDto>
-
-    /** listJobAcknowledgements */
-    @GET("api/v1/tenant/jobs/{id}/acknowledgements")
-    suspend fun jobAcknowledgements(@Path("id") jobId: String): List<AcknowledgementDto>
-
-    /** listJobActivities (work log, oldest first) */
-    @GET("api/v1/tenant/jobs/{id}/activities")
-    suspend fun jobActivities(@Path("id") jobId: String): List<ActivityDto>
 
     /** listMeterCaptures (latest captured first) */
     @GET("api/v1/tenant/meter-captures")
@@ -214,7 +140,6 @@ interface TenantApi {
     /** listExpenses (newest first) */
     @GET("api/v1/tenant/expenses")
     suspend fun expenses(
-        @Query("job_id") jobId: String? = null,
         @Query("status") status: String? = null,
         @Query("page") page: Int = 1,
         @Query("page_size") pageSize: Int = 50,
@@ -223,22 +148,20 @@ interface TenantApi {
     /** listFuelEvents (latest first) */
     @GET("api/v1/tenant/fuel-events")
     suspend fun fuelEvents(
-        @Query("job_id") jobId: String? = null,
         @Query("event_type") eventType: String? = null,
         @Query("page") page: Int = 1,
         @Query("page_size") pageSize: Int = 50,
     ): PageDto<FuelEventDto>
 
-    /** listJobExceptions (newest first) */
+    /** listMeterExceptions (newest first) */
     @GET("api/v1/tenant/exceptions")
     suspend fun exceptions(
         @Query("status") status: String? = null,
-        @Query("job_id") jobId: String? = null,
         @Query("page") page: Int = 1,
         @Query("page_size") pageSize: Int = 50,
     ): PageDto<ExceptionDto>
 
-    /** reviewJobException (needs tenant.meter.review): EXPLAINED or CONFIRMED with a 5..2000 character note. */
+    /** reviewMeterException (needs tenant.meter.review): EXPLAINED or CONFIRMED with a 5..2000 character note. */
     @POST("api/v1/tenant/exceptions/{id}/review")
     suspend fun reviewException(@Path("id") exceptionId: String, @Body body: MeterResetDecisionIn): ExceptionDto
 
@@ -318,10 +241,6 @@ interface TenantApi {
     /** deactivatePushDevice */
     @DELETE("api/v1/me/push-devices/{id}")
     suspend fun deactivatePushDevice(@Path("id") deviceId: String): PushDeviceDto
-
-    /** listFieldContracts: active contracts a supervisor can request a job under (Supervisor app). */
-    @GET("api/v1/tenant/field/contracts")
-    suspend fun fieldContracts(): List<FieldContractDto>
 
     /** listMyFieldMachines: machines the supervisor works on (Supervisor app). */
     @GET("api/v1/tenant/field/machines")
@@ -527,75 +446,6 @@ interface TenantApi {
     @GET("api/v1/tenant/cash/remittance-overdue/{id}")
     suspend fun remittanceOverdueFlag(@Path("id") id: String): RemittanceOverdueDto
 
-    // --- DEC-031 Phase 1: revenue reconciliation (online only; 422 REVENUE_RECONCILIATION_DISABLED while off) ------
-    /** listDailyMachineSheet (tenant.revenue.read): one row per machine per local day, at most 93 days. */
-    @GET("api/v1/tenant/daily-machine-sheet")
-    suspend fun dailyMachineSheet(
-        @Query("machine_id") machineId: String? = null,
-        @Query("day_from") dayFrom: String? = null,
-        @Query("day_to") dayTo: String? = null,
-        @Query("page_size") pageSize: Int = 100,
-    ): PageDto<com.asseta.core.model.owner.DailyMachineSheetRowDto>
-
-    @GET("api/v1/tenant/daily-machine-sheet/{machine_id}/{day}")
-    suspend fun dailyMachineSheetDay(@Path("machine_id") machineId: String, @Path("day") day: String): com.asseta.core.model.owner.DailyMachineSheetDetailDto
-
-    @GET("api/v1/tenant/revenue-differences")
-    suspend fun revenueDifferences(
-        @Query("status") status: String? = null,
-        @Query("machine_id") machineId: String? = null,
-        @Query("page_size") pageSize: Int = 100,
-    ): PageDto<com.asseta.core.model.owner.RevenueDifferenceDto>
-
-    @GET("api/v1/tenant/revenue-differences/{id}")
-    suspend fun revenueDifference(@Path("id") id: String): com.asseta.core.model.owner.RevenueDifferenceDto
-
-    /** explainRevenueDifference (tenant.revenue.explain): OPEN -> EXPLANATION_PROPOSED. */
-    @POST("api/v1/tenant/revenue-differences/{id}/explanation")
-    suspend fun explainRevenueDifference(
-        @Path("id") id: String,
-        @Body body: com.asseta.core.model.owner.RevenueExplanationIn,
-    ): com.asseta.core.model.owner.RevenueDifferenceDto
-
-    /** decideRevenueDifference (tenant.revenue.decide; never the explainer). */
-    @POST("api/v1/tenant/revenue-differences/{id}/decision")
-    suspend fun decideRevenueDifference(
-        @Path("id") id: String,
-        @Body body: com.asseta.core.model.owner.RevenueDecisionIn,
-    ): com.asseta.core.model.owner.RevenueDifferenceDto
-
-    /** listRevenueReasons (tenant.revenue.read); inactive ones are left out unless asked for. */
-    @GET("api/v1/tenant/revenue-reasons")
-    suspend fun revenueReasons(@Query("page_size") pageSize: Int = 100): PageDto<com.asseta.core.model.owner.RevenueReasonDto>
-
-    /** listNonRevenueActivities (tenant.revenue.read): non-revenue work-log entries with their approval status. */
-    @GET("api/v1/tenant/non-revenue-activities")
-    suspend fun nonRevenueActivities(
-        @Query("job_id") jobId: String? = null,
-        @Query("machine_id") machineId: String? = null,
-        @Query("page_size") pageSize: Int = 100,
-    ): PageDto<com.asseta.core.model.owner.NonRevenueActivityDto>
-
-    @GET("api/v1/tenant/non-revenue-approvals")
-    suspend fun nonRevenueApprovals(
-        @Query("status") status: String? = null,
-        @Query("page_size") pageSize: Int = 100,
-    ): PageDto<com.asseta.core.model.owner.NonRevenueApprovalDto>
-
-    @GET("api/v1/tenant/non-revenue-approvals/{id}")
-    suspend fun nonRevenueApproval(@Path("id") id: String): com.asseta.core.model.owner.NonRevenueApprovalDto
-
-    /** proposeNonRevenue (tenant.revenue.explain): 409 NON_REVENUE_PENDING, 422 NON_REVENUE_APPROVAL_NOT_REQUIRED. */
-    @POST("api/v1/tenant/non-revenue-approvals")
-    suspend fun proposeNonRevenue(@Body body: com.asseta.core.model.owner.NonRevenueApprovalIn): com.asseta.core.model.owner.NonRevenueApprovalDto
-
-    /** decideNonRevenue (tenant.revenue.decide; never the proposer). */
-    @POST("api/v1/tenant/non-revenue-approvals/{id}/decision")
-    suspend fun decideNonRevenue(
-        @Path("id") id: String,
-        @Body body: com.asseta.core.model.owner.NonRevenueDecisionIn,
-    ): com.asseta.core.model.owner.NonRevenueApprovalDto
-
     // --- customer hours, read-only (DEC-031 P4) ----------------------------------------------------------------------
 
     /** listHoursPurchases for the Owner list (open purchases, with names). */
@@ -649,26 +499,12 @@ interface TenantApi {
         @Query("item") item: String? = null,
     ): com.asseta.core.model.owner.ScorecardDetailDto
 
-    /** listUnbilledWork */
-    @GET("api/v1/tenant/unbilled-work")
-    suspend fun unbilledWork(
-        @Query("page") page: Int = 1,
-        @Query("page_size") pageSize: Int = 100,
-    ): PageDto<com.asseta.core.model.owner.UnbilledJobDto>
-
     /** listIdleMachines */
     @GET("api/v1/tenant/idle-machines")
     suspend fun idleMachines(
         @Query("page") page: Int = 1,
         @Query("page_size") pageSize: Int = 100,
     ): PageDto<com.asseta.core.model.owner.IdleMachineDto>
-
-    /** mySiteCheckins: my schedule (slots) and my own check-ins (default the last 7 days). */
-    @GET("api/v1/tenant/site-checkins/mine")
-    suspend fun mySiteCheckins(
-        @Query("day_from") dayFrom: String? = null,
-        @Query("day_to") dayTo: String? = null,
-    ): com.asseta.core.model.owner.MySiteCheckinsDto
 
     // --- go-live setup checklist ------------------------------------------------------------------------------------
 
@@ -710,12 +546,6 @@ interface TenantApi {
 
     @GET("api/v1/tenant/daily-reports/{id}")
     suspend fun dailyReport(@Path("id") id: String): com.asseta.core.model.owner.DailyReportDto
-
-    @GET("api/v1/tenant/daily-reports/prefill")
-    suspend fun dailyReportPrefill(
-        @Query("machine_id") machineId: String,
-        @Query("report_date") reportDate: String,
-    ): com.asseta.core.model.owner.DailyReportPrefillDto
 
     /** reviewDailyReport (tenant.meter.review; never the submitter): REVIEWED or RETURNED with a note. */
     @POST("api/v1/tenant/daily-reports/{id}/review")
@@ -805,10 +635,6 @@ interface TenantApi {
     /** getPaymentEvidenceUrl: one evidence photo (on demand only). */
     @GET("api/v1/tenant/customer-payments/{id}/evidence/{attachmentId}/url")
     suspend fun paymentEvidenceUrl(@Path("id") id: String, @Path("attachmentId") attachmentId: String): PhotoUrlDto
-
-    /** getHireInvoice, read here only for the invoice number beside a payment. */
-    @GET("api/v1/tenant/hire-invoices/{id}")
-    suspend fun invoiceNumber(@Path("id") id: String): com.asseta.core.model.owner.InvoiceNumberDto
 
     // --- DEC-033 petty cash -----------------------------------------------------------------------------------------
 
@@ -939,7 +765,7 @@ interface TenantApi {
     @POST("api/v1/tenant/hours-purchases/{id}/credit-activations")
     suspend fun activateHoursOnCredit(@Path("id") id: String, @Body body: com.asseta.core.model.sync.CreditActivationIn): kotlinx.serialization.json.JsonObject
 
-    // --- ADR-008 Owner app: orders of a period / queue, credit limit, order cancellation, keyed money calls ----------
+    // --- ADR-008 Owner app: orders of a period / queue, credit limit, keyed money calls --------------------------------
 
     /** listHoursPurchases with the ADR-008 fields: [queue] AWAITING_ACTIVATION (credit sales to approve) or a period. */
     @GET("api/v1/tenant/hours-purchases")

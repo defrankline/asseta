@@ -6,13 +6,6 @@ sealed interface OwnerDestination {
     data object Fleet : OwnerDestination
     data class Machine(val machineId: String) : OwnerDestination
 
-    /**
-     * ADR-008: jobs are gone. Old job links (notifications, console paths) still resolve to these two so saved links
-     * keep parsing; the Owner app opens Home for them.
-     */
-    data object Jobs : OwnerDestination
-    data class Job(val jobId: String) : OwnerDestination
-
     // --- ADR-008 (machine reports replace jobs) ------------------------------------------------------------------
 
     /** The previous overview figures (fleet, approvals, money, risk), kept under More. */
@@ -43,8 +36,8 @@ sealed interface OwnerDestination {
     data class Approvals(val approvalId: String? = null) : OwnerDestination
     /** A meter reset request (listed under Approvals), with approve / reject. */
     data class MeterReset(val resetId: String) : OwnerDestination
-    /** Meter exceptions, optionally only those of [jobId]. */
-    data class Exceptions(val jobId: String? = null) : OwnerDestination
+    /** Meter exceptions. */
+    data object Exceptions : OwnerDestination
     /** One meter exception with its review (REVIEW_EXCEPTION). */
     data class MeterException(val exceptionId: String) : OwnerDestination
     /** One cash handover a supervisor claimed, with confirm received / dispute. */
@@ -78,11 +71,12 @@ sealed interface OwnerDestination {
     /** Overdue remittances flagged today ([id] null) or one flag (REMITTANCE_OVERDUE). */
     data class RemittanceOverdue(val id: String? = null) : OwnerDestination
 
-    /** The daily machine sheet of one machine: its last days (DEC-031 R2, read-only). */
-    data class DailySheet(val machineId: String) : OwnerDestination
 
-    /** One machine on one local [day] (`yyyy-MM-dd`) of the daily machine sheet. */
-    data class SheetDay(val machineId: String, val day: String) : OwnerDestination
+    /** One machine's last days of the work allocation ledger (DEC-032, read-only). */
+    data class MachineDays(val machineId: String) : OwnerDestination
+
+    /** One machine on one local [day] (`yyyy-MM-dd`) of the work allocation ledger. */
+    data class MachineDay(val machineId: String, val day: String) : OwnerDestination
 
     /** Open prepaid-hours purchases with hours left or in use (DEC-031 P4, read-only). */
     data object CustomerHours : OwnerDestination
@@ -99,8 +93,6 @@ sealed interface OwnerDestination {
     /** One person's scorecard for the local days [dayFrom]..[dayTo] (null: the default period). */
     data class ScorecardPerson(val staffId: String, val name: String? = null, val dayFrom: String? = null, val dayTo: String? = null) : OwnerDestination
 
-    /** Completed jobs not invoiced yet (DEC-031 M2, read-only). */
-    data object UnbilledWork : OwnerDestination
 
     /** Machines idle for a while (DEC-031 M2, read-only). */
     data object IdleMachines : OwnerDestination
@@ -137,15 +129,10 @@ object RecordKinds {
     const val METER_BASELINE = "METER_BASELINE"
     const val METER_CORRECTION = "METER_CORRECTION"
     const val ENGINE_HOURS_CLASSIFICATION = "ENGINE_HOURS_CLASSIFICATION"
-    const val REVENUE_DIFFERENCE = "REVENUE_DIFFERENCE"
-    const val NON_REVENUE_APPROVAL = "NON_REVENUE_APPROVAL"
     const val HOURS_PURCHASE = "HOURS_PURCHASE"
     const val DAILY_REPORT = "DAILY_REPORT"
     const val WORK_ALLOCATION_CORRECTION = "WORK_ALLOCATION_CORRECTION"
     const val ADJUSTMENT_REQUEST = "ADJUSTMENT_REQUEST"
-
-    /** A job (UNBILLED_WORK: completed and not invoiced yet). */
-    const val JOB = "JOB"
 
     /** ADR-008: a machine report (submitted / approved / rejected). */
     const val MACHINE_REPORT = "MACHINE_REPORT"
@@ -165,8 +152,6 @@ object RecordKinds {
         METER_BASELINE to DecisionKinds.BASELINE,
         METER_CORRECTION to DecisionKinds.CORRECTION,
         ENGINE_HOURS_CLASSIFICATION to DecisionKinds.CLASSIFICATION,
-        REVENUE_DIFFERENCE to DecisionKinds.REVENUE_DIFFERENCE,
-        NON_REVENUE_APPROVAL to DecisionKinds.NON_REVENUE,
         DAILY_REPORT to DecisionKinds.DAILY_REPORT,
         WORK_ALLOCATION_CORRECTION to DecisionKinds.ALLOCATION_CORRECTION,
         ADJUSTMENT_REQUEST to DecisionKinds.ADJUSTMENT_REQUEST,
@@ -190,7 +175,7 @@ object RecordKinds {
             CASH_REMITTANCE -> OwnerDestination.Handover(id)
             REMITTANCE_OVERDUE -> OwnerDestination.RemittanceOverdue(id)
             HOURS_PURCHASE -> OwnerDestination.HoursPurchase(id)
-            JOB -> OwnerDestination.Job(id)
+
             MACHINE_REPORT -> OwnerDestination.MachineReport(id)
             CREDIT_INVOICE -> OwnerDestination.Money
             else -> null
@@ -210,8 +195,6 @@ object DecisionKinds {
     const val WRITE_OFF = "WRITE_OFF"
     const val RETENTION = "RETENTION"
     const val ADJUSTMENT = "ADJUSTMENT"
-    const val REVENUE_DIFFERENCE = "REVENUE_DIFFERENCE"
-    const val NON_REVENUE = "NON_REVENUE"
     const val DAILY_REPORT = "DAILY_REPORT"
     const val ALLOCATION_CORRECTION = "ALLOCATION_CORRECTION"
     const val ADJUSTMENT_REQUEST = "ADJUSTMENT_REQUEST"
@@ -236,8 +219,6 @@ object DecisionKinds {
         "cash_variance" to WRITE_OFF,
         "cash_retention" to RETENTION,
         "custody_adjustment" to ADJUSTMENT,
-        "revenue_difference" to REVENUE_DIFFERENCE,
-        "non_revenue_approval" to NON_REVENUE,
         "daily_report" to DAILY_REPORT,
         "work_allocation_correction" to ALLOCATION_CORRECTION,
         "adjustment_request" to ADJUSTMENT_REQUEST,
@@ -279,12 +260,11 @@ object DeepLinkRouter {
             "alert" -> OwnerDestination.Alerts(target)
             "approval" -> OwnerDestination.Approvals(target)
             "meter_reset" -> target?.let { OwnerDestination.MeterReset(it) } ?: OwnerDestination.Approvals()
-            "exception" -> OwnerDestination.Exceptions()
-            "job" -> target?.let { OwnerDestination.Job(it) } ?: OwnerDestination.Jobs
+            "exception" -> OwnerDestination.Exceptions
             "machine", "fleet.position" -> target?.let { OwnerDestination.Machine(it) } ?: OwnerDestination.Fleet
             "case" -> target?.let { OwnerDestination.Case(it) } ?: OwnerDestination.Cases
-            // HOURS_OVERRUN: the meter exception to review.
-            "job_exception" -> target?.let { OwnerDestination.MeterException(it) } ?: OwnerDestination.Exceptions()
+            // A meter exception to review ("job_exception": notifications stored before ADR-008 renamed the table).
+            "meter_exception", "job_exception" -> target?.let { OwnerDestination.MeterException(it) } ?: OwnerDestination.Exceptions
             // PARTIAL_REMITTANCE: the remittance (cash handover).
             "cash_handover" -> target?.let { OwnerDestination.Handover(it) } ?: OwnerDestination.Approvals()
             "customer_payment" -> target?.let { OwnerDestination.CustomerPayment(it) } ?: OwnerDestination.Approvals()
@@ -311,8 +291,7 @@ object DeepLinkRouter {
             "approvals" -> OwnerDestination.Approvals(second)
             "meter-resets" -> second?.let { OwnerDestination.MeterReset(it) } ?: OwnerDestination.Approvals()
             "customer-payments" -> second?.let { OwnerDestination.CustomerPayment(it) } ?: OwnerDestination.Approvals()
-            "exceptions" -> OwnerDestination.Exceptions()
-            "jobs" -> second?.let { OwnerDestination.Job(it) } ?: OwnerDestination.Jobs
+            "exceptions" -> OwnerDestination.Exceptions
             "cases" -> second?.let { OwnerDestination.Case(it) } ?: OwnerDestination.Cases
             "machines" -> second?.let { OwnerDestination.Machine(it) } ?: OwnerDestination.Fleet
             "fleet" -> id(rest.getOrNull(2))?.let { OwnerDestination.Machine(it) } ?: OwnerDestination.Fleet
@@ -330,8 +309,6 @@ object DeepLinkRouter {
             "engine-hours" -> when (rest.getOrNull(1)) {
                 "machines" -> id(rest.getOrNull(2))?.let { OwnerDestination.Machine(it) } ?: OwnerDestination.Fleet
                 "classifications" -> RecordKinds.destination(RecordKinds.ENGINE_HOURS_CLASSIFICATION, id(rest.getOrNull(2))) ?: OwnerDestination.Approvals()
-                // The daily machine sheet is per machine in the app: the fleet to choose one.
-                "daily-sheet" -> OwnerDestination.Fleet
                 else -> OwnerDestination.Approvals()
             }
             // Web console detail routes of the cash custody chain: /tenant/finance/cash/<segment>/<id>.
@@ -354,9 +331,6 @@ object DeepLinkRouter {
                 else -> cashPath(rest.getOrNull(1), id(rest.getOrNull(2)))
             }
             "accountability" -> OwnerDestination.Accountability
-            // Revenue reconciliation (DEC-031): the record, or Approvals where they are listed.
-            "revenue-differences" -> RecordKinds.destination(RecordKinds.REVENUE_DIFFERENCE, second) ?: OwnerDestination.Approvals()
-            "non-revenue-approvals" -> RecordKinds.destination(RecordKinds.NON_REVENUE_APPROVAL, second) ?: OwnerDestination.Approvals()
             // Work allocation ledger (DEC-032): the exact record, or Approvals where they are waiting.
             "daily-reports" -> RecordKinds.destination(RecordKinds.DAILY_REPORT, second) ?: OwnerDestination.Approvals()
             "work-allocations" ->
@@ -367,7 +341,7 @@ object DeepLinkRouter {
                 }
             // Oversight (DEC-031 Phase 5).
             "scorecard" -> second?.let { OwnerDestination.ScorecardPerson(it) } ?: OwnerDestination.Scorecard
-            "unbilled-work" -> OwnerDestination.UnbilledWork
+
             "idle-machines" -> OwnerDestination.IdleMachines
             "setup" -> OwnerDestination.SetupChecklist
             // Employee accountability (DEC-032 Phase 4): /tenant/staff/{id}/accountability.

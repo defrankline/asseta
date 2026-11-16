@@ -24,7 +24,7 @@ sealed interface CustomerResult<out T> {
 
 /**
  * Customers from the Supervisor app (`tenant.customer.details`), online only: list, read, add and edit details. Sync
- * delivers only the customers on my jobs' contracts, so every customer read or saved here is also written into the
+ * may not deliver every customer, so every customer read or saved here is also written into the
  * phone's synced customer list, where the hours sale and cash collection pickers find it.
  */
 class FieldCustomers(

@@ -13,9 +13,6 @@ enum class OwnerAction(val permission: String) {
     /** ADR-008: make a credit sale's hours usable within the customer's credit arrangement (never the recorder). */
     ACTIVATE_CREDIT("tenant.hours.credit_activate"),
 
-    /** ADR-008: turn down a credit sale by asking for its order to be cancelled (a second person may approve). */
-    REQUEST_HOURS_CANCELLATION("tenant.hours.cancel"),
-
     /** ADR-008: record a payment (full or part) of a credit invoice. */
     RECORD_INVOICE_PAYMENT("tenant.hours.invoice_payment"),
 
@@ -47,11 +44,6 @@ enum class OwnerAction(val permission: String) {
     DECIDE_WRITE_OFF("tenant.finance.writeoff"),
     DECIDE_RETENTION("tenant.finance.retention_approve"),
     DECIDE_ADJUSTMENT("tenant.finance.adjustment_approve"),
-
-    // Revenue reconciliation (DEC-031): explain, then a second person decides.
-    EXPLAIN_REVENUE("tenant.revenue.explain"),
-    DECIDE_REVENUE("tenant.revenue.decide"),
-    DECIDE_NON_REVENUE("tenant.revenue.decide"),
 
     // Adjustments (DEC-032): a second person decides; only the proposer withdraws.
     DECIDE_ADJUSTMENT_REQUEST("tenant.adjustment.decide"),

@@ -6,9 +6,9 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * Evidence file (meter photo / signature PNG) queued for resumable upload. The bytes live encrypted in app-private
- * storage ([fileName]); [sha256] is of the original, unmodified bytes. [serverAttachmentId] is set on COMPLETE;
- * [status] FAILED is permanent and keeps [lastError] for the sync status screen.
+ * Evidence file (meter photo, receipt, payment evidence) queued for resumable upload. The bytes live encrypted in
+ * app-private storage ([fileName]); [sha256] is of the original, unmodified bytes. [serverAttachmentId] is set on
+ * COMPLETE; [status] FAILED is permanent and keeps [lastError] for the sync status screen.
  */
 @Entity(tableName = "attachment", indices = [Index(value = ["tenant_id", "status"])])
 data class AttachmentEntity(
@@ -42,41 +42,3 @@ data class AttachmentEntity(
     }
 }
 
-/** Local copy of a meter capture (the original evidence the device owns), linked to its outbox operation. */
-@Entity(tableName = "meter_capture", indices = [Index(value = ["job_id"])])
-data class MeterCaptureEntity(
-    @PrimaryKey @ColumnInfo(name = "id") val id: String,
-    @ColumnInfo(name = "tenant_id") val tenantId: String,
-    @ColumnInfo(name = "job_id") val jobId: String,
-    @ColumnInfo(name = "kind") val kind: String,
-    @ColumnInfo(name = "capture_mode") val captureMode: String,
-    @ColumnInfo(name = "reading") val reading: String,
-    @ColumnInfo(name = "ocr_value") val ocrValue: String?,
-    @ColumnInfo(name = "ocr_raw_text") val ocrRawText: String?,
-    @ColumnInfo(name = "ocr_confidence") val ocrConfidence: Double?,
-    @ColumnInfo(name = "photo_attachment_local_id") val photoAttachmentLocalId: String?,
-    @ColumnInfo(name = "gps_status") val gpsStatus: String,
-    @ColumnInfo(name = "latitude") val latitude: Double?,
-    @ColumnInfo(name = "longitude") val longitude: Double?,
-    @ColumnInfo(name = "accuracy_m") val accuracyM: Double?,
-    @ColumnInfo(name = "gps_captured_at") val gpsCapturedAt: Long?,
-    @ColumnInfo(name = "gps_provider") val gpsProvider: String?,
-    @ColumnInfo(name = "captured_at") val capturedAt: Long,
-    @ColumnInfo(name = "policy_version_ids_json") val policyVersionIdsJson: String,
-    @ColumnInfo(name = "operation_id") val operationId: String,
-)
-
-/** Supervisor work-log entry. Open entries (no end) are local until stopped; then one JOB_ACTIVITY op is queued. */
-@Entity(tableName = "work_log_entry", indices = [Index(value = ["job_id"])])
-data class WorkLogEntryEntity(
-    @PrimaryKey @ColumnInfo(name = "client_id") val clientId: String,
-    @ColumnInfo(name = "tenant_id") val tenantId: String,
-    @ColumnInfo(name = "job_id") val jobId: String,
-    @ColumnInfo(name = "activity_type") val activityType: String,
-    @ColumnInfo(name = "started_at") val startedAt: Long,
-    @ColumnInfo(name = "ended_at") val endedAt: Long?,
-    @ColumnInfo(name = "note") val note: String?,
-    @ColumnInfo(name = "operation_id") val operationId: String?,
-    /** v6: the user who logged this entry (a running entry is only shown to, and stopped by, that user). */
-    @ColumnInfo(name = "owner_sub") val ownerSub: String? = null,
-)

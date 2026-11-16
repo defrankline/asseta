@@ -128,7 +128,7 @@ class OutboxPusher(
         return outcome
     }
 
-    /** The applied entity's server version, when the result carries one (job/transition results do). */
+    /** The applied entity's server version, when the result carries one. */
     private fun revisionOf(result: JsonObject): Long? =
         (result["entity"] as? JsonObject)?.let { (it["sync_revision"] ?: it["version"])?.jsonPrimitive?.longOrNull }
 

@@ -116,7 +116,7 @@ object OwnerMenu {
         MenuEntry("scorecard", com.asseta.owner.ui.accountability.OversightTexts.SCORE_MORE, R.drawable.ic_investigation, OwnerDestination.Scorecard).takeIf { f.scorecard },
         MenuEntry("fleet", MenuTexts.FLEET, R.drawable.ic_nav_fleet, OwnerDestination.Fleet).takeIf { f.fleet },
         MenuEntry("alerts", MenuTexts.ALERTS, R.drawable.ic_nav_alerts, OwnerDestination.Alerts()).takeIf { f.alerts },
-        MenuEntry("exceptions", MenuTexts.EXCEPTIONS, R.drawable.ic_warning, OwnerDestination.Exceptions()).takeIf { f.meterEvidence },
+        MenuEntry("exceptions", MenuTexts.EXCEPTIONS, R.drawable.ic_warning, OwnerDestination.Exceptions).takeIf { f.meterEvidence },
         MenuEntry("spend", MenuTexts.FIELD_SPEND, R.drawable.ic_receipt, OwnerDestination.FieldSpend).takeIf { f.expenses },
         MenuEntry("cash", MenuTexts.CASH, R.drawable.ic_cash, OwnerDestination.Cash).takeIf { f.finance },
         MenuEntry("cases", MenuTexts.INVESTIGATIONS, R.drawable.ic_investigation, OwnerDestination.Cases).takeIf { f.cases },

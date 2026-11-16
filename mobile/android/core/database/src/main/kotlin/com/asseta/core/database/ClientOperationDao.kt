@@ -182,19 +182,6 @@ abstract class ClientOperationDao {
     )
     abstract suspend fun forAttachment(attachmentId: String): List<ClientOperationEntity>
 
-    /** [ownerSub]'s operations of a job (another user's never shape this user's job workflow). */
-    @Query(
-        """SELECT * FROM client_operation WHERE tenant_id = :tenantId AND owner_sub = :ownerSub AND job_id = :jobId
-           ORDER BY created_at_device ASC""",
-    )
-    abstract suspend fun forJob(tenantId: String, ownerSub: String, jobId: String): List<ClientOperationEntity>
-
-    @Query(
-        """SELECT * FROM client_operation WHERE tenant_id = :tenantId AND owner_sub = :ownerSub AND job_id = :jobId
-           ORDER BY created_at_device ASC""",
-    )
-    abstract fun observeForJob(tenantId: String, ownerSub: String, jobId: String): Flow<List<ClientOperationEntity>>
-
     @Query(
         """SELECT status, COUNT(*) AS count FROM client_operation WHERE tenant_id = :tenantId AND owner_sub = :ownerSub
            GROUP BY status""",

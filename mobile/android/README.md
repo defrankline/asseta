@@ -7,8 +7,9 @@ never duplicated between them.
 Gate 0 delivered the foundation (secure storage, encrypted DB + outbox, typed networking, Keycloak login, `/me`,
 tenant selection). Gate 4 adds the Supervisor field app: device registration, bootstrap/delta sync with policy
 snapshots, hour-meter capture (CameraX + bundled on-device ML Kit OCR, or manual), mandatory fresh GPS attempt,
-resumable encrypted evidence upload, the outbox sync engine (WorkManager), work log, customer acknowledgement,
-job START/COMPLETE, sync status screen, clock-tamper alert and device-revocation wipe.
+resumable encrypted evidence upload, the outbox sync engine (WorkManager), sync status screen, clock-tamper alert and
+device-revocation wipe. ADR-008 removed jobs: the field work record is the machine report (daily reading + report
+lines), there is no job, work log, customer acknowledgement, changeover, site check-in or daily report form.
 Gate 7 adds the read-mostly Owner app (see "Owner app (Gate 7)" below).
 Gate 5 adds offline field finance to the Supervisor app: record expense (receipt photo + GPS under the synced
 `EXPENSE_CAPTURE` snapshot), cash collection, cash handover, fuel event and a "My cash" view (see below).
@@ -17,16 +18,16 @@ Gate 5 adds offline field finance to the Supervisor app: record expense (receipt
 
 | Module | Purpose |
 | --- | --- |
-| `:core:model` | Pure-Kotlin/JVM API DTOs (kotlinx.serialization): `MeResponse`, `TenantAccess`, `TenantAccessState`, `ErrorEnvelope`, strict UUID serializer, `DecimalAmount`/`Money` (decimal string on the wire; floats rejected), `ClientOperationStatus`. `sync/`: protocol v1 DTOs (`DeviceRegisterIn`, `BootstrapDto`, `ChangesDto`, `PushIn`/`PushResultDto`, `BlobStartIn`/`BlobSessionDto`, job/machine/... DTOs) and op payloads (`MeterCaptureIn`, `GpsIn`, `ActivityPayload`, `AcknowledgementPayload`, `JobTransitionPayload`), per contracts/openapi.json. |
-| `:core:domain` | Pure-Kotlin field rules shared by all screens and the engine (JVM-tested): `MeterReadingParser` (port of the shared OCR spec v1), `GlyphSegmenter`/`GlyphRenderer`/`SevenSegmentDecoder`/`GeometricOcr` (glyph geometry, re-rendering, segment decoder and agreement scoring of the OCR pipeline), `OcrAssessor`/`OcrConsensus`/`PixelRedCellDetector` (text-only fallback + drum handling), `PolicySelector` (machine > tenant snapshot, expiry, offline grant), `CaptureValidator`/`ReadingValidator`/`OcrFlow` (mode, photo, recapture, decimals), `JobStateRules`, `GpsOutcome`, `OutboxTransitions` (state machine), `JobOperationPlanner` (dependency chain), `Backoff`, `ClockCheck`. |
-| `:core:sync` | Data + engine (Android library): `SyncEngine` (register -> bootstrap/changes -> blob upload -> push -> changes), `OutboxPusher`, `BlobUploader`, `ServerDataWriter`, `FieldRepository` (read side), use cases `CaptureMeterReading` and `JobWorkflow`, `FieldOutbox` (single place that enqueues ops with dependencies), `EncryptedEvidenceStore`, `DeviceWipe`, `SyncWorker`/`SyncScheduler` (WorkManager). |
+| `:core:model` | Pure-Kotlin/JVM API DTOs (kotlinx.serialization): `MeResponse`, `TenantAccess`, `TenantAccessState`, `ErrorEnvelope`, strict UUID serializer, `DecimalAmount`/`Money` (decimal string on the wire; floats rejected), `ClientOperationStatus`. `sync/`: protocol v1 DTOs (`DeviceRegisterIn`, `BootstrapDto`, `ChangesDto`, `PushIn`/`PushResultDto`, `BlobStartIn`/`BlobSessionDto`, machine/... DTOs) and op payloads (`MeterCaptureIn`, `GpsIn`, `MachineReportPayload`, ...), per contracts/openapi.json. |
+| `:core:domain` | Pure-Kotlin field rules shared by all screens and the engine (JVM-tested): `MeterReadingParser` (port of the shared OCR spec v1), `GlyphSegmenter`/`GlyphRenderer`/`SevenSegmentDecoder`/`GeometricOcr` (glyph geometry, re-rendering, segment decoder and agreement scoring of the OCR pipeline), `OcrAssessor`/`OcrConsensus`/`PixelRedCellDetector` (text-only fallback + drum handling), `PolicySelector` (machine > tenant snapshot, expiry, offline grant), `CaptureValidator`/`ReadingValidator`/`OcrFlow` (mode, photo, recapture, decimals), `GpsOutcome`, `OutboxTransitions` (state machine), `Backoff`, `ClockCheck`. |
+| `:core:sync` | Data + engine (Android library): `SyncEngine` (register -> bootstrap/changes -> blob upload -> push -> changes), `OutboxPusher`, `BlobUploader`, `ServerDataWriter`, `FieldRepository` (read side), use cases `CaptureMeterReading` and `MachineReportCapture`, `FieldOutbox` (single place that enqueues ops with dependencies), `EncryptedEvidenceStore`, `DeviceWipe`, `SyncWorker`/`SyncScheduler` (WorkManager). |
 | `:core:security` | Android Keystore AES-256-GCM key per purpose (`KeystoreSecretCipher`), wrapped-secret file store in `noBackupFilesDir`, SQLCipher passphrase provider (32 random bytes, generated once, never regenerated silently), encrypted token store, evidence data key (`WrappedRandomKey`), device id (`DeviceIdStore`), `wipeLocalSecrets()` (deletes wrapped files and their Keystore keys). |
-| `:core:database` | Room + SQLCipher (`SupportOpenHelperFactory`), schema v5 (v2->v3 AutoMigration: `expense_category`, `cash_custody_balance`, nullable `job.currency`; v3->v4: Owner `read_snapshot` cache; v4->v5: `client_operation_attachment` link table with a post-migrate step copying legacy `attachment_local_id` gates, `attachment.next_attempt_at`, `sync_state.next_sync_at`; tested in `MigrationTest`). Outbox `client_operation` (+ `client_operation_dependency` for multi-parent deps, `client_operation_attachment` for the multi-file attachment gate, server result/error code) with SQL-guarded transitions; `attachment` (resumable upload state), `job`, `machine`, `reference_record`, `policy_snapshot`, `sync_state`, `meter_capture`, `work_log_entry`. `DatabaseHolder` (close + delete for the wipe). Exported schemas in `core/database/schemas/`; v1->v2 is a Room AutoMigration with a post-migrate step copying legacy `depends_on`; **no destructive fallback**. |
+| `:core:database` | Room + SQLCipher (`SupportOpenHelperFactory`), schema v10 (v2->v3 AutoMigration: `expense_category`, `cash_custody_balance`, nullable `job.currency`; v3->v4: Owner `read_snapshot` cache; v4->v5: `client_operation_attachment` link table with a post-migrate step copying legacy `attachment_local_id` gates, `attachment.next_attempt_at`, `sync_state.next_sync_at`; ...; v9->v10 (ADR-008): drops the `job`, `meter_capture` and `work_log_entry` tables and the `job_id` columns of `client_operation`/`inbox_record`, keeping unsynced work; tested in `MigrationTest`). Outbox `client_operation` (+ `client_operation_dependency` for multi-parent deps, `client_operation_attachment` for the multi-file attachment gate, server result/error code) with SQL-guarded transitions; `attachment` (resumable upload state), `machine`, `reference_record`, `policy_snapshot`, `sync_state`, `inbox_record`. `DatabaseHolder` (close + delete for the wipe). Exported schemas in `core/database/schemas/`; v1->v2 is a Room AutoMigration with a post-migrate step copying legacy `depends_on`; **no destructive fallback**. |
 | `:core:network` | OkHttp/Retrofit client. Interceptors: `Authorization: Bearer`, `X-Tenant-ID`, `X-Correlation-ID` (UUID per request), `Idempotency-Key` on POST/PUT/PATCH/DELETE (an explicit key, e.g. the outbox operation id, is preserved), error envelope → `ApiException`. Base URL from `BuildConfig`. Debug-only cleartext to `10.0.2.2`/`localhost`. |
 | `:core:auth` | AppAuth Authorization Code + PKCE against Keycloak realm `asseta`, public client `asseta-mobile`; the redirect scheme is supplied per app (see Configuration), never defined in core; token refresh; logout (local clear + Keycloak end-session). `SelectedTenantStore`. Keycloak and the API are authoritative; the app never authorizes locally, it only hides UI. |
 | `:core:ui` | Material3 brand theme (Slate `#0F2A3D`, Amber `#F5A300`), launcher adaptive icon (vector conversion of `branding/asseta-mark.svg`), login screen, `/me` + tenant picker, `SessionViewModel` (+ forced sign-out via `SessionNotice`), `AssetaSessionApp(container, home)` (optional per-app home after tenant selection), `AssetaAppContainer` (manual DI, resettable `databaseHolder`). |
 | `:core:push` | App-agnostic push shared by both apps: `PushTokenProvider` (FCM, or no-op without a Firebase config), `PushRegistrar` (`/me/push-devices`, parameterised by app OWNER/SUPERVISOR), `PushNotifier` (per-app channels, tray notification, tap intent with the push data keys). |
-| `:app:supervisor` | `FieldGraph` (manual DI for the field app), screens (jobs, job detail, capture, acknowledgement + signature pad, sync status, clock banner), `MeterOcr` (ML Kit bundled), `ImageEnhancer`, `GpsLocator` (Fused, foreground only), `CameraCapture` (CameraX in-memory JPEG), just-in-time permission rationale. Manifest: INTERNET, CAMERA, FINE/COARSE location (no background location), backups disabled. |
+| `:app:supervisor` | `FieldGraph` (manual DI for the field app), screens (home, daily reading capture, machine report, sync status, clock banner), `MeterOcr` (ML Kit bundled), `ImageEnhancer`, `GpsLocator` (Fused, foreground only), `CameraCapture` (CameraX in-memory JPEG), just-in-time permission rationale. Manifest: INTERNET, CAMERA, FINE/COARSE location (no background location), backups disabled. |
 | `:app:owner` | Owner app (Gate 7): `OwnerGraph` (manual DI), `OwnerRepository`/`OwnerData` (server-first reads + offline snapshots, online-only actions), `LiveUpdates` (WebSocket), push (`OwnerMessagingService` on `:core:push`), MapLibre map, Compose screens. Manifest: INTERNET, ACCESS_NETWORK_STATE, POST_NOTIFICATIONS. |
 
 ## Toolchain
@@ -91,13 +92,13 @@ fixture images + the shared parse cases on the device runtime). Emulator note: a
   `POST /sync/devices` (idempotent server-side; refreshes `offline_grant_until`), then `GET /sync/bootstrap` once
   (no cursor yet) or `GET /sync/changes?cursor=` pages (bounded), persisting the cursor in the same transaction as
   the data. Server rows are upserted by `(id, version)` (newer or equal wins; the DTOs carry `version`, not
-  `sync_revision`); bootstrap drops cached jobs no longer delivered.
+  `sync_revision`); bootstrap drops cached machines no longer delivered.
 - **Policy snapshots** are stored per `(policy_type, scope_key)`. A capture uses `machine:<id>` else `tenant`; it is
   blocked ("Connect to refresh rules. ...") when no snapshot, `now > valid_until`, or past `offline_grant_until`.
   Every capture sends the snapshot's `policy_version_ids`.
-- **Outbox** (`client_operation`): ops `METER_CAPTURE`, `JOB_ACTIVITY`, `JOB_ACKNOWLEDGEMENT`, `JOB_TRANSITION`
-  (`{job_id, action}`) with the chain opening capture -> START -> activities/closing -> acknowledgement -> COMPLETE
-  (`JobOperationPlanner`; FAILED/CONFLICT parents are skipped so a re-capture becomes the parent). An op is
+- **Outbox** (`client_operation`): ops `METER_CAPTURE` (DAILY) and `MACHINE_REPORT` (op id = report id, carries the
+  reading's `capture_id` and depends on the capture op; a redo sends only the report with the rejected report's capture
+  and `corrects_report_id`), plus the finance/accountability ops. An op is
   dispatchable when PENDING/QUARANTINED, every dependency is ACKED locally, and every evidence attachment it links has
   a server `attachment_id` (written into the never-sent payload in the same transaction as the upload completion).
   Push: bounded batches (25, halved on `BATCH_TOO_LARGE`) with `device_now`; outcomes per `OutboxTransitions`:
@@ -108,8 +109,7 @@ fixture images + the shared parse cases on the device runtime). Emulator note: a
   via WorkManager (network constraint) after exponential backoff with equal jitter (15 s base, 30 min cap, persisted
   failure streak); the due time is persisted as `sync_state.next_sync_at` and shown as "Next automatic retry".
   SENT rows left by a killed process return to PENDING at the next run (idempotent resend).
-- **Evidence**: original JPEG bytes from CameraX (in memory, never written unencrypted) and signature PNGs are
-  stored AES-256-GCM encrypted (`EncryptedEvidenceStore`, data key wrapped by a Keystore key) in `noBackupFilesDir`;
+- **Evidence**: original JPEG bytes from CameraX (in memory, never written unencrypted) are stored AES-256-GCM encrypted (`EncryptedEvidenceStore`, data key wrapped by a Keystore key) in `noBackupFilesDir`;
   SHA-256 of the original bytes; resumable upload (`POST /sync/blobs` -> missing `PUT chunks` -> `complete`), the
   session, chunk size and confirmed chunks are persisted after each chunk; `CHECKSUM_MISMATCH`/expired/unknown
   session -> new session; known content completes immediately. As on iOS, evidence missing/unreadable/changed on the
@@ -125,8 +125,8 @@ fixture images + the shared parse cases on the device runtime). Emulator note: a
 
 ## Capture rules (enforced in the use case, shown in the UI)
 
-OPENING on an APPROVED job, CLOSING on an IN_PROGRESS job (including a locally queued START). The required mode is
-the snapshot's `opening_mode`/`closing_mode`. AUTOMATIC: camera photo + on-device OCR -> recognised value and
+A DAILY reading on an assigned machine (BASELINE/CORRECTION on request). The required mode is the snapshot's
+`capture_mode` (older snapshots: `closing_mode`). AUTOMATIC: camera photo + on-device OCR -> recognised value and
 confidence for confirmation; editing it is a manual correction (OCR value/raw text kept, edited reading sent);
 below `min_ocr_confidence` the user must retake until `max_recapture_attempts` recaptures are used, then may enter
 the value manually (photo + OCR kept). MANUAL: numeric entry at the meter's decimal places; photo when
@@ -174,13 +174,12 @@ read correctly at >= 0.92. The fixtures are synthetic; real samples are still re
   in a non-base currency; when `gps_required`, a FIX within `gps_max_accuracy_m`; every expense makes a GPS attempt;
   above `auto_approve_limit` (or foreign currency) the form explains it will need approval. Blocked like capture
   rules when the snapshot is missing/expired or the offline grant has passed. The tenant currency is inferred from the
-  synced custody (else the jobs' currency); when unknown the expense is treated as foreign (stricter).
+  synced custody; when unknown the expense is treated as foreign (stricter).
 - **Outbox**: ops `EXPENSE`, `CASH_COLLECTION`, `CASH_HANDOVER`, `FUEL_EVENT` via `FieldOutbox.enqueueOperation`; the
   entity id is the form's `client_id` (generated once per visit; exactly-once checked inside the transaction). An
   expense carries up to 10 receipt photos and waits for every `EXPENSE_RECEIPT` upload (attachment gate); each
   completion appends its upload id to `receipt_upload_ids`. Server `ATTACHMENT_PENDING` is a normal DEFERRED (resent), `RECEIPT_NOT_FOUND`
-  a rejection; all outcomes go through `OutboxTransitions`. The collection contract has no job field, so a chosen job
-  is recorded in the note (`Job J-…`).
+  a rejection; all outcomes go through `OutboxTransitions`.
 - **My cash**: synced custody (outstanding, handovers awaiting verification, expenses awaiting approval) next to this
   device's unsynced collections/handovers/cash expenses, labelled "not verified"; refused records are listed, never
   counted.
@@ -190,8 +189,7 @@ read correctly at >= 0.92. The fixtures are synthetic; real samples are still re
 Read-mostly app for owners (prompt.md R1-I): login (shared AppAuth/PKCE flow, client `asseta-mobile`, redirect
 `com.asseta.owner:/oauth2redirect`), tenant picker when several tenants, then bottom tabs **Home** (overview KPIs per
 permitted section with each section's `latest_source_at` freshness), **Fleet** (MapLibre map + accessible list, search
-and connectivity filters, tap -> machine), **Jobs** (status filters; detail with meter vs billable hours, charges,
-readings with photos, customer acknowledgement), **Alerts** (acknowledge / resolve with a required note), **More**
+and connectivity filters, tap -> machine), **Alerts** (acknowledge / resolve with a required note), **More**
 (Approvals, Meter exceptions, Cash with supervisors, Investigations read-only, Notifications inbox, Settings).
 
 **Owner actions** (online only, never queued; each gated by `OwnerAction`/`MutationGate`: permission from `/me` +
@@ -202,11 +200,9 @@ online + live data + tenant not read-only; every POST carries an `Idempotency-Ke
 | Acknowledge / resolve an alert (resolve needs a note) | Alerts | `tenant.fleet.alert_manage` | `POST /tenant/alerts/{id}/action` |
 | Approve / reject an expense request (reject needs a note) | Approvals | `tenant.approval.expense` | `POST /tenant/approvals/{id}/decision` |
 | Approve / reject a meter reset (note >= 5 characters) | Approvals > Meter resets | `tenant.meter.approve` | `POST /tenant/meter-resets/{id}/decision` |
-| Approve a job (hourly rate when PENDING_PRICE) / decline with a reason | Approvals > Jobs, job detail | `tenant.job.approve` | `POST /tenant/jobs/{id}/transitions` |
 | Confirm received (optional note) / dispute (reason required) a claimed cash handover | Approvals > Cash handovers, Cash cards | `tenant.finance.verify` | `POST /tenant/cash/handovers/{id}/decision` |
 | Review a meter exception: outcome Explained / Discrepancy confirmed + review note (5..2000) | Approvals > Exceptions, Meter exceptions | `tenant.meter.review` | `POST /tenant/exceptions/{id}/review` |
 | Issue a cash float to a supervisor (amount in the card's currency, optional note) | Cash with supervisors | `tenant.finance.cash` | `POST /tenant/cash/floats` |
-| New job: customer contract, machine, supervisor, optional site, planned start/end, job number (typed, as on the web), rate card or negotiated rate, optional minimum hours; "Approve now" (default on, only with `tenant.job.approve`) creates, submits and approves so the supervisor is notified at once, otherwise create + submit. One Idempotency-Key per step per form visit; a refused submit/approve opens the created job with the reason | Jobs | `tenant.job.write` (+ `tenant.job.approve`) | `POST /tenant/jobs`, `POST /tenant/jobs/{id}/transitions` (lookups: `GET /tenant/contracts`, `/tenant/machines`, `/tenant/staff?kind=SUPERVISOR`, `/tenant/job-sites`) |
 | Push routing and push devices | Settings | (own) | `/tenant/notification-routing`, `/me/push-devices` |
 
 Nothing else changes data. Segregation of duties is enforced by the server (the recorder/requester cannot decide);
@@ -242,7 +238,7 @@ live updates still work). To enable: put the Firebase file at `app/owner/google-
 (`platform=ANDROID`, `app=OWNER`, bound to the selected tenant) when the user enables push in Settings (asks for
 `POST_NOTIFICATIONS` on Android 13+). Sign-out deactivates the registration (`DELETE /me/push-devices/{id}`) and
 deletes the token. Taps (tray or in-app notification) carry `notification_id/tenant_id/link`; the app switches to
-that tenant if needed, resolves the notification's target and opens the machine/alert/approval/case/job screen.
+that tenant if needed, resolves the notification's target and opens the machine/alert/approval/case/machine report screen.
 
 The Supervisor app works the same way with `app/supervisor/google-services.json` (package `com.asseta.supervisor`;
 `app=SUPERVISOR`). It registers automatically once the company is open when the role has `tenant.notification.read`

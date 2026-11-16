@@ -118,11 +118,11 @@ fun MachineScreen(vm: MachineViewModel, features: OwnerFeatures, online: Boolean
             if (features.tracking) item { Track(row, track, zone) }
             if (features.alerts) item { RecentAlerts(alerts, zone, onOpen) }
             if (features.meterEvidence) item { Readings(vm.data, readings, online, zone) }
-            // The machine's days: the daily sheet with money (DEC-031 R2) or, with revenue checks off, the allocations (DEC-032).
+            // The machine's days: the work allocation ledger (DEC-032).
             if (features.machineDays) item {
                 SectionCard(null) {
                     com.asseta.core.ui.components.NavigationRow(com.asseta.owner.ui.accountability.OwnerAccountabilityTexts.SHEET_OPEN) {
-                        onOpen(OwnerDestination.DailySheet(vm.machineId))
+                        onOpen(OwnerDestination.MachineDays(vm.machineId))
                     }
                 }
             }

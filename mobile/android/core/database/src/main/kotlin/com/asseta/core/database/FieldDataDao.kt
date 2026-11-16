@@ -10,12 +10,6 @@ import kotlinx.coroutines.flow.Flow
 /** Server-owned data: upserts keep the newer server version; nothing here is ever pushed back. */
 @Dao
 abstract class FieldDataDao {
-    @Query("SELECT version FROM job WHERE id = :id")
-    protected abstract suspend fun jobVersion(id: String): Long?
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    protected abstract suspend fun putJob(job: JobEntity)
-
     @Query("SELECT version FROM machine WHERE id = :id")
     protected abstract suspend fun machineVersion(id: String): Long?
 
@@ -23,12 +17,6 @@ abstract class FieldDataDao {
     protected abstract suspend fun putMachine(machine: MachineEntity)
 
     /** Upsert by (id, version): an older or replayed (lookback) server version never overwrites a newer one. */
-    @Transaction
-    open suspend fun upsertJobs(jobs: List<JobEntity>): Int = jobs.count { job ->
-        val current = jobVersion(job.id)
-        (current == null || job.version >= current).also { if (it) putJob(job) }
-    }
-
     @Transaction
     open suspend fun upsertMachines(machines: List<MachineEntity>): Int = machines.count { m ->
         val current = machineVersion(m.id)
@@ -40,13 +28,6 @@ abstract class FieldDataDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun upsertSnapshots(snapshots: List<PolicySnapshotEntity>)
-
-    /** Bootstrap is a full snapshot of open jobs: jobs no longer delivered are dropped from the local cache. */
-    @Query("DELETE FROM job WHERE tenant_id = :tenantId AND id NOT IN (:keep)")
-    abstract suspend fun deleteJobsNotIn(tenantId: String, keep: List<String>): Int
-
-    @Query("DELETE FROM job WHERE tenant_id = :tenantId")
-    abstract suspend fun deleteAllJobs(tenantId: String): Int
 
     @Query("DELETE FROM machine WHERE tenant_id = :tenantId")
     abstract suspend fun deleteAllMachines(tenantId: String): Int
@@ -63,15 +44,6 @@ abstract class FieldDataDao {
     @Query("DELETE FROM policy_snapshot WHERE tenant_id = :tenantId")
     abstract suspend fun deleteAllSnapshots(tenantId: String): Int
 
-    @Query("SELECT * FROM job WHERE tenant_id = :tenantId ORDER BY planned_start ASC, job_number ASC")
-    abstract fun observeJobs(tenantId: String): Flow<List<JobEntity>>
-
-    @Query("SELECT * FROM job WHERE id = :id")
-    abstract fun observeJob(id: String): Flow<JobEntity?>
-
-    @Query("SELECT * FROM job WHERE id = :id")
-    abstract suspend fun job(id: String): JobEntity?
-
     @Query("SELECT * FROM machine WHERE id = :id")
     abstract suspend fun machine(id: String): MachineEntity?
 
@@ -83,9 +55,6 @@ abstract class FieldDataDao {
 
     @Query("SELECT * FROM reference_record WHERE tenant_id = :tenantId AND kind = :kind ORDER BY title COLLATE NOCASE")
     abstract fun observeReferences(tenantId: String, kind: String): Flow<List<ReferenceRecordEntity>>
-
-    @Query("SELECT DISTINCT currency FROM job WHERE tenant_id = :tenantId AND currency IS NOT NULL")
-    abstract suspend fun jobCurrencies(tenantId: String): List<String>
 
     @Query("SELECT * FROM policy_snapshot WHERE tenant_id = :tenantId")
     abstract suspend fun snapshots(tenantId: String): List<PolicySnapshotEntity>

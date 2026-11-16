@@ -1,13 +1,10 @@
 package com.asseta.supervisor.ui
 
 import com.asseta.core.domain.capture.GpsOutcome
-import com.asseta.core.domain.capture.JobStatus
 import com.asseta.core.domain.capture.OcrStep
 import com.asseta.core.domain.ocr.OcrReading
 import com.asseta.core.domain.policy.CaptureMode
 import com.asseta.core.domain.policy.ReadingKind
-import com.asseta.core.model.sync.ActivityTypes
-import com.asseta.core.sync.data.JobFieldState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -17,12 +14,9 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 
 class FieldRulesTest {
-    private fun state(status: String, opening: Boolean = false, closing: Boolean = false, ack: Boolean = false, start: Boolean = false) =
-        JobFieldState(status, opening, closing, ack, start, completeQueued = false)
-
     @Test
     fun captureIssuesUseTheIosWording() {
-        val manual = CaptureUi(ReadingKind.OPENING, loading = false, decimals = 1, mode = CaptureMode.MANUAL)
+        val manual = CaptureUi(ReadingKind.DAILY, loading = false, decimals = 1, mode = CaptureMode.MANUAL)
         assertEquals(listOf("Enter the meter reading.", "A location attempt is required for every reading."), manual.issues)
         assertEquals(
             listOf("This meter shows at most 1 decimal place."),
@@ -31,7 +25,7 @@ class FieldRulesTest {
         assertEquals(listOf("This meter shows whole hours only."), manual.copy(decimals = 0, readingText = "1.5", gps = GpsOutcome.NoFix).issues)
         assertEquals(emptyList<String>(), manual.copy(readingText = "12.3", gps = GpsOutcome.PermissionDenied).issues)
 
-        val automatic = CaptureUi(ReadingKind.CLOSING, loading = false, decimals = 0, mode = CaptureMode.AUTOMATIC, gps = GpsOutcome.NoFix)
+        val automatic = CaptureUi(ReadingKind.DAILY, loading = false, decimals = 0, mode = CaptureMode.AUTOMATIC, gps = GpsOutcome.NoFix)
         assertTrue("A photo of the meter is required." in automatic.issues)
         val recapture = automatic.copy(readingText = "", ocrStep = OcrStep.RECAPTURE)
         assertTrue("The photo could not be read reliably. Take another photo." in recapture.issues)
@@ -39,7 +33,7 @@ class FieldRulesTest {
 
     @Test
     fun correctionIsComparedOnTheNormalizedReading() {
-        val ui = CaptureUi(ReadingKind.OPENING, decimals = 1, mode = CaptureMode.AUTOMATIC,
+        val ui = CaptureUi(ReadingKind.DAILY, decimals = 1, mode = CaptureMode.AUTOMATIC,
             ocr = OcrReading("1234.5", 0.95, "1234.5", "OK", emptySet()), ocrStep = OcrStep.CONFIRM)
         assertFalse(ui.copy(readingText = "1234,5").isManualCorrection)
         assertTrue(ui.copy(readingText = "1243.5").isManualCorrection)

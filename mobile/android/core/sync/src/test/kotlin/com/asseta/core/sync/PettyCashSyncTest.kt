@@ -308,7 +308,7 @@ class PettyCashSyncTest : SyncTestBase() {
     fun expensePaidFromAFundNamesTheFundAndChecksIt() = runBlocking {
         synced()
         fun expense(fund: FundChoice?, advance: AdvanceChoice? = null, currency: String = "TZS") = ExpenseRequest(
-            tenant, UUID.randomUUID().toString(), fake.categoryId, "Rope", "", "50000", currency, PaidFrom.PETTY_CASH, fake.machineId, null,
+            tenant, UUID.randomUUID().toString(), fake.categoryId, "Rope", "", "50000", currency, PaidFrom.PETTY_CASH, fake.machineId,
             listOf(photo), GpsOutcome.Fix(-6.8, 39.28, 8.0, Instant.ofEpochMilli(clock.now), "fused"), clock.now, fund, advance,
         )
         val held = FundChoice(fundId, "TZS", BigDecimal("40000"), held = true)

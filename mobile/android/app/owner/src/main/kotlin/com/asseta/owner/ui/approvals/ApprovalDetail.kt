@@ -42,7 +42,6 @@ import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.model.owner.ApprovalRequestDto
 import com.asseta.core.model.owner.CustomerPaymentDto
 import com.asseta.core.model.owner.ExpenseDto
-import com.asseta.core.model.owner.JobDto
 import com.asseta.core.model.owner.MeterResetDto
 import com.asseta.core.model.owner.PageDto
 import com.asseta.core.ui.components.ButtonRow

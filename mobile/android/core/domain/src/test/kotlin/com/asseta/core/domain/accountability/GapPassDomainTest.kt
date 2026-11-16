@@ -57,7 +57,7 @@ class GapPassDomainTest {
         assertEquals(InboxLink.Money, InboxLinks.from("cash_remittance_overdue", null))
         assertEquals(InboxLink.Retention("r1"), InboxLinks.from("cash_retention", "r1"))
         // Unknown kinds fall back to the target.
-        assertEquals(InboxLink.Job("j"), InboxLinks.from("job", "j", "SOMETHING_NEW", "x"))
+        assertEquals(InboxLink.Machine("m"), InboxLinks.from("machine", "m", "SOMETHING_NEW", "x"))
         assertEquals(InboxLink.None, InboxLinks.from(null, null, "SOMETHING_NEW", "x"))
     }
 }

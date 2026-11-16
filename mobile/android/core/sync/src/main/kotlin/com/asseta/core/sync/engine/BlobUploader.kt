@@ -181,7 +181,6 @@ class BlobUploader(
             ops.forAttachment(attachment.id).forEach { op ->
                 val patch: Pair<String, JsonElement> = when (op.opType) {
                     OpTypes.METER_CAPTURE -> "photo_attachment_id" to JsonPrimitive(serverId)
-                    OpTypes.JOB_ACKNOWLEDGEMENT -> "signature_attachment_id" to JsonPrimitive(serverId)
                     // The sync EXPENSE op references receipts by blob upload id (resolved server-side to attachments);
                     // each completed receipt appends its id, so an expense with several receipts carries them all.
                     OpTypes.EXPENSE -> "receipt_upload_ids" to appendUploadId(op.payloadJson, dto.id)
@@ -194,8 +193,6 @@ class BlobUploader(
                     OpTypes.CASH_HANDOVER -> "evidence_upload_ids" to appendUploadId(op.payloadJson, dto.id, "evidence_upload_ids")
                     // An hours transfer names its evidence photos by upload ids too (CASH_DETAILS_V2).
                     AccountabilityOps.HOURS_TRANSFER_REQUEST -> "evidence_upload_ids" to appendUploadId(op.payloadJson, dto.id, "evidence_upload_ids")
-                    // A daily report names its photos by upload ids too (DEC-032 A4).
-                    AccountabilityOps.DAILY_REPORT -> "evidence_upload_ids" to appendUploadId(op.payloadJson, dto.id, "evidence_upload_ids")
                     // Petty cash returns and counts name their photos by upload ids too (DEC-033).
                     PettyCashOps.RETURN, PettyCashOps.COUNT -> "evidence_upload_ids" to appendUploadId(op.payloadJson, dto.id, "evidence_upload_ids")
                     AccountabilityOps.METER_BASELINE -> "photo_attachment_id" to JsonPrimitive(serverId)
@@ -250,8 +247,8 @@ class BlobUploader(
         const val UNKNOWN_PURPOSE = "UNKNOWN_PURPOSE"
         const val LOCAL_EVIDENCE_UNAVAILABLE = "LOCAL_EVIDENCE_UNAVAILABLE"
         val KNOWN_PURPOSES = setOf(
-            BlobPurpose.METER_PHOTO, BlobPurpose.SIGNATURE, BlobPurpose.EXPENSE_RECEIPT, BlobPurpose.RESET_EVIDENCE,
-            AccountabilityOps.PAYMENT_EVIDENCE, BlobPurpose.REMITTANCE_EVIDENCE, BlobPurpose.DAILY_REPORT_EVIDENCE,
+            BlobPurpose.METER_PHOTO, BlobPurpose.EXPENSE_RECEIPT, BlobPurpose.RESET_EVIDENCE,
+            AccountabilityOps.PAYMENT_EVIDENCE, BlobPurpose.REMITTANCE_EVIDENCE,
             BlobPurpose.ADJUSTMENT_EVIDENCE, BlobPurpose.PETTY_CASH_EVIDENCE,
         )
         val OCTET_STREAM = "application/octet-stream".toMediaType()

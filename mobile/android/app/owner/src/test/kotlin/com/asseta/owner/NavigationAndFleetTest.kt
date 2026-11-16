@@ -38,12 +38,9 @@ class NavigationAndFleetTest {
     }
 
     @Test
-    fun `job links, the old More tab and unbilled work open Home`() {
+    fun `the old More tab opens Home`() {
         val f = OwnerFeatures(setOf("tenant.fleet.read"))
-        assertEquals(OwnerDestination.Home, f.route(OwnerDestination.Job(ID1)))
-        assertEquals(OwnerDestination.Home, f.route(OwnerDestination.Jobs))
         assertEquals(OwnerDestination.Home, f.route(OwnerDestination.More))
-        assertEquals(OwnerDestination.Home, f.route(OwnerDestination.UnbilledWork))
     }
 
     @Test

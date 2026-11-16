@@ -9,28 +9,28 @@ import java.time.Instant
 
 enum class CaptureMode { AUTOMATIC, MANUAL }
 
-/** DAILY: a reading outside a job (machine only; server capability METER_DAILY_READING). */
-enum class ReadingKind { OPENING, CLOSING, DAILY }
+/** ADR-008: every reading is DAILY (a machine reading; server capability METER_DAILY_READING). */
+enum class ReadingKind { DAILY }
 
 /** The part of the server `MeterCapturePolicy` a device enforces offline (server re-validates every capture). */
 data class MeterCapturePolicy(
-    val openingMode: CaptureMode,
-    val closingMode: CaptureMode,
+    /** How a reading is taken (`capture_mode`; snapshots saved before ADR-008 carry it as `closing_mode`). */
+    val captureMode: CaptureMode,
     val manualPhotoRequired: Boolean,
     val minOcrConfidence: Double,
     val maxRecaptureAttempts: Int,
     val manualCorrectionRequiresReview: Boolean,
     val gpsEnforcement: String,
 ) {
-    /** A DAILY reading (and a baseline) carries the same evidence rules as a closing reading (server rule). */
-    fun requiredMode(kind: ReadingKind): CaptureMode = if (kind == ReadingKind.OPENING) openingMode else closingMode
+    /** Every reading (and a baseline) follows the company's capture mode. */
+    @Suppress("UNUSED_PARAMETER")
+    fun requiredMode(kind: ReadingKind): CaptureMode = captureMode
 
     companion object {
         /** Strict: a snapshot missing a required value is unusable (fail closed), never defaulted locally. */
         fun fromValues(values: JsonObject): MeterCapturePolicy? = runCatching {
             MeterCapturePolicy(
-                openingMode = CaptureMode.valueOf(values.string("opening_mode")),
-                closingMode = CaptureMode.valueOf(values.string("closing_mode")),
+                captureMode = CaptureMode.valueOf(values.string(if ("capture_mode" in values) "capture_mode" else "closing_mode")),
                 manualPhotoRequired = values.prim("manual_photo_required").booleanOrNull!!,
                 minOcrConfidence = values.prim("min_ocr_confidence").doubleOrNull!!.also { require(it in 0.0..1.0) },
                 maxRecaptureAttempts = values.prim("max_recapture_attempts").intOrNull!!.also { require(it in 0..10) },

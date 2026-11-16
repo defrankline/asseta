@@ -139,16 +139,6 @@ class ManagementPresentation(private val f: OwnerFeatures, private val webBase: 
             add(ManagementRow("attempts", T.EXC_ATTEMPTS, "${a.permissionDenied + a.segregationOfDuties}", T.attemptsCaption(a.permissionDenied, a.segregationOfDuties), target(a.route)))
             add(countRow("missing_reports", T.EXC_MISSING_REPORTS, s.overdueReports.missingDailyReports.count, s.overdueReports.missingDailyReports.route))
             add(countRow("overdue_remittances", T.EXC_OVERDUE_REMITTANCES, s.overdueReports.remittancesOverdueToday.count, s.overdueReports.remittancesOverdueToday.route))
-            val c = s.changeoverJobsAwaitingApproval
-            add(ManagementRow("changeover", T.EXC_CHANGEOVER, "${c.count}", caption = c.oldestDays?.let(T::changeoverCaption)))
-            c.items.forEach { j ->
-                add(
-                    ManagementRow(
-                        "changeover-${j.jobId}", T.changeoverRow(DisplayNames.or(j.jobNumber, j.jobId), DisplayNames.or(j.machineCode ?: j.machineName, j.machineId), DisplayNames.or(j.customerName, j.customerId)),
-                        T.changeoverDays(j.daysWaiting), target = target(j.route),
-                    ),
-                )
-            }
             add(heading("approvals", T.approvals(s.outstandingApprovals.total)))
             addAll(kindRows("approval", s.outstandingApprovals.byKind))
             add(ManagementRow("pending", T.pending(s.pendingAdjustments.total), heading = true, target = target(s.pendingAdjustments.route)))
@@ -172,10 +162,10 @@ class ManagementPresentation(private val f: OwnerFeatures, private val webBase: 
         fun newApprovalCounts(a: ApprovalsTileDto): List<Pair<String, String>> = listOfNotNull(
             "adjustment_requests" to a.adjustmentRequests, "hours_transfers" to a.hoursTransfers, "hours_cancellations" to a.hoursCancellations,
             "credit_arrangements" to a.creditArrangements, "discounts" to a.discounts, "meter_corrections" to a.meterCorrections,
-            "allocation_corrections" to a.allocationCorrections, "classifications" to a.classifications, "non_revenue_approvals" to a.nonRevenueApprovals,
+            "allocation_corrections" to a.allocationCorrections, "classifications" to a.classifications,
             "variance_closures" to a.varianceClosures, "meter_baselines" to a.meterBaselines, "meter_resets" to a.meterResets,
-            "partial_reasons" to a.partialReasons, "jobs_awaiting_approval" to a.jobsAwaitingApproval, "daily_reports_to_review" to a.dailyReportsToReview,
-            "case_closures" to a.caseClosures, "revenue_decisions" to a.revenueDecisions,
+            "partial_reasons" to a.partialReasons, "machine_reports" to a.machineReports, "daily_reports_to_review" to a.dailyReportsToReview,
+            "case_closures" to a.caseClosures,
         ).mapNotNull { (kind, n) -> n?.takeIf { it != 0 }?.let { T.kind(kind) to "$it" } }
     }
 }

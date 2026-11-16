@@ -10,8 +10,8 @@ import java.math.BigDecimal
 class InboxTextsTest {
     @Test
     fun `reading, gps and money wording`() {
-        assertEquals("Opening reading", InboxTexts.readingKind("OPENING"))
-        assertEquals("Closing reading", InboxTexts.readingKind("CLOSING"))
+        assertEquals("Daily reading", InboxTexts.readingKind("DAILY"))
+        assertEquals("Baseline", InboxTexts.readingKind("BASELINE"))
         assertEquals("-6.80000, 39.20000 (±12 m)", InboxTexts.gps("FIX", -6.8, 39.2, 12.4))
         assertEquals("No GPS fix within 20 seconds", InboxTexts.gps("TIMEOUT", null, null, null))
         assertEquals("92 %", InboxTexts.confidence(0.92))

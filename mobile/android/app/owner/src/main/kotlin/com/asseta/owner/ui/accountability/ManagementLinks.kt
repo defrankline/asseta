@@ -21,7 +21,7 @@ object ManagementLinks {
     /** Lists whose waiting rows the Approvals screen shows (status absent, or a waiting status). */
     private val APPROVAL_LISTS = setOf(
         "hours/transfers", "hours/cancellations", "hours/credit", "hours/discounts", "meter-corrections", "meter-baselines", "meter-resets",
-        "engine-hours/classifications", "non-revenue-approvals", "finance/adjustments/requests", "work-allocations/corrections", "approvals",
+        "engine-hours/classifications", "finance/adjustments/requests", "work-allocations/corrections", "approvals",
         "finance/cash/retentions", "finance/cash/adjustments",
     )
     private val WAITING = setOf("PENDING", "PROPOSED")
@@ -43,8 +43,8 @@ object ManagementLinks {
     private fun record(route: String): OwnerDestination? = DeepLinkRouter.fromPath(route)?.takeIf(::identifiesRecord)
 
     private fun identifiesRecord(d: OwnerDestination): Boolean = when (d) {
-        is OwnerDestination.Machine, is OwnerDestination.Case, is OwnerDestination.Job, is OwnerDestination.MeterReset, is OwnerDestination.MeterException,
-        is OwnerDestination.Handover, is OwnerDestination.Decision, is OwnerDestination.CashRecord, is OwnerDestination.SheetDay,
+        is OwnerDestination.Machine, is OwnerDestination.Case, is OwnerDestination.MeterReset, is OwnerDestination.MeterException,
+        is OwnerDestination.Handover, is OwnerDestination.Decision, is OwnerDestination.CashRecord, is OwnerDestination.MachineDay,
         is OwnerDestination.HoursPurchase, is OwnerDestination.ScorecardPerson, is OwnerDestination.EmployeeAccountability,
         is OwnerDestination.CustomerPayment,
         -> true
@@ -61,10 +61,9 @@ object ManagementLinks {
             key == "hours/balances" -> q["customer_id"]?.takeIf(UUID::matches)?.let { OwnerDestination.HoursStatement(it) } ?: OwnerDestination.Customers
             key == "finance/cash" -> OwnerDestination.Cash.takeIf { q.isEmpty() }
             key == "finance/cash/remittance-overdue" -> OwnerDestination.RemittanceOverdue()
-            key == "exceptions" -> OwnerDestination.Exceptions()
+            key == "exceptions" -> OwnerDestination.Exceptions
             key == "cases" -> OwnerDestination.Cases
             key == "accountability/pending-adjustments" -> OwnerDestination.Approvals()
-            key == "revenue-differences" -> OwnerDestination.Approvals().takeIf { status == null || status == "EXPLANATION_PROPOSED" }
             key == "daily-reports" -> OwnerDestination.Approvals().takeIf { status == "SUBMITTED" }
             key == "finance/cash/variances" -> OwnerDestination.Approvals().takeIf { status in WAITING_VARIANCES }
             key == "customer-payments" -> OwnerDestination.Approvals().takeIf { status == "CLAIMED" && f.confirmPayments }
@@ -83,8 +82,6 @@ object ManagementLinks {
         is OwnerDestination.Exceptions, is OwnerDestination.MeterException, is OwnerDestination.MeterReset -> f.meterEvidence
         OwnerDestination.Cases, is OwnerDestination.Case -> f.cases
         is OwnerDestination.EmployeeAccountability -> f.employeeAccountability
-        // ADR-008: jobs are gone; a job route never opens a screen.
-        is OwnerDestination.Job, OwnerDestination.Jobs, OwnerDestination.UnbilledWork -> false
         is OwnerDestination.Machine, OwnerDestination.Fleet -> f.fleet
         is OwnerDestination.Alerts -> f.alerts
         is OwnerDestination.Notifications -> f.notifications
@@ -98,9 +95,9 @@ object ManagementLinks {
         return SetupLinks.webUrl(webBase, route)?.let { FigureTarget.Web(it) }
     }
 
-    /** An excavator's hours open its daily sheet when machine days are open to the role, else the machine, else the web. */
+    /** An excavator's hours open its machine days when they are open to the role, else the machine, else the web. */
     fun excavatorTarget(machineId: String, route: String, f: OwnerFeatures, webBase: String): FigureTarget? = when {
-        f.machineDays -> FigureTarget.App(OwnerDestination.DailySheet(machineId))
+        f.machineDays -> FigureTarget.App(OwnerDestination.MachineDays(machineId))
         f.fleet -> FigureTarget.App(OwnerDestination.Machine(machineId))
         else -> target(route, f, webBase)
     }

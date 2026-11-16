@@ -12,8 +12,8 @@ class PolicySelectorTest {
     private val now = Instant.parse("2026-10-21T10:00:00Z")
     private val grant = now.plusSeconds(3600)
 
-    private fun values(opening: String = "AUTOMATIC") = Json.parseToJsonElement(
-        """{"opening_mode":"$opening","closing_mode":"MANUAL","manual_photo_required":true,"min_ocr_confidence":0.85,
+    private fun values(mode: String = "AUTOMATIC") = Json.parseToJsonElement(
+        """{"capture_mode":"$mode","manual_photo_required":true,"min_ocr_confidence":0.85,
            "max_recapture_attempts":2,"manual_correction_requires_review":true,"gps_enforcement":"SOFT",
            "gps_max_accuracy_m":50.0,"gps_max_age_seconds":120}""",
     ).jsonObject
@@ -26,7 +26,7 @@ class PolicySelectorTest {
         val d = PolicySelector.select(listOf(snap("tenant"), snap("machine:m1", v = values("MANUAL"))), "m1", now, grant)
         d as CapturePolicyDecision.Allowed
         assertEquals("machine:m1", d.snapshot.scopeKey)
-        assertEquals(CaptureMode.MANUAL, d.policy.openingMode)
+        assertEquals(CaptureMode.MANUAL, d.policy.captureMode)
         assertEquals(listOf("machine:m1"), d.snapshot.versionIds)
     }
 
@@ -34,8 +34,17 @@ class PolicySelectorTest {
     fun tenantSnapshotIsTheFallback() {
         val d = PolicySelector.select(listOf(snap("tenant"), snap("machine:other")), "m1", now, grant)
         assertEquals("tenant", (d as CapturePolicyDecision.Allowed).snapshot.scopeKey)
-        assertEquals(CaptureMode.AUTOMATIC, d.policy.requiredMode(ReadingKind.OPENING))
-        assertEquals(CaptureMode.MANUAL, d.policy.requiredMode(ReadingKind.CLOSING))
+        assertEquals(CaptureMode.AUTOMATIC, d.policy.requiredMode(ReadingKind.DAILY))
+    }
+
+    @Test
+    fun aSnapshotSavedBeforeAdr008ReadsItsClosingModeAsTheCaptureMode() {
+        val old = Json.parseToJsonElement(
+            """{"opening_mode":"AUTOMATIC","closing_mode":"MANUAL","manual_photo_required":true,"min_ocr_confidence":0.85,
+               "max_recapture_attempts":2,"manual_correction_requires_review":true,"gps_enforcement":"SOFT"}""",
+        ).jsonObject
+        val d = PolicySelector.select(listOf(snap("tenant", v = old)), "m1", now, grant) as CapturePolicyDecision.Allowed
+        assertEquals(CaptureMode.MANUAL, d.policy.requiredMode(ReadingKind.DAILY))
     }
 
     @Test
@@ -64,7 +73,7 @@ class PolicySelectorTest {
         assertEquals(CapturePolicyDecision.Blocked(BlockReason.NO_SNAPSHOT), PolicySelector.select(emptyList(), "m1", now, grant))
         val other = PolicySnapshot("TRACKING", "tenant", emptyList(), "s", values(), now.plusSeconds(60))
         assertEquals(CapturePolicyDecision.Blocked(BlockReason.NO_SNAPSHOT), PolicySelector.select(listOf(other), "m1", now, grant))
-        val broken = snap("tenant", v = JsonObject(values().filterKeys { it != "closing_mode" }))
+        val broken = snap("tenant", v = JsonObject(values().filterKeys { it != "capture_mode" }))
         assertEquals(CapturePolicyDecision.Blocked(BlockReason.POLICY_UNREADABLE), PolicySelector.select(listOf(broken), "m1", now, grant))
     }
 }

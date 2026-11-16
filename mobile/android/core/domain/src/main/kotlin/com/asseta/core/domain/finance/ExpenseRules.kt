@@ -85,16 +85,13 @@ data class ExpenseDraft(
     val currency: String,
     val paidFrom: PaidFrom?,
     val machineId: String?,
-    val jobId: String?,
-    /** Machine of the selected job (attribution must agree with it). */
-    val jobMachineId: String?,
     val hasReceipt: Boolean,
     val gps: GpsOutcome?,
 )
 
 enum class ExpenseViolation {
     CATEGORY_REQUIRED, DESCRIPTION_REQUIRED, TEXT_TOO_LONG, AMOUNT_INVALID, CURRENCY_INVALID, PAID_FROM_REQUIRED,
-    ATTRIBUTION_MISMATCH, RECEIPT_REQUIRED, GPS_NOT_ATTEMPTED, GPS_REQUIRED, GPS_TOO_INACCURATE,
+    RECEIPT_REQUIRED, GPS_NOT_ATTEMPTED, GPS_REQUIRED, GPS_TOO_INACCURATE,
 }
 
 data class ExpenseIssue(val code: ExpenseViolation, val message: String)
@@ -146,9 +143,7 @@ object ExpenseRules {
         val currency = CurrencyCode.normalize(draft.currency)
         if (currency == null) add(ExpenseViolation.CURRENCY_INVALID, "Enter a 3-letter currency code (e.g. ${baseCurrency ?: "USD"}).")
         if (draft.paidFrom == null) add(ExpenseViolation.PAID_FROM_REQUIRED, "Choose who paid: your cash or the company.")
-        if (draft.jobId != null && draft.machineId != null && draft.jobMachineId != null && draft.machineId != draft.jobMachineId) {
-            add(ExpenseViolation.ATTRIBUTION_MISMATCH, "The machine does not match the selected job's machine.")
-        }
+
 
         val inBase = currency != null && baseCurrency != null && currency == baseCurrency
         val receiptReason = when {

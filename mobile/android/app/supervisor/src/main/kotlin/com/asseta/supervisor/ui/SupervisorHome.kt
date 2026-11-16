@@ -411,8 +411,6 @@ fun SupervisorHome(
         // CASH_CUSTODY switched off: its records are hidden, so their taps open Money (follow-up F1).
         val cashOff = TenantAccess.CASH_CUSTODY in tenant.disabledCapabilities
         when (link) {
-            // Jobs are gone (ADR-008): an old job notification shows its own text.
-            is InboxLink.Job, is InboxLink.DailyReport -> fallback()
             is InboxLink.Machine -> snapshot.machines[link.machineId]?.let { push(Route.MachineDetail(it.id, it.assetCode)) } ?: fallback()
             is InboxLink.Expense -> push(Route.ExpenseDetail(snapshot.expenses.firstOrNull { it.serverId == link.expenseId }?.key ?: link.expenseId))
             InboxLink.Money -> money()
@@ -650,12 +648,12 @@ private fun RouteContent(
         is Route.Baseline, is Route.Correction -> {
             // The capture screen with its evidence rules, for a baseline or a correction.
             val visit = remember(route) { System.nanoTime() }
-            val target = when (route) {
-                is Route.Baseline -> com.asseta.core.sync.usecase.CaptureTarget.Baseline(route.machineId, "")
-                is Route.Correction -> com.asseta.core.sync.usecase.CaptureTarget.Correction(route.readingId, "")
-                else -> com.asseta.core.sync.usecase.CaptureTarget.Job
+            val target = if (route is Route.Baseline) {
+                com.asseta.core.sync.usecase.CaptureTarget.Baseline(route.machineId, "")
+            } else {
+                com.asseta.core.sync.usecase.CaptureTarget.Correction((route as Route.Correction).readingId, "")
             }
-            val vm: CaptureViewModel = viewModel(key = "capture-$visit") { CaptureViewModel(field, tenantId, null, com.asseta.core.domain.policy.ReadingKind.DAILY, target) }
+            val vm: CaptureViewModel = viewModel(key = "capture-$visit") { CaptureViewModel(field, tenantId, com.asseta.core.domain.policy.ReadingKind.DAILY, target) }
             CaptureScreen(vm, onDone = pop)
         }
         Route.HoursSale -> {

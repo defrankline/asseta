@@ -37,7 +37,7 @@ data class CashToday(
 
 /**
  * The Supervisor's optional online reads: server notifications (EXPENSE_DECIDED, CASH_NOT_HANDED_OVER,
- * JOB_MISSING_READINGS, ...) and today's cash reconciliation, both cached in the encrypted store for offline viewing.
+ * MACHINE_REPORT_REJECTED, ...) and today's cash reconciliation, both cached in the encrypted store for offline viewing.
  * Both are conveniences on top of sync: the app works fully without them.
  */
 class SupervisorOnline(

@@ -11,13 +11,13 @@ import org.junit.Test
 import java.time.Instant
 
 class CaptureRulesTest {
-    private fun policy(opening: CaptureMode = CaptureMode.AUTOMATIC, closing: CaptureMode = CaptureMode.MANUAL, photo: Boolean = true) =
-        MeterCapturePolicy(opening, closing, photo, 0.85, 2, true, "SOFT")
+    private fun policy(mode: CaptureMode = CaptureMode.AUTOMATIC, photo: Boolean = true) =
+        MeterCapturePolicy(mode, photo, 0.85, 2, true, "SOFT")
 
     private fun ocr(value: String?, confidence: Double) = OcrReading(value, confidence, value ?: "", "OK", emptySet())
 
     private fun draft(
-        mode: CaptureMode = CaptureMode.AUTOMATIC, kind: ReadingKind = ReadingKind.OPENING, reading: String = "1234.5",
+        mode: CaptureMode = CaptureMode.AUTOMATIC, kind: ReadingKind = ReadingKind.DAILY, reading: String = "1234.5",
         photo: Boolean = true, attempts: Int = 1, latest: OcrReading? = ocr("1234.5", 0.95), gps: Boolean = true,
     ) = CaptureDraft(kind, mode, reading, photo, attempts, latest, gps)
 
@@ -57,24 +57,13 @@ class CaptureRulesTest {
     @Test
     fun manualModeRespectsPhotoPolicyAndRequiredMode() {
         assertEquals(emptyList<CaptureViolation>(),
-            CaptureValidator.validate(draft(CaptureMode.MANUAL, ReadingKind.CLOSING, photo = false, attempts = 0, latest = null), policy(photo = false), 1))
+            CaptureValidator.validate(draft(CaptureMode.MANUAL, photo = false, attempts = 0, latest = null), policy(CaptureMode.MANUAL, photo = false), 1))
         assertEquals(listOf(CaptureViolation.PHOTO_REQUIRED),
-            CaptureValidator.validate(draft(CaptureMode.MANUAL, ReadingKind.CLOSING, photo = false, attempts = 0, latest = null), policy(photo = true), 1))
+            CaptureValidator.validate(draft(CaptureMode.MANUAL, photo = false, attempts = 0, latest = null), policy(CaptureMode.MANUAL, photo = true), 1))
         assertTrue(CaptureViolation.MODE_NOT_ALLOWED in
-            CaptureValidator.validate(draft(CaptureMode.MANUAL, ReadingKind.OPENING), policy(), 1))
+            CaptureValidator.validate(draft(CaptureMode.MANUAL), policy(), 1))
         assertTrue(CaptureViolation.READING_INVALID in CaptureValidator.validate(draft(reading = "12.34"), policy(), 1))
         assertTrue(CaptureViolation.GPS_NOT_ATTEMPTED in CaptureValidator.validate(draft(gps = false), policy(), 1))
-    }
-
-    @Test
-    fun readingKindFollowsEffectiveJobState() {
-        assertTrue(JobStateRules.readingAllowed(ReadingKind.OPENING, JobStatus.APPROVED))
-        assertFalse(JobStateRules.readingAllowed(ReadingKind.CLOSING, JobStatus.APPROVED))
-        val afterLocalStart = JobStateRules.effectiveStatus(JobStatus.APPROVED, localStartPending = true, localCompletePending = false)
-        assertEquals(JobStatus.IN_PROGRESS, afterLocalStart)
-        assertTrue(JobStateRules.readingAllowed(ReadingKind.CLOSING, afterLocalStart))
-        assertEquals(JobStatus.CANCELLED, JobStateRules.effectiveStatus(JobStatus.CANCELLED, true, true))
-        assertFalse(JobStateRules.canLogWork("SOMETHING_NEW"))
     }
 
     @Test

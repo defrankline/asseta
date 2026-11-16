@@ -227,7 +227,7 @@ private fun CashRow(c: CashItem) {
     )
 }
 
-/** One expense: amount, paid from, category, job/machine, receipts, the office's decision and sync state. */
+/** One expense: amount, paid from, category, machine, receipts, the office's decision and sync state. */
 @Composable
 fun ExpenseDetailScreen(
     field: FieldGraph,
@@ -252,7 +252,6 @@ fun ExpenseDetailScreen(
             LabeledRow("Description", e.description)
             e.supplier?.let { LabeledRow("Supplier", it) }
             LabeledRow("When", LocalTime.format(e.atMs))
-            e.jobId?.let(snapshot.jobs::get)?.let { LabeledRow("Job", it.jobNumber) }
             e.machineId?.let(snapshot.machines::get)?.let { LabeledRow("Machine", InboxTexts.machine(it.assetCode, it.name)) }
         }
         val flags = com.asseta.core.domain.finance.ExpenseFlags.labels(e.controlFlags)
@@ -327,7 +326,6 @@ fun CashDetailScreen(
             if (collection) LabeledRow("Customer", customers.firstOrNull { it.id == c.customerId }?.name ?: "Customer")
             c.reference?.let { LabeledRow("Reference", it) }
             LabeledRow(if (collection) "Received" else "Handed over", LocalTime.format(c.atMs))
-            if (c.allocations > 0) LabeledRow("Allocated to invoices", "${c.allocations}")
         }
         c.note?.let { Section("Note") { Text(it, style = AssetaType.subheadline) } }
         if (c.status == InboxStatus.VERIFIED || c.status == InboxStatus.REJECTED) {

@@ -72,7 +72,7 @@ object CashRules {
             is AmountInput.Valid -> parsed.value
             is AmountInput.Invalid -> null.also { messages += parsed.error.describe("Litres", DecimalLimit.LITRES) }
         }
-        if (type != null && type != FuelEventType.PURCHASE && machineId.isNullOrBlank()) messages += "Choose the machine or job the fuel went to."
+        if (type != null && type != FuelEventType.PURCHASE && machineId.isNullOrBlank()) messages += "Choose the machine the fuel went to."
         val priced = type == FuelEventType.PURCHASE || type == FuelEventType.ISSUE
         val unitPrice = if (priced) {
             when (val parsed = AmountParser.parse(unitPriceText, DecimalLimit.MONEY, allowZero = true)) {
@@ -167,8 +167,7 @@ object CustodySummary {
 
     /**
      * The device's best knowledge of the tenant currency: the single custody currency (the server reports the tenant
-     * currency when the supervisor has no movements), else the single currency of the assigned jobs; otherwise unknown.
+     * currency when the supervisor has no movements); otherwise unknown.
      */
-    fun baseCurrencyHint(custodyCurrencies: Collection<String>, jobCurrencies: Collection<String>): String? =
-        custodyCurrencies.distinct().singleOrNull() ?: jobCurrencies.distinct().singleOrNull()
+    fun baseCurrencyHint(custodyCurrencies: Collection<String>): String? = custodyCurrencies.distinct().singleOrNull()
 }

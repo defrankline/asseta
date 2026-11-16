@@ -160,7 +160,7 @@ fun DecisionScreen(vm: DecisionViewModel, session: OwnerSession, online: Boolean
                 SectionCard(T.REQUEST) {
                     Text(item.headline, style = AssetaType.headline)
                     item.fields.forEach { KeyValue(it.label, it.value) }
-                    // Shown once: kinds whose fields already carry a "Reason" row (revenue) skip the generic line.
+                    // Shown once: kinds whose fields already carry a "Reason" row skip the generic line.
                     DecisionMapper.reasonLine(item)?.let { KeyValue(T.F_REASON, it) }
                     item.proposedAt?.let { KeyValue(T.F_PROPOSED, OwnerFormat.dateTime(it, zone)) }
                     LabeledValue(T.F_STATUS) { StatusPill(OwnerFormat.humanize(item.status), ApprovalText.statusColor(item.status)) }
@@ -189,7 +189,7 @@ fun DecisionScreen(vm: DecisionViewModel, session: OwnerSession, online: Boolean
             }
             val deciding = vm.decidingKind(item)
             if (item.pending) item {
-                SectionCard(T.DECISION, footer = if (deciding == DecisionKind.NON_REVENUE) T.NONREV_FOOTER else T.FOOTER) {
+                SectionCard(T.DECISION, footer = T.FOOTER) {
                     val gate = session.can(deciding.action, online, state.snapshot?.source)
                     val own = item.isOwn(session.userId)
                     when {

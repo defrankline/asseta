@@ -183,8 +183,6 @@ data class CorrectionDto(
     @SerialName("machine_id") val machineId: String,
     @SerialName("machine_code") val machineCode: String? = null,
     @SerialName("machine_name") val machineName: String? = null,
-    @SerialName("job_id") val jobId: String? = null,
-    @SerialName("job_number") val jobNumber: String? = null,
     @SerialName("superseded_capture_id") val supersededCaptureId: String,
     @SerialName("replacement_capture_id") val replacementCaptureId: String,
     @SerialName("old_reading") val oldReading: String,
@@ -253,8 +251,6 @@ data class CashVarianceDto(
     @SerialName("machine_name") val machineName: String? = null,
     @SerialName("purchase_id") val purchaseId: String? = null,
     @SerialName("purchase_number") val purchaseNumber: String? = null,
-    @SerialName("job_id") val jobId: String? = null,
-    @SerialName("job_number") val jobNumber: String? = null,
 )
 
 /** `VarianceEventDto` (`GET /cash/variances/{id}/history`): one step of a variance's investigation, oldest first. */
@@ -369,13 +365,11 @@ data class ApprovalsTileDto(
     val discounts: Int? = null,
     @SerialName("hours_cancellations") val hoursCancellations: Int? = null,
     @SerialName("hours_transfers") val hoursTransfers: Int? = null,
-    @SerialName("jobs_awaiting_approval") val jobsAwaitingApproval: Int? = null,
+    @SerialName("machine_reports") val machineReports: Int? = null,
     @SerialName("meter_baselines") val meterBaselines: Int? = null,
     @SerialName("meter_corrections") val meterCorrections: Int? = null,
     @SerialName("meter_resets") val meterResets: Int? = null,
-    @SerialName("non_revenue_approvals") val nonRevenueApprovals: Int? = null,
     @SerialName("partial_reasons") val partialReasons: Int? = null,
-    @SerialName("revenue_decisions") val revenueDecisions: Int? = null,
     @SerialName("variance_closures") val varianceClosures: Int? = null,
 )
 
@@ -446,10 +440,6 @@ data class AccountabilitySummaryDto(
     @SerialName("engine_hours") val engineHours: JsonObject? = null,
     @SerialName("unexplained_hours") val unexplainedHours: JsonObject? = null,
     @SerialName("missing_daily_reports") val missingDailyReports: JsonObject? = null,
-    /** DEC-031 R3: revenue differences to explain / decide (null while REVENUE_RECONCILIATION is off). */
-    @SerialName("revenue_differences") val revenueDifferences: JsonObject? = null,
-    /** DEC-031 M2: completed jobs not invoiced yet (null while UNBILLED_WORK is off). */
-    @SerialName("unbilled_work") val unbilledWork: JsonObject? = null,
     /** DEC-031 M2: machines idle for a while (null while IDLE_MACHINES is off). */
     @SerialName("idle_machines") val idleMachines: JsonObject? = null,
     // DEC-032 Phase 4: the four guideline groups, null when hidden or switched off (or on an older server).

@@ -27,7 +27,6 @@ import com.asseta.core.domain.finance.ExpensePolicyDecision
 import com.asseta.core.domain.finance.ExpenseRules
 import com.asseta.core.domain.finance.ExpenseViolation
 import com.asseta.core.domain.finance.PaidFrom
-import com.asseta.core.sync.data.JobSummary
 import com.asseta.core.sync.usecase.ExpenseRequest
 import com.asseta.supervisor.FieldGraph
 import com.asseta.supervisor.capture.CapturedPhoto
@@ -56,7 +55,6 @@ data class ExpenseForm(
     val currency: String = "",
     val paidFrom: PaidFrom? = PaidFrom.CASH_CUSTODY,
     val machineId: String? = null,
-    val jobId: String? = null,
     /** Receipt photos in the order taken; at most [ExpenseRules.MAX_RECEIPTS]. */
     val receipts: List<CapturedPhoto> = emptyList(),
     /** DEC-033, paid from PETTY_CASH: the fund and (optionally) the advance given to me. */
@@ -136,8 +134,6 @@ class ExpenseViewModel(private val field: FieldGraph, private val tenantId: Stri
     val categories: StateFlow<List<PickerOption>> = field.financeRepository.observeCategories(tenantId)
         .map { list -> list.map { PickerOption(it.id, it.name, it.code) } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-    val jobs: StateFlow<List<JobSummary>> = field.financeRepository.observeJobs(tenantId)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val machines: StateFlow<List<PickerOption>> = field.financeRepository.observeMachines(tenantId)
         .map { list -> list.map { PickerOption(it.id, it.assetCode, it.name) } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -164,9 +160,9 @@ class ExpenseViewModel(private val field: FieldGraph, private val tenantId: Stri
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Live offline assessment: receipt requirement, GPS rules and the approval outlook, shown before saving. */
-    val assessment: StateFlow<ExpenseAssessment?> = combine(form, setup, gps.state, jobs) { f, s, g, j ->
+    val assessment: StateFlow<ExpenseAssessment?> = combine(form, setup, gps.state) { f, s, g ->
         val policy = s.policy ?: return@combine null
-        ExpenseRules.assess(draft(f, g.outcome, j), policy, s.baseCurrency)
+        ExpenseRules.assess(draft(f, g.outcome), policy, s.baseCurrency)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     init {
@@ -186,12 +182,9 @@ class ExpenseViewModel(private val field: FieldGraph, private val tenantId: Stri
         }
     }
 
-    private fun draft(f: ExpenseForm, outcome: GpsOutcome?, jobs: List<JobSummary>) = ExpenseDraft(
-        f.categoryId, f.description, f.supplier, f.amount, f.currency, f.paidFrom, f.machineId ?: jobMachine(f.jobId, jobs),
-        f.jobId, jobMachine(f.jobId, jobs), f.receipts.isNotEmpty(), outcome,
+    private fun draft(f: ExpenseForm, outcome: GpsOutcome?) = ExpenseDraft(
+        f.categoryId, f.description, f.supplier, f.amount, f.currency, f.paidFrom, f.machineId, f.receipts.isNotEmpty(), outcome,
     )
-
-    private fun jobMachine(jobId: String?, jobs: List<JobSummary>) = jobs.firstOrNull { it.job.id == jobId }?.job?.machineId
 
     fun edit(change: (ExpenseForm) -> ExpenseForm) {
         form.update(change)
@@ -213,8 +206,6 @@ class ExpenseViewModel(private val field: FieldGraph, private val tenantId: Stri
         if (p == PaidFrom.PETTY_CASH && form.value.pettyFundId == null) petty.value.funds.singleOrNull()?.let { selectFund(it.id) }
     }
 
-    /** Choosing a job charges the expense to that job's machine. */
-    fun selectJob(jobId: String?) = edit { it.copy(jobId = jobId, machineId = jobMachine(jobId, jobs.value) ?: it.machineId) }
 
     fun onPhotoError(message: String) = save.update { it.copy(messages = listOf("The receipt photo could not be saved: $message")) }
 
@@ -237,7 +228,7 @@ class ExpenseViewModel(private val field: FieldGraph, private val tenantId: Stri
             val result = field.finance.expense(
                 ExpenseRequest(
                     tenantId, clientId, f.categoryId, f.description, f.supplier, f.amount, f.currency, f.paidFrom, f.machineId,
-                    f.jobId, f.receipts.map { it.jpeg }, gps.state.value.outcome, f.receipts.firstOrNull()?.takenAtMs ?: field.clock.nowMs(),
+                    f.receipts.map { it.jpeg }, gps.state.value.outcome, f.receipts.firstOrNull()?.takenAtMs ?: field.clock.nowMs(),
                     pettyFund = petty.value.fund(f.pettyFundId).takeIf { f.paidFrom == PaidFrom.PETTY_CASH },
                     pettyAdvance = petty.value.advance(f.pettyAdvanceId, f.pettyFundId).takeIf { f.paidFrom == PaidFrom.PETTY_CASH },
                 ),
@@ -260,7 +251,6 @@ fun ExpenseScreen(vm: ExpenseViewModel, onDone: () -> Unit) {
     val assessment by vm.assessment.collectAsStateWithLifecycle()
     val categories by vm.categories.collectAsStateWithLifecycle()
     val machines by vm.machines.collectAsStateWithLifecycle()
-    val jobs by vm.jobs.collectAsStateWithLifecycle()
     val petty by vm.petty.collectAsStateWithLifecycle()
     val pettyIssues by vm.pettyIssues.collectAsStateWithLifecycle()
     val pettyChosen = form.paidFrom == PaidFrom.PETTY_CASH
@@ -285,10 +275,9 @@ fun ExpenseScreen(vm: ExpenseViewModel, onDone: () -> Unit) {
                     SegmentedChoice(ExpenseTexts.paidFromOptions(petty.funds.isNotEmpty()), form.paidFrom, ExpenseTexts::paidFrom, vm::selectPaidFrom, editable)
                 }
                 if (pettyChosen) PettyFundSection(petty, form, vm, editable)
-                Section("Charge to", footer = if (form.jobId != null) "The cost is charged to the job's machine." else "Optional.") {
-                    SearchablePickerField("Job", jobOptions(jobs), form.jobId, vm::selectJob, noneLabel = "No job", enabled = editable)
+                Section("Charge to", footer = "Optional.") {
                     SearchablePickerField("Machine", machines, form.machineId, { id -> vm.edit { it.copy(machineId = id) } },
-                        noneLabel = "No machine", enabled = editable && form.jobId == null)
+                        noneLabel = "No machine", enabled = editable)
                 }
                 ReceiptSection(form.receipts, assessment?.receiptRequired == true, vm::addReceipt, vm::removeReceipt, vm::onPhotoError, editable)
                 GpsSection(gps, policy.gpsRequired, vm.gps::onDecision, vm.gps::attempt, editable)
@@ -308,13 +297,6 @@ fun ExpenseScreen(vm: ExpenseViewModel, onDone: () -> Unit) {
         }
     }
 }
-
-/** Open (not completed or cancelled) jobs for the pickers: job number with machine, customer and site. */
-fun jobOptions(jobs: List<JobSummary>): List<PickerOption> = jobs
-    .filter { it.job.status != "COMPLETED" && it.job.status != "CANCELLED" }
-    .map { s ->
-        PickerOption(s.job.id, s.job.jobNumber, listOfNotNull(s.machine?.assetCode, s.customerName, s.siteName).joinToString(" · ").ifEmpty { null })
-    }
 
 /** Fund and advance pickers of an expense paid from petty cash (DEC-033). */
 @Composable

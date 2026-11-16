@@ -4,8 +4,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Outbox operation payloads. Shapes follow contracts/openapi.json `MeterCaptureIn`, `GpsIn`, `ActivityIn`,
- * `AcknowledgementIn`; activity/acknowledgement/transition payloads also carry `job_id` (read by the push dispatcher).
+ * Outbox operation payloads. Shapes follow contracts/openapi.json `MeterCaptureIn` and `GpsIn`.
  * Readings are decimal strings (never binary floats). Timestamps are ISO-8601 UTC device time.
  */
 @Serializable
@@ -21,8 +20,7 @@ data class GpsIn(
 @Serializable
 data class MeterCaptureIn(
     val id: String,
-    /** Required for OPENING/CLOSING; null for a DAILY reading outside a job (then [machineId] names the machine). */
-    @SerialName("job_id") val jobId: String? = null,
+    /** Always DAILY (the only kind since ADR-008). */
     val kind: String,
     @SerialName("capture_mode") val captureMode: String,
     val reading: String,
@@ -35,71 +33,6 @@ data class MeterCaptureIn(
     @SerialName("device_id") val deviceId: String,
     @SerialName("captured_at") val capturedAt: String,
     @SerialName("policy_version_ids") val policyVersionIds: List<String> = emptyList(),
-    /** The machine read: set for a DAILY reading outside a job (must match the job's machine when both are sent). */
+    /** The machine read (the server requires it). */
     @SerialName("machine_id") val machineId: String? = null,
-    /** DEC-032 A3: a DAILY reading on the running job that moves the machine to this customer (METER_CHANGEOVER). */
-    @SerialName("changeover_to_customer_id") val changeoverToCustomerId: String? = null,
-    /** The next job of that customer; mandatory when the tenant bills changeover hours to it. */
-    @SerialName("changeover_to_job_id") val changeoverToJobId: String? = null,
 )
-
-@Serializable
-data class ActivityPayload(
-    @SerialName("job_id") val jobId: String,
-    @SerialName("client_id") val clientId: String,
-    @SerialName("activity_type") val activityType: String,
-    @SerialName("started_at") val startedAt: String,
-    @SerialName("ended_at") val endedAt: String? = null,
-    /** null = the contract default (ActivityIn.billable). */
-    val billable: Boolean? = null,
-    val note: String? = null,
-    @SerialName("device_id") val deviceId: String? = null,
-)
-
-@Serializable
-data class AcknowledgementPayload(
-    @SerialName("job_id") val jobId: String,
-    @SerialName("client_id") val clientId: String,
-    val method: String,
-    @SerialName("signer_name") val signerName: String,
-    @SerialName("signer_phone") val signerPhone: String? = null,
-    @SerialName("signature_attachment_id") val signatureAttachmentId: String? = null,
-    /** Hours the customer confirmed (decimal string, at most 2 decimals), optional. */
-    @SerialName("acknowledged_hours") val acknowledgedHours: String? = null,
-    @SerialName("captured_at") val capturedAt: String,
-)
-
-@Serializable
-data class JobTransitionPayload(
-    @SerialName("job_id") val jobId: String,
-    val action: String,
-)
-
-/**
- * `JOB_REQUEST` (`JobRequestIn`): a supervisor's job request from the field. [clientId] becomes the server job id (a
- * replay returns the same job); the server numbers and prices it and sends it to the owner for approval.
- */
-@Serializable
-data class JobRequestPayload(
-    @SerialName("client_id") val clientId: String,
-    @SerialName("contract_id") val contractId: String,
-    @SerialName("machine_id") val machineId: String,
-    @SerialName("job_site_id") val jobSiteId: String? = null,
-    @SerialName("planned_start") val plannedStart: String,
-    @SerialName("planned_end") val plannedEnd: String? = null,
-    /** What the customer asked for (at most 1000 characters). */
-    val note: String? = null,
-)
-
-object AckMethod {
-    const val SIGNATURE = "SIGNATURE"
-    const val NAME_CONFIRMATION = "NAME_CONFIRMATION"
-}
-
-object ActivityTypes {
-    const val WORK = "WORK"
-    const val STANDBY = "STANDBY"
-    const val DOWNTIME = "DOWNTIME"
-    const val MOBILIZATION = "MOBILIZATION"
-    const val NOTE = "NOTE"
-}

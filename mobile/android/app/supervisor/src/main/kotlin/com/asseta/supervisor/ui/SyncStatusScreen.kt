@@ -46,8 +46,7 @@ import kotlinx.serialization.json.jsonObject
 data class OutboxItem(
     val operation: ClientOperationEntity,
     val title: String,
-    val jobNumber: String?,
-    /** `server_state` returned with a conflict (e.g. the job's current status), if any. */
+    /** `server_state` returned with a conflict (e.g. the record's current status), if any. */
     val serverState: String?,
     val waiting: WaitingReason?,
 )
@@ -73,14 +72,10 @@ class SyncStatusViewModel(private val field: FieldGraph, private val tenantId: S
         field.repository.observeStatusCounts(tenantId),
         field.repository.observeSyncState(tenantId),
         combine(field.repository.observePendingUploads(tenantId), field.repository.observeFailedUploads(tenantId)) { p, f -> p to f },
-        field.repository.observeJobs(tenantId),
-    ) { (ops, held), counts, state, (uploads, failed), jobs ->
+    ) { (ops, held), counts, state, (uploads, failed) ->
         val byId = ops.associateBy { it.id }
-        val numbers = jobs.associate { it.job.id to it.job.jobNumber }
         val items = ops.map { op ->
-            val payload = payload(op)
-            OutboxItem(op, FieldTexts.outboxTitle(op.opType, payload), op.jobId?.let(numbers::get), serverState(op),
-                field.repository.waitingReason(op, byId))
+            OutboxItem(op, FieldTexts.outboxTitle(op.opType, payload(op)), serverState(op), field.repository.waitingReason(op, byId))
         }
         SyncStatusUi(items, counts, state, uploads, failed, held)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SyncStatusUi())
@@ -166,10 +161,6 @@ private fun ItemRow(item: OutboxItem, onRetry: (ClientOperationEntity) -> Unit) 
             Text(item.title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
             SyncStateLabel(op.status)
         }
-        item.jobNumber?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-        // An hours sale that booked its job: the job's number and status once the server has them.
-        if (op.opType == com.asseta.core.model.sync.AccountabilityOps.HOURS_PURCHASE) {
-        }
         Text(LocalTime.formatSeconds(op.createdAtDevice), style = MaterialTheme.typography.bodySmall, color = palette.secondaryText)
         val code = op.errorCode
         if (code != null && op.status != ClientOperationStatus.PENDING) {
@@ -192,7 +183,6 @@ private fun FailedUploadRow(file: AttachmentEntity) {
 }
 
 private fun evidenceLabel(purpose: String) = when (purpose) {
-    BlobPurpose.SIGNATURE -> "Signature"
     BlobPurpose.EXPENSE_RECEIPT -> "Receipt photo"
     else -> "Meter photo"
 }
@@ -204,7 +194,7 @@ private val GROUPS = listOf(
     ),
     Triple(
         "Needs attention: conflicts", ClientOperationStatus.CONFLICT,
-        "The job changed on the server (for example it was cancelled or reassigned). Nothing was overwritten; your record is kept for review.",
+        "The record changed on the server (for example the machine was reassigned). Nothing was overwritten; your record is kept for review.",
     ),
     Triple(
         "Held: subscription read-only", ClientOperationStatus.QUARANTINED,

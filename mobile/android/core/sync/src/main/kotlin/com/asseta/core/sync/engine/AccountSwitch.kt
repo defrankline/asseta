@@ -7,12 +7,12 @@ import com.asseta.core.model.SyncAccount
 
 /**
  * Field data on a phone shared by several users. A tenant's sync state (cursor, device session, offline grant) and the
- * server data cached with it (jobs, machines, reference data, expense categories, cash custody, policy snapshots,
+ * server data cached with it (machines, reference data, expense categories, cash custody, policy snapshots,
  * the supervisor inbox and cached notifications)
  * belong to the user who synced them. When another user signs in, that tenant is reset so the new user gets a fresh
  * bootstrap of their own data, never the previous user's cache or a cursor past their own bootstrap.
  *
- * Device-owned work (outbox operations, evidence files, work-log entries) is never deleted here: it keeps its owner and
+ * Device-owned work (outbox operations, evidence files) is never deleted here: it keeps its owner and
  * is held -- not shown as the new user's, not sent under their token -- until its owner signs in again. The same user
  * signing in again changes nothing. The clock anchor (last trusted server time) is device-level and kept.
  */
@@ -46,7 +46,6 @@ class AccountSwitch(private val db: () -> AssetaDatabase) {
 
     private suspend fun clearServerData(database: AssetaDatabase, tenantId: String) {
         val field = database.fieldDataDao()
-        field.deleteAllJobs(tenantId)
         field.deleteAllMachines(tenantId)
         field.deleteAllReferences(tenantId)
         field.deleteAllSnapshots(tenantId)

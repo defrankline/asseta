@@ -162,7 +162,7 @@ object DashboardPresentation {
             val rows = listOf(T.F_HOURS to num(u.text("hours"))) + atRisk + u.items().map {
                 (it.text("machine_code") ?: "") to T.unexplainedLine(num(it.text("unexplained_hours")), it.int("oldest_open_item_days"))
             }
-            add(DashboardTile("unexplained_hours", T.DASH_UNEXPLAINED, rows, OwnerDestination.Exceptions().takeIf { features.meterEvidence },
+            add(DashboardTile("unexplained_hours", T.DASH_UNEXPLAINED, rows, OwnerDestination.Exceptions.takeIf { features.meterEvidence },
                 footer = AllocationTexts.VALUE_AT_RISK_FOOTER.takeIf { atRisk.isNotEmpty() }))
         }
         s.missingDailyReports?.takeIf { engineOn }?.let { m ->
@@ -172,11 +172,7 @@ object DashboardPresentation {
             }
             add(DashboardTile("missing_daily_reports", T.DASH_MISSING_REPORTS, rows))
         }
-        // DEC-031 R3: revenue differences (REVENUE_RECONCILIATION on and the role may read them).
-        if (features.revenueRead) {
-            RevenuePresentation.tile(s.revenueDifferences)?.let(::add)
-        }
-        // DEC-031 M2: idle machines (the list needs tenant.oversight.read). Unbilled work was job-based (ADR-008: gone).
+        // DEC-031 M2: idle machines (the list needs tenant.oversight.read).
         s.idleMachines?.let { OversightPresentation.idleTile(it, features) }?.let(::add)
     }
 }

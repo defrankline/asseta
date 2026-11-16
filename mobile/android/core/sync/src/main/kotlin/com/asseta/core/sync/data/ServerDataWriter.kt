@@ -4,7 +4,6 @@ import com.asseta.core.database.AssetaDatabase
 import com.asseta.core.database.CashCustodyBalanceEntity
 import com.asseta.core.database.ExpenseCategoryEntity
 import com.asseta.core.database.FieldDataDao
-import com.asseta.core.database.JobEntity
 import com.asseta.core.database.MachineEntity
 import com.asseta.core.database.PolicySnapshotEntity
 import com.asseta.core.database.ReferenceRecordEntity
@@ -15,11 +14,8 @@ import com.asseta.core.model.sync.ChangesDto
 import com.asseta.core.model.sync.DeviceSessionDto
 import com.asseta.core.model.sync.PolicySnapshotDto
 import com.asseta.core.model.sync.SyncCapabilities
-import com.asseta.core.model.sync.SyncChangeoverJobDto
 import com.asseta.core.model.sync.SyncData
-import com.asseta.core.model.sync.SyncUnbillableReasonDto
 import com.asseta.core.model.sync.SyncDepositAccountDto
-import com.asseta.core.model.sync.SyncOpenInvoiceDto
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
@@ -60,8 +56,6 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
         val database = db()
         database.inTransaction {
             val field = database.fieldDataDao()
-            val keep = dto.data.jobs.map { it.id }
-            if (keep.isEmpty()) field.deleteAllJobs(tenantId) else field.deleteJobsNotIn(tenantId, keep)
             val categories = dto.data.expenseCategories.map { it.id }
             val finance = database.financeDataDao()
             if (categories.isEmpty()) finance.deleteAllCategories(tenantId) else finance.deleteCategoriesNotIn(tenantId, categories)
@@ -73,11 +67,7 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
                 if (keepAccounts.isEmpty()) field.deleteReferencesOfKind(tenantId, KIND_DEPOSIT_ACCOUNT)
                 else field.deleteReferencesNotIn(tenantId, KIND_DEPOSIT_ACCOUNT, keepAccounts)
             }
-            // These two lists are complete in a bootstrap: what it no longer delivers leaves the pickers.
-            if (SyncCapabilities.SYNC_CHANGEOVER_JOBS in dto.capabilities) keepOnly(field, tenantId, KIND_CHANGEOVER_JOB, dto.data.changeoverJobs.map { it.id })
-            if (SyncCapabilities.SYNC_UNBILLABLE_REASONS in dto.capabilities) keepOnly(field, tenantId, KIND_UNBILLABLE_REASON, dto.data.unbillableReasons.map { it.id })
             applyData(database, tenantId, dto.data)
-            replaceOpenInvoices(database, tenantId, dto.capabilities, dto.data.openInvoices)
             replacePettyCash(database, tenantId, dto.capabilities, dto.data)
             replaceHoursPrices(database, tenantId, dto.capabilities, dto.data)
             replaceMachineReports(database, tenantId, dto.capabilities, dto.data)
@@ -102,7 +92,6 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
         val database = db()
         database.inTransaction {
             applyData(database, tenantId, dto.data)
-            replaceOpenInvoices(database, tenantId, dto.capabilities, dto.data.openInvoices)
             replacePettyCash(database, tenantId, dto.capabilities, dto.data)
             replaceHoursPrices(database, tenantId, dto.capabilities, dto.data)
             replaceMachineReports(database, tenantId, dto.capabilities, dto.data)
@@ -123,33 +112,16 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
 
     private suspend fun applyData(database: AssetaDatabase, tenantId: String, data: SyncData) {
         val field = database.fieldDataDao()
-        field.upsertJobs(
-            data.jobs.map {
-                JobEntity(it.id, tenantId, it.jobNumber, it.machineId, it.contractId, it.jobSiteId, it.status, it.version,
-                    it.plannedStart, it.plannedEnd, it.standbyTreatment, it.currency, it.cancellationReason, it.requestedByStaffId,
-                    it.requestNote)
-            },
-        )
         field.upsertMachines(
             data.machines.map { MachineEntity(it.id, tenantId, it.assetCode, it.name, it.meterDecimalPlaces, it.status, it.version) },
         )
         val refs = data.sites.map { ref(KIND_SITE, it.id, tenantId, it.name, json.encodeToString(it)) } +
             data.customers.map { ref(KIND_CUSTOMER, it.id, tenantId, it.name, json.encodeToString(it)) } +
-            data.contracts.map { ref(KIND_CONTRACT, it.id, tenantId, it.contractNumber, json.encodeToString(it)) } +
             data.staff.map { ref(KIND_STAFF, it.id, tenantId, it.fullName, json.encodeToString(it)) }
         if (refs.isNotEmpty()) field.upsertReferences(refs)
         applyDepositAccounts(database, tenantId, data.depositAccounts.orEmpty())
-        applyChangeoverLists(field, tenantId, data)
         applyFinance(database, tenantId, data)
         InboxWriter(json).apply(database, tenantId, data)
-    }
-
-    /** Open invoices are a full snapshot on every pull: replace the local set (nothing delivered -> none left). */
-    private suspend fun replaceOpenInvoices(database: AssetaDatabase, tenantId: String, capabilities: List<String>, invoices: List<SyncOpenInvoiceDto>) {
-        if (SyncCapabilities.SYNC_OPEN_INVOICES !in capabilities) return
-        val field = database.fieldDataDao()
-        keepOnly(field, tenantId, KIND_OPEN_INVOICE, invoices.map { it.id })
-        if (invoices.isNotEmpty()) field.upsertReferences(invoices.map { ref(KIND_OPEN_INVOICE, it.id, tenantId, it.invoiceNumber, json.encodeToString(it)) })
     }
 
     /**
@@ -223,21 +195,6 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
         if (newer.isNotEmpty()) field.upsertReferences(newer.map { ref(KIND_DEPOSIT_ACCOUNT, it.id, tenantId, it.name, json.encodeToString(it)) })
     }
 
-    /** Changeover jobs and unbillable reasons upsert by sync revision (status / is_active say whether they still apply). */
-    private suspend fun applyChangeoverLists(field: FieldDataDao, tenantId: String, data: SyncData) {
-        val jobs = data.changeoverJobs.filter { incoming ->
-            val stored = field.reference(KIND_CHANGEOVER_JOB, incoming.id)?.let { runCatching { json.decodeFromString(SyncChangeoverJobDto.serializer(), it.json) }.getOrNull() }
-            stored == null || incoming.syncRevision >= stored.syncRevision
-        }
-        val reasons = data.unbillableReasons.filter { incoming ->
-            val stored = field.reference(KIND_UNBILLABLE_REASON, incoming.id)?.let { runCatching { json.decodeFromString(SyncUnbillableReasonDto.serializer(), it.json) }.getOrNull() }
-            stored == null || incoming.syncRevision >= stored.syncRevision
-        }
-        val refs = jobs.map { ref(KIND_CHANGEOVER_JOB, it.id, tenantId, it.jobNumber, json.encodeToString(it)) } +
-            reasons.map { ref(KIND_UNBILLABLE_REASON, it.id, tenantId, it.name, json.encodeToString(it)) }
-        if (refs.isNotEmpty()) field.upsertReferences(refs)
-    }
-
     private suspend fun keepOnly(field: FieldDataDao, tenantId: String, kind: String, ids: List<String>) {
         if (ids.isEmpty()) field.deleteReferencesOfKind(tenantId, kind) else field.deleteReferencesNotIn(tenantId, kind, ids)
     }
@@ -293,12 +250,8 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
     companion object {
         const val KIND_SITE = "site"
         const val KIND_CUSTOMER = "customer"
-        const val KIND_CONTRACT = "contract"
         const val KIND_STAFF = "staff"
         const val KIND_DEPOSIT_ACCOUNT = "deposit_account"
-        const val KIND_CHANGEOVER_JOB = "changeover_job"
-        const val KIND_UNBILLABLE_REASON = "unbillable_reason"
-        const val KIND_OPEN_INVOICE = "open_invoice"
         const val KIND_PETTY_FUND = "petty_cash_fund"
         const val KIND_PETTY_AWAITING = "petty_cash_awaiting"
         const val KIND_PETTY_HOLDER_CHANGE = "petty_cash_holder_change"

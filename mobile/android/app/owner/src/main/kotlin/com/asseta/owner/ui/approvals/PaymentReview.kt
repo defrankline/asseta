@@ -90,7 +90,6 @@ object PaymentReviewText {
     const val F_DECISION_NOTE = "Decision note"
     const val F_REVERSED = "Reversed"
     const val LINKS_PURCHASES = "Hours purchases"
-    const val LINKS_INVOICES = "Invoices"
     const val EVIDENCE = "Evidence"
     const val EVIDENCE_NONE = "No evidence photos attached."
     const val EVIDENCE_FAILED = "Evidence photos could not be loaded. Pull to try again."
@@ -167,12 +166,6 @@ object PaymentReviewText {
 
     /** "PUR-12 · TZS 50,000.00". */
     fun link(number: String, money: String): String = "$number · $money"
-
-    /** "Number · amount" of each invoice the payment is set against (the short id until a number is known); released ones left out. */
-    fun invoices(r: PaymentReview): List<String> = r.payment.allocations.filter { it.releasedAt == null }.map { a ->
-        val id = a.invoiceId.toString()
-        link(r.invoiceNumbers[id] ?: DisplayNames.shortId(id).orEmpty(), OwnerFormat.money(a.amount.value, r.payment.currency))
-    }
 
     fun photo(n: Int): String = "photo $n"
 
@@ -266,13 +259,6 @@ fun PaymentReviewScreen(vm: PaymentReviewViewModel, session: OwnerSession, onlin
                                 Text(text, style = MaterialTheme.typography.bodyLarge)
                             }
                         }
-                    }
-                }
-            }
-            PaymentReviewText.invoices(review).takeIf { it.isNotEmpty() }?.let { invoices ->
-                item {
-                    SectionCard(PaymentReviewText.LINKS_INVOICES) {
-                        invoices.forEach { Text(it, style = MaterialTheme.typography.bodyLarge) }
                     }
                 }
             }

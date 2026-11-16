@@ -61,11 +61,10 @@ object ExceptionText {
 
 class ExceptionsViewModel private constructor(
     data: OwnerData,
-    jobId: String?,
     private val selected: MutableStateFlow<String?>,
     refreshOn: Flow<Unit>,
-) : SnapshotViewModel<PageDto<ExceptionDto>>({ data.exceptions(selected.value, jobId) }, refreshOn) {
-    constructor(data: OwnerData, jobId: String?, refreshOn: Flow<Unit>) : this(data, jobId, MutableStateFlow(ExceptionText.DEFAULT_FILTER), refreshOn)
+) : SnapshotViewModel<PageDto<ExceptionDto>>({ data.exceptions(selected.value) }, refreshOn) {
+    constructor(data: OwnerData, refreshOn: Flow<Unit>) : this(data, MutableStateFlow(ExceptionText.DEFAULT_FILTER), refreshOn)
 
     val status: StateFlow<String?> get() = selected
 
@@ -75,7 +74,7 @@ class ExceptionsViewModel private constructor(
     }
 }
 
-/** Meter exceptions (all, or one job's); a row opens the exception (review, link to its job). */
+/** Meter exceptions; a row opens the exception (review). */
 @Composable
 fun ExceptionsScreen(vm: ExceptionsViewModel, onOpen: (OwnerDestination) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()

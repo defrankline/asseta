@@ -94,9 +94,9 @@ class OwnerRepositoryTest {
     @Test
     fun `exceptions, field spend and cash are cached per filter`() = runBlocking {
         h.ok(Samples.page())
-        h.data.exceptions("OPEN", ID1)
+        h.data.exceptions("OPEN")
         h.ok(Samples.page())
-        h.data.exceptions(null, null)
+        h.data.exceptions(null)
         h.ok(Samples.page())
         h.data.expenses("PENDING_APPROVAL")
         h.ok(Samples.page())
@@ -106,12 +106,12 @@ class OwnerRepositoryTest {
         h.ok("[]")
         h.data.meterResets("PENDING")
         assertEquals(
-            setOf("exceptions:OPEN:$ID1", "exceptions:ALL:ALL", "expenses:PENDING", "fuel:ALL", "cash:WEEK", "meter_resets:PENDING"),
+            setOf("exceptions:OPEN", "exceptions:ALL", "expenses:PENDING", "fuel:ALL", "cash:WEEK", "meter_resets:PENDING"),
             h.store.rows.keys.map { it.second }.toSet(),
         )
         val first = h.server.takeRequest().url
         assertEquals("OPEN", first.queryParameter("status"))
-        assertEquals(ID1, first.queryParameter("job_id"))
+        assertEquals(null, first.queryParameter("job_id"))
         assertEquals(null, h.server.takeRequest().url.queryParameter("status"))
         assertEquals("PENDING_APPROVAL", h.server.takeRequest().url.queryParameter("status"))
         h.server.takeRequest()

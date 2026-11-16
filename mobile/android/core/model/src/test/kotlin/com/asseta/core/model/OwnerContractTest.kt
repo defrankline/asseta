@@ -1,6 +1,5 @@
 package com.asseta.core.model
 
-import com.asseta.core.model.owner.ActivityDto
 import com.asseta.core.model.owner.AlertDto
 import com.asseta.core.model.owner.AnomalyCaseDetailDto
 import com.asseta.core.model.owner.AnomalyCaseDto
@@ -10,8 +9,7 @@ import com.asseta.core.model.owner.ExceptionDto
 import com.asseta.core.model.owner.ExpenseDto
 import com.asseta.core.model.owner.FuelEventDto
 import com.asseta.core.model.owner.HistoryDto
-import com.asseta.core.model.owner.JobDto
-import com.asseta.core.model.owner.JobSummaryDto
+
 import com.asseta.core.model.owner.MachineMapDto
 import com.asseta.core.model.owner.MeterCaptureDto
 import com.asseta.core.model.owner.MeterResetDecisionIn
@@ -44,9 +42,7 @@ class OwnerContractTest {
             "TenantOverviewDto" to TenantOverviewDto.serializer(),
             "MachineMapDto" to MachineMapDto.serializer(),
             "HistoryDto" to HistoryDto.serializer(),
-            "JobDto" to JobDto.serializer(),
-            "JobTransitionIn" to com.asseta.core.model.owner.JobTransitionIn.serializer(),
-            "JobSummaryDto" to JobSummaryDto.serializer(),
+
             "MeterCaptureDto" to MeterCaptureDto.serializer(),
             "AlertDto" to AlertDto.serializer(),
             "ApprovalRequestDto" to ApprovalRequestDto.serializer(),
@@ -60,7 +56,7 @@ class OwnerContractTest {
             "TenantAccessDto" to TenantAccess.serializer(),
             "MenuDto" to MenuEntry.serializer(),
             "MenuGroupDto" to MenuGroup.serializer(),
-            "ActivityDto" to ActivityDto.serializer(),
+
             "FuelEventDto" to FuelEventDto.serializer(),
             "ExceptionDto" to ExceptionDto.serializer(),
             "ResetDto" to MeterResetDto.serializer(),
@@ -70,10 +66,6 @@ class OwnerContractTest {
             "RemittanceDecisionIn" to com.asseta.core.model.owner.SettlementDecisionIn.serializer(),
             "CashFloatIn" to com.asseta.core.model.owner.CashFloatIn.serializer(),
             "CashCustodyEntryDto" to com.asseta.core.model.owner.CashCustodyEntryDto.serializer(),
-            "JobIn" to com.asseta.core.model.owner.JobIn.serializer(),
-            "ContractDto" to com.asseta.core.model.owner.ContractDto.serializer(),
-            "StaffDto" to com.asseta.core.model.owner.StaffDto.serializer(),
-            "JobSiteDto" to com.asseta.core.model.owner.JobSiteDto.serializer(),
         ).forEach { (name, serializer) -> check(name, serializer.descriptor) }
     }
 
@@ -129,20 +121,18 @@ class OwnerContractTest {
     fun `parses field spend, meter evidence and cash rows with exact decimals`() {
         val id = "a3c1d1f2-1111-4222-8333-944455556666"
         val fuel = json.decodeFromString(FuelEventDto.serializer(), """{"id":"$id","client_id":null,"event_type":"PURCHASE","litres":"40.000",
-            "unit_price":"3200.0000","attributed_cost":"128000.0000","currency":"TZS","machine_id":null,"job_id":"$id","expense_id":null,
+            "unit_price":"3200.0000","attributed_cost":"128000.0000","currency":"TZS","machine_id":"$id","expense_id":null,
             "meter_reading":null,"supplier":"Puma","occurred_at":"2026-10-22T08:00:00Z","note":null,"source":"MOBILE","recorded_by":null}""")
         assertEquals(0, BigDecimal("40").compareTo(fuel.litres.value))
-        assertEquals(id, fuel.jobId.toString())
-        val e = json.decodeFromString(ExceptionDto.serializer(), """{"id":"$id","job_id":null,"machine_id":"$id","meter_capture_id":null,
+        assertEquals(id, fuel.machineId.toString())
+        val e = json.decodeFromString(ExceptionDto.serializer(), """{"id":"$id","machine_id":"$id","meter_capture_id":null,
             "exception_type":"METER_DECREASE","severity":"CRITICAL","blocking":true,"evidence":{"delta":"-3"},"policy_version":null,
             "status":"OPEN","review_note":null,"reviewed_at":null,"created_at":"2026-10-22T08:00:00Z"}""")
         assertEquals(true, e.blocking)
         val r = json.decodeFromString(MeterResetDto.serializer(), """{"id":"$id","machine_id":"$id","old_reading":"1200.00","new_reading":"0.00",
             "effective_at":"2026-10-22T08:00:00Z","reason":"Meter replaced","evidence_attachment_id":null,"status":"PENDING","requested_by":null,"decided_at":null}""")
         assertEquals("1200.00", r.oldReading.toPlainString())
-        val a = json.decodeFromString(ActivityDto.serializer(), """{"id":"$id","client_id":"$id","activity_type":"STANDBY","started_at":"2026-10-22T08:00:00Z",
-            "ended_at":null,"billable":false,"note":null}""")
-        assertNull(a.endedAt)
+
         val c = json.decodeFromString(CashSupervisorSummaryDto.serializer(), """{"staff_member_id":"$id","staff_name":"Neema","currency":"TZS",
             "period_from":"2026-10-22","period_to":"2026-10-22","opening":"0.0000","floats_issued":"100000.0000","collections":"0.0000",
             "approved_spending":"20000.0000","verified_handovers":"0.0000","closing_outstanding":"80000.0000","claimed_unverified_handovers":"0.0000",

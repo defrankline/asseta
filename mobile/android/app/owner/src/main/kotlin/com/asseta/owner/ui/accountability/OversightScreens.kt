@@ -49,7 +49,7 @@ import kotlinx.serialization.json.intOrNull
 import java.time.LocalDate
 import java.time.ZoneId
 
-/** Wording of the oversight screens (DEC-031 Phase 5; keys `owner.score.*`, `owner.dash.*`, `owner.unbilled.*`, `owner.idle.*`). */
+/** Wording of the oversight screens (DEC-031 Phase 5; keys `owner.score.*`, `owner.dash.*`, `owner.idle.*`). */
 object OversightTexts {
     const val SCORE_MORE = "People scorecard"
     const val SCORE_TITLE = "People scorecard"
@@ -67,30 +67,20 @@ object OversightTexts {
     const val SCORE_CASH_HELD_TOO_LONG = "Cash held too long"
     const val SCORE_CASH_DIFFERENCES = "Cash differences"
     const val SCORE_NEAR_THRESHOLD = "Near the case threshold"
-    const val SCORE_REVENUE_DIFFERENCES = "Revenue differences"
     const val SCORE_REFUSED = "Refused attempts"
-    const val SCORE_CHECKINS = "Site check-ins"
     const val SCORE_PATTERNS = "Repeated patterns"
     const val SCORE_CASH_HELD = "Cash held now"
     const val SCORE_RECORDS = "Records"
     const val SCORE_RECORDS_EMPTY = "No records in this period."
 
-    const val DASH_UNBILLED = "Unbilled work"
-    const val DASH_UNBILLED_JOBS = "Jobs"
-    const val DASH_UNBILLED_VALUE = "Value"
-    const val DASH_OLDEST = "Oldest"
     const val DASH_IDLE = "Idle machines"
     const val DASH_IDLE_MACHINES = "Machines"
     const val DASH_LONGEST_IDLE = "Longest idle"
     const val DASH_NONE = "None"
 
-    const val UNBILLED_TITLE = "Unbilled work"
-    const val UNBILLED_EMPTY = "No completed jobs waiting for an invoice."
-    const val UNBILLED_DRAFT = "On a draft invoice"
-    const val UNBILLED_FOOTER = "Completed jobs not on an issued invoice yet. Invoices are made on the web."
     const val IDLE_TITLE = "Idle machines"
     const val IDLE_EMPTY = "No idle machines."
-    const val IDLE_FOOTER = "Machines with no running job and no engine hours for a while."
+    const val IDLE_FOOTER = "Machines with no approved machine-report hours for a while."
 
     fun days(n: Int): String = if (n == 1) "1 day" else "$n days"
 
@@ -103,16 +93,10 @@ object OversightTexts {
     fun unexplainedValue(hours: String, n: Int) = "$hours h · $n items"
     fun alertsValue(n: Int, open: Int) = "$n · $open open"
     fun ackTimeValue(avg: String, max: String) = "average $avg h · longest $max h"
-    fun checkinsValue(made: Int, missed: Int) = "$made made · $missed missed"
     fun heldSince(date: String, days: Int?) = "since $date" + (days?.let { " (${days(it)})" } ?: "")
-    fun scheduled(time: String) = "Scheduled $time"
-    fun unbilledFooter(days: Int) = "Completed jobs not on an issued invoice after ${days(days)}."
-    fun idleFooter(days: Int) = "Machines with no running job and no engine hours for ${days(days)}."
-    fun unbilledRow(job: String, customer: String) = "$job · $customer"
-    fun unbilledCompleted(date: String, days: Int) = "Completed $date · ${days(days)} unbilled"
+    fun idleFooter(days: Int) = "Machines with no approved machine-report hours for ${days(days)}."
     fun idleSince(date: String, days: Int) = "Idle since $date (${days(days)})"
-    fun idleLastJob(job: String, date: String) = "Last job $job completed $date"
-    fun idlePlanned(job: String) = "Planned job $job"
+    fun idleLastReport(number: String) = "Last report $number"
 
     fun item(code: String): String = when (code) {
         "MISSING_DAILY_REPORT" -> "Daily report missing"
@@ -121,9 +105,7 @@ object OversightTexts {
         "ALERT" -> "Alert"
         "CASH_HELD_TOO_LONG" -> "Cash held too long"
         "CASH_DIFFERENCE" -> "Cash difference"
-        "REVENUE_DIFFERENCE" -> "Revenue difference"
         "REFUSED_ATTEMPT" -> "Refused attempt"
-        "MISSED_CHECKIN" -> "Missed site check-in"
         "PATTERN_SIGNAL" -> "Repeated pattern"
         else -> OwnerFormat.humanize(code)
     }
@@ -148,12 +130,12 @@ enum class ScorecardPeriod(val label: String) {
 /** One list row: headline, subtitle, caption, trailing value, and what it opens (null: nothing). */
 data class OversightRow(val key: String, val title: String, val subtitle: String?, val caption: String?, val value: String?, val open: OwnerDestination?)
 
-/** Pure presentation of the scorecard, unbilled work, idle machines and their dashboard tiles (unit-tested; same rules as iOS). */
+/** Pure presentation of the scorecard, idle machines and their dashboard tiles (unit-tested; same rules as iOS). */
 object OversightPresentation {
     private val T = OversightTexts
 
     private fun hours(raw: String?) = OwnerFormat.hoursNumber(raw)
-    private fun money(amount: String?, currency: String?) = RevenuePresentation.money(amount, currency.orEmpty())
+    private fun money(amount: String?, currency: String?) = RecordFormat.money(amount, currency.orEmpty())
     private fun totals(list: List<AmountByCurrencyDto>) = list.joinToString(", ") { money(it.amount, it.currency) }
 
     fun name(r: ScorecardRowDto): String = DisplayNames.or(r.staffMemberName, r.staffMemberId)
@@ -166,13 +148,11 @@ object OversightPresentation {
     fun figures(r: ScorecardRowDto): String? = listOfNotNull(
         "${r.dailyReportsMissing} missing reports".takeIf { r.dailyReportsMissing > 0 },
         "${r.dailyReportsLate} late reports".takeIf { r.dailyReportsLate > 0 },
-        "${hours(r.unexplainedHours)} h unexplained".takeIf { RevenuePresentation.nonZero(r.unexplainedHours) },
+        "${hours(r.unexplainedHours)} h unexplained".takeIf { RecordFormat.nonZero(r.unexplainedHours) },
         "${r.alertsOpen} open alerts".takeIf { r.alertsOpen > 0 },
         "${r.cashHeldTooLong} cash held too long".takeIf { r.cashHeldTooLong > 0 },
         "${r.cashDifferences} cash differences".takeIf { r.cashDifferences > 0 },
-        "${r.revenueDifferences} revenue differences".takeIf { r.revenueDifferences > 0 },
         "${r.refusedAttempts} refused attempts".takeIf { r.refusedAttempts > 0 },
-        "${r.checkinsMissed} missed check-ins".takeIf { (r.checkinsMissed ?: 0) > 0 },
         "${r.patternSignals} repeated patterns".takeIf { r.patternSignals > 0 },
     ).take(3).joinToString(" · ").ifEmpty { null }
 
@@ -196,9 +176,7 @@ object OversightPresentation {
         add(T.SCORE_CASH_HELD_TOO_LONG to "${r.cashHeldTooLong}")
         add(T.SCORE_CASH_DIFFERENCES to (listOf("${r.cashDifferences}") + listOfNotNull(totals(r.cashDifferenceTotals).ifEmpty { null })).joinToString(" · "))
         if (r.cashDifferencesNearThreshold > 0) add(T.SCORE_NEAR_THRESHOLD to "${r.cashDifferencesNearThreshold}")
-        add(T.SCORE_REVENUE_DIFFERENCES to (listOf("${r.revenueDifferences}") + listOfNotNull(totals(r.revenueDifferenceTotals).ifEmpty { null })).joinToString(" · "))
         add(T.SCORE_REFUSED to "${r.refusedAttempts}")
-        r.checkinsMissed?.let { add(T.SCORE_CHECKINS to T.checkinsValue(r.checkinsMade, it)) }
         add(T.SCORE_PATTERNS to "${r.patternSignals}")
     }
 
@@ -213,18 +191,18 @@ object OversightPresentation {
     fun destination(r: ScorecardRecordDto, f: OwnerFeatures): OwnerDestination? {
         val id = r.recordId
         return when (r.recordType) {
-            "job_exception" -> id?.takeIf { f.meterEvidence }?.let { OwnerDestination.MeterException(it) }
+            // "job_exception": records written before ADR-008 renamed the table.
+            "meter_exception", "job_exception" -> id?.takeIf { f.meterEvidence }?.let { OwnerDestination.MeterException(it) }
             "tracking_alert" -> id?.takeIf { f.alerts }?.let { OwnerDestination.Alerts(it) }
             "cash_remittance_overdue" -> id?.takeIf { f.finance && f.cashCustody }?.let { OwnerDestination.RemittanceOverdue(it) }
             "cash_variance" -> id?.takeIf { DecisionKind.WRITE_OFF.visibleTo(f) }?.let { OwnerDestination.Decision(DecisionKinds.WRITE_OFF, it) }
-            "revenue_difference" -> id?.takeIf { f.revenueRead }?.let { OwnerDestination.Decision(DecisionKinds.REVENUE_DIFFERENCE, it) }
             "risk_signal" -> r.detail.text("case_id")?.takeIf { f.cases }?.let { OwnerDestination.Case(it) }
             "engine_interval" -> r.machineId?.takeIf { f.fleet }?.let { OwnerDestination.Machine(it) }
             else -> null
         }
     }
 
-    /** Record rows, newest first: label item wording, value money or hours, caption day · machine · job · status · details. */
+    /** Record rows, newest first: label item wording, value money or hours, caption day · machine · status · details. */
     fun records(d: ScorecardDetailDto, f: OwnerFeatures, zone: ZoneId): List<OversightRow> = d.records.sortedByDescending { it.at }.mapIndexed { i, r ->
         val value = when {
             r.amount != null -> money(r.amount, r.currency)
@@ -233,29 +211,25 @@ object OversightPresentation {
         }
         val details = when (r.item) {
             "ALERT" -> listOfNotNull(r.detail.text("title"))
-            "MISSED_CHECKIN" -> listOfNotNull(r.detail.text("scheduled_at")?.let { OwnerFormat.parseInstant(it) }?.let { T.scheduled(OwnerFormat.time(it, zone)) })
             "REFUSED_ATTEMPT" -> listOfNotNull(r.detail.text("action"), r.detail.text("permission"))
             else -> emptyList()
         }
         val machine = DisplayNames.machine(r.machineCode, r.machineName, null)
         val caption = listOfNotNull(
-            r.day?.let(RevenuePresentation::day) ?: OwnerFormat.date(r.at, zone),
-            machine, r.jobNumber, r.status?.let(OwnerFormat::humanize), T.SCORE_NEAR_THRESHOLD.takeIf { r.nearThreshold },
+            r.day?.let(RecordFormat::day) ?: OwnerFormat.date(r.at, zone),
+            machine, r.status?.let(OwnerFormat::humanize), T.SCORE_NEAR_THRESHOLD.takeIf { r.nearThreshold },
         ) + details
         OversightRow("${r.recordType}-${r.recordId ?: i}-$i", T.item(r.item), null, caption.joinToString(" · "), value, destination(r, f))
     }
 
-    // --- unbilled work, idle machines ---------------------------------------------------------------------------
+    // --- idle machines ---------------------------------------------------------------------------------------------
 
     fun idle(list: List<IdleMachineDto>, f: OwnerFeatures, zone: ZoneId): List<OversightRow> = list.sortedByDescending { it.idleDays }.map { m ->
         OversightRow(
             m.machineId,
-            RevenuePresentation.machine(m.machineCode, m.machineName, m.machineId),
+            RecordFormat.machine(m.machineCode, m.machineName, m.machineId),
             T.idleSince(OwnerFormat.date(m.idleSince, zone), m.idleDays),
-            listOfNotNull(
-                m.lastJobId?.let { T.idleLastJob(m.lastJobNumber ?: "—", OwnerFormat.date(m.lastJobCompletedAt, zone)) },
-                m.plannedJobId?.let { T.idlePlanned(m.plannedJobNumber ?: "—") },
-            ).joinToString(" · ").ifEmpty { null },
+            m.lastMachineReportId?.let { T.idleLastReport(m.lastMachineReportNumber ?: "—") },
             null,
             OwnerDestination.Machine(m.machineId).takeIf { f.fleet },
         )

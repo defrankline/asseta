@@ -1,19 +1,19 @@
 package com.asseta.core.sync
 
 import com.asseta.core.database.AttachmentEntity
-import com.asseta.core.domain.policy.CaptureMode
-import com.asseta.core.domain.policy.ReadingKind
+import com.asseta.core.domain.ocr.OcrReading
 import com.asseta.core.model.ClientOperationStatus.ACKED
 import com.asseta.core.model.ClientOperationStatus.CONFLICT
 import com.asseta.core.model.ClientOperationStatus.FAILED
 import com.asseta.core.model.ClientOperationStatus.PENDING
 import com.asseta.core.model.ClientOperationStatus.QUARANTINED
-import com.asseta.core.model.sync.AckMethod
+import com.asseta.core.model.sync.MachineReportOps
+import com.asseta.core.sync.data.FieldOps
+import com.asseta.core.sync.data.FieldOutbox
 import com.asseta.core.sync.engine.SyncReport
-import com.asseta.core.sync.usecase.JobWorkflow
-import com.asseta.core.sync.usecase.WorkflowResult
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -31,6 +31,13 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class SyncEngineTest : SyncTestBase() {
 
+    /** A machine report queued after (and depending on) the reading [captureOp]; its operation id. */
+    private fun report(captureOp: String): String = runBlocking {
+        FieldOutbox({ db }, json, clock, { account }).enqueueOperation(
+            tenant, MachineReportOps.MACHINE_REPORT, FieldOps.MACHINE_REPORT, "r-$captureOp", JsonObject(emptyMap()), dependsOn = listOf(captureOp),
+        )
+    }
+
     private fun success(report: SyncReport): SyncReport.Success {
         assertTrue("expected Success but was $report", report is SyncReport.Success)
         return report as SyncReport.Success
@@ -44,20 +51,20 @@ class SyncEngineTest : SyncTestBase() {
         val state = db.syncStateDao().get(tenant)!!
         assertEquals(10L, state.cursor)
         assertNotNull(state.offlineGrantUntil)
-        assertEquals("APPROVED", db.fieldDataDao().job(fake.jobId)!!.status)
+        assertEquals("ACTIVE", db.fieldDataDao().machine(fake.machineId)!!.status)
         assertEquals(setOf("METER_CAPTURE", "EXPENSE_CAPTURE"), db.fieldDataDao().snapshots(tenant).map { it.policyType }.toSet())
 
         fake.cursor = 25
-        fake.changesJobs = listOf(fake.job("IN_PROGRESS", 3))
+        fake.changesMachines = listOf(fake.machine("UNDER_MAINTENANCE", 3))
         success(engine().sync(tenant))
         assertTrue(fake.requests.contains("GET /api/v1/sync/changes?cursor=10"))
         assertEquals(25L, db.syncStateDao().get(tenant)!!.cursor)
-        assertEquals("IN_PROGRESS", db.fieldDataDao().job(fake.jobId)!!.status)
+        assertEquals("UNDER_MAINTENANCE", db.fieldDataDao().machine(fake.machineId)!!.status)
 
-        fake.changesJobs = listOf(fake.job("APPROVED", 2)) // lookback replay of an older revision
+        fake.changesMachines = listOf(fake.machine("ACTIVE", 2)) // lookback replay of an older revision
         success(engine().sync(tenant))
         assertTrue(fake.requests.contains("GET /api/v1/sync/changes?cursor=25"))
-        assertEquals("IN_PROGRESS", db.fieldDataDao().job(fake.jobId)!!.status)
+        assertEquals("UNDER_MAINTENANCE", db.fieldDataDao().machine(fake.machineId)!!.status)
     }
 
     @Test
@@ -114,25 +121,24 @@ class SyncEngineTest : SyncTestBase() {
     fun conflictIsSurfacedWithServerStateKeptAndNeverResent() = runBlocking {
         success(engine().sync(tenant))
         val captureOp = saved(capture(captureRequest())).operationId
-        val start = workflow.transition(tenant, fake.jobId, JobWorkflow.START) as WorkflowResult.Done
+        val report = report(captureOp)
         fake.handler = { o ->
-            if (o["op_type"]!!.jsonPrimitive.content == "JOB_TRANSITION") {
+            if (o["op_type"]!!.jsonPrimitive.content == MachineReportOps.MACHINE_REPORT) {
                 "CONFLICT" to buildJsonObject {
-                    put("error", fake.err("INVALID_JOB_TRANSITION"))
-                    putJsonObject("server_state") { put("job_id", fake.jobId); put("job_status", "CANCELLED"); put("job_version", 4) }
+                    put("error", fake.err("REPORT_PENDING"))
+                    putJsonObject("server_state") { put("machine_id", fake.machineId); put("pending_report_number", "MR-2026-00009") }
                 }
             } else null
         }
         success(engine().sync(tenant))
         assertEquals(ACKED, status(captureOp))
-        val conflict = op(start.id)
+        val conflict = op(report)
         assertEquals(CONFLICT, conflict.status)
-        assertEquals("INVALID_JOB_TRANSITION", conflict.errorCode)
-        assertTrue(conflict.resultJson!!.contains("CANCELLED"))
-        assertEquals(1, repository.observeCaptures(fake.jobId).first().size)
-        val pushes = fake.pushedBatches.count { start.id in it }
+        assertEquals("REPORT_PENDING", conflict.errorCode)
+        assertTrue(conflict.resultJson!!.contains("MR-2026-00009"))
+        val pushes = fake.pushedBatches.count { report in it }
         success(engine().sync(tenant))
-        assertEquals(pushes, fake.pushedBatches.count { start.id in it }) // no automatic overwrite/resend
+        assertEquals(pushes, fake.pushedBatches.count { report in it }) // no automatic overwrite/resend
     }
 
     @Test
@@ -201,12 +207,10 @@ class SyncEngineTest : SyncTestBase() {
         saved(capture(captureRequest()))
         success(engine().sync(tenant))
         val putsBefore = fake.chunkPuts.size
-        fake.changesJobs = listOf(fake.job("IN_PROGRESS", 3))
-        success(engine().sync(tenant))
-        val closing = saved(capture(captureRequest(ReadingKind.CLOSING, CaptureMode.MANUAL, "1240.0", ocr = null)))
+        val second = saved(capture(captureRequest(reading = "1240.0", ocr = OcrReading("1240.0", 0.95, "1240.0", "OK", emptySet()))))
         success(engine().sync(tenant))
         assertEquals(putsBefore, fake.chunkPuts.size) // same photo bytes: server dedupe returned COMPLETE
-        assertEquals(ACKED, status(closing.operationId))
+        assertEquals(ACKED, status(second.operationId))
     }
 
     @Test
@@ -221,28 +225,18 @@ class SyncEngineTest : SyncTestBase() {
     }
 
     @Test
-    fun offlineWorkflowIsSentInDependencyOrder() = runBlocking {
+    fun aReportIsSentAfterItsReadingAndItsPhoto() = runBlocking {
         success(engine().sync(tenant))
-        val opening = saved(capture(captureRequest())).operationId
-        val start = (workflow.transition(tenant, fake.jobId, JobWorkflow.START) as WorkflowResult.Done).id
-        val entry = (workflow.startEntry(tenant, fake.jobId, "WORK") as WorkflowResult.Done).id
-        clock.advance(3_600_000)
-        val activity = (workflow.stopEntry(tenant, entry) as WorkflowResult.Done).id
-        val closing = saved(capture(captureRequest(ReadingKind.CLOSING, CaptureMode.MANUAL, "1236.0", photoBytes = null, ocr = null))).operationId
-        val ack = (workflow.acknowledge(tenant, fake.jobId, AckMethod.SIGNATURE, "Jane Customer", null, byteArrayOf(1, 2, 3)) as WorkflowResult.Done).id
-        val complete = (workflow.transition(tenant, fake.jobId, JobWorkflow.COMPLETE) as WorkflowResult.Done).id
-        assertEquals(setOf(closing, ack, activity), db.clientOperationDao().dependenciesOf(complete).toSet())
+        val reading = saved(capture(captureRequest())).operationId
+        val report = report(reading)
+        assertEquals(listOf(reading), db.clientOperationDao().dependenciesOf(report))
 
         success(engine().sync(tenant))
-        val all = listOf(opening, start, activity, closing, ack, complete)
-        all.forEach { assertEquals(ACKED, status(it)) }
-        val order = fake.applied.filter { it in all }
-        fun before(a: String, b: String) = assertTrue("$a before $b", order.indexOf(a) < order.indexOf(b))
-        // Server applied in workflow order: opening -> START -> {activity, closing} -> ack (after closing) -> COMPLETE.
-        before(opening, start); before(start, activity); before(start, closing); before(closing, ack)
-        before(ack, complete); before(activity, complete)
-        val ackPayload = json.parseToJsonElement(op(ack).payloadJson).jsonObject
-        assertNotNull(ackPayload["signature_attachment_id"]) // signature uploaded before the acknowledgement
+        assertEquals(ACKED, status(reading))
+        assertEquals(ACKED, status(report))
+        val order = fake.applied.filter { it == reading || it == report }
+        assertEquals(listOf(reading, report), order)
+        assertNotNull(json.parseToJsonElement(op(reading).payloadJson).jsonObject["photo_attachment_id"]) // photo before the reading
         assertEquals(0, fake.stored.values.count { it.status == "DEFERRED" })
     }
 

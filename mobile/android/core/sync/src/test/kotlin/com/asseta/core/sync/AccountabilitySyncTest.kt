@@ -285,12 +285,14 @@ class AccountabilitySyncTest : SyncTestBase() {
 
     private fun fix() = GpsOutcome.Fix(-6.8, 39.28, 8.0, Instant.ofEpochMilli(clock.now), "fused")
 
-    private fun manual(target: CaptureTarget, reading: String = "1500.0") = CaptureRequest(
-        tenant, null, UUID.randomUUID().toString(), ReadingKind.DAILY, CaptureMode.MANUAL, reading, photo, 0, null, fix(), clock.now, target,
-    )
+    private fun manual(target: CaptureTarget, reading: String = "1500.0"): CaptureRequest {
+        fake.captureMode = "MANUAL" // the company reads meters by hand
+        return CaptureRequest(tenant, UUID.randomUUID().toString(), ReadingKind.DAILY, CaptureMode.MANUAL, reading, photo, 0, null, fix(), clock.now, target)
+    }
 
     @Test
-    fun dailyReadingOutsideAJobNamesTheMachineAndShowsInReadings() = runBlocking {
+    fun dailyReadingNamesTheMachineAndShowsInReadings() = runBlocking {
+        fake.captureMode = "MANUAL"
         synced()
         val result = capture(manual(CaptureTarget.Daily(fake.machineId)))
         assertTrue("$result", result is CaptureResult.Saved)
@@ -300,7 +302,6 @@ class AccountabilitySyncTest : SyncTestBase() {
         assertEquals(fake.machineId, p["machine_id"]!!.jsonPrimitive.content)
         assertEquals("DAILY", p["kind"]!!.jsonPrimitive.content)
         val reading = inbox.observe(tenant).first().readings.single()
-        assertNull(reading.jobId)
         assertEquals(fake.machineId, reading.machineId)
         synced()
         assertEquals(ACKED, status(opId))
@@ -309,6 +310,7 @@ class AccountabilitySyncTest : SyncTestBase() {
 
     @Test
     fun baselineSendsItsPhotoAttachment() = runBlocking {
+        fake.captureMode = "MANUAL"
         synced()
         val result = capture(manual(CaptureTarget.Baseline(fake.machineId, "New machine")))
         val opId = (result as CaptureResult.Saved).operationId
@@ -320,18 +322,19 @@ class AccountabilitySyncTest : SyncTestBase() {
     }
 
     private fun serverDaily(id: String, state: String = "ACCEPTED") = buildJsonObject {
-        put("id", id); put("job_id", JsonNull); put("machine_id", fake.machineId); put("kind", "DAILY"); put("capture_mode", "MANUAL")
+        put("id", id); put("machine_id", fake.machineId); put("kind", "DAILY"); put("capture_mode", "MANUAL")
         put("reading", "1400.0"); put("state", state); put("gps_status", "FIX"); put("manually_corrected", false); put("policy_version", "p")
         put("captured_at", "2026-10-21T07:00:00Z"); put("received_at", "2026-10-21T07:01:00Z"); put("sync_revision", 3)
     }
 
     @Test
-    fun pulledDailyReadingWithNullJobAndItsCorrection() = runBlocking {
+    fun pulledDailyReadingAndItsCorrection() = runBlocking {
         val readingId = UUID.randomUUID().toString()
         fake.inbox = mapOf("my_meter_captures" to listOf(serverDaily(readingId)))
+        fake.captureMode = "MANUAL"
         synced()
         val pulled = inbox.observe(tenant).first().readings.single()
-        assertNull(pulled.jobId)
+        assertEquals(fake.machineId, pulled.machineId)
         assertEquals("1400.0", inbox.readingValue(tenant, readingId))
         val short = capture(manual(CaptureTarget.Correction(readingId, "typo")))
         assertTrue(short is CaptureResult.Blocked) // reason of at least 10 characters

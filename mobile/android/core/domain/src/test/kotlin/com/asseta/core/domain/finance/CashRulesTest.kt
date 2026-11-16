@@ -53,7 +53,7 @@ class CashRulesTest {
         assertEquals(BigDecimal("3000"), purchase.value.unitPrice)
         assertEquals(0, CashRules.fuelCost(purchase.value.litres, purchase.value.unitPrice!!).compareTo(BigDecimal("121500")))
         val issueWithoutMachine = CashRules.fuel(FuelEventType.ISSUE, "10", "2900", "TZS", null, "", "", "") as FormCheck.Invalid
-        assertEquals(listOf("Choose the machine or job the fuel went to."), issueWithoutMachine.messages)
+        assertEquals(listOf("Choose the machine the fuel went to."), issueWithoutMachine.messages)
         val usage = CashRules.fuel(FuelEventType.USAGE, "12.125", "", "", "m1", "1234.25", "", "") as FormCheck.Valid
         assertNull(usage.value.unitPrice)
         assertNull(usage.value.currency)
@@ -85,9 +85,9 @@ class CashRulesTest {
 
     @Test
     fun baseCurrencyHintAndSearch() {
-        assertEquals("TZS", CustodySummary.baseCurrencyHint(listOf("TZS"), listOf("USD")))
-        assertEquals("USD", CustodySummary.baseCurrencyHint(emptyList(), listOf("USD", "USD")))
-        assertNull(CustodySummary.baseCurrencyHint(listOf("TZS", "USD"), emptyList()))
+        assertEquals("TZS", CustodySummary.baseCurrencyHint(listOf("TZS", "TZS")))
+        assertNull(CustodySummary.baseCurrencyHint(emptyList()))
+        assertNull(CustodySummary.baseCurrencyHint(listOf("TZS", "USD")))
         assertTrue(SearchMatch.matches("road bui", "Road Builders Ltd", "C-01"))
         assertTrue(SearchMatch.matches("cafe", "Café Supplies"))
         assertTrue(SearchMatch.matches("  ", "anything"))

@@ -20,7 +20,6 @@ data class ExpensePayload(
     val currency: String,
     @SerialName("incurred_at") val incurredAt: String,
     @SerialName("machine_id") val machineId: String? = null,
-    @SerialName("job_id") val jobId: String? = null,
     @SerialName("paid_from") val paidFrom: String,
     /** Blob upload (session) ids of the receipts; written when the upload completes, before the op is ever sent. */
     @SerialName("receipt_upload_ids") val receiptUploadIds: List<String> = emptyList(),
@@ -44,13 +43,7 @@ data class CashCollectionPayload(
     @SerialName("staff_member_id") val staffMemberId: String? = null,
     /** CASH_DETAILS_V2 only: the hours purchase this cash pays for (server id or an offline client id). */
     @SerialName("purchase_id") val purchaseId: String? = null,
-    /** SYNC_OPEN_INVOICES: the invoice this cash pays (one line; null = not sent). */
-    val allocations: List<CollectionAllocationPayload>? = null,
 )
-
-/** `HireAllocationIn`: how much of a collection pays one invoice. */
-@Serializable
-data class CollectionAllocationPayload(@SerialName("invoice_id") val invoiceId: String, val amount: DecimalAmount)
 
 @Serializable
 data class CashHandoverPayload(
@@ -80,7 +73,6 @@ data class FuelEventPayload(
     @SerialName("unit_price") val unitPrice: DecimalAmount? = null,
     val currency: String? = null,
     @SerialName("machine_id") val machineId: String? = null,
-    @SerialName("job_id") val jobId: String? = null,
     @SerialName("meter_reading") val meterReading: DecimalAmount? = null,
     val supplier: String? = null,
     @SerialName("occurred_at") val occurredAt: String,
