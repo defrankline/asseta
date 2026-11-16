@@ -13,6 +13,7 @@ import { customerService } from '../../../api/services/customerService';
 import type { HoursBalanceDto } from '../../../api/hoursTypes';
 import { hoursService } from '../../../api/services/hoursService';
 import type { CustomerDto, MachineDto } from '../../../api/types';
+import { ExportMenu } from '../../../components/data/ExportMenu';
 import { StaticTable } from '../../../components/data/StaticTable';
 import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
 import { MoneyText } from '../../../components/display/MoneyText';
@@ -201,6 +202,16 @@ export function HoursBalancesPage() {
       <PageHeader
         title="Hours balances"
         subtitle="Hours each customer bought, used and has left, and the credit they owe"
+        actions={
+          <ExportMenu
+            reports={[
+              {
+                code: 'customer_hours',
+                filters: { customer_id: view === 'customer' ? customer?.id : undefined },
+              },
+            ]}
+          />
+        }
       />
       <Stack spacing={2}>
         <Box className="flex flex-wrap items-center gap-3">

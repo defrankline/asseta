@@ -8,6 +8,7 @@ import { useCanMutate } from '../../../access/useCanMutate';
 import type { HoursPurchaseDto } from '../../../api/hoursTypes';
 import { hoursService } from '../../../api/services/hoursService';
 import type { CustomerDto, MachineDto } from '../../../api/types';
+import { ExportMenu } from '../../../components/data/ExportMenu';
 import { ServerDataTable, type DataColumn } from '../../../components/data/ServerDataTable';
 import type { FetchPage } from '../../../components/data/useServerPage';
 import { MoneyText } from '../../../components/display/MoneyText';
@@ -123,17 +124,22 @@ export function HoursPurchasesPage() {
         title="Hours purchases"
         subtitle="Prepaid hours bought per customer and machine; they activate from verified money or approved credit"
         actions={
-          canRecord && (
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={() => {
-                setRecording(true);
-              }}
-            >
-              New purchase
-            </Button>
-          )
+          <Box className="flex flex-wrap gap-2">
+            <ExportMenu
+              reports={[{ code: 'sales_collections', filters: { from: dateFrom, to: dateTo } }]}
+            />
+            {canRecord && (
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={() => {
+                  setRecording(true);
+                }}
+              >
+                New purchase
+              </Button>
+            )}
+          </Box>
         }
       />
       <Stack spacing={2}>

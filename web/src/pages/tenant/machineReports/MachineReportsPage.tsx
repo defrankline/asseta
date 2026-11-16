@@ -5,6 +5,7 @@ import { PERMISSIONS } from '../../../access/permissionCodes';
 import type { MachineReportDto } from '../../../api/machineReportTypes';
 import { machineReportService } from '../../../api/services/machineReportService';
 import type { CustomerDto, MachineDto } from '../../../api/types';
+import { ExportMenu } from '../../../components/data/ExportMenu';
 import { ServerDataTable } from '../../../components/data/ServerDataTable';
 import type { FetchPage } from '../../../components/data/useServerPage';
 import { PageHeader } from '../../../components/feedback/PageHeader';
@@ -47,6 +48,16 @@ export function MachineReportsPage() {
       <PageHeader
         title="Machine reports"
         subtitle="Every engine hour accounted for: customers' hours and non-productive time, approved by someone other than the submitter"
+        actions={
+          <ExportMenu
+            reports={[
+              {
+                code: 'machine_hours',
+                filters: { machine_id: machine?.id, from: dateFrom, to: dateTo },
+              },
+            ]}
+          />
+        }
       />
       <ServerDataTable
         columns={reportColumns(timeZone, { submitter: true })}

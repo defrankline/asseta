@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 import type { CreditInvoiceDto } from '../../../../api/hoursTypes';
 import { creditInvoiceService } from '../../../../api/services/creditInvoiceService';
 import type { CustomerDto } from '../../../../api/types';
+import { ExportMenu } from '../../../../components/data/ExportMenu';
 import { ServerDataTable, type DataColumn } from '../../../../components/data/ServerDataTable';
 import type { FetchPage } from '../../../../components/data/useServerPage';
 import { MoneyText } from '../../../../components/display/MoneyText';
@@ -76,6 +77,20 @@ export function CreditInvoicesPage() {
       <PageHeader
         title="Credit invoices"
         subtitle="The credit part of each order: paid in full or in parts by cash, bank or mobile money"
+        actions={
+          <ExportMenu
+            reports={[
+              {
+                code: 'credit_invoices',
+                filters: { customer_id: customer?.id ?? urlCustomer, status, overdue },
+              },
+              {
+                code: 'credit_invoice_payments',
+                filters: { customer_id: customer?.id ?? urlCustomer, from: dateFrom, to: dateTo },
+              },
+            ]}
+          />
+        }
       />
       <Stack spacing={2}>
         <HoursOffNotice off={hours.status === 'known' && !hours.on} />
