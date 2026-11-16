@@ -1,6 +1,7 @@
 package com.asseta.supervisor.ui.home
 
 import com.asseta.core.domain.accountability.PaymentMethod
+import com.asseta.core.domain.reports.MachineReportRules
 import com.asseta.core.domain.reports.ReportState
 import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.model.DecimalAmount
@@ -75,8 +76,12 @@ class ShellModelTest {
     @Test
     fun `summary strip and recent wording follow the design`() {
         assertEquals("3.85M", ShellModel.compact(BigDecimal("3845000")))
-        assertEquals("950K", ShellModel.compact(BigDecimal("950000")))
+        assertEquals("950,000", ShellModel.compact(BigDecimal("950000")))
+        assertEquals("2.0M", ShellModel.compact(BigDecimal("2000000")))
         assertEquals("1,200", ShellModel.compact(BigDecimal("1200")))
+        // My machines rows: the last reading without trailing zeros (design "1,510 h", "3,182.8 h").
+        assertEquals("Last reading 1,510 h · today 07:40", HomeTexts.lastReading(MachineReportRules.formatHours(BigDecimal("1510.00")), "today 07:40"))
+        assertEquals("Last reading 3,182.8 h · 2 days ago", HomeTexts.lastReading(MachineReportRules.formatHours(BigDecimal("3182.80")), "2 days ago"))
         assertEquals("2 machines", ReportTexts.machines(2))
         assertEquals("2 due", ReportTexts.dueBadge(2))
         assertNull(ReportTexts.dueBadge(0))

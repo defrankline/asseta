@@ -1,5 +1,6 @@
 package com.asseta.owner.ui.common
 
+import com.asseta.core.domain.finance.CompactMoney
 import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.domain.reports.MachineReportRules
 import java.math.BigDecimal
@@ -49,19 +50,7 @@ object Figures {
      * Compact money: from a million "5.2M" / "3.85M" / "2.0M" (at most two decimals, at least one), from a billion
      * "1.2B", below a million the grouped whole amount ("850,000").
      */
-    fun compact(value: BigDecimal): String {
-        val abs = value.abs()
-        val sign = if (value.signum() < 0) "-" else ""
-        fun scaled(divisor: BigDecimal, suffix: String): String {
-            val v = abs.divide(divisor, 2, RoundingMode.HALF_UP)
-            return sign + DecimalFormat("#,##0.0#", SYMBOLS).format(v) + suffix
-        }
-        return when {
-            abs >= BILLION -> scaled(BILLION, "B")
-            abs >= MILLION -> scaled(MILLION, "M")
-            else -> sign + DecimalFormat("#,##0", SYMBOLS).format(abs.setScale(0, RoundingMode.HALF_UP))
-        }
-    }
+    fun compact(value: BigDecimal): String = CompactMoney.format(value)
 
     /** "TZS 3,800,000" (whole amounts) or "TZS 3,800,000.50" (cents only when there are some). */
     fun money(value: BigDecimal, currency: String): String {
@@ -96,6 +85,4 @@ object Figures {
     fun days(n: Int): String = if (n == 1) "1 day" else "$n days"
 
     private val HUNDRED = BigDecimal(100)
-    private val MILLION = BigDecimal(1_000_000)
-    private val BILLION = BigDecimal(1_000_000_000)
 }

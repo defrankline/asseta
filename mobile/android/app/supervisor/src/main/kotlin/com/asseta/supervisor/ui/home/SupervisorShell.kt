@@ -2,6 +2,7 @@ package com.asseta.supervisor.ui.home
 
 import com.asseta.core.domain.accountability.FieldAccess
 import com.asseta.core.domain.accountability.PaymentMethod
+import com.asseta.core.domain.finance.CompactMoney
 import com.asseta.core.domain.reports.MachineReportRules
 import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.model.sync.HoursPurchasePayload
@@ -132,16 +133,8 @@ object ShellModel {
             }
         }
 
-    /** "3.85M", "950K", "1,200" (summary strip and dashboard tiles). */
-    fun compact(amount: BigDecimal): String {
-        val abs = amount.abs()
-        fun fmt(v: BigDecimal, suffix: String) = v.setScale(2, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString() + suffix
-        return when {
-            abs >= BigDecimal(1_000_000) -> fmt(amount.divide(BigDecimal(1_000_000)), "M")
-            abs >= BigDecimal(10_000) -> fmt(amount.divide(BigDecimal(1_000)).setScale(0, RoundingMode.HALF_UP), "K")
-            else -> grouped(amount)
-        }
-    }
+    /** "3.85M", "850,000", "1.2B" (summary strip and dashboard tiles): the designs' compact rule, shared with the Owner app. */
+    fun compact(amount: BigDecimal): String = CompactMoney.format(amount)
 
     /** "3,845,000" (no decimals for whole amounts). */
     fun grouped(amount: BigDecimal): String = java.text.DecimalFormat("#,##0.##", java.text.DecimalFormatSymbols.getInstance(Locale.US)).format(amount)
