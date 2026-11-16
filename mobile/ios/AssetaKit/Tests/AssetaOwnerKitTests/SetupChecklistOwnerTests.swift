@@ -91,6 +91,10 @@ struct SetupChecklistOwnerTests {
         #expect(SetupPresentation.target(link: "/tenant/machines?missing=tracker", features: f) == .web(path: "/tenant/machines?missing=tracker"))
         // ADR-008: jobs are gone from the apps, so their setup link opens the web.
         #expect(SetupPresentation.target(link: "/tenant/jobs", features: f) == .web(path: "/tenant/jobs"))
+        // FIRST_MACHINE_REPORT links to the machine reports, which the app shows under Approvals.
+        let approver = OwnerFeatures(permissions: Self.all + ["tenant.machine_report.read"])
+        #expect(SetupPresentation.target(link: "/tenant/machine-reports", features: approver) == .app(.approvals, label: "Open Approvals"))
+        #expect(SetupStepKey.firstMachineReport.rawValue == "FIRST_MACHINE_REPORT" && SetupStepKey.customers.rawValue == "CUSTOMERS")
         #expect(SetupPresentation.target(link: "/tenant/meter-baselines?missing=true", features: f) == .app(.approvals, label: "Open Approvals"))
         #expect(SetupPresentation.target(link: "/tenant/hours/purchases", features: f) == .app(.customerHours, label: "Open Customer hours"))
         #expect(SetupPresentation.target(link: "/tenant/hours/reasons", features: f) == .web(path: "/tenant/hours/reasons"))

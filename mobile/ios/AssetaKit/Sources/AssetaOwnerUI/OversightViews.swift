@@ -6,8 +6,8 @@ import AssetaOwnerKit
 import SwiftUI
 
 // DEC-031 Phase 5 Owner screens (strings doc "DEC-031 Phase 5 — oversight"): More → People scorecard (period chips,
-// one row per person), one person (figures, cash held now, records), and the Unbilled work / Idle machines lists the
-// dashboard tiles open. Read-only; reads may show the cached snapshot.
+// one row per person), one person (figures, cash held now, records), and the Idle machines list the dashboard tile
+// opens. Read-only; reads may show the cached snapshot.
 
 private typealias T = OversightTexts
 
@@ -121,42 +121,7 @@ struct ScorecardPersonView: View {
     }
 }
 
-/// Completed jobs not on an issued invoice yet, longest waiting first.
-struct UnbilledWorkView: View {
-    let model: OwnerModel
-    @State private var loader = Loader<Page<UnbilledJobDTO>>()
-
-    var body: some View {
-        List {
-            if let page = loader.value {
-                let items = OversightPresentation.unbilledSorted(page.items)
-                if items.isEmpty { EmptyState(title: T.unbilledEmpty, systemImage: "doc.text") }
-                Section {
-                    ForEach(items) { u in
-                        let row = OversightPresentation.unbilled(u)
-                        if model.features.allows(.job(u.jobID)) {
-                            NavigationLink(value: OwnerRoute.job(u.jobID)) { OversightRowView(row: row) }
-                        } else {
-                            OversightRowView(row: row)
-                        }
-                    }
-                } footer: { if !items.isEmpty { Text(T.unbilledFooter) } }
-            } else if let error = loader.error {
-                LoadFailure(message: error) { await reload() }
-            } else {
-                ProgressView().frame(maxWidth: .infinity)
-            }
-        }
-        .staleBanner(loader, model: model)
-        .navigationTitle(T.unbilledTitle)
-        .refreshable { await reload() }
-        .task(id: model.changeTick) { await reload() }
-    }
-
-    private func reload() async { await loader.load(model, .unbilledWork, OwnerAPI.unbilledWork()) }
-}
-
-/// Machines with no running job and no engine hours for a while, longest idle first.
+/// Machines with no approved machine-report hours for a while, longest idle first.
 struct IdleMachinesView: View {
     let model: OwnerModel
     @State private var loader = Loader<Page<IdleMachineDTO>>()

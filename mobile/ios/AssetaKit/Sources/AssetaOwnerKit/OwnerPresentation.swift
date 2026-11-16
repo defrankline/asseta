@@ -2,7 +2,7 @@ import AssetaModel
 import Foundation
 
 // Screen content shared with the Android Owner app: labels, ordering, filters and empty states. Android keeps the
-// same strings in `OverviewPresentation`, `FleetRows`, `JobsPresentation`, `AlertText`, `ApprovalText`, `CaseText`,
+// same strings in `OverviewPresentation`, `FleetRows`, `AlertText`, `ApprovalText`, `CaseText`,
 // `MachineText`, `SettingsText` and `InboxText`; `ParityPresentationTests` (both platforms) pin them. Change both.
 
 // MARK: - Overview
@@ -38,7 +38,6 @@ public struct OverviewSection: Equatable, Sendable {
 
 public enum OverviewPresentation {
     public static let noSections = "Your role has no dashboard sections in this company."
-    public static let jobStatusOrder = ["IN_PROGRESS", "APPROVED", "PENDING_APPROVAL", "DRAFT", "COMPLETED", "CANCELLED"]
 
     /// `Figures as of 22 Oct 2026, 08:00 (Africa/Dar_es_Salaam)`, in the company's time zone.
     public static func asOf(_ o: TenantOverviewDTO) -> String {
@@ -78,21 +77,22 @@ public enum OverviewPresentation {
                                        groups: [OverviewGroup(heading: nil, rows: rows)],
                                        actions: [OverviewAction(label: "Open fleet map", route: .fleet)]))
         }
+        // ADR-008: jobs are gone, so no job counts; the approvals and readings figures stay (as Android).
         if let w = o.work {
-            let order = { (s: String) in jobStatusOrder.firstIndex(of: s) ?? Int.max }
-            let statuses = w.jobsByStatus.keys.sorted { (order($0), $0) < (order($1), $1) }
-            var rows = statuses.map { OverviewRow(label: OwnerFormat.humanize($0), value: "\(w.jobsByStatus[$0] ?? 0)") }
+            var rows: [OverviewRow] = []
             if let n = w.pendingApprovals {
                 rows.append(OverviewRow(label: "Pending approvals", value: "\(n)", tone: n > 0 ? .warning : .normal, route: .approvals))
             }
             if let n = w.readingsNeedingReview { rows.append(OverviewRow(label: "Readings needing review", value: "\(n)")) }
             if let n = w.openExceptions {
                 rows.append(OverviewRow(label: "Open meter exceptions", value: "\(n)", tone: n > 0 ? .warning : .normal,
-                                        route: .exceptions(jobID: nil)))
+                                        route: .exceptions))
             }
-            out.append(OverviewSection(title: "Jobs and work", freshness: OwnerFormat.sourceFreshness(w.latestSourceAt, now: now),
-                                       groups: [OverviewGroup(heading: nil, rows: rows)],
-                                       actions: [OverviewAction(label: "Open jobs", route: .jobs)]))
+            if !rows.isEmpty {
+                out.append(OverviewSection(title: "Approvals and readings",
+                                           freshness: OwnerFormat.sourceFreshness(w.latestSourceAt, now: now),
+                                           groups: [OverviewGroup(heading: nil, rows: rows)]))
+            }
         }
         if let m = o.money {
             let groups = m.currencies.map { c in
@@ -131,18 +131,17 @@ public enum OverviewPresentation {
 
 /// Bottom tabs of the Owner app, in order.
 public enum OwnerTabKind: String, CaseIterable, Sendable {
-    case overview = "Overview", fleet = "Fleet", jobs = "Jobs", alerts = "Alerts", more = "More"
+    case overview = "Overview", fleet = "Fleet", alerts = "Alerts", more = "More"
 }
 
 extension OwnerFeatures {
-    /// Tabs this role can use (same gating as Android): Overview needs fleet/jobs/finance; Fleet and Alerts need fleet.
+    /// Tabs this role can use (same gating as Android): Overview needs fleet/finance; Fleet and Alerts need fleet.
     public var tabs: [OwnerTabKind] {
         OwnerTabKind.allCases.filter {
             switch $0 {
             case .overview: overview
             case .fleet: fleet
             case .alerts: alertsOn
-            case .jobs: jobs
             case .more: true
             }
         }
@@ -157,19 +156,15 @@ extension OwnerFeatures {
             kind.capability.map(disabledCapabilities.contains) == true ? .approvals : route
         case .cashTransfer, .cashFloat, .overdueRemittances, .overdueRemittance:
             cashCustody ? route : .cash
-        // REVENUE_RECONCILIATION off: a revenue difference opens Approvals, a daily sheet its machine (as Android).
-        case .revenueDifference:
-            revenueOn ? route : .approvals
-        case let .dailySheet(machine), let .dailySheetDay(machine, _):
-            machineDays ? route : .machine(machine)
+        // Allocations not readable (or ENGINE_HOURS off): a machine's days open the machine.
+        case let .machineDays(machine), let .machineDay(machine, _):
+            allocationsRead ? route : .machine(machine)
         // Customer hours switched off or not readable: the dashboard, as before these screens existed (as Android).
         case .customerHours, .hoursPurchase, .hoursStatement:
             hoursRead ? route : .accountability
         // DEC-031 Phase 5: a closed gate opens the Accountability dashboard (as Android).
         case .scorecard, .scorecardPerson:
             scorecard ? route : .accountability
-        case .unbilledWork:
-            unbilledWork ? route : .accountability
         case .idleMachines:
             idleMachines ? route : .accountability
         // TRACKING / INVESTIGATIONS off: their lists and records open home (strings doc, DEC-032 Phase 3).
@@ -192,7 +187,6 @@ extension OwnerFeatures {
         case .overview: overview
         case .fleet, .machine: fleet
         case .alerts, .alert: alertsOn
-        case .jobs, .job: jobs
         case .approvals: approvalsScreen
         case .approval: approvals
         case let .decision(kind, _): decisionKinds.contains(kind)
@@ -204,11 +198,9 @@ extension OwnerFeatures {
         // DEC-030 cash records: hidden when the tenant switched CASH_CUSTODY off.
         case .cashTransfer, .cashFloat, .overdueRemittances, .overdueRemittance: finance && cashCustody
         case .investigations, .investigation: cases
-        case .revenueDifference: revenueRead
-        case .dailySheet, .dailySheetDay: machineDays && fleet
+        case .machineDays, .machineDay: allocationsRead && fleet
         case .customerHours, .hoursPurchase, .hoursStatement: hoursRead
         case .scorecard, .scorecardPerson: scorecard
-        case .unbilledWork: unbilledWork
         case .idleMachines: idleMachines
         case .setupChecklist: setupRead
         case .dailyReport: allocationsRead
@@ -311,7 +303,7 @@ public enum MachineText {
     }
 }
 
-/// Meter reading lines (machine and job screens).
+/// Meter reading lines (machine screens).
 public enum ReadingText {
     public static let photoFooter = "Evidence photos are downloaded only when you open them and are never saved on this phone."
 
@@ -323,42 +315,6 @@ public enum ReadingText {
         if c.manuallyCorrected { s += " · corrected by hand" }
         if let conf = c.ocrConfidence { s += " · OCR \(Int(conf * 100))%" }
         return s + " · GPS \(OwnerFormat.humanize(c.gpsStatus.rawValue).lowercased())"
-    }
-}
-
-// MARK: - Jobs
-
-public enum JobsPresentation {
-    /// Status chips in display order; nil = all. The list opens on jobs in progress.
-    public static let filters: [(JobStatus?, String)] = [
-        (.inProgress, "In progress"), (.approved, "Approved"), (.pendingApproval, "Pending approval"),
-        (.completed, "Completed"), (.cancelled, "Cancelled"), (nil, "All"),
-    ]
-    public static let defaultFilter: JobStatus? = .inProgress
-    public static let moreInConsole = "Use the web console for the full list."
-    public static let emptyTitle = "No jobs"
-    public static let emptyMessage = "Nothing matches this filter."
-
-    public static func countLine(shown: Int, total: Int) -> String { "\(shown) of \(total) jobs" }
-
-    public static func datesLine(_ job: JobDTO) -> String {
-        if let done = job.completedAt { return "Completed \(OwnerFormat.timestamp(done))" }
-        if let started = job.startedAt { return "Started \(OwnerFormat.timestamp(started))" }
-        return "Planned \(OwnerFormat.timestamp(job.plannedStart))"
-    }
-}
-
-public enum JobDetailText {
-    public static let noCharges = "Charges appear once both readings are in."
-
-    public static func billing(_ s: JobSummaryDTO) -> String {
-        if s.billingReady { return "Ready to invoice." }
-        if s.blockingExceptions > 0 { return "Not ready to invoice: \(s.blockingExceptions) blocking exception(s)." }
-        return "Not ready to invoice."
-    }
-
-    public static func exceptions(_ open: Int) -> String? {
-        open > 0 ? "\(open) open exception(s) need review." : nil
     }
 }
 

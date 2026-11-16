@@ -23,9 +23,9 @@ struct DailyReportOwnerTests {
          "opening_reading":"100.0","closing_reading":"110.5","total_hours":"10.50","billable_hours":"8.00","unbillable_hours":"2.50",
          "difference_hours":"\(difference)","unbillable":[{"reason_id":"a7000000-0000-4000-8000-000000000001","reason_name":"Rain","hours":"2.50"}],
          "allocations":[{"allocation_id":"a8000000-0000-4000-8000-000000000001","kind":"CUSTOMER_WORK","customer_id":"a9000000-0000-4000-8000-000000000001",
-         "customer_name":"Acme","job_id":null,"job_number":"J-12","activity_type":null,"start_reading":"100.0","end_reading":"108.0","hours":"8.00"},
-         {"allocation_id":"a8000000-0000-4000-8000-000000000002","kind":"UNEXPLAINED","customer_id":null,"customer_name":null,"job_id":null,
-         "job_number":null,"activity_type":null,"start_reading":"108.0","end_reading":"110.5","hours":"2.50"}],
+         "customer_name":"Acme","start_reading":"100.0","end_reading":"108.0","hours":"8.00"},
+         {"allocation_id":"a8000000-0000-4000-8000-000000000002","kind":"UNEXPLAINED","customer_id":null,"customer_name":null,
+         "start_reading":"108.0","end_reading":"110.5","hours":"2.50"}],
          "note":"Long day","evidence_attachment_ids":["aa000000-0000-4000-8000-000000000001"],"status":"\(status)","source":"SYNC","policy_version":"v1",
          "is_duplicate":\(duplicate),"duplicate_of_id":null,"is_late":\(late),"supersedes_id":\(supersedes ? "\"\(originalID.uuidString.lowercased())\"" : "null"),
          "submitted_at":"2026-11-07T18:00:00Z","submitted_by":"\(sender.uuidString.lowercased())","submitted_by_name":"Asha",
@@ -35,16 +35,16 @@ struct DailyReportOwnerTests {
 
     static func decoded(_ json: String) throws -> DailyReportDTO { try AssetaJSON.decoder().decode(DailyReportDTO.self, from: Data(json.utf8)) }
 
-    static func entry(id: UUID = UUID(), kind: String = "CUSTOMER_WORK", hours: String = "3.00", customer: String = #""Acme""#, job: String = #""J-12""#,
-                      reason: String = "null", activity: String = "null", status: String = "PROPOSED", group: UUID? = groupID) -> String {
+    static func entry(id: UUID = UUID(), kind: String = "CUSTOMER_WORK", hours: String = "3.00", customer: String = #""Acme""#,
+                      reason: String = "null", status: String = "PROPOSED", group: UUID? = groupID) -> String {
         """
         {"id":"\(id.uuidString.lowercased())","machine_id":"\(machineID.uuidString.lowercased())","machine_code":"EX-01","machine_name":"Excavator",
          "work_date":"2026-11-07","kind":"\(kind)","status":"\(status)","source":"CORRECTION","hours":"\(hours)",
          "start_ref":"a6000000-0000-4000-8000-000000000001","start_reading":"100.0","start_at":"2026-11-07T06:00:00Z",
          "end_ref":"a6000000-0000-4000-8000-000000000002","end_reading":"103.0","end_at":"2026-11-07T09:00:00Z",
-         "customer_id":null,"customer_name":\(customer),"job_id":null,"job_number":\(job),"activity_type":\(activity),"reason_id":null,"reason_name":\(reason),
+         "customer_id":null,"customer_name":\(customer),"reason_id":null,"reason_name":\(reason),
          "lots":[{"purchase_id":"ab000000-0000-4000-8000-000000000001","purchase_number":"P-9","hours":"3.00"}],"evidence_attachment_ids":[],
-         "changeover_id":null,"classification_id":null,"correction_group_id":\(group.map { "\"\($0.uuidString.lowercased())\"" } ?? "null"),
+         "classification_id":null,"correction_group_id":\(group.map { "\"\($0.uuidString.lowercased())\"" } ?? "null"),
          "correction_reason":"Wrong customer","supersedes_id":"\(originalID.uuidString.lowercased())","superseded_at":null,
          "recorded_by":"\(sender.uuidString.lowercased())","recorded_by_name":"Asha","decided_at":null,"decided_by":null,"decision_note":null,
          "meter_epoch":1,"policy_version":"v1","reading_review":"NONE","created_at":"2026-11-08T07:00:00Z"}
@@ -63,7 +63,7 @@ struct DailyReportOwnerTests {
         #expect(figures[T.machine] == "EX-01 · Excavator" && figures[T.total] == "10.5 h" && figures[T.notAccounted] == "0.5 h")
         #expect(figures[T.submittedBy] == "Asha" && figures[T.submitted] == "7 Nov 2026, 18:00" && figures[T.note] == nil)
         #expect(AllocationPresentation.reasons(r) == [DecisionField(label: "Rain", value: "2.5 h")])
-        #expect(AllocationPresentation.allocations(r) == [DecisionField(label: "Customer work", value: "8 h · Acme · J-12"),
+        #expect(AllocationPresentation.allocations(r) == [DecisionField(label: "Customer work", value: "8 h · Acme"),
                                                           DecisionField(label: "Unexplained", value: "2.5 h")])
         let none = try Self.decoded(Self.report())
         #expect(!AllocationPresentation.figures(none, timeZone: utc).contains { $0.label == T.notAccounted })
@@ -96,7 +96,7 @@ struct DailyReportOwnerTests {
 
     @Test func correctionsListOneRowPerGroup() throws {
         let other = UUID()
-        let page = try Self.page([Self.entry(hours: "3.00"), Self.entry(kind: "UNEXPLAINED", hours: "1.25", customer: "null", job: "null"),
+        let page = try Self.page([Self.entry(hours: "3.00"), Self.entry(kind: "UNEXPLAINED", hours: "1.25", customer: "null"),
                                   Self.entry(hours: "2.00", group: other)])
         let rows = PendingDecision.list(page, kind: .allocationCorrection)
         #expect(rows.map(\.recordID) == [Self.groupID, other])
@@ -107,15 +107,15 @@ struct DailyReportOwnerTests {
     @Test func aCorrectionShowsItsParts() throws {
         let json = """
         {"group_id":"\(Self.groupID.uuidString.lowercased())","status":"PROPOSED","supersedes_id":"\(Self.originalID.uuidString.lowercased())",
-         "entries":[\(Self.entry()),\(Self.entry(kind: "AUTHORIZED_ACTIVITY", hours: "1.00", customer: "null", job: "null", activity: #""MOBILIZATION""#)),
-         \(Self.entry(kind: "UNEXPLAINED", hours: "0.50", customer: "null", job: "null"))]}
+         "entries":[\(Self.entry()),\(Self.entry(kind: "AUTHORIZED_ACTIVITY", hours: "1.00", customer: "null", reason: #""Transit between sites""#)),
+         \(Self.entry(kind: "UNEXPLAINED", hours: "0.50", customer: "null"))]}
         """
         let value = try JSONValue.parse(json)
         let item = try #require(PendingDecision.from(value, kind: .allocationCorrection, timeZone: utc))
         #expect(item.recordID == Self.groupID && item.status == "PROPOSED" && item.machineID == Self.machineID)
         let parts = item.fields.filter { $0.label.hasPrefix("Proposed: ") }
-        #expect(parts == [DecisionField(label: "Proposed: Customer work", value: "3 h · Acme · J-12"),
-                          DecisionField(label: "Proposed: Authorized activity", value: "1 h · Mobilization"),
+        #expect(parts == [DecisionField(label: "Proposed: Customer work", value: "3 h · Acme"),
+                          DecisionField(label: "Proposed: Authorized activity", value: "1 h · Transit between sites"),
                           DecisionField(label: "Proposed: Unexplained", value: "0.5 h")])
         #expect(item.reasonLine == "Wrong customer")
     }
@@ -146,9 +146,9 @@ struct DailyReportOwnerTests {
     @Test func allocationEntriesAndDay() throws {
         let a = try AssetaJSON.decoder().decode(WorkAllocationDTO.self, from: Data(Self.entry().utf8))
         #expect(AllocationPresentation.entryLine(a) == "100 → 103 · 3 h" && AllocationPresentation.lots(a) == ["From P-9: 3 h"])
-        #expect(AllocationPresentation.who(a) == "Acme · J-12")
+        #expect(AllocationPresentation.who(a) == "Acme")
         let authorized = try AssetaJSON.decoder().decode(WorkAllocationDTO.self, from: Data(
-            Self.entry(kind: "AUTHORIZED_ACTIVITY", customer: "null", job: "null", reason: #""Road repair""#, activity: #""WORK""#).utf8))
+            Self.entry(kind: "AUTHORIZED_ACTIVITY", customer: "null", reason: #""Road repair""#).utf8))
         #expect(AllocationPresentation.who(authorized) == "Road repair")
         let day = try AssetaJSON.decoder().decode(AllocationDayDTO.self, from: Data("""
         {"machine_id":"\(Self.machineID.uuidString.lowercased())","day":"2026-11-07","total_engine_hours":"10.00","customer_hours":"6.00","authorized_hours":"3.00",
@@ -179,16 +179,18 @@ struct DailyReportOwnerTests {
         #expect(OwnerRoute.dailyReport(report).identifiesRecord)
     }
 
-    @Test func machineDaysOpenWithMeterReadWhenRevenueChecksAreOff() throws {
-        let m = Self.machineID, day = OwnerRoute.dailySheetDay(m, "2026-11-07")
-        let meterOnly = OwnerFeatures(permissions: ["tenant.meter.read", "tenant.fleet.read"],
-                                      disabledCapabilities: [TenantCapability.revenueReconciliation])
-        #expect(!meterOnly.revenueRead && meterOnly.machineDays)
-        #expect(meterOnly.allows(.dailySheet(m)) && meterOnly.allows(day) && meterOnly.route(day) == day)
+    @Test func machineDaysOpenWithMeterRead() throws {
+        let m = Self.machineID, day = OwnerRoute.machineDay(m, "2026-11-07")
+        let meterOnly = OwnerFeatures(permissions: ["tenant.meter.read", "tenant.fleet.read"])
+        #expect(meterOnly.allocationsRead)
+        #expect(meterOnly.allows(.machineDays(m)) && meterOnly.allows(day) && meterOnly.route(day) == day)
+        #expect(day.identifiesRecord && !OwnerRoute.machineDays(m).identifiesRecord)
         let off = OwnerFeatures(permissions: ["tenant.meter.read", "tenant.fleet.read"],
-                                disabledCapabilities: [TenantCapability.revenueReconciliation, TenantCapability.engineHours])
-        #expect(!off.machineDays && !off.allows(day) && off.route(day) == .machine(m))
-        #expect(!OwnerFeatures(permissions: ["tenant.fleet.read"]).machineDays)
+                                disabledCapabilities: [TenantCapability.engineHours])
+        #expect(!off.allocationsRead && !off.allows(day) && off.route(day) == .machine(m))
+        #expect(!OwnerFeatures(permissions: ["tenant.fleet.read"]).allocationsRead)
+        let range = DailyReportOwnerTexts.machineDaysRange(now: Date(timeIntervalSince1970: 1_794_000_000), timeZone: TimeZone(identifier: "UTC")!)
+        #expect(range == (from: "2026-10-24", to: "2026-11-06") && DailyReportOwnerTexts.machineDays == "Machine days")
         let request = OwnerAPI.allocationDays(machineID: m, from: "2026-10-25", to: "2026-11-07")
         #expect(request.path == "/api/v1/tenant/work-allocations/reconciliation")
         #expect(request.queryItems.contains(URLQueryItem(name: "from", value: "2026-10-25")))

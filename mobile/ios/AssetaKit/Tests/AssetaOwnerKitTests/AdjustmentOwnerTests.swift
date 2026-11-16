@@ -154,10 +154,9 @@ struct AdjustmentOwnerTests {
         #expect(!accountant.nothingWaiting(waiting: [:]))
         #expect(accountant.nothingWaiting(waiting: [.adjustmentRequest: 0]))
         #expect(!accountant.nothingWaiting(waiting: [.adjustmentRequest: 1]))
+        // Revenue checks are gone (ADR-008): a former revenue permission adds nothing to wait for.
         let revenue = OwnerFeatures(permissions: [AdjustmentPermission.read, "tenant.revenue.read"])
-        #expect(!revenue.nothingWaiting(waiting: revenue.decisionKinds.reduce(into: [:]) { $0[$1] = 0 }, revenueWaiting: 2))
-        #expect(!revenue.nothingWaiting(waiting: revenue.decisionKinds.reduce(into: [:]) { $0[$1] = 0 }, revenueWaiting: nil))
-        #expect(revenue.nothingWaiting(waiting: revenue.decisionKinds.reduce(into: [:]) { $0[$1] = 0 }, revenueWaiting: 0))
+        #expect(revenue.nothingWaiting(waiting: revenue.decisionKinds.reduce(into: [:]) { $0[$1] = 0 }))
         #expect(!OwnerFeatures(permissions: [AdjustmentPermission.read, "tenant.approval.read"]).nothingWaiting(waiting: [.adjustmentRequest: 0]))
         #expect(!OwnerFeatures(permissions: [AdjustmentPermission.read, "tenant.finance.read"]).nothingWaiting(waiting: [.adjustmentRequest: 0]))
     }
@@ -222,14 +221,14 @@ struct AdjustmentOwnerTests {
         {"customer_id":"b6000000-0000-4000-8000-000000000001","customer_name":"Acme","machine_id":null,"date_from":"2026-11-01","date_to":"2026-11-08",
          "timezone":"UTC","generated_at":"2026-11-08T10:00:00Z","pdf_path":"/x.pdf","purchases":[],"usage":[],"lines":[\(lines)],
          "totals":{"opening_balance":"0","bought":"10","activated":"10","used":"2","transferred_in":"0","transferred_out":"0","expired":"0","cancelled":"0",
-         "closing_balance":"8","provisional_at_close":"0","awaiting_activation":"0"\(totals)}}
+         "closing_balance":"8","awaiting_activation":"0"\(totals)}}
         """
     }
 
     static func line(_ type: String, hours: String, at: String, reason: String) -> String {
         """
         {"entry_id":"\(UUID().uuidString.lowercased())","day":"\(at.prefix(10))","occurred_at":"\(at)","entry_type":"\(type)","purchase_id":"b5000000-0000-4000-8000-000000000001",
-         "purchase_number":"P-12","machine_id":"\(machine.uuidString.lowercased())","job_id":null,"hours":"\(hours)","balance_after":"5","reason":"\(reason)"}
+         "purchase_number":"P-12","machine_id":"\(machine.uuidString.lowercased())","hours":"\(hours)","balance_after":"5","reason":"\(reason)"}
         """
     }
 
@@ -237,7 +236,7 @@ struct AdjustmentOwnerTests {
         let decoder = AssetaJSON.decoder()
         let empty = try decoder.decode(HoursStatementDTO.self, from: Data(Self.statement(totals: "", lines: "").utf8))
         #expect(empty.totals.refunded.value == 0 && CustomerHoursPresentation.adjustmentLines(empty).isEmpty)
-        let lines = [Self.line("CONSUMED", hours: "-1", at: "2026-11-02T08:00:00Z", reason: "Job"),
+        let lines = [Self.line("CONSUMED", hours: "-1", at: "2026-11-02T08:00:00Z", reason: "Machine report"),
                      Self.line("CORRECTION_ADD", hours: "2", at: "2026-11-03T08:00:00Z", reason: "Fix"),
                      Self.line("REFUNDED", hours: "-1", at: "2026-11-05T08:00:00Z", reason: "Unused")].joined(separator: ",")
         let s = try decoder.decode(HoursStatementDTO.self, from: Data(Self.statement(totals: #","refunded":"1","corrected":"2""#, lines: lines).utf8))

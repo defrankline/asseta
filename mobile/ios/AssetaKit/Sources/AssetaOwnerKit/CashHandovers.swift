@@ -296,7 +296,11 @@ public enum FloatText {
     }
 
     /// The typed amount: a plain positive decimal (`50000`, `50,000.50`), else nil.
-    public static func parseAmount(_ text: String) -> Decimal? { JobApprovalText.parseRate(text) }
+    public static func parseAmount(_ text: String) -> Decimal? {
+        let cleaned = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: "")
+        guard let value = DecimalString(string: cleaned)?.value, value > 0 else { return nil }
+        return value
+    }
 
     public static func canIssue(amount: String, note: String) -> Bool {
         parseAmount(amount) != nil && note.trimmingCharacters(in: .whitespacesAndNewlines).count <= HandoverText.maxNoteLength

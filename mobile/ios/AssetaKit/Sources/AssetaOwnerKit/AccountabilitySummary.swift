@@ -22,10 +22,7 @@ public struct AccountabilitySummaryDTO: Codable, Hashable, Sendable {
     public let discrepancies: Discrepancies?
     public let unauthorizedAttempts: Attempts?
     public let outstandingApprovals: Approvals?
-    /// DEC-031 R3 revenue differences tile (open object, read leniently).
-    public let revenueDifferences: JSONValue?
-    /// DEC-031 Phase 5 tiles (open objects, read leniently).
-    public let unbilledWork: JSONValue?
+    /// DEC-031 Phase 5 idle machines tile (open object, read leniently).
     public let idleMachines: JSONValue?
     /// DEC-032 Phase 4 management view: the period asked for and the four sections (nil when hidden or from an older
     /// server; a section that does not decode is left out rather than failing the dashboard).
@@ -170,8 +167,7 @@ public struct AccountabilitySummaryDTO: Codable, Hashable, Sendable {
         case hoursAwaitingActivation = "hours_awaiting_activation", engineHours = "engine_hours"
         case unexplainedHours = "unexplained_hours", missingDailyReports = "missing_daily_reports"
         case unauthorizedAttempts = "unauthorized_attempts", outstandingApprovals = "outstanding_approvals"
-        case revenueDifferences = "revenue_differences"
-        case unbilledWork = "unbilled_work", idleMachines = "idle_machines"
+        case idleMachines = "idle_machines"
         case period, hoursSection = "hours_section", operationsSection = "operations_section"
         case cashSection = "cash_section", exceptionsSection = "exceptions_section"
     }
@@ -192,8 +188,6 @@ public struct AccountabilitySummaryDTO: Codable, Hashable, Sendable {
         engineHours = open(.engineHours)
         unexplainedHours = open(.unexplainedHours)
         missingDailyReports = open(.missingDailyReports)
-        revenueDifferences = open(.revenueDifferences)
-        unbilledWork = open(.unbilledWork)
         idleMachines = open(.idleMachines)
         // A tile that does not decode is left out rather than failing the whole dashboard.
         investigations = (try? c.decodeIfPresent(Investigations.self, forKey: .investigations)) ?? nil
@@ -259,7 +253,7 @@ public enum AccountabilityDashboard {
     /// rows (follow-up F1, as Android): CUSTOMER_HOURS the customer-hours tiles, ENGINE_HOURS the engine-hour tiles,
     /// CASH_CUSTODY the custody additions (transfers, floats to acknowledge, partial and overdue remittances,
     /// retentions, adjustments, write-offs, variances); the cash basics stay.
-    public static func tiles(_ s: AccountabilitySummaryDTO, disabled: Set<String> = [], revenueRead: Bool = true,
+    public static func tiles(_ s: AccountabilitySummaryDTO, disabled: Set<String> = [],
                              timeZone: TimeZone = .current) -> [DashboardTile] {
         let off = disabled.union(s.disabledCapabilities)
         let customerHours = !off.contains(TenantCapability.customerHours)
@@ -365,7 +359,7 @@ public enum AccountabilityDashboard {
                     rows.append(.init(item["machine_code"]?.stringValue ?? "—", line))
                 }
             }
-            out.append(DashboardTile(id: "unexplained_hours", title: T.dashUnexplained, rows: rows, route: .exceptions(jobID: nil),
+            out.append(DashboardTile(id: "unexplained_hours", title: T.dashUnexplained, rows: rows, route: .exceptions,
                                      footer: atRisk.isEmpty ? nil : DailyReportOwnerTexts.valueAtRiskFooter))
         }
         if engineOn, let m = s.missingDailyReports {
@@ -378,8 +372,7 @@ public enum AccountabilityDashboard {
             }
             out.append(DashboardTile(id: "missing_daily_reports", title: T.dashMissingReports, rows: rows, route: nil))
         }
-        if let revenue = revenueTile(s.revenueDifferences, off: off, revenueRead: revenueRead) { out.append(revenue) }
-        out += OversightPresentation.tiles(unbilled: s.unbilledWork, idle: s.idleMachines, off: off)
+        out += OversightPresentation.tiles(idle: s.idleMachines, off: off)
         return out
     }
 

@@ -100,7 +100,6 @@ public enum OwnerAccountabilityTexts {
     // Gap pass (names, records, overdue remittances)
     public static let fieldCustomer = "Customer" // owner.field.customer
     public static let fieldPurchase = "Purchase" // owner.field.purchase
-    public static let fieldJob = "Job" // owner.field.job
     public static let fieldCustodian = "Cash held by" // owner.field.custodian
     public static let fieldCounterparty = "Other custodian" // owner.field.counterparty
     public static let fieldRequestedBy = "Requested by" // owner.field.requestedBy

@@ -8,7 +8,7 @@ import SwiftUI
 enum MoreItem: Hashable { case setup, approvals, accountability, findReference, customerHours, scorecard, exceptions, fieldSpend, cash, investigations, notifications, settings }
 
 /// Owner home for one tenant (ADR-008): a sliding side menu over Home, one navigation stack, deep links from notification
-/// taps, offline/stale state. The Jobs tab is gone; every other screen stays reachable (side menu, Home tiles, More).
+/// taps, offline/stale state. Every screen stays reachable (side menu, Home tiles, More).
 public struct OwnerRootView: View {
     @State private var model: OwnerModel
     @State private var path = NavigationPath()
@@ -114,7 +114,7 @@ public struct OwnerRootView: View {
     }
 
     /// Opens a route under the screen it belongs to (a capability the tenant switched off falls back to its list,
-    /// follow-up F1; jobs are gone, so their links open the inbox).
+    /// follow-up F1; anything else the role cannot open goes to the inbox).
     private func navigate(to link: OwnerRoute) {
         let route = model.features.route(link)
         let f = model.features
@@ -123,7 +123,7 @@ public struct OwnerRootView: View {
         switch route {
         case .overview: break
         case .fleet where f.fleet: append(OwnerScreen.machines)
-        case .machine where f.fleet, .dailySheet where f.allows(route), .dailySheetDay where f.allows(route):
+        case .machine where f.fleet, .machineDays where f.allows(route), .machineDay where f.allows(route):
             append(OwnerScreen.machines); append(route)
         case .machineReport where f.machineReports: append(OwnerScreen.approvals); append(route)
         case .approvals: append(OwnerScreen.approvals)
@@ -132,7 +132,7 @@ public struct OwnerRootView: View {
         case let .decision(kind, _) where f.decisionKinds.contains(kind):
             append(OwnerScreen.approvals); append(route)
         case .handover where f.finance, .customerPayment where f.finance, .pettyCashMovement where f.pettyCashRead,
-             .pettyCashAdjustment where f.pettyCashRead, .revenueDifference where f.allows(route), .dailyReport where f.allows(route):
+             .pettyCashAdjustment where f.pettyCashRead, .dailyReport where f.allows(route):
             append(OwnerScreen.approvals); append(route)
         case .customerHours where f.allows(route): append(OwnerScreen.customers)
         case .hoursPurchase where f.allows(route), .hoursStatement where f.allows(route):
@@ -141,7 +141,6 @@ public struct OwnerRootView: View {
         case .cashTransfer where f.allows(route), .cashFloat where f.allows(route), .overdueRemittances where f.allows(route),
              .overdueRemittance where f.allows(route):
             append(OwnerScreen.money); append(route)
-        case .jobs, .job: append(OwnerRoute.notifications)
         case .setupChecklist where !f.setupRead: break
         default:
             append(f.allows(route) ? route : OwnerRoute.notifications)
@@ -163,8 +162,7 @@ struct RouteView: View {
         case let .approval(id): ApprovalDetailView(model: model, approvalID: id)
         case .approvals: ApprovalsView(model: model)
         case let .investigation(id): CaseDetailView(model: model, caseID: id)
-        case let .job(id): JobDetailView(model: model, jobID: id)
-        case let .exceptions(jobID): ExceptionsView(model: model, jobID: jobID)
+        case .exceptions: ExceptionsView(model: model)
         case .fieldSpend: FieldSpendView(model: model)
         case .cash: CashView(model: model)
         case let .meterReset(id): MeterResetDetailView(model: model, resetID: id)
@@ -176,7 +174,6 @@ struct RouteView: View {
         case let .notification(id): NotificationResolverView(model: model, notificationID: id)
         case .notifications: NotificationsView(model: model)
         case .fleet: FleetView(model: model)
-        case .jobs: JobsView(model: model)
         case .investigations: CasesView(model: model)
         case let .decision(kind, id): DecisionDetailView(model: model, kind: kind, recordID: id)
         case .accountability: AccountabilityDashboardView(model: model)
@@ -184,18 +181,13 @@ struct RouteView: View {
         case let .cashFloat(id): CashFloatRecordView(model: model, floatID: id)
         case .overdueRemittances: OverdueRemittancesView(model: model)
         case let .overdueRemittance(id): OverdueRemittanceView(model: model, overdueID: id)
-        case let .revenueDifference(id): RevenueDifferenceView(model: model, differenceID: id)
-        // With revenue checks off (or not readable) a machine's days show the allocations alone (DEC-032).
-        case let .dailySheet(machine) where !model.features.revenueRead: LedgerDaysView(model: model, machineID: machine)
-        case let .dailySheetDay(machine, day) where !model.features.revenueRead: LedgerDayView(model: model, machineID: machine, day: day)
-        case let .dailySheet(machine): DailySheetView(model: model, machineID: machine)
-        case let .dailySheetDay(machine, day): DailySheetDayView(model: model, machineID: machine, day: day)
+        case let .machineDays(machine): LedgerDaysView(model: model, machineID: machine)
+        case let .machineDay(machine, day): LedgerDayView(model: model, machineID: machine, day: day)
         case let .hoursPurchase(id): HoursPurchaseView(model: model, purchaseID: id)
         case .customerHours: CustomerHoursView(model: model)
         case let .hoursStatement(customer, name): HoursStatementView(model: model, customerID: customer, customerName: name)
         case .scorecard: ScorecardView(model: model)
         case let .scorecardPerson(id, name, from, to): ScorecardPersonView(model: model, staffID: id, name: name, from: from, to: to)
-        case .unbilledWork: UnbilledWorkView(model: model)
         case .idleMachines: IdleMachinesView(model: model)
         case .setupChecklist: SetupChecklistView(model: model)
         case let .dailyReport(id): DailyReportReviewView(model: model, reportID: id)
@@ -218,7 +210,7 @@ struct MoreDestination: View {
         case .findReference: FindReferenceView(model: model)
         case .customerHours: CustomerHoursView(model: model)
         case .scorecard: ScorecardView(model: model)
-        case .exceptions: ExceptionsView(model: model, jobID: nil)
+        case .exceptions: ExceptionsView(model: model)
         case .fieldSpend: FieldSpendView(model: model)
         case .cash: CashView(model: model)
         case .investigations: CasesView(model: model)

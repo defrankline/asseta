@@ -47,7 +47,8 @@ struct DeepLinkTests {
         #expect(DeepLinkParser.route(entity: "alert", id: id.uuidString, path: "/tenant/alerts") == .alert(id))
         #expect(DeepLinkParser.route(entity: "approval", id: id.uuidString, path: nil) == .approval(id))
         #expect(DeepLinkParser.route(entity: "case", id: id.uuidString, path: nil) == .investigation(id))
-        #expect(DeepLinkParser.route(entity: "job", id: id.uuidString, path: nil) == .job(id))
+        #expect(DeepLinkParser.route(entity: "job", id: id.uuidString, path: nil) == nil) // jobs are gone (ADR-008)
+        #expect(DeepLinkParser.route(entity: "meter_exception", id: id.uuidString, path: nil) == .exception(id))
         #expect(DeepLinkParser.route(entity: "machine", id: id.uuidString, path: nil) == .machine(id))
         #expect(DeepLinkParser.route(entity: "subscription", id: nil, path: "/tenant/subscription") == nil)
         let note = try AssetaJSON.decoder().decode(NotificationDTO.self,
@@ -57,7 +58,8 @@ struct DeepLinkTests {
 
     @Test func consolePathsMapToScreens() {
         #expect(DeepLinkParser.route(path: "/tenant/cases/\(id.uuidString)") == .investigation(id))
-        #expect(DeepLinkParser.route(path: "/tenant/jobs/\(id.uuidString)?tab=summary") == .job(id))
+        #expect(DeepLinkParser.route(path: "/tenant/jobs/\(id.uuidString)?tab=summary") == nil)
+        #expect(DeepLinkParser.route(path: "/tenant/machine-reports/\(id.uuidString)") == .machineReport(id))
         #expect(DeepLinkParser.route(path: "/tenant/alerts") == .alerts)
         #expect(DeepLinkParser.route(path: "/tenant/approvals") == .approvals)
         #expect(DeepLinkParser.route(path: "/tenant/fleet/machines/\(id.uuidString)") == .machine(id))

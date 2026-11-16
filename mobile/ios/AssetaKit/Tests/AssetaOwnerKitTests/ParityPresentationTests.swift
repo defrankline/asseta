@@ -14,7 +14,7 @@ struct ParityPresentationTests {
          "fleet":{"machines":5,"connectivity":{"live":2,"recent":1,"stale":1,"offline":1,"never":0,"no_tracker":0},
            "engine_on_verified":2,"open_alerts":{"critical":1,"warning":2,"info":0},"reported_work_state":{"WORKING":3},
            "latest_source_at":"2026-10-22T08:05:00Z"},
-         "work":{"jobs_by_status":{"APPROVED":1,"IN_PROGRESS":2},"pending_approvals":1,"open_exceptions":0,
+         "work":{"machine_reports_by_status":{"SUBMITTED":1,"APPROVED":2,"REJECTED":0},"pending_approvals":1,"open_exceptions":0,
            "readings_needing_review":2},
          "money":{"month_start":"2026-10-01","currencies":[]},
          "risk":{"open_cases":{"critical":0,"warning":1,"info":0},"signals_last_7_days":{"critical":0,"warning":0,"info":3}}}
@@ -34,7 +34,7 @@ struct ParityPresentationTests {
     @Test func overviewSectionsLabelsAndLinks() throws {
         let o = try overview()
         let sections = OverviewPresentation.sections(o, cached: false, now: now)
-        #expect(sections.map(\.title) == ["Fleet", "Jobs and work", "Money (month from 2026-10-01)", "Investigations and signals"])
+        #expect(sections.map(\.title) == ["Fleet", "Approvals and readings", "Money (month from 2026-10-01)", "Investigations and signals"])
         let fleet = sections[0].groups[0].rows
         #expect(fleet.map(\.label) == ["Machines", "Live now", "Recent", "Stale", "Offline", "Never reported", "No tracker",
                                        "Engine on (tracker verified)", "Reported working", "Open alerts"])
@@ -43,7 +43,8 @@ struct ParityPresentationTests {
         #expect(alerts.tone == .critical && alerts.route == .alerts)
         #expect(sections[0].freshness == "Source data updated 5 min ago")
         #expect(sections[1].groups[0].rows.map(\.label)
-            == ["In progress", "Approved", "Pending approvals", "Readings needing review", "Open meter exceptions"])
+            == ["Pending approvals", "Readings needing review", "Open meter exceptions"])
+        #expect(sections[1].actions.isEmpty)
         #expect(sections[2].emptyText == "No financial activity this month.")
         #expect(sections[3].groups[0].rows.map(\.label) == ["Open investigations", "Signals (last 7 days)"])
         #expect(sections[3].freshness == "No source data yet")
@@ -88,8 +89,6 @@ struct ParityPresentationTests {
     }
 
     @Test func listFiltersOrderingAndDecisionRules() throws {
-        #expect(JobsPresentation.filters.map(\.1) == ["In progress", "Approved", "Pending approval", "Completed", "Cancelled", "All"])
-        #expect(JobsPresentation.defaultFilter == .inProgress)
         #expect(AlertText.filters.map(\.1) == ["Open", "Acknowledged", "Resolved", "All"])
         let decoder = AssetaJSON.decoder()
         let info = try decoder.decode(AlertDTO.self, from: Data(Samples.alertJSON(severity: "INFO").utf8))
@@ -107,7 +106,7 @@ struct ParityPresentationTests {
 
     @Test func listRoutesFromConsolePaths() {
         #expect(DeepLinkParser.route(path: "/tenant/cases") == .investigations)
-        #expect(DeepLinkParser.route(path: "/tenant/jobs") == .jobs)
+        #expect(DeepLinkParser.route(path: "/tenant/jobs") == nil)
         #expect(DeepLinkParser.route(path: "/tenant/fleet") == .fleet)
         #expect(!OwnerRoute.fleet.identifiesRecord)
     }
@@ -122,15 +121,10 @@ struct ParityPresentationTests {
         """.utf8))
         #expect(machine.modelLine == "CAT 320 2019")
         let expense = try decoder.decode(ExpenseDTO.self, from: Data("""
-        {"id":"\(Samples.job)","amount":"150000.0000","currency":"TZS","description":"Fuel","status":"SUBMITTED",
+        {"id":"bbbbbbbb-0000-4000-8000-000000000001","amount":"150000.0000","currency":"TZS","description":"Fuel","status":"SUBMITTED",
          "incurred_at":"2026-10-22T08:00:00Z","paid_from":"PETTY_CASH","supplier":null,
          "receipt_attachment_ids":["\(Samples.machine)"]}
         """.utf8))
         #expect(expense.receiptAttachmentIDs.count == 1 && expense.supplier == nil)
-        let ack = try decoder.decode(AcknowledgementDTO.self, from: Data("""
-        {"id":"\(Samples.job)","method":"SIGNATURE","signer_name":"Juma","signer_phone":null,
-         "signature_attachment_id":null,"acknowledged_hours":"8.5000","captured_at":"2026-10-22T08:00:00Z"}
-        """.utf8))
-        #expect(ack.signerName == "Juma" && OwnerFormat.hours(ack.acknowledgedHours, locale: Locale(identifier: "en_US")) == "8.5 h")
     }
 }

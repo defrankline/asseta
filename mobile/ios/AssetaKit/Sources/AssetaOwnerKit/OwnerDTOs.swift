@@ -28,7 +28,7 @@ public struct OwnerMachineDTO: Codable, Hashable, Sendable, Identifiable {
 }
 
 /// `GET /tenant/expenses/{id}` (the expense behind an approval, fetched on demand) and `GET /tenant/expenses`
-/// (job detail and Field spend lists, cached).
+/// (Field spend lists, cached).
 public struct ExpenseDTO: Codable, Hashable, Sendable, Identifiable {
     public let id: UUID
     public let amount: DecimalString
@@ -40,7 +40,6 @@ public struct ExpenseDTO: Codable, Hashable, Sendable, Identifiable {
     public let supplier: String?
     public let receiptAttachmentIDs: [UUID]
     public let decisionNote: String?
-    public let jobID: UUID?
     public let machineID: UUID?
     public let custodianStaffID: UUID?
     public let receiptRequired: Bool
@@ -52,7 +51,7 @@ public struct ExpenseDTO: Codable, Hashable, Sendable, Identifiable {
         case controlFlags = "control_flags", pettyCashFundID = "petty_cash_fund_id"
         case id, amount, currency, description, status, supplier
         case incurredAt = "incurred_at", paidFrom = "paid_from", receiptAttachmentIDs = "receipt_attachment_ids"
-        case decisionNote = "decision_note", jobID = "job_id", machineID = "machine_id"
+        case decisionNote = "decision_note", machineID = "machine_id"
         case custodianStaffID = "custodian_staff_id", receiptRequired = "receipt_required"
     }
 
@@ -68,42 +67,11 @@ public struct ExpenseDTO: Codable, Hashable, Sendable, Identifiable {
         supplier = try c.decodeIfPresent(String.self, forKey: .supplier)
         receiptAttachmentIDs = try c.decodeIfPresent([UUID].self, forKey: .receiptAttachmentIDs) ?? []
         decisionNote = try c.decodeIfPresent(String.self, forKey: .decisionNote)
-        jobID = try c.decodeIfPresent(UUID.self, forKey: .jobID)
         machineID = try c.decodeIfPresent(UUID.self, forKey: .machineID)
         custodianStaffID = try c.decodeIfPresent(UUID.self, forKey: .custodianStaffID)
         receiptRequired = try c.decodeIfPresent(Bool.self, forKey: .receiptRequired) ?? false
         controlFlags = try c.decodeIfPresent([String].self, forKey: .controlFlags) ?? []
         pettyCashFundID = try c.decodeIfPresent(UUID.self, forKey: .pettyCashFundID)
-    }
-}
-
-/// `GET /tenant/jobs/{id}/acknowledgements`: the customer's sign-off of the hours.
-public struct AcknowledgementDTO: Codable, Hashable, Sendable, Identifiable {
-    public let id: UUID
-    public let method: String
-    public let signerName: String
-    public let capturedAt: Date
-    public let acknowledgedHours: DecimalString?
-    public let signatureAttachmentID: UUID?
-
-    enum CodingKeys: String, CodingKey {
-        case id, method, signerName = "signer_name", capturedAt = "captured_at"
-        case acknowledgedHours = "acknowledged_hours", signatureAttachmentID = "signature_attachment_id"
-    }
-}
-
-/// `GET /tenant/jobs/{id}/activities`: the job's work log (work, standby, downtime, …).
-public struct ActivityDTO: Codable, Hashable, Sendable, Identifiable {
-    public let id: UUID
-    public let activityType: String
-    public let startedAt: Date
-    public let endedAt: Date?
-    public let billable: Bool
-    public let note: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id, billable, note
-        case activityType = "activity_type", startedAt = "started_at", endedAt = "ended_at"
     }
 }
 
@@ -116,7 +84,6 @@ public struct FuelEventDTO: Codable, Hashable, Sendable, Identifiable {
     public let attributedCost: DecimalString
     public let currency: String
     public let machineID: UUID?
-    public let jobID: UUID?
     public let expenseID: UUID?
     public let meterReading: DecimalString?
     public let supplier: String?
@@ -127,7 +94,7 @@ public struct FuelEventDTO: Codable, Hashable, Sendable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, litres, currency, supplier, note, source
         case eventType = "event_type", unitPrice = "unit_price", attributedCost = "attributed_cost"
-        case machineID = "machine_id", jobID = "job_id", expenseID = "expense_id", meterReading = "meter_reading"
+        case machineID = "machine_id", expenseID = "expense_id", meterReading = "meter_reading"
         case occurredAt = "occurred_at"
     }
 }
@@ -135,7 +102,6 @@ public struct FuelEventDTO: Codable, Hashable, Sendable, Identifiable {
 /// `GET /tenant/exceptions`: a meter exception raised on a reading.
 public struct MeterExceptionDTO: Codable, Hashable, Sendable, Identifiable {
     public let id: UUID
-    public let jobID: UUID?
     public let machineID: UUID
     public let exceptionType: String
     public let severity: String
@@ -149,7 +115,7 @@ public struct MeterExceptionDTO: Codable, Hashable, Sendable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case id, severity, blocking, status, evidence
-        case jobID = "job_id", machineID = "machine_id", exceptionType = "exception_type", reviewNote = "review_note"
+        case machineID = "machine_id", exceptionType = "exception_type", reviewNote = "review_note"
         case reviewedAt = "reviewed_at", createdAt = "created_at"
     }
 }

@@ -80,9 +80,6 @@ struct CaseDetailView: View {
                     if let machine = item.machineID, model.features.fleet {
                         NavigationLink(value: OwnerRoute.machine(machine)) { Text("Open machine") }
                     }
-                    if let job = item.jobID, model.features.jobs {
-                        NavigationLink(value: OwnerRoute.job(job)) { Text("Open job") }
-                    }
                 } header: {
                     Text(item.title)
                 } footer: {

@@ -1,7 +1,7 @@
 import AssetaModel
 import Foundation
 
-// Screen content of the job work log, field spend (expenses and fuel), meter exceptions, cash with supervisors and
+// Screen content of field spend (expenses and fuel), meter exceptions, cash with supervisors and
 // meter reset decisions. The Android Owner app keeps the same strings and rules; `WorkAndSpendPresentationTests`
 // (both platforms) pin them. Change both.
 
@@ -18,8 +18,6 @@ public struct RecordRow: Equatable, Sendable {
     public var trailing: String?
     public var pills: [TextPill] = []
     public var note: String?
-    /// The job the record belongs to (the row opens it when the role can see jobs).
-    public var jobID: UUID?
     /// "To check: ..." (an expense's control flags, DEC-033), shown in the warning colour.
     public var checks: String?
 }
@@ -43,30 +41,6 @@ extension OwnerFormat {
     }
 }
 
-// MARK: - Job work log
-
-public enum WorkLogText {
-    public static let title = "Work log"
-    public static let empty = "No work logged yet."
-
-    /// Whole minutes between start and end (or `now` while ongoing) as hours: `2.5 h`.
-    public static func duration(from start: Date, to end: Date) -> String {
-        let minutes = max(0, Int(end.timeIntervalSince(start) / 60))
-        return "\(OwnerFormat.plain(Decimal(minutes) / 60)) h"
-    }
-
-    /// "Work" · "22 Oct 2026, 08:00 – 22 Oct 2026, 10:30 · 2.5 h" · Billable / Not billable.
-    public static func row(_ a: ActivityDTO, now: Date = Date(), timeZone: TimeZone = .current) -> RecordRow {
-        let end = a.endedAt.map { OwnerFormat.stamp($0, timeZone: timeZone) } ?? "ongoing"
-        return RecordRow(
-            title: OwnerFormat.humanize(a.activityType),
-            detail: "\(OwnerFormat.stamp(a.startedAt, timeZone: timeZone)) – \(end) · \(duration(from: a.startedAt, to: a.endedAt ?? now))",
-            pills: [a.billable ? TextPill(text: "Billable", tone: .good) : TextPill(text: "Not billable", tone: .muted)],
-            note: a.note
-        )
-    }
-}
-
 // MARK: - Field spend (expenses and fuel)
 
 public enum SpendText {
@@ -80,8 +54,6 @@ public enum SpendText {
     public static let defaultPendingOnly = false
     /// The server's `ExpenseStatus` value of an expense awaiting a decision.
     public static let pendingStatus = "PENDING_APPROVAL"
-    public static let jobExpensesEmpty = "No expenses on this job."
-    public static let jobFuelEmpty = "No fuel recorded on this job."
     public static let expensesEmpty = "No expenses yet."
     public static let fuelEmpty = "No fuel recorded yet."
 
@@ -101,7 +73,7 @@ public enum SpendText {
         RecordRow(title: e.description, detail: prefixed(e.supplier, OwnerFormat.date(e.incurredAt, timeZone: timeZone)),
                   trailing: money(e.amount, e.currency),
                   pills: [TextPill(text: OwnerFormat.humanize(e.status), tone: expenseTone(e.status))],
-                  note: e.decisionNote, jobID: e.jobID, checks: expenseChecks(e))
+                  note: e.decisionNote, checks: expenseChecks(e))
     }
 
     /// The expense's control flags in neutral words: "To check: <flag>; <flag>" (DEC-033), nil when none.
@@ -124,7 +96,7 @@ public enum SpendText {
         -> RecordRow {
         RecordRow(title: "\(OwnerFormat.humanize(f.eventType)) · \(f.litres.description) L",
                   detail: prefixed(f.supplier, OwnerFormat.date(f.occurredAt, timeZone: timeZone)),
-                  trailing: money(f.attributedCost, f.currency), jobID: f.jobID)
+                  trailing: money(f.attributedCost, f.currency))
     }
 
     static func prefixed(_ head: String?, _ text: String) -> String {
@@ -157,7 +129,7 @@ public enum ExceptionText {
         }
         return RecordRow(title: OwnerFormat.humanize(x.exceptionType),
                          detail: "\(OwnerFormat.humanize(x.severity)) · \(OwnerFormat.stamp(x.createdAt, timeZone: timeZone))",
-                         pills: pills, note: x.reviewNote, jobID: x.jobID)
+                         pills: pills, note: x.reviewNote)
     }
 }
 

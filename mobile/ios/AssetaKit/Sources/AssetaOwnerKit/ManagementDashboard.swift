@@ -151,8 +151,7 @@ public enum ManagementDashboard {
 
     static func exceptionsGroup(_ e: ExceptionsSectionDTO, _ f: OwnerFeatures, timeZone: TimeZone) -> ManagementGroup {
         let attempts = e.unauthorizedAttempts
-        let changeover = e.changeoverJobsAwaitingApproval
-        var main = [
+        let main: [ManagementRow] = [
             row("unexplained", T.excUnexplained, hours: e.unexplainedEngineHours, features: f),
             row("shortages", T.excShortages, money: e.shortages, features: f),
             row("overages", T.excOverages, money: e.overages, features: f),
@@ -164,15 +163,7 @@ public enum ManagementDashboard {
                           target: ManagementRoutes.target(attempts.route, features: f)),
             row("missingReports", T.excMissingReports, count: e.overdueReports.missingDailyReports, features: f),
             row("overdueRemittances", T.excOverdueRemittances, count: e.overdueReports.remittancesOverdueToday, features: f),
-            ManagementRow(id: "changeover", label: T.excChangeover, value: "\(changeover.count)",
-                          caption: changeover.oldestDays.map(T.excChangeoverCaption)),
         ]
-        main += changeover.items.map { job in
-            ManagementRow(id: "changeover.\(job.jobID)",
-                          label: T.excChangeoverRow(job: DisplayName.or(job.jobNumber, id: job.jobID), machine: DisplayName.or(job.machineCode ?? job.machineName, id: job.machineID),
-                                                    customer: DisplayName.or(job.customerName, id: job.customerID)),
-                          value: T.excChangeoverDays(job.daysWaiting), target: ManagementRoutes.target(job.route, features: f))
-        }
         var blocks = [ManagementBlock(rows: main)]
         let kinds = { (items: [KindCountDTO]) in items.map { k in
             ManagementRow(id: "kind.\(k.kind)", label: T.kind(k.kind), value: "\(k.count)",

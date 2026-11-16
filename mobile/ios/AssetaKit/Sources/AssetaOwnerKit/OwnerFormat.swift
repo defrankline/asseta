@@ -62,6 +62,25 @@ public enum OwnerFormat {
         return f.string(from: date)
     }
 
+    /// `2026-10-26` → `26 Oct 2026` (unchanged when it does not parse).
+    public static func day(_ wire: String) -> String {
+        let parse = DateFormatter()
+        parse.locale = Locale(identifier: "en_US_POSIX")
+        parse.timeZone = TimeZone(identifier: "UTC")
+        parse.dateFormat = "yyyy-MM-dd"
+        guard let date = parse.date(from: wire) else { return wire }
+        let out = DateFormatter()
+        out.locale = Locale(identifier: "en_US_POSIX")
+        out.timeZone = TimeZone(identifier: "UTC")
+        out.dateFormat = "d MMM yyyy"
+        return out.string(from: date)
+    }
+
+    /// `{from} – {to}` of two wire days, one date when equal.
+    public static func period(from: String, to: String) -> String {
+        from == to ? day(from) : "\(day(from)) – \(day(to))"
+    }
+
     /// Unread count on the bell, the More tab and the Notifications row: nil when nothing is unread, capped at
     /// `99+` (as `NavigationChrome.badge` on Android).
     public static func badge(_ count: Int?) -> String? {

@@ -36,7 +36,6 @@ public enum VarianceTexts {
     public static let customer = "Customer"
     public static let machine = "Machine"
     public static let purchase = "Purchase"
-    public static let job = "Job"
     public static let unitHours = "Hours"
     public static let remitNumber = "Remittance number"
     public static let remitEvidence = "Evidence"
@@ -131,7 +130,7 @@ public struct CashVarianceDTO: Codable, Hashable, Sendable, Identifiable {
     /// `PURCHASE_OVER_ACTIVATED`, `NEGATIVE_REMAINING`, `CONSUMPTION_MISMATCH`, `ALLOCATION_MISMATCH` (hours variances).
     public let checkCode: String?
     public let customerID: UUID?, customerName: String?, machineID: UUID?, machineCode: String?, machineName: String?
-    public let purchaseID: UUID?, purchaseNumber: String?, jobID: UUID?, jobNumber: String?
+    public let purchaseID: UUID?, purchaseNumber: String?
 
     /// More received than declared ("Surplus to explain"); without a kind a negative amount means the same.
     public var isSurplus: Bool { kind == "SURPLUS" || (kind == nil && amount.value < 0) }
@@ -154,7 +153,6 @@ public struct CashVarianceDTO: Codable, Hashable, Sendable, Identifiable {
         case evidenceAttachmentIDs = "evidence_attachment_ids", checkCode = "check_code"
         case customerID = "customer_id", customerName = "customer_name", machineID = "machine_id", machineCode = "machine_code"
         case machineName = "machine_name", purchaseID = "purchase_id", purchaseNumber = "purchase_number"
-        case jobID = "job_id", jobNumber = "job_number"
     }
 }
 
@@ -291,7 +289,6 @@ public enum VariancePresentation {
             (T.customer, who(v.customerName, v.customerID)),
             (T.machine, v.machineID.map { DisplayName.machine(code: v.machineCode, name: v.machineName, id: $0) }),
             (T.purchase, who(v.purchaseNumber, v.purchaseID)),
-            (T.job, who(v.jobNumber, v.jobID)),
             (O.fieldSource, OwnerFormat.humanize(v.sourceType)),
             (O.fieldDeclared, figure(v, v.declaredAmount)),
             (O.fieldReceived, figure(v, v.receivedAmount)),

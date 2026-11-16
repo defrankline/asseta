@@ -5,7 +5,6 @@ import Foundation
 public enum OwnerRoute: Hashable, Sendable {
     case overview
     case fleet
-    case jobs
     case investigations
     case machine(UUID)
     case alert(UUID)
@@ -13,9 +12,8 @@ public enum OwnerRoute: Hashable, Sendable {
     case approval(UUID)
     case approvals
     case investigation(UUID)
-    case job(UUID)
-    /// Meter exceptions, optionally only those of one job.
-    case exceptions(jobID: UUID?)
+    /// Meter exceptions.
+    case exceptions
     /// Expenses and fuel recorded in the field.
     case fieldSpend
     /// Cash held by supervisors.
@@ -46,12 +44,10 @@ public enum OwnerRoute: Hashable, Sendable {
     case overdueRemittances
     /// One overdue-remittance flag (read-only).
     case overdueRemittance(UUID)
-    /// One revenue difference (figures, explanation, decision; DEC-031 R3).
-    case revenueDifference(UUID)
-    /// One machine's daily machine sheet (last 14 days, read-only).
-    case dailySheet(UUID)
-    /// One machine on one tenant-local day (`YYYY-MM-DD`, read-only).
-    case dailySheetDay(UUID, String)
+    /// One machine's days of the work allocation ledger (last 14, read-only; DEC-032).
+    case machineDays(UUID)
+    /// One machine on one tenant-local day (`YYYY-MM-DD`): hours allocated and work allocations (read-only).
+    case machineDay(UUID, String)
     /// Open prepaid-hours purchases with hours left or in use (DEC-031 Phase 4, read-only).
     case customerHours
     /// One prepaid-hours purchase (HOURS_LOW_BALANCE / HOURS_EXPIRING / HOURS_EXPIRED notifications).
@@ -62,8 +58,6 @@ public enum OwnerRoute: Hashable, Sendable {
     case scorecard
     /// One person's scorecard for the local days `from`…`to` (nil: the default period); `name` shown until it loads.
     case scorecardPerson(UUID, name: String?, from: String?, to: String?)
-    /// Completed jobs not invoiced yet (read-only).
-    case unbilledWork
     /// Machines idle for a while (read-only).
     case idleMachines
     /// The go-live setup checklist (`/tenant/setup`).
@@ -110,11 +104,7 @@ public enum DeepLinkParser {
         case .meterBaseline: return .decision(.baseline, id)
         case .meterCorrection: return .decision(.correction, id)
         case .engineHoursClassification: return .decision(.classification, id)
-        case .revenueDifference: return .revenueDifference(id)
-        case .nonRevenueApproval: return .decision(.nonRevenue, id)
         case .hoursPurchase: return .hoursPurchase(id)
-        // DEC-031 Phase 5: UNBILLED_WORK names the job.
-        case .job: return .job(id)
         case .dailyReport: return .dailyReport(id)
         case .workAllocationCorrection: return .decision(.allocationCorrection, id)
         case .adjustmentRequest: return .decision(.adjustmentRequest, id)
@@ -135,10 +125,11 @@ public enum DeepLinkParser {
         case let ("alert", id?): return .alert(id)
         case let ("approval", id?): return .approval(id)
         case let ("case", id?): return .investigation(id)
-        case let ("job", id?): return .job(id)
         case let ("meter_reset", id?): return .meterReset(id)
         case ("meter_reset", nil): return .approvals
-        case ("exception", _): return .exceptions(jobID: nil)
+        case ("exception", _): return .exceptions
+        case let ("meter_exception", id?): return .exception(id)
+        // Notifications stored before ADR-008 renamed the table name the exception `job_exception`.
         case let ("job_exception", id?): return .exception(id)
         case let ("cash_handover", id?): return .handover(id)
         case let ("customer_payment", id?): return .customerPayment(id)
@@ -184,8 +175,6 @@ public enum DeepLinkParser {
         case ("machine-reports", nil): return .approvals
         case let ("cases", id?): return .investigation(id)
         case ("cases", nil): return .investigations
-        case let ("jobs", id?): return .job(id)
-        case ("jobs", nil): return .jobs
         case let ("alerts", id?): return .alert(id)
         case ("alerts", nil): return .alerts
         case let ("approvals", id?): return .approval(id)
@@ -194,7 +183,7 @@ public enum DeepLinkParser {
         case ("meter-resets", nil): return .approvals
         case let ("customer-payments", id?): return .customerPayment(id)
         case ("customer-payments", nil): return .approvals
-        case ("exceptions", _): return .exceptions(jobID: nil)
+        case ("exceptions", _): return .exceptions
         case let ("customer-discounts", id?): return .decision(.discount, id)
         case let ("credit-arrangements", id?): return .decision(.credit, id)
         case let ("hours-transfers", id?): return .decision(.hoursTransfer, id)
@@ -239,7 +228,6 @@ public enum DeepLinkParser {
             guard parts.count >= 4, parts[2] == "cash" else { return nil }
             return cashPath(parts[3], parts.count >= 5 ? UUID(uuidString: parts[4]) : nil)
         case ("engine-hours", _):
-            if parts.count >= 3, parts[2] == "daily-sheet" { return .fleet }
             if parts.count >= 4, parts[2] == "machines", let machine = UUID(uuidString: parts[3]) { return .machine(machine) }
             if parts.count >= 4, parts[2] == "classifications", let record = UUID(uuidString: parts[3]) {
                 return .decision(.classification, record)
@@ -253,9 +241,6 @@ public enum DeepLinkParser {
         case ("accountability", _): return .accountability
         case let ("staff", id?) where parts.count >= 4 && parts[3] == "accountability":
             return .employeeAccountability(id, name: nil, from: nil, to: nil)
-        case let ("revenue-differences", id?): return .revenueDifference(id)
-        case let ("non-revenue-approvals", id?): return .decision(.nonRevenue, id)
-        case ("revenue-differences", nil), ("non-revenue-approvals", nil): return .approvals
         case let ("daily-reports", id?): return .dailyReport(id)
         case ("daily-reports", nil): return .approvals
         case ("work-allocations", _):
@@ -271,7 +256,6 @@ public enum DeepLinkParser {
         case let ("machines", id?): return .machine(id)
         case ("machines", nil): return .fleet
         case ("scorecard", _): return id.map { .scorecardPerson($0, name: nil, from: nil, to: nil) } ?? .scorecard
-        case ("unbilled-work", _): return .unbilledWork
         case ("idle-machines", _): return .idleMachines
         case ("setup", _): return .setupChecklist
         case let ("notifications", id?): return .notification(id)
@@ -331,10 +315,10 @@ extension OwnerRoute {
     /// Whether the route opens one specific record (as opposed to a list).
     public var identifiesRecord: Bool {
         switch self {
-        case .machine, .alert, .approval, .investigation, .job, .meterReset, .handover, .customerPayment, .pettyCashMovement, .pettyCashAdjustment, .exception, .notification, .decision,
-             .cashTransfer, .cashFloat, .overdueRemittance, .revenueDifference, .dailySheetDay, .hoursPurchase, .scorecardPerson, .dailyReport, .employeeAccountability, .machineReport: true
-        case .overview, .fleet, .jobs, .investigations, .alerts, .approvals, .exceptions, .fieldSpend, .cash, .notifications,
-             .accountability, .overdueRemittances, .dailySheet, .customerHours, .hoursStatement, .scorecard, .unbilledWork,
+        case .machine, .alert, .approval, .investigation, .meterReset, .handover, .customerPayment, .pettyCashMovement, .pettyCashAdjustment, .exception, .notification, .decision,
+             .cashTransfer, .cashFloat, .overdueRemittance, .machineDay, .hoursPurchase, .scorecardPerson, .dailyReport, .employeeAccountability, .machineReport: true
+        case .overview, .fleet, .investigations, .alerts, .approvals, .exceptions, .fieldSpend, .cash, .notifications,
+             .accountability, .overdueRemittances, .machineDays, .customerHours, .hoursStatement, .scorecard,
              .idleMachines, .setupChecklist: false
         }
     }

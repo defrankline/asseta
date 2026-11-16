@@ -4,7 +4,7 @@ import AssetaStore // UUID.lowercased
 import Foundation
 
 // DEC-031 Phase 4 in the Owner app (strings doc "DEC-031 Phases 2 and 4"): More → Customer hours (open prepaid-hours
-// purchases with hours left or in use by running jobs), one purchase (opened from HOURS_LOW_BALANCE / HOURS_EXPIRING /
+// purchases with hours left), one purchase (opened from HOURS_LOW_BALANCE / HOURS_EXPIRING /
 // HOURS_EXPIRED notifications, `data.kind = HOURS_PURCHASE`) and the customer's hours statement of a period with its
 // PDF. Read-only; reads may come from the encrypted snapshot cache like every Owner screen.
 
@@ -14,10 +14,9 @@ public enum CustomerHoursTexts {
     public static let more = "Customer hours"
     public static let listTitle = "Customer hours"
     public static let empty = "No prepaid hours with hours left."
-    public static let listFooter = "Prepaid hours with hours left or in use by running jobs. Selling and moving hours is done in the field app or on the web."
+    public static let listFooter = "Prepaid hours with hours left. Selling and moving hours is done in the field app or on the web."
     public static func row(purchase: String, customer: String) -> String { "\(purchase) · \(customer)" }
     public static func left(_ hours: String) -> String { "\(hours) h left" }
-    public static func inUse(_ hours: String) -> String { "\(hours) h in use by running jobs" }
     public static let purchaseTitle = "Hours purchase"
     public static let hours = "Hours"
     public static let customer = "Customer"
@@ -26,8 +25,6 @@ public enum CustomerHoursTexts {
     public static let bought = "Bought"
     public static let activated = "Activated"
     public static let used = "Used"
-    /// Hours held by running jobs under daily drawdown (already out of the hours left).
-    public static let provisional = "In use by running jobs"
     public static let transferred = "Moved to other machines"
     public static let expired = "Expired"
     public static let remaining = "Left"
@@ -40,7 +37,6 @@ public enum CustomerHoursTexts {
     public static let payments = "Payments" // owner.hours.payments
     public static func paymentReversed(_ date: String) -> String { "Reversed \(date)" } // owner.hours.payment.reversed
     public static let paymentReleased = "No longer counted" // owner.hours.payment.released
-    public static let provisionalFooter = "Hours in use by running jobs are drawn day by day and become final when the job is completed."
 
     public static func purchaseStatus(_ wire: String) -> String {
         switch wire {
@@ -59,7 +55,6 @@ public enum CustomerHoursTexts {
     public static func statementHeader(customer: String, period: String) -> String { "\(customer) · \(period)" }
     public static let totals = "Totals"
     public static let opening = "Opening balance"
-    public static let provisionalAtClose = "Of which in use by running jobs"
     public static let transferredIn = "Moved in"
     public static let transferredOut = "Moved out"
     public static let cancelled = "Cancelled"
@@ -78,15 +73,8 @@ public enum CustomerHoursTexts {
     public static func lineRow(day: String, kind: String) -> String { "\(day) · \(kind)" } // owner.stmt.lineRow
     public static let usage = "Hours used"
     public static let usageEmpty = "No hours used in this period."
-    public static func usageRow(day: String, job: String) -> String { "\(day) · \(job)" }
-    public static func basis(_ wire: String) -> String {
-        switch wire {
-        case HoursUsageBasis.daily: "Drawn day by day"
-        case HoursUsageBasis.final: "Final"
-        default: OwnerFormat.humanize(wire)
-        }
-    }
-    public static let running = "Job still running"
+    /// "{day} · {machine report number}" ("—" when the line names none).
+    public static func usageRow(day: String, report: String) -> String { "\(day) · \(report)" }
     public static let openPDF = "Open PDF"
     public static let pdfFailed = "Could not get the PDF. Check your connection and try again."
     public static func statementFooter(timezone: String, time: String) -> String { "Times are in \(timezone). Generated \(time)." }
@@ -183,16 +171,14 @@ public enum CustomerHoursPresentation {
     static func h(_ value: DecimalString) -> String { OwnerFormat.hours(value) }
     static func positive(_ value: DecimalString) -> Bool { value.value > 0 }
 
-    /// Open (not cancelled) purchases with hours left or in use by running jobs, newest first.
+    /// Open (not cancelled) purchases with hours left, newest first.
     public static func open(_ items: [HoursPurchaseDTO]) -> [HoursPurchaseDTO] {
-        items.filter { $0.cancelledAt == nil && (positive($0.totals.remaining) || positive($0.totals.provisional)) }
+        items.filter { $0.cancelledAt == nil && positive($0.totals.remaining) }
             .sorted { $0.createdAt > $1.createdAt }
     }
 
-    /// "{left} h left[ · {n} h in use by running jobs]" (provisional is already out of remaining: never subtracted again).
-    public static func leftLine(remaining: DecimalString, provisional: DecimalString) -> String {
-        T.left(num(remaining)) + (positive(provisional) ? " · " + T.inUse(num(provisional)) : "")
-    }
+    /// "{left} h left".
+    public static func leftLine(remaining: DecimalString) -> String { T.left(num(remaining)) }
 
     public static func machine(_ p: HoursPurchaseDTO) -> String {
         DisplayName.machine(code: p.machineCode, name: p.machineName, id: p.machineID)
@@ -202,7 +188,7 @@ public enum CustomerHoursPresentation {
 
     /// The list row: "{purchase} · {customer}", machine, hours left line.
     public static func row(_ p: HoursPurchaseDTO) -> (title: String, machine: String, left: String) {
-        (T.row(purchase: p.purchaseNumber, customer: customer(p)), machine(p), leftLine(remaining: p.totals.remaining, provisional: p.totals.provisional))
+        (T.row(purchase: p.purchaseNumber, customer: customer(p)), machine(p), leftLine(remaining: p.totals.remaining))
     }
 
     /// Hours card rows in the documented order (zero-only optional rows left out).
@@ -210,7 +196,6 @@ public enum CustomerHoursPresentation {
         let t = p.totals
         var rows: [(String, String)] = [(T.customer, customer(p)), (T.machine, machine(p)), (T.status, T.purchaseStatus(p.status)),
                                         (T.bought, h(t.purchased)), (T.activated, h(t.activated)), (T.used, h(t.consumed))]
-        if positive(t.provisional) { rows.append((T.provisional, h(t.provisional))) }
         if positive(t.transferred) { rows.append((T.transferred, h(t.transferred))) }
         if positive(t.expired) { rows.append((T.expired, h(t.expired))) }
         if positive(t.refunded) { rows.append((T.refunded, h(t.refunded))) }
@@ -227,7 +212,7 @@ public enum CustomerHoursPresentation {
             let reversal = reversedAt[a.paymentID]
             let status: String
             if let reversal {
-                status = T.paymentReversed(RevenuePresentation.day(CashRecordPresentation.localDay(reversal, timeZone: timeZone)))
+                status = T.paymentReversed(OwnerFormat.day(CashRecordPresentation.localDay(reversal, timeZone: timeZone)))
             } else if a.releasedAt != nil {
                 status = T.paymentReleased
             } else {
@@ -253,7 +238,7 @@ public enum CustomerHoursPresentation {
         guard let machines = p.machines, machines.count >= 2 else { return [] }
         return machines.map {
             DecisionField(label: DisplayName.machine(code: $0.machineCode, name: $0.machineName, id: $0.machineID),
-                          value: leftLine(remaining: $0.remaining, provisional: $0.provisional))
+                          value: leftLine(remaining: $0.remaining))
         }
     }
 
@@ -262,7 +247,7 @@ public enum CustomerHoursPresentation {
     /// "{customer} · {period}".
     public static func header(_ s: HoursStatementDTO, fallbackName: String?) -> String {
         T.statementHeader(customer: s.customerName ?? fallbackName ?? DisplayName.shortID(s.customerID),
-                          period: RevenuePresentation.period(from: s.dateFrom, to: s.dateTo))
+                          period: OwnerFormat.period(from: s.dateFrom, to: s.dateTo))
     }
 
     /// Totals rows in the documented order (optional rows only when > 0).
@@ -270,7 +255,6 @@ public enum CustomerHoursPresentation {
         let t = s.totals
         var rows: [(String, String)] = [(T.opening, h(t.openingBalance)), (T.bought, h(t.bought)), (T.activated, h(t.activated)),
                                         (T.used, h(t.used))]
-        if positive(t.provisionalAtClose) { rows.append((T.provisionalAtClose, h(t.provisionalAtClose))) }
         if positive(t.transferredIn) { rows.append((T.transferredIn, h(t.transferredIn))) }
         if positive(t.transferredOut) { rows.append((T.transferredOut, h(t.transferredOut))) }
         if positive(t.expired) { rows.append((T.expired, h(t.expired))) }
@@ -285,10 +269,8 @@ public enum CustomerHoursPresentation {
     /// Usage lines, newest day first.
     public static func usage(_ s: HoursStatementDTO) -> [UsageLine] {
         s.usage.sorted { $0.day > $1.day }.map { u in
-            let caption = [DisplayName.machine(code: u.machineCode, name: u.machineName, id: u.machineID), T.basis(u.basis)]
-                + (u.jobRunning ? [T.running] : [])
-            return UsageLine(label: T.usageRow(day: RevenuePresentation.day(u.day), job: u.jobNumber ?? "—"),
-                             value: h(u.hours), caption: caption.joined(separator: " · "))
+            UsageLine(label: T.usageRow(day: OwnerFormat.day(u.day), report: u.machineReportNumber ?? "—"),
+                      value: h(u.hours), caption: DisplayName.machine(code: u.machineCode, name: u.machineName, id: u.machineID))
         }
     }
 
@@ -297,7 +279,7 @@ public enum CustomerHoursPresentation {
         let kinds = [HoursLedgerEntryType.correctionAdd, HoursLedgerEntryType.correctionDeduct, HoursLedgerEntryType.refunded, HoursLedgerEntryType.reversal]
         return s.lines.filter { kinds.contains($0.entryType) }.sorted { $0.occurredAt > $1.occurredAt }.map { line in
             let caption = [line.purchaseNumber, line.reason].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
-            return UsageLine(label: T.lineRow(day: RevenuePresentation.day(line.day), kind: T.lineKind(line.entryType)),
+            return UsageLine(label: T.lineRow(day: OwnerFormat.day(line.day), kind: T.lineKind(line.entryType)),
                              value: signed(line.hours), caption: caption)
         }
     }

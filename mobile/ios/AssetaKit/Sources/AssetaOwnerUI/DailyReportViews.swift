@@ -229,22 +229,22 @@ struct AllocationDaySections: View {
     }
 }
 
-/// A machine's days of the ledger (last 14, newest first): the day list while revenue checks are off.
+/// A machine's days of the work allocation ledger (last 14, newest first).
 struct LedgerDaysView: View {
     let model: OwnerModel
     let machineID: UUID
     @State private var loader = Loader<[AllocationDayDTO]>()
 
     var body: some View {
-        let range = RevenuePresentation.sheetRange()
+        let range = T.machineDaysRange()
         List {
             if let days = loader.value {
                 let rows = days.sorted { $0.day > $1.day }
                 if rows.isEmpty { EmptyState(title: T.daysEmpty, systemImage: "calendar") }
                 ForEach(rows, id: \.day) { day in
-                    NavigationLink(value: OwnerRoute.dailySheetDay(machineID, day.day)) {
+                    NavigationLink(value: OwnerRoute.machineDay(machineID, day.day)) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(RevenuePresentation.day(day.day)).font(.headline)
+                            Text(OwnerFormat.day(day.day)).font(.headline)
                             Text(AllocationPresentation.dayLine(day)).font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
                             if let unexplained = AllocationPresentation.dayUnexplained(day) {
                                 Text(unexplained).font(.caption).foregroundStyle(Palette.warning)
@@ -260,7 +260,7 @@ struct LedgerDaysView: View {
             }
         }
         .staleBanner(loader, model: model)
-        .navigationTitle(RevenueTexts.sheetTitle)
+        .navigationTitle(T.machineDays)
         .refreshable { await reload(range) }
         .task(id: model.changeTick) { await reload(range) }
     }
@@ -271,7 +271,7 @@ struct LedgerDaysView: View {
     }
 }
 
-/// One machine on one day, revenue checks off: only the "Hours allocated" and "Work allocations" cards.
+/// One machine on one day: the "Hours allocated" and "Work allocations" cards.
 struct LedgerDayView: View {
     let model: OwnerModel
     let machineID: UUID
@@ -279,7 +279,7 @@ struct LedgerDayView: View {
 
     var body: some View {
         Form { AllocationDaySections(model: model, machineID: machineID, day: day) }
-            .navigationTitle(RevenuePresentation.day(day))
+            .navigationTitle(OwnerFormat.day(day))
     }
 }
 

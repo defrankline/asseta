@@ -29,7 +29,7 @@ struct MachineReportOwnerTests {
         #expect(!MachineReportApproval.rejectReasonValid("  ok "))
         #expect(MachineReportApproval.rejectReasonValid("Idle hours too high"))
         let features = OwnerFeatures(permissions: Array(approver))
-        #expect(features.machineReports && features.reportsApprove && !features.jobs && !features.approveJobs)
+        #expect(features.machineReports && features.reportsApprove)
     }
 
     @Test func customerLinesShowHoursBeforeAndAfter() throws {

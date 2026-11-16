@@ -4,10 +4,9 @@ import AssetaModel
 import AssetaOwnerKit
 import SwiftUI
 
-/// Meter exceptions, optionally of one job; a row opens the exception, where it can be reviewed.
+/// Meter exceptions; a row opens the exception, where it can be reviewed.
 struct ExceptionsView: View {
     let model: OwnerModel
-    let jobID: UUID?
     @State private var openOnly = ExceptionText.defaultOpenOnly
     @State private var loader = Loader<Page<MeterExceptionDTO>>()
 
@@ -34,12 +33,12 @@ struct ExceptionsView: View {
     }
 
     private func reload() async {
-        await loader.load(model, .exceptions(openOnly: openOnly, jobID: jobID),
-                          OwnerAPI.exceptions(status: openOnly ? "OPEN" : nil, jobID: jobID, pageSize: 100))
+        await loader.load(model, .exceptions(openOnly: openOnly),
+                          OwnerAPI.exceptions(status: openOnly ? "OPEN" : nil, pageSize: 100))
     }
 }
 
-/// Expenses and fuel recorded in the field (read-only); a row with a job opens it.
+/// Expenses and fuel recorded in the field (read-only).
 struct FieldSpendView: View {
     let model: OwnerModel
     @State private var showFuel = false

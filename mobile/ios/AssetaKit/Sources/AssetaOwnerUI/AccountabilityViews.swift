@@ -161,7 +161,7 @@ struct DecisionDetailView: View {
                     Text(decisionError).font(.footnote).foregroundStyle(Palette.offline).accessibilityIdentifier("decision.error")
                 }
             }
-        } header: { Text(T.decisionDecision) } footer: { Text(kind == .nonRevenue ? RevenueTexts.nonRevFooter : T.decisionFooter) }
+        } header: { Text(T.decisionDecision) } footer: { Text(T.decisionFooter) }
     }
 
     private func decide(approve: Bool) async {
@@ -216,8 +216,7 @@ struct AccountabilityDashboardView: View {
                 ManagementGroupsView(model: model, summary: summary)
                 let hasGroups = !ManagementDashboard.groups(summary, features: model.features).isEmpty
                 if hasGroups { Section { Text(ManagementTexts.periodNote).font(.footnote).foregroundStyle(.secondary) } }
-                let tiles = AccountabilityDashboard.tiles(summary, disabled: model.features.disabledCapabilities,
-                                                            revenueRead: model.features.revenueRead)
+                let tiles = AccountabilityDashboard.tiles(summary, disabled: model.features.disabledCapabilities)
                 if AccountabilityDashboard.showsHiddenNote(summary) {
                     Text(T.dashHiddenNote).font(.footnote).foregroundStyle(.secondary)
                 }

@@ -47,7 +47,7 @@ struct AccountabilityOwnerTests {
          "policy_version":"v1"}
         """),
         (.correction, "CorrectionDto", """
-        {"id":"\(id(7))","machine_id":"\(machine)","machine_code":"EX-07","job_id":null,"superseded_capture_id":"\(id(96))",
+        {"id":"\(id(7))","machine_id":"\(machine)","machine_code":"EX-07","superseded_capture_id":"\(id(96))",
          "replacement_capture_id":"\(id(97))","old_reading":"4521.0","new_reading":"4512.0","reason":"Misread the tens digit",
          "status":"PROPOSED","proposed_by":"\(other)","proposed_by_name":"Juma Field","proposed_at":"2026-10-24T08:00:00Z",
          "decided_by":null,"decided_at":null,"decision_note":null,"policy_version":"v1"}
@@ -82,14 +82,6 @@ struct AccountabilityOwnerTests {
          "occurred_at":"2026-10-24T07:00:00Z","reason_id":null,"reason":"Double entry","reverses_entity_type":null,
          "reverses_entity_id":null,"status":"PENDING","created_by":"\(other)","created_at":"2026-10-24T08:00:00Z","decided_by":null,
          "decided_at":null,"decision_note":null}
-        """),
-        (.nonRevenue, "NonRevenueApprovalDto", """
-        {"id":"\(id(11))","activity_id":"\(id(12))","activity_type":"MOBILIZATION","job_id":"\(id(13))","job_number":"J-12",
-         "machine_id":"\(machine)","machine_code":"EX-07","machine_name":null,"started_at":"2026-10-24T06:00:00Z",
-         "ended_at":"2026-10-24T07:30:00Z","hours":"1.50","reason_id":"\(id(14))","reason_name":"Move to site",
-         "note":"Moved to site B","status":"PROPOSED","proposed_by":"\(other)","proposed_by_name":null,
-         "proposed_at":"2026-10-24T08:00:00Z","decided_by":null,"decided_by_name":null,"decided_at":null,"decision_note":null,
-         "policy_version":"r1"}
         """),
         (.allocationCorrection, "AllocationCorrectionDto", """
         {"group_id":"\(DailyReportOwnerTests.groupID.uuidString.lowercased())","status":"PROPOSED",

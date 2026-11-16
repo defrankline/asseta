@@ -25,30 +25,6 @@ public enum OwnerAPI {
         ])
     }
 
-    public static func jobs(status: JobStatus? = nil, machineID: UUID? = nil, query: String? = nil,
-                            page: Int = 1, pageSize: Int = 50) -> APIRequest<Page<JobDTO>> {
-        .get("\(tenant)/jobs", query: paging(page, pageSize) + compact([
-            ("status", status?.rawValue), ("machine_id", machineID?.lowercased), ("q", query.nonEmpty),
-        ]))
-    }
-
-    public static func jobSummary(_ id: UUID) -> APIRequest<JobSummaryDTO> { .get("\(tenant)/jobs/\(id.lowercased)") }
-
-    /// The job's meter readings (opening/closing, with evidence photo ids).
-    public static func jobCaptures(_ id: UUID) -> APIRequest<[MeterCaptureDTO]> {
-        .get("\(tenant)/jobs/\(id.lowercased)/meter-captures")
-    }
-
-    /// The customer's sign-off of the job's hours.
-    public static func jobAcknowledgements(_ id: UUID) -> APIRequest<[AcknowledgementDTO]> {
-        .get("\(tenant)/jobs/\(id.lowercased)/acknowledgements")
-    }
-
-    /// The job's work log (activities, billable or not).
-    public static func jobActivities(_ id: UUID) -> APIRequest<[ActivityDTO]> {
-        .get("\(tenant)/jobs/\(id.lowercased)/activities")
-    }
-
     /// The machine register entry (make, model, ownership).
     public static func machineInfo(_ id: UUID) -> APIRequest<OwnerMachineDTO> { .get("\(tenant)/machines/\(id.lowercased)") }
 
@@ -61,23 +37,18 @@ public enum OwnerAPI {
     }
 
     /// Expenses, newest first; `status` is the server's `ExpenseStatus` (`PENDING_APPROVAL`, `APPROVED`, `REJECTED`).
-    public static func expenses(jobID: UUID? = nil, status: String? = nil, page: Int = 1,
-                                pageSize: Int = 100) -> APIRequest<Page<ExpenseDTO>> {
-        .get("\(tenant)/expenses", query: paging(page, pageSize) + compact([
-            ("job_id", jobID?.lowercased), ("status", status),
-        ]))
+    public static func expenses(status: String? = nil, page: Int = 1, pageSize: Int = 100) -> APIRequest<Page<ExpenseDTO>> {
+        .get("\(tenant)/expenses", query: paging(page, pageSize) + compact([("status", status)]))
     }
 
-    public static func fuelEvents(jobID: UUID? = nil, page: Int = 1, pageSize: Int = 100) -> APIRequest<Page<FuelEventDTO>> {
-        .get("\(tenant)/fuel-events", query: paging(page, pageSize) + compact([("job_id", jobID?.lowercased)]))
+    public static func fuelEvents(page: Int = 1, pageSize: Int = 100) -> APIRequest<Page<FuelEventDTO>> {
+        .get("\(tenant)/fuel-events", query: paging(page, pageSize))
     }
 
-    /// Meter exceptions, newest first (`status` nil = all).
-    public static func exceptions(status: String? = nil, jobID: UUID? = nil, page: Int = 1,
+    /// Meter exceptions, newest first (`status` nil = all; `listMeterExceptions`).
+    public static func exceptions(status: String? = nil, page: Int = 1,
                                   pageSize: Int = 100) -> APIRequest<Page<MeterExceptionDTO>> {
-        .get("\(tenant)/exceptions", query: paging(page, pageSize) + compact([
-            ("status", status), ("job_id", jobID?.lowercased),
-        ]))
+        .get("\(tenant)/exceptions", query: paging(page, pageSize) + compact([("status", status)]))
     }
 
     /// Meter reset requests (a plain list, not paged); `status` nil = all.
@@ -136,11 +107,8 @@ public enum OwnerAPI {
         .get("\(tenant)/cases/\(id.lowercased)")
     }
 
-    public static func meterCaptures(machineID: UUID? = nil, jobID: UUID? = nil,
-                                     pageSize: Int = 10) -> APIRequest<Page<MeterCaptureDTO>> {
-        .get("\(tenant)/meter-captures", query: paging(1, pageSize) + compact([
-            ("machine_id", machineID?.lowercased), ("job_id", jobID?.lowercased),
-        ]))
+    public static func meterCaptures(machineID: UUID? = nil, pageSize: Int = 10) -> APIRequest<Page<MeterCaptureDTO>> {
+        .get("\(tenant)/meter-captures", query: paging(1, pageSize) + compact([("machine_id", machineID?.lowercased)]))
     }
 
     /// Presigned evidence photo URL, fetched on demand only (never cached).

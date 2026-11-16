@@ -71,10 +71,6 @@ public enum ManagementTexts {
     public static func excAttemptsCaption(denied: Int, sod: Int) -> String { "Denied \(denied) · Second person required \(sod)" }
     public static let excMissingReports = "Daily reports missing"
     public static let excOverdueRemittances = "Remittances overdue today"
-    public static let excChangeover = "Changeover jobs waiting"
-    public static func excChangeoverCaption(_ days: Int) -> String { "Oldest \(days) days" }
-    public static func excChangeoverRow(job: String, machine: String, customer: String) -> String { "\(job) · \(machine) · \(customer)" }
-    public static func excChangeoverDays(_ days: Int) -> String { "\(days) days" }
     public static func excApprovals(_ total: Int) -> String { "Outstanding approvals (\(total))" }
     public static func excPending(_ total: Int) -> String { "Pending adjustments (\(total))" }
     public static func excVariances(_ total: Int) -> String { "Unresolved variances (\(total))" }
@@ -84,18 +80,16 @@ public enum ManagementTexts {
         case "REMITTANCE": "Remittances"
         case "FLOAT": "Floats"
         case "CUSTOMER_HOUR": "Customer hours"
-        case "REVENUE_DIFFERENCE": "Revenue differences"
         default: OwnerFormat.humanize(source)
         }
     }
 
     /// `owner.mgmt.kind.*`, in the strings doc's order.
     public static let kindOrder = ["adjustment_requests", "hours_transfers", "hours_cancellations", "credit_arrangements", "discounts",
-                                   "meter_corrections", "allocation_corrections", "classifications", "non_revenue_approvals",
+                                   "meter_corrections", "allocation_corrections", "classifications",
                                    "custody_adjustments", "write_offs", "variance_closures", "meter_baselines", "meter_resets",
                                    "cash_retentions", "partial_reasons", "approval_requests", "payments_to_verify",
-                                   "remittances_to_verify", "jobs_awaiting_approval", "daily_reports_to_review", "case_closures",
-                                   "revenue_decisions"]
+                                   "remittances_to_verify", "machine_reports", "daily_reports_to_review", "case_closures"]
     public static func kind(_ wire: String) -> String {
         switch wire {
         case "adjustment_requests": "Adjustment requests"
@@ -106,7 +100,6 @@ public enum ManagementTexts {
         case "meter_corrections": "Meter corrections"
         case "allocation_corrections": "Allocation corrections"
         case "classifications": "Engine-hour classifications"
-        case "non_revenue_approvals": "Non-revenue time"
         case "custody_adjustments": "Custody adjustments"
         case "write_offs": "Write-offs"
         case "variance_closures": "Variance closures"
@@ -117,10 +110,9 @@ public enum ManagementTexts {
         case "approval_requests": "Expense approvals"
         case "payments_to_verify": "Payments to verify"
         case "remittances_to_verify": "Remittances to verify"
-        case "jobs_awaiting_approval": "Jobs awaiting approval"
+        case "machine_reports": "Machine reports"
         case "daily_reports_to_review": "Daily reports to review"
         case "case_closures": "Case closures"
-        case "revenue_decisions": "Revenue decisions"
         default: OwnerFormat.humanize(wire)
         }
     }
@@ -167,8 +159,8 @@ public enum ManagementTexts {
     public static func lookupType(_ wire: String) -> String {
         switch wire {
         case "hours_purchase": "Hours purchase"
-        case "hire_invoice": "Invoice"
-        case "job": "Job"
+        case "machine_report": "Machine report"
+        case "credit_invoice": "Credit invoice"
         case "customer_payment": "Collection"
         case "cash_handover": "Remittance"
         case "cash_transfer": "Cash transfer"
@@ -182,9 +174,7 @@ public enum ManagementTexts {
         case "daily_report": "Daily report"
         case "meter_correction": "Meter correction"
         case "classification": "Engine-hour classification"
-        case "non_revenue_approval": "Non-revenue approval"
         case "meter_reset": "Meter reset"
-        case "revenue_difference": "Revenue difference"
         case "hours_cancellation": "Hours cancellation"
         case "approval_request": "Expense approval"
         case "expense": "Expense"

@@ -92,6 +92,15 @@ public enum DailyReportOwnerTexts {
     public static let dayNotReconciled = "Some engine hours are not allocated yet."
     public static let entries = "Work allocations"
     public static let daysEmpty = "No engine hours in the last 14 days." // owner.allocation.daysEmpty
+    /// A machine's days of the work allocation ledger (opened from the machine and the management view).
+    public static let machineDays = "Machine days"
+    /// The last 14 tenant-local days (`YYYY-MM-DD`), today included.
+    public static func machineDaysRange(now: Date = Date(), timeZone: TimeZone = .current) -> (from: String, to: String) {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let from = calendar.date(byAdding: .day, value: -13, to: now) ?? now
+        return (CashRecordPresentation.localDay(from, timeZone: timeZone), CashRecordPresentation.localDay(now, timeZone: timeZone))
+    }
     public static func dayLine(engine: String, allocated: String) -> String { "\(engine) h engine · \(allocated) h allocated" } // owner.allocation.dayLine
     public static func dayUnexplained(_ hours: String) -> String { "\(hours) h unexplained" } // owner.allocation.dayUnexplainedLine
     public static let entriesEmpty = "No allocations for this day."
@@ -99,7 +108,7 @@ public enum DailyReportOwnerTexts {
     public static func lotLine(purchase: String, hours: String) -> String { "From \(purchase): \(hours) h" } // owner.allocation.lotLine
     public static let proposedPill = "Waiting for approval"
     public static let valueAtRisk = "Value at risk" // owner.valueAtRisk
-    public static let valueAtRiskFooter = "Unexplained hours at the job's rate. Not part of expected revenue or the shortfall." // owner.valueAtRiskFooter
+    public static let valueAtRiskFooter = "Unexplained hours at the machine's rate. Not part of expected revenue or the shortfall." // owner.valueAtRiskFooter
 }
 
 /// Review rules of a daily report (as Android `DailyReportRules` in the Owner app; the server re-checks).
@@ -133,7 +142,7 @@ public enum AllocationPresentation {
     public static func machine(_ r: DailyReportDTO) -> String { DisplayName.machine(code: r.machineCode, name: r.machineName, id: r.machineID) }
 
     public static func rowHeadline(_ r: DailyReportDTO) -> String {
-        T.rowHeadline(machine: r.machineCode ?? r.machineName ?? DisplayName.shortID(r.machineID), date: RevenuePresentation.day(r.reportDate))
+        T.rowHeadline(machine: r.machineCode ?? r.machineName ?? DisplayName.shortID(r.machineID), date: OwnerFormat.day(r.reportDate))
     }
 
     public static func rowLine(_ r: DailyReportDTO) -> String {
@@ -143,7 +152,7 @@ public enum AllocationPresentation {
 
     public static func figures(_ r: DailyReportDTO, timeZone: TimeZone = .current) -> [DecisionField] {
         var rows: [(String, String?)] = [
-            (T.machine, machine(r)), (T.day, RevenuePresentation.day(r.reportDate)),
+            (T.machine, machine(r)), (T.day, OwnerFormat.day(r.reportDate)),
             (T.opening, OwnerFormat.hoursNumber(r.openingReading)), (T.closing, OwnerFormat.hoursNumber(r.closingReading)),
             (T.total, OwnerFormat.hours(r.totalHours)), (T.billable, OwnerFormat.hours(r.billableHours)),
             (T.unbillable, OwnerFormat.hours(r.unbillableHours)),
@@ -166,17 +175,17 @@ public enum AllocationPresentation {
         PendingDecision.fields([(T.reviewedBy, DisplayName.optional(r.reviewedByName, id: r.reviewedBy)), (T.reviewNote, r.reviewNote)])
     }
 
-    /// Who an allocation served: customer · job, the reason or activity of authorized work, nothing when unexplained.
-    public static func who(kind: String, customer: String?, job: String?, reason: String?, activity: String?) -> String {
+    /// Who an allocation served: the customer, the reason of authorized work, nothing when unexplained.
+    public static func who(kind: String, customer: String?, reason: String?) -> String {
         switch kind {
-        case AllocationKinds.customerWork: [customer, job].compactMap { $0 }.joined(separator: " · ")
-        case AllocationKinds.authorizedActivity: reason ?? activity.map(OwnerFormat.humanize) ?? ""
+        case AllocationKinds.customerWork: customer ?? ""
+        case AllocationKinds.authorizedActivity: reason ?? ""
         default: ""
         }
     }
 
     public static func who(_ a: WorkAllocationDTO) -> String {
-        who(kind: a.kind, customer: DisplayName.optional(a.customerName, id: a.customerID), job: a.jobNumber, reason: a.reasonName, activity: a.activityType)
+        who(kind: a.kind, customer: DisplayName.optional(a.customerName, id: a.customerID), reason: a.reasonName)
     }
 
     /// One row per report allocation: kind, then "{hours} h · {who}".
@@ -184,7 +193,7 @@ public enum AllocationPresentation {
         r.allocations.map {
             DecisionField(label: T.kind($0.kind), value: T.allocationPartValue(
                 hours: OwnerFormat.hoursNumber($0.hours),
-                who: who(kind: $0.kind, customer: DisplayName.optional($0.customerName, id: $0.customerID), job: $0.jobNumber, reason: nil, activity: $0.activityType)))
+                who: who(kind: $0.kind, customer: DisplayName.optional($0.customerName, id: $0.customerID), reason: nil)))
         }
     }
 
@@ -248,7 +257,7 @@ public enum AllocationPresentation {
         guard let first = entries.first else { return nil }
         let hours = DecimalString(entries.reduce(Decimal(0)) { $0 + $1.hours.value })
         let code = first.machineCode ?? first.machineName ?? DisplayName.shortID(first.machineID)
-        let day = RevenuePresentation.day(first.workDate)
+        let day = OwnerFormat.day(first.workDate)
         typealias O = OwnerAccountabilityTexts
         var rows: [(String, String?)] = [(O.fieldMachine, DisplayName.machine(code: first.machineCode, name: first.machineName, id: first.machineID))]
         rows += entries.map { (T.allocationPart(T.kind($0.kind)), T.allocationPartValue(hours: OwnerFormat.hoursNumber($0.hours), who: who($0))) }
@@ -268,8 +277,6 @@ extension OwnerFeatures {
     public var allocationsRead: Bool { engineHours && meterEvidence }
     /// Mark a daily report as reviewed or send it back (`tenant.meter.review`).
     public var reviewDailyReports: Bool { allocationsRead && reviewExceptions }
-    /// Machine days are open to this role: with money (revenue checks) or the allocations alone.
-    public var machineDays: Bool { revenueRead || allocationsRead }
 }
 
 extension SnapshotKey {

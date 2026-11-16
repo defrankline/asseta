@@ -7,7 +7,7 @@ import AssetaOwnerKit
 import MapKit
 import SwiftUI
 
-/// Machine drilldown: status dimensions, last seen, current job, recent alerts and readings (with
+/// Machine drilldown: status dimensions, last seen, recent alerts and readings (with
 /// evidence photos on demand) and the last 24 h track as a polyline. Rows and wording follow `MachineText`,
 /// shared with the Android Owner app.
 struct MachineDetailView: View {
@@ -18,7 +18,6 @@ struct MachineDetailView: View {
     @State private var track = Loader<HistoryDTO>()
     @State private var alerts = Loader<Page<AlertDTO>>()
     @State private var readings = Loader<Page<MeterCaptureDTO>>()
-    @State private var jobs = Loader<Page<JobDTO>>()
 
     var body: some View {
         List {
@@ -34,12 +33,11 @@ struct MachineDetailView: View {
             } else {
                 ProgressView().frame(maxWidth: .infinity)
             }
-            if model.features.jobs { jobSection }
             if model.features.tracking { alertSection }
             if model.features.meterEvidence { readingSection }
-            if model.features.allows(.dailySheet(machineID)) {
+            if model.features.allows(.machineDays(machineID)) {
                 Section {
-                    NavigationLink(value: OwnerRoute.dailySheet(machineID)) { Text(RevenueTexts.sheetOpen) }
+                    NavigationLink(value: OwnerRoute.machineDays(machineID)) { Text(DailyReportOwnerTexts.machineDays) }
                 }
             }
         }
@@ -54,10 +52,6 @@ struct MachineDetailView: View {
         async let c: Void = loadAlerts()
         async let d: Void = info.load(model, .machineInfo(machineID), OwnerAPI.machineInfo(machineID))
         _ = await (a, b, c, d)
-        if model.features.jobs {
-            await jobs.load(model, .machineJobs(machineID),
-                            OwnerAPI.jobs(status: .inProgress, machineID: machineID, pageSize: 5))
-        }
         if model.features.meterEvidence {
             await readings.load(model, .machineReadings(machineID), OwnerAPI.meterCaptures(machineID: machineID, pageSize: 5))
         }
@@ -132,16 +126,6 @@ struct MachineDetailView: View {
             }
         } header: {
             Text("Last 24 hours")
-        }
-    }
-
-    @ViewBuilder private var jobSection: some View {
-        Section("Current job") {
-            if let job = jobs.value?.items.first {
-                NavigationLink(value: OwnerRoute.job(job.id)) { JobRow(job: job) }
-            } else {
-                Text(jobs.value == nil ? (jobs.error ?? "Loading…") : "No job in progress.").foregroundStyle(.secondary)
-            }
         }
     }
 

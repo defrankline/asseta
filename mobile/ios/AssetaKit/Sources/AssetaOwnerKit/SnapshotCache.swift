@@ -18,9 +18,6 @@ public struct SnapshotKey: Hashable, Sendable, CustomStringConvertible {
     public static func machineTrack(_ id: UUID) -> SnapshotKey { SnapshotKey("machine.\(id.lowercased).track") }
     public static func machineAlerts(_ id: UUID) -> SnapshotKey { SnapshotKey("machine.\(id.lowercased).alerts") }
     public static func machineReadings(_ id: UUID) -> SnapshotKey { SnapshotKey("machine.\(id.lowercased).readings") }
-    public static func machineJobs(_ id: UUID) -> SnapshotKey { SnapshotKey("machine.\(id.lowercased).jobs") }
-    public static func jobs(_ status: JobStatus?) -> SnapshotKey { SnapshotKey("jobs.\(status?.rawValue ?? "ALL")") }
-    public static func job(_ id: UUID) -> SnapshotKey { SnapshotKey("job.\(id.lowercased)") }
     public static func alerts(_ status: AlertStatus?) -> SnapshotKey { SnapshotKey("alerts.\(status?.rawValue ?? "ALL")") }
     public static func approvals(_ status: ApprovalStatus?) -> SnapshotKey {
         SnapshotKey("approvals.\(status?.rawValue ?? "ALL")")
@@ -28,15 +25,8 @@ public struct SnapshotKey: Hashable, Sendable, CustomStringConvertible {
     public static func cases(_ status: CaseStatus?) -> SnapshotKey { SnapshotKey("cases.\(status?.rawValue ?? "ALL")") }
     public static func caseDetail(_ id: UUID) -> SnapshotKey { SnapshotKey("case.\(id.lowercased)") }
     public static func machineInfo(_ id: UUID) -> SnapshotKey { SnapshotKey("machine.\(id.lowercased).info") }
-    public static func jobCaptures(_ id: UUID) -> SnapshotKey { SnapshotKey("job.\(id.lowercased).captures") }
-    public static func jobAcknowledgements(_ id: UUID) -> SnapshotKey { SnapshotKey("job.\(id.lowercased).acknowledgements") }
-    public static func jobActivities(_ id: UUID) -> SnapshotKey { SnapshotKey("job.\(id.lowercased).activities") }
-    public static func jobExpenses(_ id: UUID) -> SnapshotKey { SnapshotKey("job.\(id.lowercased).expenses") }
-    public static func jobFuel(_ id: UUID) -> SnapshotKey { SnapshotKey("job.\(id.lowercased).fuel") }
     /// Same keys as the Android Owner app: `exceptions:OPEN:ALL`, `expenses:PENDING`, `fuel:ALL`, `cash:TODAY`.
-    public static func exceptions(openOnly: Bool, jobID: UUID?) -> SnapshotKey {
-        SnapshotKey("exceptions:\(openOnly ? "OPEN" : "ALL"):\(jobID?.lowercased ?? "ALL")")
-    }
+    public static func exceptions(openOnly: Bool) -> SnapshotKey { SnapshotKey("exceptions:\(openOnly ? "OPEN" : "ALL"):ALL") }
     public static func expenses(pendingOnly: Bool) -> SnapshotKey { SnapshotKey("expenses:\(pendingOnly ? "PENDING" : "ALL")") }
     public static let fuel = SnapshotKey("fuel:ALL")
     public static func cash(_ period: CashPeriod) -> SnapshotKey { SnapshotKey("cash:\(period.rawValue)") }

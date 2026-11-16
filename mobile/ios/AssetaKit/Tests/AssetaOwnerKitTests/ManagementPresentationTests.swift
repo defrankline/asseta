@@ -29,8 +29,8 @@ struct ManagementPresentationTests {
         #expect(target("/tenant/hours/transfers?status=PENDING") == .screen(.approvals))
         #expect(target("/tenant/hours/transfers") == .screen(.approvals))
         #expect(target("/tenant/hours/transfers?status=APPROVED") == .web("/tenant/hours/transfers?status=APPROVED"))
-        #expect(target("/tenant/jobs?status=PENDING_APPROVAL") == .screen(.approvals))
-        #expect(target("/tenant/jobs") == .web("/tenant/jobs"))
+        #expect(target("/tenant/machine-reports?status=SUBMITTED") == .screen(.approvals))
+        #expect(target("/tenant/machine-reports?status=APPROVED") == .web("/tenant/machine-reports?status=APPROVED"))
         #expect(target("/tenant/daily-reports?status=SUBMITTED") == .screen(.approvals))
         #expect(target("/tenant/daily-reports?status=RETURNED") == .web("/tenant/daily-reports?status=RETURNED"))
         #expect(target("/tenant/accountability/pending-adjustments") == .screen(.approvals))
@@ -41,16 +41,16 @@ struct ManagementPresentationTests {
         #expect(target("/tenant/finance/cash/remittance-overdue") == .screen(.overdueRemittances))
         #expect(target("/tenant/finance/cash/variances?status=CLOSURE_PROPOSED") == .screen(.approvals))
         #expect(target("/tenant/finance/cash/remittances?partial_reason_pending=true") == .screen(.approvals))
-        #expect(target("/tenant/exceptions") == .screen(.exceptions(jobID: nil)))
+        #expect(target("/tenant/exceptions") == .screen(.exceptions))
         #expect(target("/tenant/cases") == .screen(.investigations))
         #expect(target("/tenant/customer-payments/\(u)") == .screen(.customerPayment(Self.id)))
         #expect(target("/tenant/staff/\(u)/accountability") == .screen(.employeeAccountability(Self.id, name: nil, from: nil, to: nil)))
     }
 
-    @Test func revenueDifferencesOpenApprovalsOnlyWhenWaiting() {
-        #expect(target("/tenant/revenue-differences") == .screen(.approvals))
-        #expect(target("/tenant/revenue-differences?status=EXPLANATION_PROPOSED") == .screen(.approvals))
-        #expect(target("/tenant/revenue-differences?status=RESOLVED") == .web("/tenant/revenue-differences?status=RESOLVED"))
+    @Test func machineReportsOpenApprovalsOnlyWhenWaiting() {
+        #expect(target("/tenant/machine-reports") == .screen(.approvals))
+        #expect(target("/tenant/machine-reports?status=SUBMITTED") == .screen(.approvals))
+        #expect(target("/tenant/machine-reports?status=REJECTED") == .web("/tenant/machine-reports?status=REJECTED"))
     }
 
     @Test func aRecordRouteTheAppHasNoScreenForOpensTheWeb() {
@@ -123,7 +123,7 @@ struct ManagementPresentationTests {
         #expect(exc.map(\.heading) == [nil, T.excApprovals(3), T.excPending(2), T.excVariances(1)])
         let attempts = try #require(exc[0].rows.first { $0.id == "attempts" })
         #expect(attempts.value == "3" && attempts.caption == "Denied 1 · Second person required 2")
-        #expect(exc[0].rows.contains { $0.id == "changeover" && $0.caption == "Oldest 5 days" })
+        #expect(!exc[0].rows.contains { $0.id.hasPrefix("changeover") })
         let ops = groups[1].blocks[1].rows[0]
         #expect(ops.label == "EX-1" && ops.caption == "Customer 6 h · Authorized 1 h · Unexplained 1 h")
         #expect(groups[2].blocks[1].heading == T.cashHeld)
@@ -138,21 +138,19 @@ struct ManagementPresentationTests {
 
     @Test func aMissingNameShowsTheShortIDNeverTheWholeID() throws {
         let short = String(S.uuid.prefix(8))
-        let names = ["customer_name", "machine_code", "machine_name", "staff_member_name", "job_number"]
+        let names = ["customer_name", "machine_code", "machine_name", "staff_member_name"]
         let s = try summary(#","hours_section":\#(Self.nulling(S.hoursSection, names)),"operations_section":\#(Self.nulling(S.operations, names)),"cash_section":\#(Self.nulling(S.cash, names)),"exceptions_section":\#(Self.nulling(S.exceptions, names))"#)
         let groups = ManagementDashboard.groups(s, features: Self.all, timeZone: TimeZone(identifier: "UTC")!)
         #expect(groups[0].blocks[1].rows[0].label == short)
         #expect(groups[1].blocks[1].rows[0].label == short)
         #expect(groups[2].blocks[1].rows[0].label == short)
-        let changeover = try #require(groups[3].blocks[0].rows.first { $0.id.hasPrefix("changeover.") })
-        #expect(changeover.label == T.excChangeoverRow(job: short, machine: short, customer: short))
         let everything = groups.flatMap(\.blocks).flatMap(\.rows).map(\.label).joined(separator: " ")
         #expect(!everything.contains(S.uuid))
     }
 
     @Test func lookupShowsTheShortIDForAMissingName() throws {
         let u = S.uuid
-        let json = #"{"record_type":"job","id":"\#(u)","reference":"J-1","route":"/tenant/x","recorded_by":"\#(u)","customer_id":"\#(u)","machine_id":"\#(u)","staff_member_id":"\#(u)"}"#
+        let json = #"{"record_type":"machine_report","id":"\#(u)","reference":"MR-2026-00001","route":"/tenant/x","recorded_by":"\#(u)","customer_id":"\#(u)","machine_id":"\#(u)","staff_member_id":"\#(u)"}"#
         let match = try AssetaJSON.decoder().decode(LookupMatchDTO.self, from: Data(json.utf8))
         let card = LookupPresentation.card(match, features: Self.all, timeZone: TimeZone(identifier: "UTC")!)
         let short = String(u.prefix(8))

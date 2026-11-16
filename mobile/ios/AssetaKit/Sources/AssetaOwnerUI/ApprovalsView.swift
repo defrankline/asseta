@@ -12,17 +12,14 @@ struct ApprovalsView: View {
     @State private var status: ApprovalStatus = .pending
     @State private var loader = Loader<Page<ApprovalRequestDTO>>()
     @State private var resets = Loader<[MeterResetDTO]>()
-    @State private var pendingJobs = Loader<Page<JobDTO>>()
     @State private var handovers = Loader<Page<CashHandoverDTO>>()
     @State private var payments = Loader<Page<CustomerPaymentRecordDTO>>()
     @State private var pettyMovements = Loader<Page<PettyCashMovementDTO>>()
     @State private var pettyAdjustments = Loader<Page<PettyCashAdjustmentDTO>>()
     @State private var supervisorNames: [UUID: String] = [:]
     @State private var openExceptions = Loader<Page<MeterExceptionDTO>>()
-    @State private var jobNumbers: [UUID: String] = [:]
     /// How many wait per decision kind, once each list has loaded.
     @State private var waiting: [DecisionKind: Int] = [:]
-    @State private var revenueWaiting: Int?
 
     var body: some View {
         List {
@@ -32,12 +29,9 @@ struct ApprovalsView: View {
                 approvalRequests
             }
             otherSections
-            ForEach(model.features.decisionKinds.filter { ![.nonRevenue, .allocationCorrection, .adjustmentRequest, .partialRemittance, .varianceClosure].contains($0) }, id: \.self) { kind in
+            ForEach(model.features.decisionKinds.filter { ![.allocationCorrection, .adjustmentRequest, .partialRemittance, .varianceClosure].contains($0) }, id: \.self) { kind in
                 DecisionKindSection(model: model, kind: kind, onLoaded: noteWaiting)
             }
-            // DEC-031: "Revenue differences" then "Non-revenue hours".
-            if model.features.revenueRead { RevenueDifferencesSection(model: model) { revenueWaiting = $0 } }
-            if model.features.decisionKinds.contains(.nonRevenue) { DecisionKindSection(model: model, kind: .nonRevenue, onLoaded: noteWaiting) }
             // DEC-032: "Daily reports to review" then "Work allocation corrections".
             if model.features.allocationsRead { DailyReportsSection(model: model) }
             if model.features.decisionKinds.contains(.allocationCorrection) { DecisionKindSection(model: model, kind: .allocationCorrection, onLoaded: noteWaiting) }
@@ -47,7 +41,7 @@ struct ApprovalsView: View {
             ForEach([DecisionKind.partialRemittance, .varianceClosure].filter(model.features.decisionKinds.contains), id: \.self) { kind in
                 DecisionKindSection(model: model, kind: kind, onLoaded: noteWaiting)
             }
-            if model.features.nothingWaiting(waiting: waiting, revenueWaiting: revenueWaiting) {
+            if model.features.nothingWaiting(waiting: waiting) {
                 EmptyState(title: ApprovalText.emptyTitle, message: AdjustmentTexts.empty, systemImage: "checkmark.seal")
             }
         }
@@ -73,18 +67,6 @@ struct ApprovalsView: View {
     }
 
     @ViewBuilder private var otherSections: some View {
-            if model.features.jobs {
-                Section(JobApprovalText.sectionTitle) {
-                    let items = pendingJobs.value?.items ?? []
-                    if items.isEmpty {
-                        Text(pendingJobs.value == nil ? (pendingJobs.error ?? "Loading…") : JobApprovalText.empty)
-                            .foregroundStyle(.secondary)
-                    }
-                    ForEach(items) { job in
-                        NavigationLink(value: OwnerRoute.job(job.id)) { PendingJobRow(job: job) }
-                    }
-                }
-            }
             if model.features.finance {
                 PendingHandoversSection(loader: handovers, names: supervisorNames)
             }
@@ -103,7 +85,7 @@ struct ApprovalsView: View {
                     }
                     ForEach(items) { exception in
                         NavigationLink(value: OwnerRoute.exception(exception.id)) {
-                            PendingExceptionRow(exception: exception, jobNumber: exception.jobID.flatMap { jobNumbers[$0] })
+                            PendingExceptionRow(exception: exception)
                         }
                     }
                 }
@@ -126,12 +108,11 @@ struct ApprovalsView: View {
     private func reload() async {
         async let a: Void = loadApprovals()
         async let b: Void = loadResets()
-        async let c: Void = loadPendingJobs()
         async let d: Void = loadHandovers()
         async let e: Void = loadExceptions()
         async let f: Void = loadPayments()
         async let g: Void = loadPettyCash()
-        _ = await (a, b, c, d, e, f, g)
+        _ = await (a, b, d, e, f, g)
     }
 
     private func loadApprovals() async {
@@ -159,14 +140,8 @@ struct ApprovalsView: View {
 
     private func loadExceptions() async {
         guard model.features.meterEvidence else { return }
-        await openExceptions.load(model, .exceptions(openOnly: true, jobID: nil),
+        await openExceptions.load(model, .exceptions(openOnly: true),
                                   OwnerAPI.exceptions(status: ExceptionReviewText.openStatus, pageSize: 100))
-        jobNumbers = await OwnerLookups.jobNumbers(model, ids: openExceptions.value?.items.map(\.jobID) ?? [])
-    }
-
-    private func loadPendingJobs() async {
-        guard model.features.jobs else { return }
-        await pendingJobs.load(model, .jobs(.pendingApproval), OwnerAPI.jobs(status: .pendingApproval, pageSize: 100))
     }
 
     private func loadResets() async {

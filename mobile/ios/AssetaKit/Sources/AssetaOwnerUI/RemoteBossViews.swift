@@ -8,7 +8,7 @@ import SwiftUI
 // The boss's decisions from the field: confirm or dispute cash handovers, review meter exceptions, issue cash floats.
 // Same wording and rules as the Android Owner app; every action is gated like other owner actions.
 
-/// Names and numbers the handover and exception rows need (the records only carry ids).
+/// Names the handover rows need (the records only carry ids).
 @MainActor
 enum OwnerLookups {
     /// Supervisor names by staff id, from today's cash summary (best effort, as Android); saved data offline.
@@ -21,21 +21,6 @@ enum OwnerLookups {
         return repository.cached(.cash(.today), as: [CashSupervisorSummaryDTO].self).map { HandoverText.names($0.value) } ?? [:]
     }
 
-    /// Job numbers by job id (job summaries, saved for offline like the job screen).
-    static func jobNumbers(_ model: OwnerModel, ids: [UUID?]) async -> [UUID: String] {
-        guard let repository = model.repository, model.features.jobs else { return [:] }
-        var numbers: [UUID: String] = [:]
-        var seen = Set<UUID>()
-        let distinct = ids.compactMap { $0 }.filter { seen.insert($0).inserted }
-        for id in distinct.prefix(ExceptionReviewText.maxJobLookups) {
-            if let snapshot = try? await repository.load(.job(id), OwnerAPI.jobSummary(id)) {
-                numbers[id] = snapshot.value.job.jobNumber
-            } else if let saved = repository.cached(.job(id), as: JobSummaryDTO.self) {
-                numbers[id] = saved.value.job.jobNumber
-            }
-        }
-        return numbers
-    }
 }
 
 // MARK: - Cash handovers
@@ -171,7 +156,7 @@ struct HandoverDetailView: View {
     }
 
     @ViewBuilder private func decision(_ handover: CashHandoverDTO) -> some View {
-        Section(JobApprovalText.decisionTitle) {
+        Section("Decision") {
             if let block = model.mutationBlock(permitted: model.features.verifyHandovers,
                                                showingCachedData: record.isFromCache) {
                 BlockedNote(block: block)
@@ -351,15 +336,14 @@ struct IssueFloatSheet: View {
 
 // MARK: - Exceptions
 
-/// "<type label> on <job number>" · severity and time.
+/// "<type label>" · severity and time.
 struct PendingExceptionRow: View {
     let exception: MeterExceptionDTO
-    let jobNumber: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text(ExceptionReviewText.title(exception, jobNumber: jobNumber)).font(.headline)
+                Text(ExceptionReviewText.title(exception)).font(.headline)
                 Spacer()
                 if exception.blocking { Pill(text: "Blocking", color: Palette.offline) }
             }
@@ -399,9 +383,6 @@ struct ExceptionDetailView: View {
                     if let at = exception.reviewedAt { LabeledContent("Reviewed", value: at.shortStamp) }
                     if let note = exception.reviewNote, !note.isEmpty {
                         LabeledContent(ExceptionReviewText.noteLabel, value: note)
-                    }
-                    if let jobID = exception.jobID, model.features.jobs {
-                        NavigationLink(value: OwnerRoute.job(jobID)) { Text(ExceptionReviewText.openJob) }
                     }
                 }
                 if case let .object(fields)? = exception.evidence, !fields.isEmpty {
@@ -447,7 +428,7 @@ struct ExceptionDetailView: View {
     }
 
     @ViewBuilder private var decision: some View {
-        Section(JobApprovalText.decisionTitle) {
+        Section("Decision") {
             if let block = model.mutationBlock(permitted: model.features.reviewExceptions,
                                                showingCachedData: inOpen ? open.isFromCache : all.isFromCache) {
                 BlockedNote(block: block)
@@ -460,10 +441,10 @@ struct ExceptionDetailView: View {
     }
 
     private func reload() async {
-        await open.load(model, .exceptions(openOnly: true, jobID: nil),
+        await open.load(model, .exceptions(openOnly: true),
                         OwnerAPI.exceptions(status: ExceptionReviewText.openStatus, pageSize: 100))
         if !inOpen && reviewed == nil {
-            await all.load(model, .exceptions(openOnly: false, jobID: nil), OwnerAPI.exceptions(pageSize: 200))
+            await all.load(model, .exceptions(openOnly: false), OwnerAPI.exceptions(pageSize: 200))
         }
     }
 }

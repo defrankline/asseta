@@ -54,9 +54,6 @@ public enum ExceptionReviewText {
     public static let notFound = "Exception not found"
     public static let screenTitle = "Meter exception"
     public static let blocksBilling = "Blocks billing until reviewed"
-    public static let openJob = "Open job"
-    /// At most this many job numbers are looked up for the Approvals section (as Android `MAX_JOB_LOOKUPS`).
-    public static let maxJobLookups = 25
     public static let openStatus = "OPEN"
     public static let minNoteLength = 5
     public static let maxNoteLength = 2000
@@ -67,11 +64,8 @@ public enum ExceptionReviewText {
     /// "Review · Meter decrease" (the review sheet's title).
     public static func reviewTitle(_ x: MeterExceptionDTO) -> String { "\(review) · \(typeLabel(x.exceptionType))" }
 
-    /// "Meter decrease on J-2026-105"; just the type when the exception has no job (or it is unknown).
-    public static func title(_ x: MeterExceptionDTO, jobNumber: String?) -> String {
-        guard let jobNumber, !jobNumber.isEmpty else { return typeLabel(x.exceptionType) }
-        return "\(typeLabel(x.exceptionType)) on \(jobNumber)"
-    }
+    /// "Meter decrease" (the row and screen title).
+    public static func title(_ x: MeterExceptionDTO) -> String { typeLabel(x.exceptionType) }
 
     /// Why the note is not acceptable yet (as the web form), or nil.
     public static func noteError(_ note: String) -> String? {

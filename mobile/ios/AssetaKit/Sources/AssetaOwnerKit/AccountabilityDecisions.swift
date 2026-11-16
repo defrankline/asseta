@@ -23,8 +23,6 @@ public struct MeterDecisionIn: Encodable, Hashable, Sendable {
 /// One kind of accountability decision. Same list, wording and permissions as Android.
 public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
     case discount, credit, hoursTransfer, cancellation, baseline, classification, correction, writeOff, retention, adjustment
-    /// DEC-031: non-revenue time inside a job (e.g. movement) explained by one person, approved by another.
-    case nonRevenue
     /// DEC-032: a proposed correction of a work allocation (one record = one correction group).
     case allocationCorrection
     /// DEC-032 Phase 2: a proposed hours correction, refund, reversal or invoice void.
@@ -47,7 +45,6 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .writeOff: ("cash/variances", "WRITE_OFF_PROPOSED")
         case .retention: ("cash/retentions", "PENDING")
         case .adjustment: ("cash/adjustments", "PENDING")
-        case .nonRevenue: ("non-revenue-approvals", "PROPOSED")
         case .allocationCorrection: ("work-allocations/corrections", "PROPOSED")
         case .adjustmentRequest: ("adjustment-requests", AdjustmentRequestStatuses.proposed)
         // Handovers have no filter on the partial reason: all are listed, those with a PENDING reason are kept.
@@ -70,9 +67,9 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         }
     }
 
-    /// Meter decisions (and `NonRevenueDecisionIn`, the same shape) take `MeterDecisionIn` (note required, 5+
+    /// Meter decisions take `MeterDecisionIn` (note required, 5+
     /// characters); the others `DecisionIn`.
-    public var usesMeterDecision: Bool { [.baseline, .classification, .correction, .nonRevenue, .allocationCorrection].contains(self) }
+    public var usesMeterDecision: Bool { [.baseline, .classification, .correction, .allocationCorrection].contains(self) }
 
     /// The permission that lists this kind (as the server's list endpoint).
     public var readPermissions: [String] {
@@ -81,7 +78,6 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .baseline, .classification, .correction, .allocationCorrection: ["tenant.meter.read"]
         case .writeOff, .adjustment, .partialRemittance, .varianceClosure: ["tenant.finance.read"]
         case .retention: ["tenant.collection.record", "tenant.finance.read"]
-        case .nonRevenue: [RevenuePermission.read]
         case .adjustmentRequest: [AdjustmentPermission.read]
         }
     }
@@ -98,7 +94,6 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .writeOff: "tenant.finance.writeoff"
         case .retention: "tenant.finance.retention_approve"
         case .adjustment: "tenant.finance.adjustment_approve"
-        case .nonRevenue: RevenuePermission.decide
         case .adjustmentRequest: AdjustmentPermission.decide
         case .partialRemittance: "tenant.finance.retention_approve"
         case .varianceClosure: "tenant.finance.variance_close"
@@ -111,7 +106,6 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .discount, .credit, .hoursTransfer, .cancellation: TenantCapability.customerHours
         case .baseline, .correction, .classification, .allocationCorrection: TenantCapability.engineHours
         case .writeOff, .retention, .adjustment, .partialRemittance, .varianceClosure: TenantCapability.cashCustody
-        case .nonRevenue: TenantCapability.revenueReconciliation
         // Not tied to one capability: a request can touch hours, payments or invoices.
         case .adjustmentRequest: nil
         }
@@ -132,7 +126,6 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .writeOff: OwnerAccountabilityTexts.approvalsWriteOffs
         case .retention: OwnerAccountabilityTexts.approvalsRetentions
         case .adjustment: OwnerAccountabilityTexts.approvalsAdjustments
-        case .nonRevenue: RevenueTexts.sectionNonRevenue
         case .allocationCorrection: DailyReportOwnerTexts.allocationSection
         case .adjustmentRequest: AdjustmentTexts.section
         case .partialRemittance: VarianceTexts.partialSection
@@ -152,7 +145,6 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .writeOff: OwnerAccountabilityTexts.approvalsWriteOffsEmpty
         case .retention: OwnerAccountabilityTexts.approvalsRetentionsEmpty
         case .adjustment: OwnerAccountabilityTexts.approvalsAdjustmentsEmpty
-        case .nonRevenue: RevenueTexts.sectionNonRevenueEmpty
         case .allocationCorrection: DailyReportOwnerTexts.allocationEmpty
         case .adjustmentRequest: AdjustmentTexts.empty
         case .partialRemittance: VarianceTexts.partialEmpty
@@ -172,7 +164,6 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .writeOff: OwnerAccountabilityTexts.decisionTitleWriteOff
         case .retention: OwnerAccountabilityTexts.decisionTitleRetention
         case .adjustment: OwnerAccountabilityTexts.decisionTitleAdjustment
-        case .nonRevenue: RevenueTexts.titleNonRevenue
         case .allocationCorrection: DailyReportOwnerTexts.allocationTitle
         case .adjustmentRequest: AdjustmentTexts.title
         case .partialRemittance: VarianceTexts.partialTitle
@@ -193,7 +184,6 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case "cash_variance": self = .writeOff
         case "cash_retention": self = .retention
         case "custody_adjustment": self = .adjustment
-        case "non_revenue_approval": self = .nonRevenue
         case "work_allocation_correction": self = .allocationCorrection
         case "adjustment_request": self = .adjustmentRequest
         default: return nil
@@ -230,7 +220,7 @@ public struct PendingDecision: Codable, Hashable, Sendable, Identifiable {
     public func isOwn(userID: UUID?) -> Bool { userID != nil && proposedBy == userID }
 
     /// The detail screen's generic "Reason" line: nil when blank or when the fields already show a "Reason" row
-    /// (non-revenue hours), so the reason is shown once (as Android `DecisionMapper.reasonLine`).
+    /// (allocation corrections), so the reason is shown once (as Android `DecisionMapper.reasonLine`).
     public var reasonLine: String? {
         guard let reason, !reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !fields.contains(where: { $0.label == OwnerAccountabilityTexts.fieldReason }) else { return nil }
@@ -320,9 +310,9 @@ struct ClassificationDTO: Codable, Sendable {
 struct CorrectionDTO: Codable, Sendable {
     let id: UUID, machineID: UUID, machineCode: String?, oldReading: DecimalString, newReading: DecimalString, reason: String
     let status: String, proposedBy: UUID?, proposedByName: String?, proposedAt: Date
-    let machineName: String?, jobNumber: String?, decidedByName: String?, jobID: UUID?, decidedBy: UUID?, decisionNote: String?
+    let machineName: String?, decidedByName: String?, decidedBy: UUID?, decisionNote: String?
     enum CodingKeys: String, CodingKey {
-        case machineName = "machine_name", jobNumber = "job_number", decidedByName = "decided_by_name", jobID = "job_id", decidedBy = "decided_by", decisionNote = "decision_note"
+        case machineName = "machine_name", decidedByName = "decided_by_name", decidedBy = "decided_by", decisionNote = "decision_note"
         case id, reason, status, machineID = "machine_id", machineCode = "machine_code", oldReading = "old_reading"
         case newReading = "new_reading", proposedBy = "proposed_by", proposedByName = "proposed_by_name"
         case proposedAt = "proposed_at"
@@ -440,7 +430,7 @@ extension PendingDecision {
                                               machine: c.machineCode ?? c.machineName ?? DisplayName.shortID(c.machineID)),
                         c.reason, c.proposedAt, c.proposedBy, c.status,
                         fields([(T.fieldMachine, DisplayName.machine(code: c.machineCode, name: c.machineName, id: c.machineID)),
-                                (T.fieldJob, who(c.jobNumber, c.jobID)), (T.fieldOldReading, num(c.oldReading)),
+                                (T.fieldOldReading, num(c.oldReading)),
                                 (T.fieldNewReading, num(c.newReading)), (T.fieldProposedBy, who(c.proposedByName, c.proposedBy))]
                                + decided(c.decidedByName, c.decidedBy, c.decisionNote)),
                         machine: c.machineID, name: c.proposedByName)
@@ -467,19 +457,6 @@ extension PendingDecision {
                                 (T.fieldProposedBy, who(a.createdByName, a.createdBy))]
                                + decided(a.decidedByName, a.decidedBy, a.decisionNote)),
                         name: a.createdByName)
-        case .nonRevenue:
-            guard let n = try? json.decode(as: NonRevenueApprovalDTO.self) else { return nil }
-            let type = RevenueTexts.activityType(n.activityType)
-            return item(n.id, RevenueTexts.rowNonRevenue(hours: num(n.hours), type: type,
-                                                         machine: n.machineCode ?? n.machineName ?? DisplayName.shortID(n.machineID)),
-                        n.reasonName ?? n.note, n.proposedAt, n.proposedBy, n.status,
-                        fields([(T.fieldMachine, DisplayName.machine(code: n.machineCode, name: n.machineName, id: n.machineID)),
-                                (T.fieldJob, who(n.jobNumber, n.jobID)), (RevenueTexts.nonRevType, type),
-                                (RevenueTexts.nonRevTime, "\(date(n.startedAt)) – \(date(n.endedAt))"),
-                                (RevenueTexts.nonRevHours, num(n.hours)), (RevenueTexts.reason, n.reasonName),
-                                (RevenueTexts.note, n.note), (T.fieldProposedBy, who(n.proposedByName, n.proposedBy))]
-                               + decided(n.decidedByName, n.decidedBy, n.decisionNote)),
-                        machine: n.machineID, name: n.proposedByName)
         case .allocationCorrection:
             guard let c = try? json.decode(as: AllocationCorrectionDTO.self) else { return nil }
             return AllocationPresentation.decision(group: c.groupID, status: c.status, entries: c.entries, timeZone: timeZone)

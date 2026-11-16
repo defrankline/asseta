@@ -70,11 +70,11 @@ struct OwnerRepositoryTests {
     @Test func goneRecordDropsOnlyItsEntry() async throws {
         let (repo, transport, cache) = try make { _ in (200, Data(Samples.overview.utf8)) }
         _ = try await repo.load(.overview, OwnerAPI.overview())
-        transport.setHandler { _ in (200, Data(Samples.jobSummary.utf8)) }
-        let jobID = UUID(uuidString: Samples.job)!
-        _ = try await repo.load(.job(jobID), OwnerAPI.jobSummary(jobID))
+        transport.setHandler { _ in (200, Data(Samples.machineJSON().utf8)) }
+        let machineID = UUID(uuidString: Samples.machine)!
+        _ = try await repo.load(.machine(machineID), OwnerAPI.machine(machineID))
         transport.setHandler { _ in Self.error("NOT_FOUND", 404) }
-        await #expect(throws: APIError.self) { try await repo.load(.job(jobID), OwnerAPI.jobSummary(jobID)) }
+        await #expect(throws: APIError.self) { try await repo.load(.machine(machineID), OwnerAPI.machine(machineID)) }
         #expect(try cache.count(tenantID: tenant) == 1)
     }
 
@@ -107,9 +107,9 @@ struct OwnerRepositoryTests {
         let history = OwnerAPI.history(machine, from: from, to: to)
         #expect(history.queryItems.map(\.name) == ["from", "to"])
         #expect(history.queryItems.first?.value == "1970-01-01T00:00:00.000Z")
-        let jobs = OwnerAPI.jobs(status: .inProgress, machineID: machine, pageSize: 500)
-        #expect(jobs.queryItems.contains(URLQueryItem(name: "page_size", value: "200")))
-        #expect(jobs.queryItems.contains(URLQueryItem(name: "status", value: "IN_PROGRESS")))
+        let reports = OwnerAPI.machineReports(status: .submitted, machineID: machine, pageSize: 500)
+        #expect(reports.queryItems.contains(URLQueryItem(name: "page_size", value: "200")))
+        #expect(reports.queryItems.contains(URLQueryItem(name: "status", value: "SUBMITTED")))
         let decide = try OwnerAPI.decideApproval(machine, approve: true, note: nil, idempotencyKey: UUID())
         #expect(decide.path.hasSuffix("/decision") && decide.method == .post)
         #expect(OwnerAPI.pushDevices().tenantScoped) // binds the device to the open company

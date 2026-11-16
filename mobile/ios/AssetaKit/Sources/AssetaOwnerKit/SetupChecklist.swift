@@ -104,7 +104,7 @@ public enum SetupPresentation {
         var app: (OwnerRoute, String)?
         switch path {
         case "/tenant/machines" where !hasQuery && features.fleet: app = (.fleet, SetupTexts.screenFleet)
-        case "/tenant/jobs" where features.jobs: app = (.jobs, SetupTexts.screenJobs)
+        case "/tenant/machine-reports" where features.machineReports: app = (.approvals, SetupTexts.screenApprovals)
         case "/tenant/approvals" where features.approvals, "/tenant/meter-baselines" where features.approvals:
             app = (.approvals, SetupTexts.screenApprovals)
         case "/tenant/hours" where features.hoursRead, "/tenant/hours/purchases" where features.hoursRead:
@@ -240,7 +240,6 @@ public enum SetupTexts {
 
     // App screen titles used in `owner.setup.openScreen`.
     public static let screenFleet = "Fleet"
-    public static let screenJobs = "Jobs"
     public static let screenApprovals = "Approvals"
     public static let screenCustomerHours = CustomerHoursTexts.more
     public static let screenCash = CashText.title

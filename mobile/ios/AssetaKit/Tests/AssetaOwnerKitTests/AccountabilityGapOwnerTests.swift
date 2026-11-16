@@ -174,8 +174,7 @@ struct AccountabilityGapOwnerTests {
             "HOURS_TRANSFER": .decision(.hoursTransfer, rid), "HOURS_CANCELLATION": .decision(.cancellation, rid),
             "METER_BASELINE": .decision(.baseline, rid), "METER_CORRECTION": .decision(.correction, rid),
             "ENGINE_HOURS_CLASSIFICATION": .decision(.classification, rid),
-            "REVENUE_DIFFERENCE": .revenueDifference(rid), "NON_REVENUE_APPROVAL": .decision(.nonRevenue, rid),
-            "HOURS_PURCHASE": .hoursPurchase(rid), "JOB": .job(rid), "DAILY_REPORT": .dailyReport(rid),
+            "HOURS_PURCHASE": .hoursPurchase(rid), "DAILY_REPORT": .dailyReport(rid),
             "WORK_ALLOCATION_CORRECTION": .decision(.allocationCorrection, rid),
             "ADJUSTMENT_REQUEST": .decision(.adjustmentRequest, rid),
         ]

@@ -3,7 +3,7 @@ import AssetaNetwork
 import AssetaStore // UUID.lowercased
 import Foundation
 
-// DEC-031 Phase 5 in the Owner app: the people scorecard, unbilled work, idle machines and site check-ins. Read-only;
+// DEC-031 Phase 5 in the Owner app: the people scorecard and idle machines. Read-only;
 // reads may come from the encrypted snapshot cache like every Owner screen.
 
 // MARK: - Requests
@@ -13,10 +13,7 @@ extension SnapshotKey {
     public static func scorecardPerson(_ id: UUID, from: String, to: String, item: String?) -> SnapshotKey {
         SnapshotKey("scorecard.person.\(id.lowercased).\(from).\(to).\(item ?? "all")")
     }
-    public static let unbilledWork = SnapshotKey("oversight.unbilled")
     public static let idleMachines = SnapshotKey("oversight.idle")
-    public static let siteCheckins = SnapshotKey("oversight.checkins")
-    public static func siteCheckin(_ id: UUID) -> SnapshotKey { SnapshotKey("oversight.checkin.\(id.lowercased)") }
 }
 
 extension OwnerAPI {
@@ -30,27 +27,14 @@ extension OwnerAPI {
         .get("\(tenant)/scorecard/\(id.lowercased)", query: compact([("day_from", from), ("day_to", to), ("item", item)]))
     }
 
-    /// `GET /unbilled-work` (oldest first).
-    public static func unbilledWork(pageSize: Int = 200) -> APIRequest<Page<UnbilledJobDTO>> {
-        .get("\(tenant)/unbilled-work", query: paging(1, pageSize))
-    }
-
     /// `GET /idle-machines` (longest idle first).
     public static func idleMachines(pageSize: Int = 200) -> APIRequest<Page<IdleMachineDTO>> {
         .get("\(tenant)/idle-machines", query: paging(1, pageSize))
     }
 
-    /// `GET /site-checkins?day_from&day_to` (the office list, newest first).
-    public static func siteCheckins(from: String? = nil, to: String? = nil, pageSize: Int = 100) -> APIRequest<Page<SiteCheckinDTO>> {
-        .get("\(tenant)/site-checkins", query: compact([("day_from", from), ("day_to", to)]) + paging(1, pageSize))
-    }
-
-    /// `GET /site-checkins/{id}`.
-    public static func siteCheckin(_ id: UUID) -> APIRequest<SiteCheckinDTO> { .get("\(tenant)/site-checkins/\(id.lowercased)") }
 }
 
-// MARK: - Wording (strings doc "DEC-031 Phase 5 — oversight", owner.score.* / owner.dash.* / owner.unbilled.* /
-// owner.idle.*)
+// MARK: - Wording (strings doc "DEC-031 Phase 5 — oversight", owner.score.* / owner.dash.* / owner.idle.*)
 
 public enum OversightTexts {
     // Scorecard list
@@ -82,16 +66,12 @@ public enum OversightTexts {
     public static let cashHeldTooLong = "Cash held too long"
     public static let cashDifferences = "Cash differences"
     public static let nearThreshold = "Near the case threshold"
-    public static let revenueDifferences = "Revenue differences"
     public static let refused = "Refused attempts"
-    public static let checkins = "Site check-ins"
-    public static func checkinsValue(made: Int, missed: Int) -> String { "\(made) made · \(missed) missed" }
     public static let patterns = "Repeated patterns"
     public static let cashHeld = "Cash held now"
     public static func heldSince(date: String, days: Int?) -> String { "since \(date)" + (days.map { " (\(Self.days($0)))" } ?? "") }
     public static let records = "Records"
     public static let recordsEmpty = "No records in this period."
-    public static func scheduled(_ time: String) -> String { "Scheduled \(time)" }
 
     /// `owner.score.item.*` (unknown items humanized).
     public static func item(_ item: ScorecardItem) -> String {
@@ -102,40 +82,24 @@ public enum OversightTexts {
         case .alert: "Alert"
         case .cashHeldTooLong: "Cash held too long"
         case .cashDifference: "Cash difference"
-        case .revenueDifference: "Revenue difference"
         case .refusedAttempt: "Refused attempt"
-        case .missedCheckin: "Missed site check-in"
         case .patternSignal: "Repeated pattern"
         default: OwnerFormat.humanize(item.rawValue)
         }
     }
 
     // Dashboard tiles
-    public static let dashUnbilled = "Unbilled work"
-    public static let dashUnbilledJobs = "Jobs"
-    public static let dashUnbilledValue = "Value"
-    public static let dashOldest = "Oldest"
-    public static func dashUnbilledFooter(_ days: String) -> String { "Completed jobs not on an issued invoice after \(days)." }
     public static let dashIdle = "Idle machines"
     public static let dashIdleMachines = "Machines"
     public static let dashLongestIdle = "Longest idle"
-    public static func dashIdleFooter(_ days: String) -> String { "Machines with no running job and no engine hours for \(days)." }
-
-    // Unbilled work
-    public static let unbilledTitle = "Unbilled work"
-    public static let unbilledEmpty = "No completed jobs waiting for an invoice."
-    public static func unbilledRow(job: String, customer: String) -> String { "\(job) · \(customer)" }
-    public static func unbilledCompleted(date: String, days: String) -> String { "Completed \(date) · \(days) unbilled" }
-    public static let unbilledDraft = "On a draft invoice"
-    public static let unbilledFooter = "Completed jobs not on an issued invoice yet. Invoices are made on the web."
+    public static func dashIdleFooter(_ days: String) -> String { "Machines with no approved machine-report hours for \(days)." }
 
     // Idle machines
     public static let idleTitle = "Idle machines"
     public static let idleEmpty = "No idle machines."
     public static func idleSince(date: String, days: String) -> String { "Idle since \(date) (\(days))" }
-    public static func idleLastJob(job: String, date: String) -> String { "Last job \(job) completed \(date)" }
-    public static func idlePlanned(_ job: String) -> String { "Planned job \(job)" }
-    public static let idleFooter = "Machines with no running job and no engine hours for a while."
+    public static func idleLastReport(_ number: String) -> String { "Last machine report \(number)" }
+    public static let idleFooter = "Machines with no approved machine-report hours for a while."
 
     /// "1 day" / "{n} days".
     public static func days(_ n: Int) -> String { n == 1 ? "1 day" : "\(n) days" }
@@ -192,7 +156,7 @@ public struct ScorecardRecordRow: Hashable, Sendable {
     public let route: OwnerRoute?
 }
 
-/// Pure presentation of the scorecard, unbilled work and idle machines (as Android `OversightPresentation`).
+/// Pure presentation of the scorecard and idle machines (as Android `OversightPresentation`).
 public enum OversightPresentation {
     typealias T = OversightTexts
 
@@ -229,9 +193,7 @@ public enum OversightPresentation {
         add(r.alertsOpen, "open alerts")
         add(r.cashHeldTooLong, "cash held too long")
         add(r.cashDifferences, "cash differences")
-        add(r.revenueDifferences, "revenue differences")
         add(r.refusedAttempts, "refused attempts")
-        add(r.checkinsMissed ?? 0, "missed check-ins")
         add(r.patternSignals, "repeated patterns")
         return out
     }
@@ -250,7 +212,7 @@ public enum OversightPresentation {
     /// The person's Figures rows in the documented order.
     public static func figureRows(_ r: ScorecardRowDTO) -> [DecisionField] {
         var rows: [(String, String)] = [
-            (T.period, RevenuePresentation.period(from: r.dayFrom, to: r.dayTo)), (T.machines, "\(r.machines)"),
+            (T.period, OwnerFormat.period(from: r.dayFrom, to: r.dayTo)), (T.machines, "\(r.machines)"),
             (T.reportsMissing, "\(r.dailyReportsMissing)"), (T.reportsLate, "\(r.dailyReportsLate)"),
             (T.unexplained, T.unexplainedValue(hours: h(r.unexplainedHours), n: r.unexplainedItems)),
             (T.alerts, T.alertsValue(n: r.alerts, open: r.alertsOpen)),
@@ -261,9 +223,7 @@ public enum OversightPresentation {
         rows.append((T.cashHeldTooLong, "\(r.cashHeldTooLong)"))
         rows.append((T.cashDifferences, (["\(r.cashDifferences)"] + [money(r.cashDifferenceTotals)].compactMap { $0 }).joined(separator: " · ")))
         if r.cashDifferencesNearThreshold > 0 { rows.append((T.nearThreshold, "\(r.cashDifferencesNearThreshold)")) }
-        rows.append((T.revenueDifferences, (["\(r.revenueDifferences)"] + [money(r.revenueDifferenceTotals)].compactMap { $0 }).joined(separator: " · ")))
         rows.append((T.refused, "\(r.refusedAttempts)"))
-        if let missed = r.checkinsMissed { rows.append((T.checkins, T.checkinsValue(made: r.checkinsMade, missed: missed))) }
         rows.append((T.patterns, "\(r.patternSignals)"))
         return rows.map { DecisionField(label: $0.0, value: $0.1) }
     }
@@ -280,11 +240,10 @@ public enum OversightPresentation {
     public static func route(_ record: ScorecardRecordDTO, features: OwnerFeatures) -> OwnerRoute? {
         let id = record.recordID
         let route: OwnerRoute? = switch record.recordType {
-        case "job_exception": id.map(OwnerRoute.exception)
+        case "meter_exception": id.map(OwnerRoute.exception)
         case "tracking_alert": id.map(OwnerRoute.alert)
         case "cash_remittance_overdue": id.map(OwnerRoute.overdueRemittance)
         case "cash_variance": id.map { OwnerRoute.decision(.writeOff, $0) }
-        case "revenue_difference": id.map(OwnerRoute.revenueDifference)
         case "risk_signal": record.detail?["case_id"]?.stringValue.flatMap(UUID.init(uuidString:)).map(OwnerRoute.investigation)
         case "engine_interval": record.machineID.map(OwnerRoute.machine)
         default: nil
@@ -293,7 +252,7 @@ public enum OversightPresentation {
         return route
     }
 
-    /// One record row: item, money or hours, then day · machine · job · status and the item's own details.
+    /// One record row: item, money or hours, then day · machine · status and the item's own details.
     public static func record(_ r: ScorecardRecordDTO, features: OwnerFeatures, timeZone: TimeZone = .current) -> ScorecardRecordRow {
         let value: String? = if let amount = r.amount, let currency = r.currency {
             OwnerFormat.money(amount, currency: currency)
@@ -301,16 +260,12 @@ public enum OversightPresentation {
             r.hours.map { "\(h($0)) h" }
         }
         let machine = (r.machineCode ?? r.machineName) == nil ? nil : DisplayName.machine(code: r.machineCode, name: r.machineName, id: nil)
-        var parts: [String] = [r.day.map(RevenuePresentation.day) ?? date(r.at, timeZone: timeZone), machine, r.jobNumber,
+        var parts: [String] = [r.day.map(OwnerFormat.day) ?? date(r.at, timeZone: timeZone), machine,
                                r.status.map(OwnerFormat.humanize)].compactMap { $0 }.filter { !$0.isEmpty }
         if r.nearThreshold { parts.append(T.nearThreshold) }
         switch r.item {
         case .alert:
             if let title = r.detail?["title"]?.stringValue, !title.isEmpty { parts.append(title) }
-        case .missedCheckin:
-            if let at = r.detail?["scheduled_at"]?.stringValue.flatMap(AssetaJSON.parseInstant) {
-                parts.append(T.scheduled(formatter("HH:mm", timeZone).string(from: at)))
-            }
         case .refusedAttempt:
             for key in ["action", "permission"] {
                 if let text = r.detail?[key]?.stringValue, !text.isEmpty { parts.append(text) }
@@ -326,59 +281,23 @@ public enum OversightPresentation {
         detail.records.sorted { $0.at > $1.at }.map { record($0, features: features, timeZone: timeZone) }
     }
 
-    // Unbilled work
-
-    public static func unbilledSorted(_ items: [UnbilledJobDTO]) -> [UnbilledJobDTO] {
-        items.sorted { $0.daysUnbilled > $1.daysUnbilled }
-    }
-
-    public static func unbilled(_ u: UnbilledJobDTO, timeZone: TimeZone = .current) -> OversightRow {
-        let machine = DisplayName.machine(code: u.machineCode, name: u.machineName, id: u.machineID)
-        let subtitle = ([machine] + [u.jobSiteName].compactMap { $0 }.filter { !$0.isEmpty }).joined(separator: " · ")
-        let caption = T.unbilledCompleted(date: date(u.completedAt, timeZone: timeZone), days: T.days(u.daysUnbilled))
-            + (u.draftInvoiceID != nil ? " · " + T.unbilledDraft : "")
-        return OversightRow(title: T.unbilledRow(job: u.jobNumber ?? "—", customer: DisplayName.or(u.customerName, id: u.customerID)),
-                            subtitle: subtitle, caption: caption, trailing: u.total.map { OwnerFormat.money($0, currency: u.currency) })
-    }
-
     // Idle machines
 
     public static func idleSorted(_ items: [IdleMachineDTO]) -> [IdleMachineDTO] { items.sorted { $0.idleDays > $1.idleDays } }
 
-    /// Headline machine, caption idle since, second caption the last job and the planned job.
+    /// Headline machine, caption idle since, second caption the machine's last report.
     public static func idle(_ m: IdleMachineDTO, timeZone: TimeZone = .current) -> OversightRow {
-        var more: [String] = []
-        if m.lastJobID != nil {
-            more.append(T.idleLastJob(job: m.lastJobNumber ?? "—", date: m.lastJobCompletedAt.map { date($0, timeZone: timeZone) } ?? "—"))
-        }
-        if m.plannedJobID != nil { more.append(T.idlePlanned(m.plannedJobNumber ?? "—")) }
+        let last = m.lastMachineReportID == nil ? nil : T.idleLastReport(m.lastMachineReportNumber ?? "—")
         return OversightRow(title: DisplayName.machine(code: m.machineCode, name: m.machineName, id: m.machineID),
                             subtitle: T.idleSince(date: date(m.idleSince, timeZone: timeZone), days: T.days(m.idleDays)),
-                            caption: more.isEmpty ? nil : more.joined(separator: " · "), trailing: nil)
+                            caption: last, trailing: nil)
     }
 
     // Dashboard tiles
 
-    /// The Unbilled work and Idle machines tiles (hidden when null or switched off); each links to its list.
-    public static func tiles(unbilled: JSONValue?, idle: JSONValue?, off: Set<String>) -> [DashboardTile] {
+    /// The Idle machines tile (hidden when null or switched off); it links to its list.
+    public static func tiles(idle: JSONValue?, off: Set<String>) -> [DashboardTile] {
         var out: [DashboardTile] = []
-        if !off.contains(TenantCapability.unbilledWork), let u = unbilled, u != .null {
-            var amounts: [String] = []
-            if case let .array(items)? = u["amounts"] {
-                for item in items {
-                    guard let currency = item["currency"]?.stringValue,
-                          let amount = item["amount"]?.stringValue.flatMap({ DecimalString(string: $0) }) else { continue }
-                    amounts.append(OwnerFormat.money(amount, currency: currency))
-                }
-            }
-            var rows: [DashboardTile.Row] = [
-                .init(T.dashUnbilledJobs, "\(u["count"]?.intValue ?? 0)"),
-                .init(T.dashUnbilledValue, amounts.isEmpty ? OwnerAccountabilityTexts.dashNone : amounts.joined(separator: ", ")),
-            ]
-            if let oldest = u["oldest_days"]?.intValue { rows.append(.init(T.dashOldest, T.days(oldest))) }
-            out.append(DashboardTile(id: "unbilled_work", title: T.dashUnbilled, rows: rows, route: .unbilledWork,
-                                     footer: u["after_days"]?.intValue.map { T.dashUnbilledFooter(T.days($0)) }))
-        }
         if !off.contains(TenantCapability.idleMachines), let i = idle, i != .null {
             var rows: [DashboardTile.Row] = [.init(T.dashIdleMachines, "\(i["count"]?.intValue ?? 0)")]
             if let longest = i["longest_idle_days"]?.intValue { rows.append(.init(T.dashLongestIdle, T.days(longest))) }

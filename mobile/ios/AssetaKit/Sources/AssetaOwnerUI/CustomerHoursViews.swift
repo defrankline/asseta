@@ -7,12 +7,12 @@ import QuickLook
 import SwiftUI
 
 // DEC-031 Phase 4 Owner screens (strings doc "DEC-031 Phases 2 and 4"): More → Customer hours (open purchases), one
-// purchase (hours, hours in use by running jobs, machines) and the customer's hours statement with its PDF.
+// purchase (hours, machines) and the customer's hours statement with its PDF.
 // Read-only; reads may show the cached snapshot.
 
 private typealias T = CustomerHoursTexts
 
-/// Open prepaid-hours purchases with hours left or in use by running jobs, newest first.
+/// Open prepaid-hours purchases with hours left, newest first.
 struct CustomerHoursView: View {
     let model: OwnerModel
     @State private var loader = Loader<Page<HoursPurchaseDTO>>()
@@ -66,7 +66,7 @@ struct HoursPurchaseView: View {
                 Section {
                     Text(p.purchaseNumber).font(.headline)
                     HoursFieldList(fields: CustomerHoursPresentation.purchaseRows(p))
-                } header: { Text(T.hours) } footer: { Text(T.provisionalFooter) }
+                } header: { Text(T.hours) }
                 let machines = CustomerHoursPresentation.machineRows(p)
                 if !machines.isEmpty { Section(T.machines) { HoursFieldList(fields: machines) } }
                 let payments = CustomerHoursPresentation.paymentLines(p, reversedAt: reversedAt)

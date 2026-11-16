@@ -8,13 +8,6 @@ public struct OwnerFeatures: Equatable, Sendable {
     public let overview: Bool
     public let fleet: Bool
     public let manageAlerts: Bool
-    public let jobs: Bool
-    /// Approve (pricing it when needed) or decline jobs waiting for approval (`tenant.job.approve`).
-    public let approveJobs: Bool
-    /// Create a job and assign it to a supervisor (`tenant.job.write`, as the web "New job" dialog).
-    public let createJobs: Bool
-    /// Pick the job site on a new job (`tenant.geofence.read`, as the web form shows the site picker).
-    public let pickJobSites: Bool
     public let finance: Bool
     /// Confirm or dispute cash handovers (`tenant.finance.verify`, as the web Handovers tab).
     public let verifyHandovers: Bool
@@ -63,23 +56,9 @@ public struct OwnerFeatures: Equatable, Sendable {
     /// The DEC-030 cash additions are in use (transfers, acknowledgements, write-offs, retentions, adjustments,
     /// remittance cut-off, amount received on a remittance).
     public var cashCustody: Bool { !disabledCapabilities.contains(TenantCapability.cashCustody) }
-    /// Revenue checks are switched on (`REVENUE_RECONCILIATION`, platform default off: listed as disabled until a
-    /// tenant opts in).
-    public var revenueOn: Bool { !disabledCapabilities.contains(TenantCapability.revenueReconciliation) }
-    /// Revenue differences and the daily machine sheet (`tenant.revenue.read`, capability on).
-    public var revenueRead: Bool { revenueOn && permissions.contains(RevenuePermission.read) }
-    /// Explain a revenue difference (`tenant.revenue.explain`).
-    public var revenueExplain: Bool { revenueRead && permissions.contains(RevenuePermission.explain) }
-    /// Decide on revenue differences (`tenant.revenue.decide`).
-    public var revenueDecide: Bool { revenueRead && permissions.contains(RevenuePermission.decide) }
-
     /// People scorecard (DEC-031 Phase 5): `SCORECARD` on + `tenant.oversight.scorecard.read`.
     public var scorecard: Bool {
         !disabledCapabilities.contains(TenantCapability.scorecard) && permissions.contains("tenant.oversight.scorecard.read")
-    }
-    /// Unbilled work list: `UNBILLED_WORK` on + `tenant.oversight.read`.
-    public var unbilledWork: Bool {
-        !disabledCapabilities.contains(TenantCapability.unbilledWork) && permissions.contains("tenant.oversight.read")
     }
     /// Idle machines list: `IDLE_MACHINES` on + `tenant.oversight.read`.
     public var idleMachines: Bool {
@@ -100,7 +79,7 @@ public struct OwnerFeatures: Equatable, Sendable {
     public var confirmPayments: Bool { finance && verifyHandovers }
 
     /// The Approvals screen shows approval requests or at least one kind of accountability decision.
-    public var approvalsScreen: Bool { approvals || !decisionKinds.isEmpty || revenueRead || confirmPayments || pettyCashApprove }
+    public var approvalsScreen: Bool { approvals || !decisionKinds.isEmpty || confirmPayments || pettyCashApprove }
 
     public func canDecide(_ kind: DecisionKind) -> Bool { kind.decidable(permissions: permissions) }
 
@@ -115,11 +94,6 @@ public struct OwnerFeatures: Equatable, Sendable {
         }
         fleet = set.contains("tenant.fleet.read")
         manageAlerts = set.contains("tenant.fleet.alert_manage") && !disabled.contains(TenantCapability.tracking)
-        // ADR-008: jobs are gone (machine reports replace them), whatever the permissions say.
-        jobs = false
-        approveJobs = false
-        createJobs = false
-        pickJobSites = set.contains("tenant.geofence.read")
         finance = set.contains("tenant.finance.read")
         verifyHandovers = set.contains("tenant.finance.verify")
         issueFloats = set.contains("tenant.finance.cash")
@@ -195,8 +169,6 @@ public enum DecisionErrorText {
             return ExceptionReviewText.alreadyReviewed
         case "SUBSCRIPTION_READ_ONLY":
             return "This company's subscription is read-only, so changes are not accepted right now."
-        case "PRICE_REQUIRED":
-            return JobApprovalText.priceRequired
         case "PERMISSION_DENIED":
             return "You do not have permission to do this."
         case "TENANT_ACCESS_DENIED", "TENANT_ACCESS_BLOCKED", "MANDATE_ENDED", "MANDATE_REQUIRED":

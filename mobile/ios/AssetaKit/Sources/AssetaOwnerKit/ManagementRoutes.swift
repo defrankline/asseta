@@ -25,9 +25,9 @@ public enum ManagementRoutes {
         return webPath(route).map(FigureTarget.web)
     }
 
-    /// Excavator rows use the machine: daily sheet, else machine, else web on the route.
+    /// Excavator rows use the machine: its days of allocations, else the machine, else web on the route.
     public static func excavatorTarget(machineID: UUID, route: String, features: OwnerFeatures) -> FigureTarget? {
-        if features.machineDays { return .screen(.dailySheet(machineID)) }
+        if features.allows(.machineDays(machineID)) { return .screen(.machineDays(machineID)) }
         if features.fleet { return .screen(.machine(machineID)) }
         return webPath(route).map(FigureTarget.web)
     }
@@ -57,22 +57,20 @@ public enum ManagementRoutes {
                 return .approvals
             }
             return nil
-        case "meter-corrections", "meter-baselines", "meter-resets", "non-revenue-approvals", "approvals":
+        case "meter-corrections", "meter-baselines", "meter-resets", "approvals":
             return rest.count == 1 && pendingStatuses.contains(status) ? .approvals : nil
         case "engine-hours":
             return rest == ["engine-hours", "classifications"] && pendingStatuses.contains(status) ? .approvals : nil
         case "work-allocations":
             return rest == ["work-allocations", "corrections"] && pendingStatuses.contains(status) ? .approvals : nil
-        case "jobs":
-            return rest.count == 1 && status == "PENDING_APPROVAL" ? .approvals : nil
+        case "machine-reports":
+            return rest.count == 1 && (status == nil || status == "SUBMITTED") ? .approvals : nil
         case "daily-reports":
             return rest.count == 1 && status == "SUBMITTED" ? .approvals : nil
-        case "revenue-differences":
-            return rest.count == 1 && (status == nil || status == "EXPLANATION_PROPOSED") ? .approvals : nil
         case "accountability":
             return rest == ["accountability", "pending-adjustments"] ? .approvals : nil
         case "exceptions":
-            return rest.count == 1 ? .exceptions(jobID: nil) : nil
+            return rest.count == 1 ? .exceptions : nil
         case "cases":
             return rest.count == 1 ? .investigations : nil
         case "finance":

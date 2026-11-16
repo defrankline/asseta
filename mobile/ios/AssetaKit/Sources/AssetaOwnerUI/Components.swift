@@ -219,18 +219,12 @@ struct RecordRowView: View {
     }
 }
 
-/// A `RecordRow` that opens its job when it has one and the role can see jobs.
+/// A `RecordRow` in a list (records no longer open a job).
 struct RecordLink: View {
     let model: OwnerModel
     let row: RecordRow
 
-    var body: some View {
-        if let jobID = row.jobID, model.features.jobs {
-            NavigationLink(value: OwnerRoute.job(jobID)) { RecordRowView(row: row) }
-        } else {
-            RecordRowView(row: row)
-        }
-    }
+    var body: some View { RecordRowView(row: row) }
 }
 
 /// One KPI: big number, caption, optional tint.
@@ -265,20 +259,6 @@ struct BlockedNote: View {
     var body: some View {
         Label(block.message, systemImage: "lock")
             .font(.footnote).foregroundStyle(.secondary)
-    }
-}
-
-extension JobStatus {
-    var label: String { OwnerFormat.humanize(rawValue) }
-
-    var color: Color {
-        switch self {
-        case .inProgress: Palette.recent
-        case .approved: Palette.live
-        case .cancelled: Palette.offline
-        case .pendingApproval: Palette.warning
-        default: Palette.neutral
-        }
     }
 }
 

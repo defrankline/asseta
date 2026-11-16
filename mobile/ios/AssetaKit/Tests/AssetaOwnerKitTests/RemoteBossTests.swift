@@ -29,9 +29,9 @@ struct RemoteBossTests {
      "reference":null,"note":"Fuel for Katavi"}
     """
 
-    static func exception(type: String = "METER_DECREASE", jobID: Bool = true) -> String {
+    static func exception(type: String = "METER_DECREASE") -> String {
         """
-        {"id":"\(exceptionID.uuidString.lowercased())","job_id":\(jobID ? "\"abababab-0000-4000-8000-000000000001\"" : "null"),
+        {"id":"\(exceptionID.uuidString.lowercased())",
          "machine_id":"bbbbbbbb-0000-4000-8000-000000000002","meter_capture_id":null,"exception_type":"\(type)",
          "severity":"HIGH","blocking":true,"evidence":{},"policy_version":"v2","status":"OPEN","review_note":null,
          "reviewed_at":null,"created_at":"2026-10-22T08:00:00Z"}
@@ -141,15 +141,14 @@ struct RemoteBossTests {
 
     // MARK: Exceptions
 
-    @Test func exceptionsAreNamedByTypeAndJob() throws {
+    @Test func exceptionsAreNamedByType() throws {
         let x = try decode(MeterExceptionDTO.self, Self.exception())
-        #expect(ExceptionReviewText.title(x, jobNumber: "J-2026-105") == "Meter decrease on J-2026-105")
-        #expect(ExceptionReviewText.title(x, jobNumber: nil) == "Meter decrease")
+        #expect(ExceptionReviewText.title(x) == "Meter decrease")
         #expect(ExceptionReviewText.reviewTitle(x) == "Review · Meter decrease")
-        #expect(x.evidence == .object([:]) && ExceptionReviewText.maxJobLookups == 25)
+        #expect(x.evidence == .object([:]))
         #expect(ExceptionReviewText.sectionTitle == "Exceptions" && ExceptionReviewText.empty == "No open exceptions.")
         #expect(ExceptionReviewText.reviewed == "Exception reviewed.")
-        #expect(ExceptionReviewText.screenTitle == "Meter exception" && ExceptionReviewText.openJob == "Open job")
+        #expect(ExceptionReviewText.screenTitle == "Meter exception")
         #expect(ExceptionReviewText.blocksBilling == "Blocks billing until reviewed")
     }
 
