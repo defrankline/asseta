@@ -11,6 +11,8 @@ extension FieldModel {
     var myReports: [MachineReportDTO] { services?.directory.myMachineReports() ?? [] }
     var unsentReports: [UUID: MachineReportPayload] { services?.directory.unsentMachineReports() ?? [:] }
     var openCreditInvoices: [OpenCreditInvoice] { services?.directory.openCreditInvoices() ?? [] }
+    /// Customers' usable hours (machine report snapshot): Dashboard "Customer balances".
+    var reportHours: [AvailableHoursDTO] { services?.directory.machineReportHours() ?? [] }
 
     /// The tenant's reminder days (`machine_report_reminder_days`): 3 while the policy is unknown or failed to load,
     /// nil (reminders off) when the tenant set it to null.
@@ -68,16 +70,6 @@ extension FieldModel {
         let digits = value.formatted(.number.precision(.fractionLength(0...2)))
         guard currency, let code = baseCurrency, !code.isEmpty else { return digits }
         return "\(code) \(digits)"
-    }
-
-    /// Short money ("3.85M", "355K") for the Home summary strip.
-    func shortMoney(_ value: Decimal) -> String {
-        let n = NSDecimalNumber(decimal: value).doubleValue
-        switch abs(n) {
-        case 1_000_000...: return (n / 1_000_000).formatted(.number.precision(.fractionLength(0...2))) + "M"
-        case 10_000...: return (n / 1000).formatted(.number.precision(.fractionLength(0...1))) + "K"
-        default: return n.formatted(.number.precision(.fractionLength(0)))
-        }
     }
 
     /// Queues a report (and its reading) and syncs.
