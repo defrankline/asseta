@@ -48,7 +48,7 @@ Server → client (`{"type", "payload"}`)
 | `auth_error` | `{"code","message"}`, then close: 4401 (`NOT_AUTHENTICATED`, `AUTH_REQUIRED`, `TOKEN_EXPIRED`, `SUBJECT_CHANGED`) or 4403 (`TENANT_ACCESS_DENIED`, `MANDATE_REQUIRED`, `MANDATE_ENDED`, `TENANT_ACCESS_BLOCKED`, `PLATFORM_REQUIRED`, `PERMISSION_DENIED`) |
 | `notification` | a notification (above) for this user in this context |
 | `unread_count` | `{"count"}` (after new notifications or reads on another tab/device) |
-| `entity.changed` | `{"entity","id","action"}` — e.g. `alert`, `approval`, `customer_payment`, `cash_handover`, `job`, `fleet.position`, `platform_invoice`, `platform_payment`; open screens reload |
+| `entity.changed` | `{"entity","id","action"}` — e.g. `alert`, `approval`, `customer_payment`, `cash_handover`, `hours_purchase`, `meter_capture`, `fleet.position`, `platform_invoice`, `platform_payment`; open screens reload |
 | `ping` / `pong` | server heartbeat every `heartbeat_seconds` (25 s); reply `pong` |
 | `reauth_required` | `{"expires_at"}` ~60 s before the token expires: send a fresh `auth` |
 
@@ -97,7 +97,7 @@ deliver; delivery is best effort and the inbox is the durable record (re-read it
   `missing` (what is missing).
 * `GET /api/v1/tenant/insights/manual-overrides` (`tenant.meter.read`): OCR manual-override audit — `summary`
   (`total`, `manual_corrections`, `manual_mode_with_ocr`, `value_differs`, `exceptions_open`) + paged `items`
-  (OCR vs entered value, difference, confidence, engine, who, when, machine, job, related exception); filters
+  (OCR vs entered value, difference, confidence, engine, who, when, machine, related exception); filters
   `captured_from` (inclusive), `captured_to` (exclusive), `machine_id`, `user_id`. See `docs/ml-ocr-metrics.md`.
 * Menu `tenant.insights` ("Insights", `/tenant/insights`, Risk & review group, `tenant.fleet.read`).
 * Notification type `ML_MODEL_DRIFT` (platform, `platform.ml.read`) from the `MlModelDriftDetected` outbox event.

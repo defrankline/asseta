@@ -7,14 +7,16 @@ final financial, billing and authorization state; the device owns original captu
 | Call | Purpose |
 |---|---|
 | `POST /sync/devices` | Register the device for the signed-in user → device session, `offline_grant_until` |
-| `GET /sync/bootstrap` (`X-Device-Id`) | Assigned jobs, machines, sites, customers, contracts, own staff record, **policy snapshots**, `cursor` |
+| `GET /sync/bootstrap` (`X-Device-Id`) | Assigned machines, active sites and customers, own staff record, **policy snapshots**, `cursor` |
 | `GET /sync/changes?cursor=N` | Delta since cursor (+ refreshed snapshots); `has_more` paging |
 | `POST /sync/push` | Batch of operations `{id, op_type, created_at_device, depends_on[], payload}` + `device_now` |
 | `POST /sync/blobs` → `PUT …/chunks/{i}` → `POST …/complete` | Resumable, SHA-256-verified evidence upload |
 | `GET /tenant/devices`, `POST /tenant/devices/{id}/revoke` | Owner device administration |
 
-Operation types (v1): `METER_CAPTURE`, `JOB_ACTIVITY`, `JOB_ACKNOWLEDGEMENT`, `JOB_TRANSITION` (START/COMPLETE).
-Gate 5 adds expense, collection, cash handover and fuel operations through the same dispatcher.
+Operation types (v1): `METER_CAPTURE` (DAILY readings) and `MACHINE_REPORT` (ADR-008; payload and conflict codes in
+[api-machine-reports.md](api-machine-reports.md) §5). Gate 5 adds expense, collection, cash handover and fuel operations
+through the same dispatcher. The job operations (`JOB_ACTIVITY`, `JOB_ACKNOWLEDGEMENT`, `JOB_TRANSITION`,
+`JOB_REQUEST`) and `SITE_CHECKIN` were removed with jobs (ADR-008 §4).
 
 Accountability (DEC-030) operations, each announced by a capability in `bootstrap`/`changes` (`capabilities[]`) so a
 client only queues an op the server understands:
@@ -39,19 +41,21 @@ a device is refused as `CONFLICT` (kept for review, never applied):
 
 | Tenant capability (policy `enabled`) | Protocol capabilities withheld | Ops refused (conflict code) |
 |---|---|---|
-| `ENGINE_HOURS` | `OP_METER_BASELINE`, `OP_METER_CORRECTION`, `METER_DAILY_READING` | `METER_BASELINE`, `METER_CORRECTION`, `METER_CAPTURE` of kind `DAILY` (`ENGINE_HOURS_DISABLED`) |
+| `ENGINE_HOURS` | `OP_METER_BASELINE`, `OP_METER_CORRECTION` | `METER_BASELINE`, `METER_CORRECTION` (`ENGINE_HOURS_DISABLED`) |
 | `CASH_CUSTODY` | `OP_CASH_TRANSFER`, `OP_CASH_RETENTION_REQUEST` | `CASH_TRANSFER`, `CASH_TRANSFER_ACKNOWLEDGEMENT`, `CASH_FLOAT_ACKNOWLEDGEMENT`, `CASH_RETENTION_REQUEST` (`CASH_CUSTODY_DISABLED`) |
 | `CUSTOMER_HOURS` | `OP_HOURS_PURCHASE`, `OP_HOURS_TRANSFER_REQUEST` | refused by the hours services (`HOURS_DISABLED`, rejected) |
 
-Job meter readings (OPENING/CLOSING), cash collections and remittances are never withheld.
+DAILY meter readings (`METER_DAILY_READING`, the reading of a machine report), machine reports, cash collections
+and remittances are never withheld.
 
 ## Guarantees
 * **Idempotency:** the device-generated operation id is the key (`client_operation`). A retry returns the stored
   outcome (`DUPLICATE`); the same id with different content is `OPERATION_ID_REUSED`. Domain ids (capture id,
-  activity/ack `client_id`) are also device-generated, so even a direct API retry cannot double-apply.
+  report id, `client_id`s) are also device-generated, so even a direct API retry cannot double-apply.
 * **Dependency order:** an operation whose `depends_on` are not yet `ACKED` returns `DEFERRED` and is not stored;
   the device re-sends it. (Upload evidence before the capture that references it.)
-* **No silent last-write-wins:** state conflicts (e.g. START on a job cancelled server-side) return `CONFLICT`
+* **No silent last-write-wins:** state conflicts (e.g. a machine report on a machine that already has one waiting)
+  return `CONFLICT`
   with `server_state`; validation failures return `REJECTED` with a code. Both are stored for audit and shown to the
   user; the device keeps its original evidence.
 * **Synced only after ACK:** devices mark an operation synced only on `ACKED`/`DUPLICATE`; `DEFERRED`, network errors
@@ -72,13 +76,13 @@ Job meter readings (OPENING/CLOSING), cash collections and remittances are never
 |---|---|---|
 | Network flap / lost response | Retry whole batch → `DUPLICATE` per op, one effect | `test_sync.py::…exactly_once` |
 | Out-of-order delivery | Children `DEFERRED` until parents `ACKED` | same |
-| Long offline period | Captures validated against the device snapshot; offline grant bounded by `offline_grant_hours`; late GPS attaches by event time | `test_jobs_meter.py`, `test_trackers_ingestion.py` |
+| Long offline period | Captures validated against the device snapshot; offline grant bounded by `offline_grant_hours`; late GPS attaches by event time | `test_meter_captures.py`, `test_trackers_ingestion.py` |
 | Lost / stolen phone | Owner revokes → `DEVICE_REVOKED` + `WIPE_LOCAL_DATA`; re-registration refused | `test_sync.py::…revocation` |
 | Expired/revoked device session | Same as above; Keycloak token revocation also applies | — |
 | Tenant data reset before go-live ([runbook §11](operating-runbook.md#11-reset-a-tenants-data-before-go-live)) | Every session revoked with the reset reason → `DEVICE_REVOKED` + `WIPE_LOCAL_DATA`; the phone may register again, and a re-registered session that has not bootstrapped is told to wipe on its first pull/upload/push, so erased data never comes back | `test_reset_tenant_data.py` |
 | Suspended subscription | `QUARANTINED`, applied after reactivation | `test_sync.py::…quarantine…` |
-| Job reassigned/cancelled/machine changed | `CONFLICT` with `server_state`; delta pull delivers the new job state | `test_sync.py` |
-| GPS disabled / denied | Capture records the failed attempt; SOFT → PROVISIONAL + exception, HARD → REJECTED | `test_jobs_meter.py` |
+| Machine unassigned / report decided meanwhile | `CONFLICT` with `server_state` (the machine's report state); delta pull delivers the new state | `test_sync.py` |
+| GPS disabled / denied | Capture records the failed attempt; SOFT → PROVISIONAL + exception, HARD → REJECTED | `test_meter_captures.py` |
 | Kafka down | Sync unaffected (outbox queues events) | `test_kafka_live.py::…retry` |
 | Object store down | Blob completion returns 503; chunks stay staged; device retries complete | adapter raises `DependencyUnavailable` |
 | Upload interrupted / corrupted | Resume by missing chunk indexes; checksum mismatch restarts upload | `test_sync.py::…resumable…` |

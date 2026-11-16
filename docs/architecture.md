@@ -3,8 +3,8 @@
 ## Shape
 * **Modular monolith API** (`backend/src/asseta/modules/*`) + separately scalable **workers** (same image, different
   command). Modules: `identity`, `tenancy`, `platform_billing`, `fleet` (Gate 1 core) — later gates add
-  `tracker`, `telemetry`, `geospatial`, `jobs`, `meter`, `finance`, `expenses`, `approvals`, `fraud_intelligence`,
-  `mlops`, `sync`, `notification`, `reporting` with the same layering.
+  `tracker`, `telemetry`, `geospatial`, `customers`, `machine_reports`, `meter`, `finance`, `expenses`, `approvals`,
+  `fraud_intelligence`, `mlops`, `sync`, `notification`, `reporting` with the same layering.
 * **Layering per module:** thin routers → services (use cases, business rules) → repositories/ORM. Routers return
   Pydantic DTOs only; ORM objects never leave services. Pure domain logic (e.g. `platform_billing/pricing.py`,
   `calendar.py`, `entitlement_rules.py`) has no I/O and is unit-tested in isolation.

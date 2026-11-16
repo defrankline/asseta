@@ -52,7 +52,7 @@ A meter capture stores the reading the supervisor submitted (`reading`) together
 `GET /api/v1/tenant/insights/manual-overrides` (permission `tenant.meter.read`) lists every capture where OCR produced
 a value but the stored reading was entered by a person: OCR value vs entered value and the difference, confidence and
 engine, who captured it (user id and display name for members of the tenant), when (device and server time), machine,
-job, capture kind and mode, and the related `MANUAL_CORRECTION` exception with its review status. Filters:
+capture kind and mode, and the related `MANUAL_CORRECTION` exception with its review status. Filters:
 `captured_from` (inclusive), `captured_to` (exclusive), `machine_id`, `user_id`; paginated (`page`, `page_size`).
 A summary gives the total, OCR corrections, manual-mode captures with OCR, captures whose values differ and
 exceptions still open. The report is tenant-scoped (RLS) and read-only; it describes what was recorded and does not

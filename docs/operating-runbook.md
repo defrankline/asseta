@@ -265,7 +265,7 @@ Each entry: detect → contain → recover → verify. Client-side behaviour for
 | **Lost / stolen phone** | Report from staff | Tenant owner: **Administration → Devices** → Revoke (`POST /api/v1/tenant/devices/{id}/revoke`, reason) → next contact gets `DEVICE_REVOKED` + `WIPE_LOCAL_DATA`; disable/reset the user in Keycloak if credentials may be exposed; re-registration is refused | Device list shows revoked; audit `sync.device.revoked` |
 | **Expired / revoked device session** | `DEVICE_REVOKED` / `DEVICE_NOT_REGISTERED` refusals; device past `offline_grant_until` | User signs in again online to register a new session; unsynced local data on a revoked device is wiped by design (evidence already synced is kept) | New device session active |
 | **Suspended subscription** | Entitlement `READ_ONLY`/`BLOCKED`; sync `QUARANTINED` | Platform: resolve payment, `POST /api/v1/platform/subscriptions/{sid}/transitions` (`to_status`, `effective_date`, `reason`) or entitlement auto-lift on verified payment; nothing is deleted | Quarantined pushes are applied when devices re-send after reactivation |
-| **Deleted / reassigned machine** | Sync `CONFLICT` with `server_state`; telemetry `UNASSIGNED`/`NOT_ENROLLED` quarantine | Machines are retired, never deleted (`POST /tenant/machines/{id}/deactivate`); reassign tracker with `replace_existing_primary`; supervisors pull the new job state | Data attaches to the assignment valid at event time; no double billing on swap |
+| **Deleted / reassigned machine** | Sync `CONFLICT` with `server_state`; telemetry `UNASSIGNED`/`NOT_ENROLLED` quarantine | Machines are retired, never deleted (`POST /tenant/machines/{id}/deactivate`); reassign tracker with `replace_existing_primary`; supervisors pull the machine's new report state | Data attaches to the assignment valid at event time; no double billing on swap |
 | **GPS disabled / denied** | Captures with `NO_FIX`/`PERMISSION_DENIED`; `GPS_UNAVAILABLE` exceptions | Per METER_CAPTURE policy: SOFT → provisional + exception for review; HARD → rejected; coach the user to enable location | Exceptions reviewed before billing |
 | **Kafka down** | readiness `kafka: down`; outbox `pending` grows; consumer errors in worker logs | API, sync and telemetry ingestion continue (positions stored synchronously); `docker compose up -d kafka` / fix broker | Relay drains automatically; consumer lag returns to 0; no duplicates (idempotent consumers) |
 | **Object store down** | readiness `object_store: down`; uploads/evidence reads return 503 `DEPENDENCY_UNAVAILABLE` | Restore MinIO / storage; everything else keeps working; blob chunks stay staged in Postgres | Devices retry blob `complete`; presigned reads work again |
@@ -297,7 +297,7 @@ cd backend && uv run python scripts/demo_seed.py ../.env ../.demo/credentials.js
 `demo_reset.py` deletes every Keycloak user except `--keep`, all `/tenants/*` groups and throwaway clients, and empties
 the business tables (reference data and platform-default policies are kept/re-seeded). `demo_seed.py` builds one
 full tenant ("Kilimanjaro Earthworks": owner, supervisor, accountant, 5 machines / 4 simulated trackers via Traccar,
-sites + geofences, customers, contracts, jobs). Demo passwords go only to `.demo/credentials.json` (0600, gitignored).
+sites + geofences, customers, rate cards, orders and machine reports). Demo passwords go only to `.demo/credentials.json` (0600, gitignored).
 Throwaway tenants from smoke/E2E runs: `scripts/purge_tenants.py ../.env --tenant <uuid> --dry-run` first, then
 `--yes` (local stack only, API and workers stopped). Never use either script against production.
 
@@ -344,11 +344,11 @@ keep the company itself. One-off, per tenant, production-safe; it never touches 
 | Kept | Deleted (every row of this tenant) |
 |---|---|
 | The tenant row and its settings (name, timezone, currency) | Machines, categories, operating areas, photos, trackers, positions, alerts, telemetry ingestion |
-| Asseta subscription and platform billing: agreement, rate versions, subscription and its status/entitlement events, platform invoices (as issued), payments, credits, SMS wallet | Sites, geofences, site check-ins; per-machine billing enrollments of the deleted machines and their un-invoiced charges |
-| Keycloak accounts and their tenant groups (not touched at all), the role mirror, tenant memberships | Customers, contracts, rate cards, jobs, readings, work logs, exceptions, acknowledgements, approvals |
+| Asseta subscription and platform billing: agreement, rate versions, subscription and its status/entitlement events, platform invoices (as issued), payments, credits, SMS wallet | Sites, geofences; per-machine billing enrollments of the deleted machines and their un-invoiced charges |
+| Keycloak accounts and their tenant groups (not touched at all), the role mirror, tenant memberships | Customers, rate cards, readings, machine reports, exceptions, approvals |
 | Staff records and their login links | Expenses, categories, fuel, receipts; the whole cash chain (custody, handovers, transfers, variances, retentions, adjustments, overdue); deposit accounts |
-| Managed-service mandates, push-device registrations | Hire invoices, customer payments, allocations, evidence; customer hours; engine-hour baselines/corrections/classifications; revenue reconciliation |
-| Platform-level audit events (`platform.*`, `billing.*`) | Cases, signals, insights, ML trained on the tenant's data; notifications, inbox, SMS log; reason lists; the tenant's own policy versions (platform defaults apply again); number counters (job, `HP-`, `HINV-` numbering restarts); the tenant's business audit and security events; its object-store files (`tenants/<id>/`, `platform/ml-models/<id>/`) |
+| Managed-service mandates, push-device registrations | Credit invoices, customer payments, evidence; customer hours (orders); engine-hour baselines/corrections/classifications |
+| Platform-level audit events (`platform.*`, `billing.*`) | Cases, signals, insights, ML trained on the tenant's data; notifications, inbox, SMS log; reason lists; the tenant's own policy versions (platform defaults apply again); number counters (`HP-`, `MR-`, `CI-` numbering restarts); the tenant's business audit and security events; its object-store files (`tenants/<id>/`, `platform/ml-models/<id>/`) |
 
 Tables are discovered from the schema; a tenant-scoped table that
 `backend/src/asseta/modules/dataprotection/tenant_tables.py` does not classify stops the run before anything changes
@@ -380,10 +380,10 @@ deletes the objects after the commit (if that part fails, run the same command a
 no-op) and moves the seeder's `.deploy/demo-*-state.json` of the tenant aside.
 
 Verify (step 4 plus): Platform -> Audit log shows `platform.tenant.data_reset` for the tenant; signed in as the
-tenant owner, Fleet, Jobs, Finance and the dashboards are empty; Platform -> Tenants shows the subscription unchanged.
+tenant owner, Fleet, Machine reports, Finance and the dashboards are empty; Platform -> Tenants shows the subscription unchanged.
 
 What users see:
-* **Web:** same sign-in, same roles; every list is empty and numbering starts again (first job `J-<year>-001`).
+* **Web:** same sign-in, same roles; every list is empty and numbering starts again (first machine report `MR-<year>-00001`).
 * **Phones** (supervisor app, Android and iOS): every device session of the tenant is revoked with the reset reason.
   On its next sync the app gets the wipe instruction: it erases its local database, evidence files and tokens and
   returns to the sign-in screen with the revocation message ("revoked by your administrator ... local data was
@@ -459,7 +459,8 @@ rate only for machine types in use.
 
 ## Seed a company's starter reason lists from a file
 
-`deploy/reason-lists.example.json` holds starter customer-hours, engine-hour, cash and revenue reasons. Copy it to the
+`deploy/reason-lists.example.json` holds starter customer-hours, engine-hour and cash reasons (its `revenue`
+section is skipped: revenue reasons were removed with job revenue differences, ADR-008). Copy it to the
 server, trim or reword it with the company, and run:
 ```
 scripts/seed-reason-lists.sh --registration-number <number> --file /home/asseta/<company>-reasons.json        # dry run
