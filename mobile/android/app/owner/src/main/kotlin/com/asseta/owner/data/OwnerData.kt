@@ -84,6 +84,10 @@ data class ExceptionList(val items: List<ExceptionDto>, val jobNumbers: Map<Stri
 }
 
 /** ADR-008: a machine report with its meter reading when the role may read it ([capture] null otherwise). */
+/** The company's machine-report reminder days (null = reminders off). */
+@Serializable
+data class ReportReminder(val days: Int?)
+
 @Serializable
 data class MachineReportDetail(val report: com.asseta.core.model.sync.MachineReportDto, val capture: MeterCaptureDto? = null)
 
@@ -587,6 +591,21 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
     /** Where each machine stands for its next report (days since the last one, a report waiting). */
     suspend fun machineReportStatus(): Load<List<MachineReportStatusDto>> =
         repo.load(tenantId, "machine_report_status", ListSerializer(MachineReportStatusDto.serializer())) { machineReportStatus() }
+
+    /**
+     * The company's `CUSTOMER_HOURS.machine_report_reminder_days` from the effective policy (null = reminders off;
+     * absent or unreadable = 3). A failed or refused read is a [Load.Failed]: callers then use 3 as well.
+     */
+    suspend fun reportReminder(): Load<ReportReminder> =
+        repo.load(tenantId, "report_reminder", ReportReminder.serializer()) {
+            ReportReminder(
+                com.asseta.core.domain.accountability.CustomerHoursPolicy.reminderDays(
+                    com.asseta.core.domain.accountability.CustomerHoursPolicy.fromValues(
+                        effectivePolicy(com.asseta.core.domain.accountability.CustomerHoursPolicy.TYPE).values,
+                    ),
+                ),
+            )
+        }
 
     suspend fun approveMachineReport(id: String, note: String?) =
         repo.act { approveMachineReport(id, MachineReportDecisionIn(note?.trim()?.takeIf { it.isNotEmpty() })) }

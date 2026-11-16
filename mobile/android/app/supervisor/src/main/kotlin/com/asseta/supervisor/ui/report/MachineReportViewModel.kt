@@ -85,7 +85,7 @@ class MachineReportViewModel(
         }
     }
 
-    fun reminderDays(): Int? = _access.value?.hours?.reportReminderDays ?: CustomerHoursPolicy.DEFAULT_REMINDER_DAYS.takeIf { _access.value?.hours == null }
+    fun reminderDays(): Int? = CustomerHoursPolicy.reminderDays(_access.value?.hours)
 
     fun machines(v: MachineReportView = view.value): List<ReportMachine> = v.machines(reminderDays())
 

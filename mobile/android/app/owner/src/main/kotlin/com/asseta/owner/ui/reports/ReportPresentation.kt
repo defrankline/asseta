@@ -2,6 +2,7 @@ package com.asseta.owner.ui.reports
 
 import com.asseta.core.domain.reports.MachineReportApproval
 import com.asseta.core.domain.reports.MachineReportRules
+import com.asseta.core.domain.reports.ReportState
 import com.asseta.core.model.owner.MeterCaptureDto
 import com.asseta.core.model.sync.MachineReportDto
 import com.asseta.core.model.sync.MachineReportLineDto
@@ -156,18 +157,45 @@ object ReportPresentation {
     fun attentionDetail(r: MachineReportDto, nowMs: Long, zone: ZoneId): String =
         listOfNotNull(r.submittedByName?.takeIf { it.isNotBlank() }, Figures.relative(r.submittedAt, nowMs, zone)).joinToString(" · ")
 
-    /** "EX-02 · no report for 3 days". */
-    fun overdueTitle(s: MachineReportStatusDto): String =
-        "${s.machineCode ?: s.machineName ?: "Machine"} · no report for ${Figures.days(s.daysSinceReport ?: 0)}"
+    /**
+     * Where a machine stands for its next report, by the shared rule [MachineReportRules.state] (as the Supervisor app
+     * and iOS): it is overdue exactly when that gives DUE, OPENING or REJECTED; a report waiting is never overdue.
+     * [reminderDays] is the company's `CUSTOMER_HOURS.machine_report_reminder_days` (null = reminders off).
+     */
+    fun reportState(s: MachineReportStatusDto, reminderDays: Int?): ReportState = MachineReportRules.state(
+        previousReading = s.previousReading,
+        pendingOnServer = s.pendingReportId != null,
+        pendingOnPhone = false,
+        rejected = s.rejectedReportId != null,
+        daysSinceReport = s.daysSinceReport,
+        reminderDays = reminderDays,
+    )
+
+    fun isOverdue(s: MachineReportStatusDto, reminderDays: Int?): Boolean = reportState(s, reminderDays).needsReport
+
+    /** The reminder days to apply: the company's setting once read (null = off), else 3 (loading, failed, refused). */
+    fun reminderDays(reminder: com.asseta.owner.data.ReportReminder?): Int? =
+        if (reminder == null) com.asseta.core.domain.accountability.CustomerHoursPolicy.DEFAULT_REMINDER_DAYS else reminder.days
+
+    /**
+     * "EX-02 · no report for 3 days"; "EX-02 · no report yet" (never reported, or no starting reading);
+     * "EX-02 · report rejected, not yet redone".
+     */
+    fun overdueTitle(s: MachineReportStatusDto, reminderDays: Int?): String {
+        val machine = s.machineCode ?: s.machineName ?: "Machine"
+        val days = s.daysSinceReport
+        return when {
+            reportState(s, reminderDays) == ReportState.REJECTED -> "$machine · report rejected, not yet redone"
+            reportState(s, reminderDays) == ReportState.OPENING || days == null || days <= 0 -> "$machine · no report yet"
+            else -> "$machine · no report for ${Figures.days(days)}"
+        }
+    }
 
     /** "Last approved reading 1,510 h" or that there is none yet. */
     fun overdueDetail(s: MachineReportStatusDto): String =
         s.lastApprovedReading?.let { "Last approved reading ${MachineReportRules.formatHours(Figures.dec(it))} h" } ?: "No approved reading yet"
 
-    /** Default days without a report before a machine is flagged (the company setting's default). */
-    const val OVERDUE_DAYS = 3
-
-    /** Machines with no report for [days] or more and none waiting, longest first. */
-    fun overdue(statuses: List<MachineReportStatusDto>, days: Int = OVERDUE_DAYS): List<MachineReportStatusDto> =
-        statuses.filter { (it.daysSinceReport ?: -1) >= days && it.pendingReportId == null }.sortedByDescending { it.daysSinceReport }
+    /** Overdue machines (see [isOverdue]), longest without a report first (never reported first). */
+    fun overdue(statuses: List<MachineReportStatusDto>, reminderDays: Int?): List<MachineReportStatusDto> =
+        statuses.filter { isOverdue(it, reminderDays) }.sortedByDescending { it.daysSinceReport ?: Int.MAX_VALUE }
 }

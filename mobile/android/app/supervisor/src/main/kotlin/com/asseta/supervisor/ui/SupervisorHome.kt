@@ -365,7 +365,7 @@ fun SupervisorHome(
     }
     val cashView by remember(tenantId) { field.financeRepository.observeCashView(tenantId) }.collectAsStateWithLifecycle(CashView(emptyList(), emptyList(), null))
     val customers by remember(tenantId) { field.financeRepository.observeCustomers(tenantId) }.collectAsStateWithLifecycle(emptyList())
-    val reminderDays = access?.hours?.reportReminderDays ?: CustomerHoursPolicy.DEFAULT_REMINDER_DAYS.takeIf { access?.hours == null }
+    val reminderDays = CustomerHoursPolicy.reminderDays(access?.hours)
     val data = remember(snapshot, reports, reminderDays, cashView, customers) {
         ShellData.of(snapshot, reports, reminderDays, cashView, customers.associate { it.id to it.name }, com.asseta.core.network.NetworkFactory.json)
     }

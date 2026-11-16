@@ -109,8 +109,8 @@ class OwnerBusinessScreensTest {
         )
         val statuses = json.decodeFromString(
             ListSerializer(MachineReportStatusDto.serializer()),
-            """[{"machine_id":"$ID2","machine_code":"EX-01","machine_name":"CAT 320D2","days_since_report":0,"pending_report_id":"$ID1"},
-                {"machine_id":"m2","machine_code":"EX-02","machine_name":"Komatsu PC210","days_since_report":3,"last_approved_reading":"812.5"}]""",
+            """[{"machine_id":"$ID2","machine_code":"EX-01","machine_name":"CAT 320D2","previous_reading":"1210","days_since_report":0,"pending_report_id":"$ID1"},
+                {"machine_id":"m2","machine_code":"EX-02","machine_name":"Komatsu PC210","previous_reading":"812.5","days_since_report":3,"last_approved_reading":"812.5"}]""",
         )
         val fleet = listOf(
             json.decodeFromString(MachineMapDto.serializer(), Samples.machine().replace("\"$ID1\"", "\"$ID2\"").replace("\"open_alerts\":1", "\"open_alerts\":1,\"supervisor\":\"Daudi\"")),
@@ -128,6 +128,17 @@ class OwnerBusinessScreensTest {
         assertTrue(ex02.overdue)
         assertEquals(MachinesTexts.noReport(3), ex02.subtitle)
         assertEquals("No report 3 days", ex02.subtitle)
+        // The company's reminder days decide: 5 days → not yet overdue; reminders off → only never reported / opening / rejected.
+        assertFalse(MachinesPresentation.rows(statuses, reports, fleet, f, reminderDays = 5).first { it.machineId == "m2" }.overdue)
+        assertFalse(MachinesPresentation.rows(statuses, reports, fleet, f, reminderDays = null).first { it.machineId == "m2" }.overdue)
+        val others = json.decodeFromString(
+            ListSerializer(MachineReportStatusDto.serializer()),
+            """[{"machine_id":"n1","machine_code":"NV-01","previous_reading":"10"},
+                {"machine_id":"n2","machine_code":"OP-01"},
+                {"machine_id":"n3","machine_code":"RJ-01","previous_reading":"10","days_since_report":1,"rejected_report_id":"r9"}]""",
+        )
+        val pills = MachinesPresentation.rows(others, emptyList(), emptyList(), f, reminderDays = null).associate { it.machineId to it.subtitle }
+        assertEquals(mapOf("n1" to "No report yet", "n2" to "No report yet", "n3" to "Rejected"), pills)
         // Without the fleet: no tracker line, the last approved reading; a tap opens the report waiting, if any.
         val noFleet = MachinesPresentation.rows(statuses, reports, emptyList(), OwnerFeatures(setOf("tenant.machine_report.read")))
         assertEquals("last reading 812.5 h", noFleet.first { it.machineId == "m2" }.detail)

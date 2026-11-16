@@ -95,6 +95,12 @@ data class CustomerHoursPolicy(
 
         /** The server's default for `machine_report_reminder_days`. */
         const val DEFAULT_REMINDER_DAYS = 3
+
+        /**
+         * The reminder days to apply: the policy's setting (an explicit null = reminders off), or
+         * [DEFAULT_REMINDER_DAYS] while the policy is unknown (not loaded, refused, unreadable). Same rule as iOS.
+         */
+        fun reminderDays(policy: CustomerHoursPolicy?): Int? = if (policy == null) DEFAULT_REMINDER_DAYS else policy.reportReminderDays
     }
 }
 

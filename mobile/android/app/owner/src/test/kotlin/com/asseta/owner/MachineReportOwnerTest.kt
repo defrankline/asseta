@@ -302,12 +302,12 @@ class MachineReportOwnerTest {
 
         val statuses = json.decodeFromString(
             ListSerializer(MachineReportStatusDto.serializer()),
-            """[{"machine_id":"m2","machine_code":"EX-02","days_since_report":3,"last_approved_reading":"812.5"},
-                {"machine_id":"m3","machine_code":"WL-01","days_since_report":1},
-                {"machine_id":"m4","machine_code":"TP-01","days_since_report":9,"pending_report_id":"x"}]""",
+            """[{"machine_id":"m2","machine_code":"EX-02","previous_reading":"812.5","days_since_report":3,"last_approved_reading":"812.5"},
+                {"machine_id":"m3","machine_code":"WL-01","previous_reading":"40","days_since_report":1},
+                {"machine_id":"m4","machine_code":"TP-01","previous_reading":"7","days_since_report":9,"pending_report_id":"x"}]""",
         )
         val now = Instant.parse("2026-11-17T12:00:00Z").toEpochMilli()
-        val items = HomePresentation.attention(listOf(dto()), statuses, now, utc)
+        val items = HomePresentation.attention(listOf(dto()), statuses, 3, now, utc)
         assertEquals(listOf("EX-01 report · 80 h non-productive", "EX-02 · no report for 3 days"), items.map { it.title })
         assertEquals("Daudi Mollel · today 07:40", items[0].detail)
         assertEquals(ReportTexts.REVIEW to PillTone.WAITING, items[0].pill to items[0].tone)
@@ -315,6 +315,23 @@ class MachineReportOwnerTest {
         assertEquals(ReportTexts.OVERDUE to PillTone.BAD, items[1].pill to items[1].tone)
         assertEquals("Last approved reading 812.5 h", items[1].detail)
         assertEquals(OwnerDestination.Machine("m2"), items[1].open)
+        // The company's reminder days (null = off); never reported, no starting reading and rejected always show.
+        assertEquals(listOf("EX-01 report · 80 h non-productive"), HomePresentation.attention(listOf(dto()), statuses, null, now, utc).map { it.title })
+        assertEquals(listOf("EX-02 · no report for 3 days", "WL-01 · no report for 1 day"), HomePresentation.attention(null, statuses, 1, now, utc).map { it.title })
+        val more = json.decodeFromString(
+            ListSerializer(MachineReportStatusDto.serializer()),
+            """[{"machine_id":"n1","machine_code":"NV-01","previous_reading":"10"},
+                {"machine_id":"n2","machine_code":"OP-01"},
+                {"machine_id":"n3","machine_code":"RJ-01","previous_reading":"10","days_since_report":1,"rejected_report_id":"r9"},
+                {"machine_id":"n4","machine_code":"PD-01","previous_reading":"10","rejected_report_id":"r8","pending_report_id":"r10"}]""",
+        )
+        assertEquals(
+            setOf("NV-01 · no report yet", "OP-01 · no report yet", "RJ-01 · report rejected, not yet redone"),
+            HomePresentation.attention(null, more, null, now, utc).map { it.title }.toSet(),
+        )
+        assertEquals(3, ReportPresentation.reminderDays(null))
+        assertNull(ReportPresentation.reminderDays(com.asseta.owner.data.ReportReminder(null)))
+        assertEquals(5, ReportPresentation.reminderDays(com.asseta.owner.data.ReportReminder(5)))
     }
 
     @Test

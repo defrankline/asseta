@@ -27,7 +27,9 @@ import androidx.lifecycle.viewModelScope
 import com.asseta.core.domain.owner.Connectivity
 import com.asseta.core.domain.owner.OwnerDestination
 import com.asseta.core.domain.owner.OwnerFormat
+import com.asseta.core.domain.accountability.CustomerHoursPolicy
 import com.asseta.core.domain.reports.MachineReportRules
+import com.asseta.core.domain.reports.ReportState
 import com.asseta.core.map.MachineMap
 import com.asseta.core.map.MapMarker
 import com.asseta.core.model.owner.MachineMapDto
@@ -38,6 +40,7 @@ import com.asseta.core.ui.shell.PillTone
 import com.asseta.core.ui.shell.SectionLabel
 import com.asseta.core.ui.shell.StatusPill
 import com.asseta.owner.data.OwnerData
+import com.asseta.owner.data.ReportReminder
 import com.asseta.owner.ui.OwnerFeatures
 import com.asseta.owner.ui.common.CardDetail
 import com.asseta.owner.ui.common.CardGap
@@ -65,6 +68,18 @@ object MachinesTexts {
     const val MAP_EMPTY = "No machine has a known position."
 
     fun noReport(days: Int) = "No report ${Figures.days(days)}"
+    const val NO_REPORT_YET = "No report yet"
+    const val REJECTED = "Rejected"
+
+    /** The pill of a machine that needs a report: "No report 4 days", "No report yet" (never reported / no starting reading), "Rejected". */
+    fun pill(s: MachineReportStatusDto, reminderDays: Int?): String {
+        val days = s.daysSinceReport
+        return when (ReportPresentation.reportState(s, reminderDays)) {
+            ReportState.REJECTED -> REJECTED
+            ReportState.OPENING -> NO_REPORT_YET
+            else -> if (days == null || days <= 0) NO_REPORT_YET else noReport(days)
+        }
+    }
     fun tracker(engine: String, motion: String) = "Tracker: engine ${engine.lowercase()} · ${motion.lowercase()}"
 }
 
@@ -89,7 +104,8 @@ object MachinesPresentation {
         reports: List<MachineReportDto>,
         fleet: List<MachineMapDto>,
         features: OwnerFeatures,
-        overdueDays: Int = ReportPresentation.OVERDUE_DAYS,
+        /** The company's machine_report_reminder_days (null = reminders off). */
+        reminderDays: Int? = CustomerHoursPolicy.DEFAULT_REMINDER_DAYS,
     ): List<MachineWeek> {
         val counted = reports.filter { it.status != MachineReportDto.REJECTED }
         val byMachine = counted.groupBy { it.machineId }
@@ -103,7 +119,7 @@ object MachinesPresentation {
             val productive = Figures.sum(week.map { it.customerHours })
             val code = status?.machineCode ?: week.firstOrNull()?.machineCode ?: map?.assetCode ?: id.take(8)
             val name = status?.machineName ?: week.firstOrNull()?.machineName ?: map?.name
-            val overdue = status != null && status.pendingReportId == null && (status.daysSinceReport ?: -1) >= overdueDays
+            val overdue = status != null && ReportPresentation.isOverdue(status, reminderDays)
             val latest = week.maxByOrNull { it.submittedAt }
             val reading = when {
                 latest != null && latest.status == MachineReportDto.SUBMITTED -> "last reading ${MachineReportRules.formatHours(Figures.dec(latest.endReading))} h (pending)"
@@ -120,7 +136,7 @@ object MachinesPresentation {
             MachineWeek(
                 machineId = id,
                 title = listOfNotNull(code, name).joinToString(" · "),
-                subtitle = if (overdue) MachinesTexts.noReport(status!!.daysSinceReport ?: 0) else map?.supervisor?.takeIf { it.isNotBlank() },
+                subtitle = if (overdue) MachinesTexts.pill(status!!, reminderDays) else map?.supervisor?.takeIf { it.isNotBlank() },
                 detail = detail,
                 overdue = overdue,
                 hours = hours,
@@ -140,7 +156,9 @@ class MachinesViewModel(data: OwnerData, features: OwnerFeatures, refreshOn: Flo
     val fleet: Section<List<MachineMapDto>>? = if (features.fleet) Section(viewModelScope) { data.fleet() } else null
     val statuses: Section<List<MachineReportStatusDto>>? = if (features.machineReports) Section(viewModelScope) { data.machineReportStatus() } else null
     val reports: Section<List<MachineReportDto>>? = if (features.machineReports) Section(viewModelScope) { data.machineReportsBetween(week.from, week.to) } else null
-    private val all = listOfNotNull(fleet, statuses, reports)
+    /** The company's reminder days (CUSTOMER_HOURS); 3 until read or when it cannot be read. */
+    val reminder: Section<ReportReminder>? = if (features.machineReports) Section(viewModelScope) { data.reportReminder() } else null
+    private val all = listOfNotNull(fleet, statuses, reports, reminder)
 
     init {
         refresh()
@@ -157,7 +175,8 @@ fun MachinesScreen(vm: MachinesViewModel, features: OwnerFeatures, now: () -> Lo
     val statusState = vm.statuses?.state?.collectAsStateWithLifecycle()?.value
     val reportState = vm.reports?.state?.collectAsStateWithLifecycle()?.value
     val fleet = fleetState?.data.orEmpty()
-    val rows = MachinesPresentation.rows(statusState?.data.orEmpty(), reportState?.data.orEmpty(), fleet, features)
+    val reminder = vm.reminder?.state?.collectAsStateWithLifecycle()?.value?.data
+    val rows = MachinesPresentation.rows(statusState?.data.orEmpty(), reportState?.data.orEmpty(), fleet, features, ReportPresentation.reminderDays(reminder))
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
         if (features.fleet) item { PeriodTabs(listOf(true to MachinesTexts.MAP, false to MachinesTexts.LIST), showMap, { showMap = it }) }
         if (showMap && fleetState != null) {

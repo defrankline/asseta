@@ -45,6 +45,7 @@ import com.asseta.core.ui.shell.SummaryStrip
 import com.asseta.core.ui.shell.TileGrid
 import com.asseta.core.ui.theme.palette
 import com.asseta.owner.data.OwnerData
+import com.asseta.owner.data.ReportReminder
 import com.asseta.owner.ui.OwnerFeatures
 import com.asseta.owner.ui.approvals.ApprovalCounts
 import com.asseta.owner.ui.common.Figures
@@ -106,12 +107,12 @@ object HomePresentation {
         SummaryFigure(HomeTexts.PRODUCTIVE, productive(reports), accent = true).takeIf { f.machineReports },
     )
 
-    /** Reports waiting (with their non-productive hours) → Review; machines with no report for days → Overdue. */
-    fun attention(pending: List<MachineReportDto>?, statuses: List<MachineReportStatusDto>?, nowMs: Long, zone: ZoneId): List<AttentionItem> =
+    /** Reports waiting (with their non-productive hours) → Review; machines that need a report (shared rule, company reminder days) → Overdue. */
+    fun attention(pending: List<MachineReportDto>?, statuses: List<MachineReportStatusDto>?, reminderDays: Int?, nowMs: Long, zone: ZoneId): List<AttentionItem> =
         pending.orEmpty().map { r ->
             AttentionItem("mr-${r.id}", ReportPresentation.attentionTitle(r), ReportPresentation.attentionDetail(r, nowMs, zone), ReportTexts.REVIEW, PillTone.WAITING, OwnerDestination.MachineReport(r.id))
-        } + ReportPresentation.overdue(statuses.orEmpty()).map { s ->
-            AttentionItem("od-${s.machineId}", ReportPresentation.overdueTitle(s), ReportPresentation.overdueDetail(s), ReportTexts.OVERDUE, PillTone.BAD, OwnerDestination.Machine(s.machineId))
+        } + ReportPresentation.overdue(statuses.orEmpty(), reminderDays).map { s ->
+            AttentionItem("od-${s.machineId}", ReportPresentation.overdueTitle(s, reminderDays), ReportPresentation.overdueDetail(s), ReportTexts.OVERDUE, PillTone.BAD, OwnerDestination.Machine(s.machineId))
         }
 }
 
@@ -122,7 +123,9 @@ class OwnerHomeViewModel(data: OwnerData, features: OwnerFeatures, refreshOn: Fl
     val orders: Section<List<OwnerHoursPurchaseDto>>? = if (features.customerHours) Section(viewModelScope) { data.ordersBetween(week.from, week.to) } else null
     val reports: Section<List<MachineReportDto>>? = if (features.machineReports) Section(viewModelScope) { data.machineReportsBetween(week.from, week.to) } else null
     val statuses: Section<List<MachineReportStatusDto>>? = if (features.machineReports) Section(viewModelScope) { data.machineReportStatus() } else null
-    private val all = listOfNotNull(overview, orders, reports, statuses)
+    /** The company's reminder days (CUSTOMER_HOURS); 3 until read or when it cannot be read. */
+    val reminder: Section<ReportReminder>? = if (features.machineReports) Section(viewModelScope) { data.reportReminder() } else null
+    private val all = listOfNotNull(overview, orders, reports, statuses, reminder)
 
     init {
         refresh()
@@ -152,7 +155,8 @@ fun OwnerHomeScreen(
     val reports = vm.reports?.state?.collectAsStateWithLifecycle()?.value?.data
     val statuses = vm.statuses?.state?.collectAsStateWithLifecycle()?.value
     val figures = HomePresentation.figures(overview, orders, reports, features)
-    val attention = HomePresentation.attention(pendingReports, statuses?.data, nowMs(), ZoneId.systemDefault())
+    val reminder = vm.reminder?.state?.collectAsStateWithLifecycle()?.value?.data
+    val attention = HomePresentation.attention(pendingReports, statuses?.data, ReportPresentation.reminderDays(reminder), nowMs(), ZoneId.systemDefault())
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         item(key = "top") {
             HomeTopRow(onMenu) {

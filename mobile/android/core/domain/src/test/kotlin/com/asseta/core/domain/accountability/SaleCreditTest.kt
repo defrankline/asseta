@@ -70,6 +70,10 @@ class SaleCreditTest {
         assertTrue(newer.fieldCreditSales)
         assertEquals(5, newer.reportReminderDays)
         assertNull(CustomerHoursPolicy.fromValues(JsonObject(base + ("machine_report_reminder_days" to JsonNull)))!!.reportReminderDays)
+        // Applied: the setting once known (explicit null = off), 3 while the policy is unknown (failed / refused load).
+        assertEquals(3, CustomerHoursPolicy.reminderDays(null))
+        assertEquals(5, CustomerHoursPolicy.reminderDays(newer))
+        assertNull(CustomerHoursPolicy.reminderDays(CustomerHoursPolicy.fromValues(JsonObject(base + ("machine_report_reminder_days" to JsonNull)))))
     }
 
     @Test
