@@ -20,16 +20,18 @@ from asseta.modules.expenses.router import EXPENSE_READ
 from asseta.modules.finance.common import tenant_settings
 from asseta.modules.finance.permissions import FINANCE_READ
 from asseta.modules.geospatial.router import FLEET_READ
+from asseta.modules.hours.permissions import HOURS_READ
 from asseta.modules.identity.catalog import PermissionScope
 from asseta.modules.identity.dependencies import requires_any
 from asseta.modules.identity.models import AppUser
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.router import JOB_READ
+from asseta.modules.machine_reports.permissions import READ as MACHINE_REPORT_READ
 from asseta.modules.meter.router import METER_READ
 from asseta.modules.notification.settings import get_notification_settings
 from asseta.modules.pettycash.permissions import PETTY_READ
 from asseta.modules.platform_billing.permissions import INVOICE_READ, TENANT_BILLING_READ
-from asseta.modules.policy.capabilities import PETTY_CASH, disabled_capabilities
+from asseta.modules.policy.capabilities import CUSTOMER_HOURS, PETTY_CASH, disabled_capabilities, require_capability
 from asseta.modules.reports.definitions import (
     CSV_ROW_CAP,
     PDF_ROW_CAP,
@@ -38,6 +40,13 @@ from asseta.modules.reports.definitions import (
     applied_filters,
 )
 from asseta.modules.reports.render import csv_chunks, pdf_bytes
+from asseta.modules.reports.sources_hours import (
+    CREDIT_INVOICE_PAYMENTS,
+    CREDIT_INVOICES,
+    MACHINE_HOURS,
+    SALES_COLLECTIONS,
+)
+from asseta.modules.reports.sources_hours import CUSTOMER_HOURS as CUSTOMER_HOURS_REPORT
 from asseta.modules.reports.sources_money import CASH, EXPENSES, PLATFORM_SUBSCRIPTION, SUBSCRIPTION
 from asseta.modules.reports.sources_ops import ALERTS, FLEET, JOBS, READINGS, UTILISATION
 from asseta.modules.reports.sources_petty import PETTY_CASH_EXPENSES, PETTY_CASH_STATEMENT
@@ -54,6 +63,11 @@ TENANT_REPORTS: tuple[ReportDefinition, ...] = (
     UTILISATION,
     PETTY_CASH_STATEMENT,
     PETTY_CASH_EXPENSES,
+    CUSTOMER_HOURS_REPORT,
+    MACHINE_HOURS,
+    SALES_COLLECTIONS,
+    CREDIT_INVOICES,
+    CREDIT_INVOICE_PAYMENTS,
 )
 PLATFORM_REPORTS: tuple[ReportDefinition, ...] = (PLATFORM_SUBSCRIPTION,)
 # Each report reuses its list endpoint's permission dependency (declared by the owning module).
@@ -65,6 +79,8 @@ PERMISSIONS: dict[str, Callable[..., RequestContext]] = {
     "tenant.expense.read": EXPENSE_READ,
     "tenant.billing.read": TENANT_BILLING_READ,
     "tenant.pettycash.read": PETTY_READ,  # also needs the PETTY_CASH capability
+    "tenant.hours.read": HOURS_READ,  # ADR-008 reports also need the CUSTOMER_HOURS capability
+    "tenant.machine_report.read": MACHINE_REPORT_READ,
     "platform.invoice.read": INVOICE_READ,
 }
 FORMATS = {"csv": ("text/csv; charset=utf-8", CSV_ROW_CAP), "pdf": ("application/pdf", PDF_ROW_CAP)}
@@ -122,6 +138,8 @@ def export(
     session: Session, ctx: RequestContext, now: datetime, d: ReportDefinition, filters: BaseModel, fmt: str
 ) -> Response:
     media_type, cap = FORMATS[fmt]
+    if ctx.tenant_id is not None and (capability := REPORT_CAPABILITY.get(d.code)):
+        require_capability(session, ctx.tenant_id, capability, now)
     data = d.fetch(session, ctx, now, filters, cap)
     env = _env(session, ctx, now)
     shown = applied_filters(filters)
@@ -177,7 +195,14 @@ def _register(router: APIRouter, d: ReportDefinition, permission: Callable[..., 
 
 
 # Reports that belong to a tenant capability: listed (and exportable) only while it is on.
-REPORT_CAPABILITY = {"petty_cash_statement": PETTY_CASH, "petty_cash_expenses": PETTY_CASH}
+REPORT_CAPABILITY = {
+    "petty_cash_statement": PETTY_CASH,
+    "petty_cash_expenses": PETTY_CASH,
+    "customer_hours": CUSTOMER_HOURS,
+    "sales_collections": CUSTOMER_HOURS,
+    "credit_invoices": CUSTOMER_HOURS,
+    "credit_invoice_payments": CUSTOMER_HOURS,
+}
 
 
 def build_router(base: str, tag: str, prefix: str, reports: tuple[ReportDefinition, ...]) -> APIRouter:

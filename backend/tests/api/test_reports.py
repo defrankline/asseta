@@ -229,9 +229,10 @@ def test_permissions_mirror_the_list_endpoints(api: Api, data: FinCtx) -> None:
     )
     assert sup.get(f"{R}/jobs.pdf").status_code == 200
     menu = {d["code"] for d in _ok(data.accountant.get(R))}
-    assert menu == {"jobs", "cash", "expenses", "subscription"}
+    adr008 = {"customer_hours", "machine_hours", "sales_collections", "credit_invoices", "credit_invoice_payments"}
+    assert menu == {"jobs", "cash", "expenses", "subscription", *adr008}
     assert {d["code"] for d in _ok(data.owner.get(R))} == {
-        "fleet", "jobs", "readings", "cash", "expenses", "alerts", "subscription", "utilisation"
+        "fleet", "jobs", "readings", "cash", "expenses", "alerts", "subscription", "utilisation", *adr008
     }  # fmt: skip
     jobs_def = next(d for d in _ok(data.owner.get(R)) if d["code"] == "jobs")
     assert jobs_def["csv_path"] == f"{R}/jobs.csv" and jobs_def["filters"] == ["q", "status", "machine_id"]
