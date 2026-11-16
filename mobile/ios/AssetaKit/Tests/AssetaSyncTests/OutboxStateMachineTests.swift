@@ -18,8 +18,8 @@ struct OutboxStateMachineTests {
     }
 
     func sentOp(dependsOn: [UUID] = []) throws -> ClientOperation {
-        let op = try store.outbox.enqueue(NewClientOperation(tenantID: tenant, opType: "JOB_ACTIVITY", entityType: "job_activity",
-                                                             entityID: UUID(), payloadJSON: #"{"job_id":"x"}"#, dependsOn: dependsOn))
+        let op = try store.outbox.enqueue(NewClientOperation(tenantID: tenant, opType: "EXPENSE", entityType: "expense",
+                                                             entityID: UUID(), payloadJSON: #"{"amount":"1"}"#, dependsOn: dependsOn))
         try store.outbox.markSent(id: op.id)
         return op
     }
@@ -31,7 +31,7 @@ struct OutboxStateMachineTests {
             error = .object(["code": .string(code), "message": .string("m")])
             result["error"] = error
         }
-        if serverState { result["server_state"] = .object(["job_status": .string("CANCELLED")]) }
+        if serverState { result["server_state"] = .object(["pending_report_number": .string("MR-2026-00009")]) }
         if status == .acked || (status == .duplicate && code == nil) { result["entity"] = .object(["version": .number(4)]) }
         return OperationResultDTO(id: id, status: status, result: .object(result), error: error)
     }
@@ -40,10 +40,11 @@ struct OutboxStateMachineTests {
         (OperationOutcome.acked, nil as String?, false, ClientOperationStatus.acked),
         (.duplicate, nil, false, .acked),
         (.duplicate, "SUBSCRIPTION_READ_ONLY", false, .quarantined),
-        (.duplicate, "INVALID_JOB_TRANSITION", true, .conflict),
+        (.duplicate, "REPORT_PENDING", true, .conflict),
+        (.duplicate, "CAPTURE_ID_CONFLICT", false, .conflict),
         (.duplicate, "VALIDATION_FAILED", false, .failed),
         (.deferred, "DEPENDENCY_PENDING", false, .pending),
-        (.conflict, "MACHINE_BUSY", true, .conflict),
+        (.conflict, "HOURS_NOT_AVAILABLE", true, .conflict),
         (.rejected, "PERMISSION_DENIED", false, .failed),
         (.quarantined, "SUBSCRIPTION_READ_ONLY", false, .quarantined),
     ])
@@ -98,12 +99,12 @@ struct OutboxStateMachineTests {
                                                                   payloadJSON: "{}", createdAtDevice: now))
         let parentB = try store.outbox.enqueue(NewClientOperation(tenantID: tenant, opType: "B", entityType: "b", entityID: UUID(),
                                                                   payloadJSON: "{}", createdAtDevice: now.addingTimeInterval(1)))
-        let file = try store.attachments.add(NewLocalAttachment(tenantID: tenant, purpose: "SIGNATURE", fileName: "s.png",
+        let file = try store.attachments.add(NewLocalAttachment(tenantID: tenant, purpose: "METER_PHOTO", fileName: "s.png",
                                                                 sha256: String(repeating: "a", count: 64), sizeBytes: 10,
                                                                 contentType: "image/png"))
         let child = try store.outbox.enqueue(NewClientOperation(
-            tenantID: tenant, opType: "C", entityType: "c", entityID: UUID(), payloadJSON: #"{"method":"SIGNATURE"}"#,
-            dependsOn: [parentA.id, parentB.id], attachments: [(file.id, .signature)], createdAtDevice: now.addingTimeInterval(2)))
+            tenantID: tenant, opType: "C", entityType: "c", entityID: UUID(), payloadJSON: #"{"kind":"DAILY"}"#,
+            dependsOn: [parentA.id, parentB.id], attachments: [(file.id, .photo)], createdAtDevice: now.addingTimeInterval(2)))
         #expect(child.dependencies.count == 2)
         func ready() throws -> [UUID] { try store.outbox.readyToSend(tenantID: tenant, now: now, limit: 10).map(\.id) }
         #expect(try ready() == [parentA.id, parentB.id])
@@ -111,12 +112,12 @@ struct OutboxStateMachineTests {
             try store.outbox.markSent(id: parent.id)
             try store.outbox.markAcked(id: parent.id, serverRevision: 1)
         }
-        #expect(try ready().isEmpty) // dependencies ACKED but the signature is not uploaded yet
+        #expect(try ready().isEmpty) // dependencies ACKED but the photo is not uploaded yet
         let serverID = UUID()
         try store.attachments.markComplete(id: file.id, attachmentID: serverID)
         #expect(try ready() == [child.id])
         let payload = try JSONValue.parse(try #require(try store.outbox.operation(id: child.id)).payloadJSON)
-        #expect(payload["signature_attachment_id"]?.stringValue == serverID.lowercased)
+        #expect(payload["photo_attachment_id"]?.stringValue == serverID.lowercased)
     }
 
     @Test func enqueueRefusesUnknownAttachment() {
@@ -124,54 +125,6 @@ struct OutboxStateMachineTests {
             try store.outbox.enqueue(NewClientOperation(tenantID: tenant, opType: "C", entityType: "c", entityID: UUID(),
                                                         payloadJSON: "{}", attachments: [(UUID(), .photo)]))
         }
-    }
-}
-
-/// The supervisor-side chain: opening capture → START → activities/closing → acknowledgement → COMPLETE.
-struct JobProgressTests {
-    @Test func dependencyChainAndAllowedActions() throws {
-        let h = try SyncHarness()
-        let job = SyncFixtures.jobDTO
-        var progress = try h.recorder.progress(jobID: job.id, serverStatus: .approved)
-        #expect(progress.canCaptureOpening && !progress.canStart && !progress.canCaptureClosing)
-        #expect(throws: FieldRecorderError.self) { try h.recorder.recordTransition(job: job, action: .start) }
-
-        let (capture, start) = try h.recordOpeningAndStart()
-        #expect(start.dependencies == [capture.id])
-        progress = try h.recorder.progress(jobID: job.id, serverStatus: .approved)
-        #expect(progress.displayStatus == .inProgress && progress.canCaptureClosing && !progress.canCaptureOpening)
-
-        let activity = try h.recorder.recordActivity(job: job, type: .downtime, startedAt: h.clock.wallNow,
-                                                     endedAt: h.clock.wallNow.addingTimeInterval(600), billable: false, note: " hose ")
-        #expect(activity.dependencies == [start.id])
-        #expect(try JSONValue.parse(activity.payloadJSON)["note"]?.stringValue == "hose")
-        let closing = try h.recorder.recordCapture(
-            job: job, kind: .closing, mode: .manual, reading: "1240.0", ocr: nil, photo: nil, gps: .failed(.disabled),
-            capturedAt: h.clock.wallNow, snapshot: SyncFixtures.meterSnapshot)
-        #expect(closing.dependencies == [start.id])
-        #expect(throws: FieldRecorderError.self) {
-            try h.recorder.recordAcknowledgement(job: job, method: .signature, signerName: "Ann", signerPhone: nil,
-                                                 signature: nil, acknowledgedHours: nil)
-        }
-        let ack = try h.recorder.recordAcknowledgement(job: job, method: .nameConfirmation, signerName: " Ann Banda ",
-                                                       signerPhone: "", signature: nil, acknowledgedHours: "5.5")
-        #expect(ack.dependencies == [closing.id])
-        let complete = try h.recorder.recordTransition(job: job, action: .complete)
-        #expect(Set(complete.dependencies) == [closing.id, ack.id, activity.id])
-        progress = try h.recorder.progress(jobID: job.id, serverStatus: .approved)
-        #expect(progress.isCompleted && !progress.canLogActivity)
-        let gps = try JSONValue.parse(closing.payloadJSON)["gps"]
-        #expect(gps == .object(["status": .string("DISABLED"), "provider": .string("corelocation")])) // no coordinates
-    }
-
-    @Test func rejectedCaptureCanBeRetaken() throws {
-        let h = try SyncHarness()
-        let job = SyncFixtures.jobDTO
-        let first = try h.recorder.recordCapture(job: job, kind: .opening, mode: .manual, reading: "1.0", ocr: nil, photo: nil,
-                                                 gps: .failed(.timeout), capturedAt: h.clock.wallNow, snapshot: SyncFixtures.meterSnapshot)
-        try h.store.outbox.markSent(id: first.id)
-        try h.store.outbox.markFailed(id: first.id, code: "VALIDATION_FAILED", message: "bad", resultJSON: nil)
-        #expect(try h.recorder.progress(jobID: job.id, serverStatus: .approved).canCaptureOpening)
     }
 }
 

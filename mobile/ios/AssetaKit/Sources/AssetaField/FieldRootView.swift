@@ -16,8 +16,6 @@ enum FieldRoute: Hashable {
     case retention(UUID)
     /// An overdue-remittance flag of mine (read online).
     case remittanceOverdue(UUID)
-    /// My daily reports and one of them (DEC-032).
-    case dailyReports, dailyReport(UUID)
     /// My petty cash funds and what waits for me (DEC-033).
     case pettyCash
     /// Customers (online) and one customer (add / edit its details).
@@ -30,8 +28,6 @@ enum FieldSheet: Identifiable {
     // Accountability (each gated by server capability, permission and tenant policy)
     case hoursTransfer, cashTransfer, retention, cashAck(UUID, isFloat: Bool)
     case capture(CaptureTarget, MeterPolicySnapshot)
-    /// A new daily report (machine preset when opened from a machine), or the correction of one sent back.
-    case dailyReport(machineID: UUID, resubmitting: DailyReportDTO?)
     /// A petty cash form (DEC-033).
     case pettyCash(PettyCashSheet)
     /// A payment on an open credit invoice (ADR-008).
@@ -51,7 +47,6 @@ enum FieldSheet: Identifiable {
         case .retention: "retention"
         case let .cashAck(id, _): "cash-ack-\(id)"
         case let .capture(target, _): "capture-\(target.title)-\(target.machineID?.uuidString ?? "")"
-        case let .dailyReport(machine, report): "daily-report-\(machine)-\(report?.id.uuidString ?? "")"
         case let .pettyCash(form): form.id
         case let .invoicePayment(id): "invoice-payment-\(id)"
         case .deleteAccount: "delete-account"
@@ -121,7 +116,6 @@ public struct FieldRootView: View {
             case .retention: RetentionFormView(model: model) { id in open(.retention(id), under: .money) }
             case let .cashAck(id, isFloat): CashAckFormView(model: model, targetID: id, isFloat: isFloat)
             case let .capture(target, snapshot): MeterCaptureView(model: model, target: target, snapshot: snapshot)
-            case let .dailyReport(machine, report): DailyReportFormView(model: model, machineID: machine, resubmitting: report)
             case let .pettyCash(form): form.view(model)
             case let .invoicePayment(id): InvoicePaymentFormView(model: model, invoiceID: id)
             case .deleteAccount:
@@ -204,8 +198,7 @@ public struct FieldRootView: View {
         case .settings: SupervisorSettingsView(model: model, deleteAccount: { sheet = .deleteAccount })
         case let .reading(id): ReadingDetailView(model: model, id: id, requestReset: requestReset, capture: capture)
         case let .machine(id):
-            MachineDetailView(model: model, machineID: id, requestReset: requestReset, capture: capture,
-                              dailyReport: { sheet = .dailyReport(machineID: $0, resubmitting: nil) })
+            MachineDetailView(model: model, machineID: id, requestReset: requestReset, capture: capture)
         case let .resetDetail(id): ResetDetailView(model: model, id: id)
         case let .fuel(id): FuelDetailView(model: model, id: id)
         case let .expense(id): ExpenseDetailView(model: model, id: id, recordExpense: recordExpense)
@@ -214,9 +207,6 @@ public struct FieldRootView: View {
         case .syncStatus: SyncStatusView(model: model)
         case let .retention(id): RetentionStatusView(model: model, id: id)
         case let .remittanceOverdue(id): RemittanceOverdueView(model: model, id: id)
-        case .dailyReports: DailyReportListView(model: model)
-        case let .dailyReport(id):
-            DailyReportDetailView(model: model, id: id) { sheet = .dailyReport(machineID: $0.machineID, resubmitting: $0) }
         case .pettyCash: MyPettyCashView(model: model, sheet: pettyCashSheet)
         case .customers: CustomersListView(model: model)
         case let .customer(id): CustomerDetailView(model: model, customerID: id)
@@ -293,7 +283,6 @@ public struct FieldRootView: View {
     private func follow(_ link: InboxLink, notificationID: UUID?) {
         func fallback() { if let notificationID { open(.notification(notificationID)) } }
         switch link {
-        case .job: fallback() // jobs are gone (ADR-008)
         case let .expense(id): open(.expense(model.inbox.expenses.first { $0.serverID == id }?.id ?? id))
         case .money: open(.money)
         case let .machine(id):
@@ -316,9 +305,6 @@ public struct FieldRootView: View {
             Task {
                 if await model.remittanceOverdue(id) != nil { open(.remittanceOverdue(id), under: .money) } else { open(.money) }
             }
-        case let .dailyReport(id):
-            // Switched off: as any other notification.
-            if model.access.engineHoursOn { open(.dailyReport(id)) } else { fallback() }
         // DEC-033: the form while the item still waits for me on this phone, else My petty cash.
         case let .pettyCashMovement(id):
             guard model.access.pettyCash else { fallback(); return }
@@ -359,7 +345,7 @@ public struct FieldRootView: View {
         case .fuel: if model.access.fuelOn { open(.fuel(item.refID)) }
         case .collection: open(.cash(item.refID, collection: true))
         case .handover: open(.cash(item.refID, collection: false))
-        case .operation, .upload: open(.syncStatus)
+        case .upload: open(.syncStatus)
         }
     }
 

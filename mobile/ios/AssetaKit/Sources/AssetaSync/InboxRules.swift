@@ -138,61 +138,16 @@ public enum InboxMerge {
     }
 }
 
-/// Work-log entry for totals (server activity or local entry); `end` nil while running.
-public struct WorkSpan: Sendable, Equatable {
-    public let activityType: String
-    public let start: Date
-    public let end: Date?
-
-    public init(activityType: String, start: Date, end: Date?) {
-        self.activityType = activityType
-        self.start = start
-        self.end = end
-    }
-}
-
-public enum JobFigures {
-    /// Total minutes per activity type (running entries count up to `now`), types in first-seen order.
-    public static func minutesByType(_ spans: [WorkSpan], now: Date) -> [(type: String, minutes: Int)] {
-        var order: [String] = []
-        var totals: [String: Int] = [:]
-        for span in spans.sorted(by: { $0.start < $1.start }) where span.activityType != "NOTE" {
-            let end = span.end ?? now
-            if totals[span.activityType] == nil { order.append(span.activityType) }
-            totals[span.activityType, default: 0] += max(0, Int(end.timeIntervalSince(span.start))) / 60
-        }
-        return order.map { ($0, totals[$0] ?? 0) }
-    }
-
-    /// Closing minus opening reading (meter hours), or nil until both are known (or when negative).
-    public static func meterHours(opening: String?, closing: String?) -> Decimal? {
-        guard let o = opening.flatMap(Self.decimal), let c = closing.flatMap(Self.decimal) else { return nil }
-        let hours = c - o
-        return hours >= 0 ? hours : nil
-    }
-
-    /// "2 h 05 min" / "45 min".
-    public static func duration(minutes: Int) -> String {
-        minutes >= 60 ? "\(minutes / 60) h \(String(format: "%02d", minutes % 60)) min" : "\(minutes) min"
-    }
-
-    static func decimal(_ text: String) -> Decimal? {
-        Decimal(string: text, locale: Locale(identifier: "en_US_POSIX"))
-    }
-}
-
 /// What tapping a server notification opens (from its `target`).
 public enum InboxLink: Sendable, Equatable {
-    /// `machine`: a machine of mine (missing daily report, unexplained engine hours).
-    case job(UUID), expense(UUID), money, machine(UUID), none
+    /// `machine`: a machine of mine (unexplained engine hours, a report due).
+    case expense(UUID), money, machine(UUID), none
     /// A transfer (`isFloat` false) or float sent to me: its answer when still waiting, else the Money tab.
     case cashToAcknowledge(UUID, isFloat: Bool)
     /// One of my requests to keep cash (its status).
     case retention(UUID)
     /// An overdue-remittance flag of mine ("Overdue remittance"; the Money tab when it cannot be read).
     case remittanceOverdue(UUID)
-    /// A daily report of mine (DEC-032: sent back to me).
-    case dailyReport(UUID)
     /// One of my remittances (DEC-032 Phase 3: its partial reason was decided): its detail once on the phone, else Money.
     case handover(UUID)
     /// DEC-033: a funding / top-up to acknowledge or a fund being handed to me (the form while it still waits), else
@@ -212,9 +167,6 @@ public enum InboxLink: Sendable, Equatable {
         case .cashFloat: .cashToAcknowledge(record.id, isFloat: true)
         case .cashRetention: .retention(record.id)
         case .remittanceOverdue: .remittanceOverdue(record.id)
-        // DEC-031 Phase 5: UNBILLED_WORK names the job.
-        case .job: .job(record.id)
-        case .dailyReport: .dailyReport(record.id)
         case .cashRemittance: .handover(record.id)
         default: nil
         }
@@ -227,7 +179,6 @@ public enum InboxLink: Sendable, Equatable {
         }
         let uuid = id.flatMap(UUID.init(uuidString:))
         switch entity {
-        case "job": return uuid.map(InboxLink.job) ?? .none
         case "expense": return uuid.map(InboxLink.expense) ?? .none
         case "staff_member", "cash_custody": return .money
         // Cash transfers and floats to acknowledge are answered on the Money tab.
@@ -274,7 +225,7 @@ public enum FindingTexts {
         case "GPS_UNAVAILABLE": "No GPS position"
         case "GPS_INACCURATE": "GPS position not accurate enough"
         case "GPS_STALE": "GPS position too old"
-        case "LOCATION_MISMATCH": "Not at the job site"
+        case "LOCATION_MISMATCH": "Not at the site"
         case "MODE_POLICY_VIOLATION": "Capture mode not allowed"
         case "PHOTO_MISSING": "Photo missing"
         case "LOW_OCR_CONFIDENCE": "Meter photo hard to read"
@@ -289,7 +240,6 @@ public enum FindingTexts {
         case "HOURS_OVERRUN": "Hours beyond purchase"
         case "UNEXPLAINED_HOURS": "Engine hours not yet explained"
         case "MISSING_DAILY_REPORT": "Daily report missing"
-        case "OVERLAPPING_ALLOCATION": "Overlaps another job's hours"
         case "OVERLAPPING_ACTIVITY": "Overlapping work log entries"
         default: InboxTexts.sentence(code)
         }

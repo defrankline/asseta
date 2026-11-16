@@ -1,56 +1,8 @@
 import Foundation
 
-// Read DTOs (and the two decision bodies) the Owner app uses for jobs, tracking alerts, approvals,
-// investigation cases and meter evidence (`JobSummaryDto`, `AlertDto`, `ApprovalRequestDto`,
+// Read DTOs (and the two decision bodies) the Owner app uses for tracking alerts, approvals,
+// investigation cases and meter evidence (`AlertDto`, `ApprovalRequestDto`,
 // `AnomalyCaseDto`, `AnomalyCaseDetailDto`, `MeterCaptureDto`, `PhotoUrlDto`).
-
-// MARK: - Jobs
-
-public struct JobChargeLineDTO: Codable, Hashable, Sendable {
-    public let kind: String
-    public let description: String
-    public let quantity: DecimalString
-    public let unitPrice: DecimalString
-    public let amount: DecimalString
-
-    enum CodingKeys: String, CodingKey { case kind, description, quantity, unitPrice = "unit_price", amount }
-}
-
-public struct JobChargesDTO: Codable, Hashable, Sendable {
-    public let currency: String
-    public let lines: [JobChargeLineDTO]
-    public let subtotal: DecimalString
-    public let discountTotal: DecimalString
-    public let taxTotal: DecimalString
-    public let total: DecimalString
-
-    enum CodingKeys: String, CodingKey {
-        case currency, lines, subtotal, discountTotal = "discount_total", taxTotal = "tax_total", total
-    }
-}
-
-public struct JobSummaryDTO: Codable, Hashable, Sendable {
-    public let job: JobDTO
-    public let openingReading: DecimalString?
-    public let closingReading: DecimalString?
-    public let meterHours: DecimalString?
-    public let nonbillableHours: DecimalString
-    public let standbyHours: DecimalString?
-    public let billableHours: DecimalString?
-    public let openExceptions: Int
-    public let blockingExceptions: Int
-    public let billingReady: Bool
-    public let charges: JobChargesDTO?
-    public let policyVersion: String
-
-    enum CodingKeys: String, CodingKey {
-        case job, charges
-        case openingReading = "opening_reading", closingReading = "closing_reading", meterHours = "meter_hours"
-        case nonbillableHours = "nonbillable_hours", standbyHours = "standby_hours", billableHours = "billable_hours"
-        case openExceptions = "open_exceptions", blockingExceptions = "blocking_exceptions"
-        case billingReady = "billing_ready", policyVersion = "policy_version"
-    }
-}
 
 // MARK: - Alerts
 
@@ -181,7 +133,6 @@ public struct AnomalyCaseDTO: Codable, Hashable, Sendable, Identifiable {
     public let subjectType: String
     public let subjectID: UUID
     public let machineID: UUID?
-    public let jobID: UUID?
     public let severity: AlertSeverity
     public let status: CaseStatus
     public let assigneeName: String?
@@ -195,7 +146,7 @@ public struct AnomalyCaseDTO: Codable, Hashable, Sendable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case id, caseNumber = "case_number", title, subjectType = "subject_type", subjectID = "subject_id"
-        case machineID = "machine_id", jobID = "job_id", severity, status, assigneeName = "assignee_name"
+        case machineID = "machine_id", severity, status, assigneeName = "assignee_name"
         case openedAt = "opened_at", lastSignalAt = "last_signal_at", resolvedAt = "resolved_at"
         case latestOutcome = "latest_outcome", signalCount = "signal_count", policyVersion = "policy_version", version
     }
@@ -251,8 +202,6 @@ public struct AnomalyCaseDetailDTO: Codable, Hashable, Sendable {
 
 public struct MeterCaptureDTO: Codable, Hashable, Sendable, Identifiable {
     public let id: UUID
-    /// Nil for a DAILY reading outside a job.
-    public let jobID: UUID?
     public let machineID: UUID
     /// Kept as text so a reading kind added later never breaks a list.
     public let kind: String
@@ -270,7 +219,7 @@ public struct MeterCaptureDTO: Codable, Hashable, Sendable, Identifiable {
     public let state: String
 
     enum CodingKeys: String, CodingKey {
-        case id, jobID = "job_id", machineID = "machine_id", kind, captureMode = "capture_mode", reading
+        case id, machineID = "machine_id", kind, captureMode = "capture_mode", reading
         case ocrValue = "ocr_value", ocrConfidence = "ocr_confidence", manuallyCorrected = "manually_corrected"
         case photoAttachmentID = "photo_attachment_id", gpsStatus = "gps_status", latitude, longitude
         case capturedAt = "captured_at", receivedAt = "received_at", state

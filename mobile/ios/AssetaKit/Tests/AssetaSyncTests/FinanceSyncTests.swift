@@ -53,8 +53,7 @@ extension SyncHarness {
         draft.amountText = "120.50"
         draft.description = "Hydraulic hose"
         draft.currency = directoryView.baseCurrency() ?? "TZS" // the form prefills the tenant currency
-        draft.jobID = SyncFixtures.jobID
-        draft.jobMachineID = SyncFixtures.machineID
+        draft.machineID = SyncFixtures.machineID
         draft.gps = .fix(latitude: -6.8, longitude: 39.3, accuracyM: 9, capturedAt: clock.wallNow)
         return try recorder.recordExpense(draft, receipts: [receipt], snapshot: snapshot,
                                           baseCurrency: directoryView.baseCurrency(), incurredAt: clock.wallNow)
@@ -111,7 +110,7 @@ struct FinanceSyncTests {
         #expect(applied["receipt_upload_ids"] as? [String] == [session.lowercased])
         #expect(applied["amount"] as? String == "120.5") // decimal string, never a JSON number
         #expect(applied["client_id"] as? String == expense.entityID.lowercased)
-        #expect(applied["job_id"] as? String == SyncFixtures.jobID.lowercased)
+        #expect(applied["machine_id"] as? String == SyncFixtures.machineID.lowercased && applied["job_id"] == nil)
         #expect(applied["paid_from"] as? String == "CASH_CUSTODY")
         #expect(try h.directoryView.cashSummary().pending.isEmpty)
     }
@@ -139,8 +138,8 @@ struct FinanceSyncTests {
         let engine = h.engine()
         _ = try await engine.sync()
         let collection = try h.recorder.recordCashCollection(
-            customerID: FinanceFixtures.customerID, amountText: "250", currency: "TZS", reference: "RCPT-9", note: nil,
-            jobNumber: "J-1001", receivedAt: h.clock.wallNow)
+            customerID: FinanceFixtures.customerID, amountText: "250", currency: "TZS", reference: "RCPT-9", note: "Paid at the yard",
+            receivedAt: h.clock.wallNow)
         h.server.mutate { $0.dropNextPushResponse = true }
         _ = try await engine.sync(force: true)
         #expect(try h.status(collection.id) == .pending)
@@ -150,7 +149,7 @@ struct FinanceSyncTests {
         #expect(op.serverResultJSON?.contains("DUPLICATE") == true)
         #expect(h.server.read { $0.applyOrder } == [collection.id])
         let applied = try #require(h.server.read { $0.appliedPayloads[collection.id] })
-        #expect(applied["note"] as? String == "Job J-1001")
+        #expect(applied["note"] as? String == "Paid at the yard")
         #expect(applied["customer_id"] as? String == FinanceFixtures.customerID.lowercased)
     }
 
@@ -182,7 +181,7 @@ struct FinanceSyncTests {
         let handover = try h.recorder.recordCashHandover(amountText: "100", currency: "TZS", reference: "DEP-1",
                                                          note: "To office", handedAt: h.clock.wallNow)
         let fuel = try h.recorder.recordFuelEvent(
-            type: .issue, litres: "40.5", unitPrice: "3200", currency: "TZS", machineID: SyncFixtures.machineID, jobID: nil,
+            type: .issue, litres: "40.5", unitPrice: "3200", currency: "TZS", machineID: SyncFixtures.machineID,
             meterReading: "1500.5", supplier: nil, note: nil, occurredAt: h.clock.wallNow)
         h.server.mutate { $0.readOnly = true }
         _ = try await engine.sync(force: true)

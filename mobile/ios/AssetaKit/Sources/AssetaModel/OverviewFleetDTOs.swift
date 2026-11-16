@@ -83,7 +83,8 @@ public struct OverviewFleetSection: Codable, Hashable, Sendable {
 }
 
 public struct OverviewWorkSection: Codable, Hashable, Sendable {
-    public let jobsByStatus: [String: Int]
+    /// Machine reports by status (SUBMITTED, APPROVED, REJECTED; zero-filled).
+    public let machineReportsByStatus: [String: Int]
     /// `nil` when the caller lacks the permission behind the count.
     public let pendingApprovals: Int?
     public let readingsNeedingReview: Int?
@@ -91,7 +92,7 @@ public struct OverviewWorkSection: Codable, Hashable, Sendable {
     public let latestSourceAt: Date?
 
     enum CodingKeys: String, CodingKey {
-        case jobsByStatus = "jobs_by_status", pendingApprovals = "pending_approvals"
+        case machineReportsByStatus = "machine_reports_by_status", pendingApprovals = "pending_approvals"
         case readingsNeedingReview = "readings_needing_review", openExceptions = "open_exceptions"
         case latestSourceAt = "latest_source_at"
     }

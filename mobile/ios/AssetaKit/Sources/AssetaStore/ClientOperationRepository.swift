@@ -12,8 +12,6 @@ public protocol ClientOperationRepository: Sendable {
     /// never sent under this token; nil means every owner.
     func readyToSend(tenantID: UUID, owner: String?, now: Date, limit: Int) throws -> [ClientOperation]
     func operations(tenantID: UUID, owner: String?, statuses: Set<ClientOperationStatus>) throws -> [ClientOperation]
-    /// Operations whose payload references `jobID`, oldest first.
-    func operations(tenantID: UUID, owner: String?, jobID: UUID) throws -> [ClientOperation]
     func statusCounts(tenantID: UUID, owner: String?) throws -> [ClientOperationStatus: Int]
     /// Unsynced operations queued on this phone by other users than `owner`, per user: held (kept,
     /// never sent under this user's token) until their owner signs in again.
@@ -58,10 +56,6 @@ extension ClientOperationRepository {
 
     public func operations(tenantID: UUID, statuses: Set<ClientOperationStatus>) throws -> [ClientOperation] {
         try operations(tenantID: tenantID, owner: nil, statuses: statuses)
-    }
-
-    public func operations(tenantID: UUID, jobID: UUID) throws -> [ClientOperation] {
-        try operations(tenantID: tenantID, owner: nil, jobID: jobID)
     }
 
     public func statusCounts(tenantID: UUID) throws -> [ClientOperationStatus: Int] {
@@ -184,19 +178,6 @@ public final class SQLiteClientOperationRepository: ClientOperationRepository {
             ORDER BY op.created_at_device, op.id
             """,
             [.text(tenantID.lowercased), .optionalText(owner), .optionalText(owner)] + ordered.map(SQLValue.text),
-            map: Self.decode
-        )
-    }
-
-    public func operations(tenantID: UUID, owner: String?, jobID: UUID) throws -> [ClientOperation] {
-        try db.query(
-            """
-            \(Self.select(alias: "op"))
-            WHERE op.tenant_id = ? AND (? IS NULL OR op.owner_subject = ?)
-              AND lower(json_extract(op.payload_json, '$.job_id')) = ?
-            ORDER BY op.created_at_device, op.id
-            """,
-            [.text(tenantID.lowercased), .optionalText(owner), .optionalText(owner), .text(jobID.lowercased)],
             map: Self.decode
         )
     }

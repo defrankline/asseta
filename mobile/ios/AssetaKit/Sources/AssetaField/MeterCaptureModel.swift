@@ -20,13 +20,8 @@ enum CaptureTarget {
 
     var machineID: UUID? { machine?.id }
 
-    /// The reading kind whose evidence rules apply (a baseline follows the closing/daily rules).
-    var kind: ReadingKind {
-        switch self {
-        case .daily, .baseline: .daily
-        case let .correction(reading, _): ReadingKind(rawValue: reading.kind) ?? .closing
-        }
-    }
+    /// The reading kind whose evidence rules apply: every reading is a DAILY reading (ADR-008).
+    var kind: ReadingKind { .daily }
 
     var title: String {
         switch self {
@@ -37,7 +32,7 @@ enum CaptureTarget {
     }
 }
 
-/// State of one meter capture (OPENING, CLOSING, DAILY, baseline or correction). The capture id is generated once,
+/// State of one meter capture (a DAILY reading, a baseline or a correction). The capture id is generated once,
 /// here; the GPS attempt starts as soon as the capture screen opens and its real outcome is recorded.
 @MainActor
 @Observable

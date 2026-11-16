@@ -79,13 +79,13 @@ struct FinanceRulesTests {
     }
 
     @Test func fuelShapeRules() {
-        #expect(FinanceRules.fuelIssues(type: .issue, litres: "40", unitPrice: "3.25", meterReading: "", machineID: nil, jobID: nil)
-            == ["Choose the machine or job the fuel went to."])
-        #expect(FinanceRules.fuelIssues(type: .purchase, litres: "40", unitPrice: "", meterReading: "", machineID: nil, jobID: nil)
+        #expect(FinanceRules.fuelIssues(type: .issue, litres: "40", unitPrice: "3.25", meterReading: "", machineID: nil)
+            == ["Choose the machine the fuel went to."])
+        #expect(FinanceRules.fuelIssues(type: .purchase, litres: "40", unitPrice: "", meterReading: "", machineID: nil)
             == ["Enter the unit price."])
         #expect(FinanceRules.fuelIssues(type: .usage, litres: "12.345", unitPrice: "", meterReading: "1500.25",
-                                        machineID: UUID(), jobID: nil).isEmpty)
-        #expect(FinanceRules.fuelIssues(type: .usage, litres: "1.2345", unitPrice: "", meterReading: "", machineID: UUID(), jobID: nil)
+                                        machineID: UUID()).isEmpty)
+        #expect(FinanceRules.fuelIssues(type: .usage, litres: "1.2345", unitPrice: "", meterReading: "", machineID: UUID())
             == ["Litres may have at most 3 decimals."])
     }
 

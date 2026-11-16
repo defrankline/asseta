@@ -90,7 +90,6 @@ public struct ExpensePayload: Codable, Hashable, Sendable {
     public let paidFrom: ExpensePaidFrom
     public let supplier: String?
     public let machineID: UUID?
-    public let jobID: UUID?
     public let gps: GpsPayload
     public let deviceID: String
     public let receiptUploadIDs: [UUID]
@@ -99,7 +98,7 @@ public struct ExpensePayload: Codable, Hashable, Sendable {
     public let pettyCashAdvanceID: UUID?
 
     public init(clientID: UUID, categoryID: UUID, description: String, amount: Decimal, currency: String?,
-                incurredAt: Date, paidFrom: ExpensePaidFrom, supplier: String?, machineID: UUID?, jobID: UUID?,
+                incurredAt: Date, paidFrom: ExpensePaidFrom, supplier: String?, machineID: UUID?,
                 gps: GpsPayload, deviceID: String, receiptUploadIDs: [UUID] = [], pettyCashFundID: UUID? = nil,
                 pettyCashAdvanceID: UUID? = nil) {
         self.pettyCashFundID = pettyCashFundID
@@ -113,7 +112,6 @@ public struct ExpensePayload: Codable, Hashable, Sendable {
         self.paidFrom = paidFrom
         self.supplier = supplier
         self.machineID = machineID
-        self.jobID = jobID
         self.gps = gps
         self.deviceID = deviceID
         self.receiptUploadIDs = receiptUploadIDs
@@ -122,7 +120,7 @@ public struct ExpensePayload: Codable, Hashable, Sendable {
     enum CodingKeys: String, CodingKey {
         case description, amount, currency, supplier, gps
         case clientID = "client_id", categoryID = "category_id", incurredAt = "incurred_at", paidFrom = "paid_from"
-        case machineID = "machine_id", jobID = "job_id", deviceID = "device_id", receiptUploadIDs = "receipt_upload_ids"
+        case machineID = "machine_id", deviceID = "device_id", receiptUploadIDs = "receipt_upload_ids"
         case pettyCashFundID = "petty_cash_fund_id", pettyCashAdvanceID = "petty_cash_advance_id"
     }
 }
@@ -141,12 +139,9 @@ public struct CashCollectionPayload: Codable, Hashable, Sendable {
     public let staffMemberID: UUID?
     /// CASH_DETAILS_V2: the hours purchase this cash pays for (its id, or the client id of a sale still in the outbox).
     public let purchaseID: UUID?
-    /// SYNC_OPEN_INVOICES: the invoice this cash pays for (nil = key omitted, today's payload).
-    public let allocations: [CollectionAllocation]?
 
     public init(clientID: UUID, customerID: UUID, amount: Decimal, currency: String?, receivedAt: Date,
-                reference: String?, note: String?, staffMemberID: UUID? = nil, purchaseID: UUID? = nil,
-                allocations: [CollectionAllocation]? = nil) {
+                reference: String?, note: String?, staffMemberID: UUID? = nil, purchaseID: UUID? = nil) {
         self.clientID = clientID
         self.customerID = customerID
         self.amount = DecimalString(amount)
@@ -156,27 +151,13 @@ public struct CashCollectionPayload: Codable, Hashable, Sendable {
         self.note = note
         self.staffMemberID = staffMemberID
         self.purchaseID = purchaseID
-        self.allocations = allocations
     }
 
     enum CodingKeys: String, CodingKey {
-        case amount, currency, reference, note, allocations
+        case amount, currency, reference, note
         case clientID = "client_id", customerID = "customer_id", receivedAt = "received_at"
         case staffMemberID = "staff_member_id", purchaseID = "purchase_id"
     }
-}
-
-/// One invoice a collection pays (`HireAllocationIn`).
-public struct CollectionAllocation: Codable, Hashable, Sendable {
-    public let invoiceID: UUID
-    public let amount: DecimalString
-
-    public init(invoiceID: UUID, amount: Decimal) {
-        self.invoiceID = invoiceID
-        self.amount = DecimalString(amount)
-    }
-
-    enum CodingKeys: String, CodingKey { case amount, invoiceID = "invoice_id" }
 }
 
 /// `CASH_HANDOVER`: cash handed to the office (CLAIMED until finance verifies it). With REMITTANCE_DETAILS_V1 it
@@ -233,14 +214,13 @@ public struct FuelEventPayload: Codable, Hashable, Sendable {
     public let unitPrice: DecimalString?
     public let currency: String?
     public let machineID: UUID?
-    public let jobID: UUID?
     public let meterReading: DecimalString?
     public let supplier: String?
     public let occurredAt: Date
     public let note: String?
 
     public init(clientID: UUID, eventType: FuelEventType, litres: Decimal, unitPrice: Decimal?, currency: String?,
-                machineID: UUID?, jobID: UUID?, meterReading: Decimal?, supplier: String?, occurredAt: Date,
+                machineID: UUID?, meterReading: Decimal?, supplier: String?, occurredAt: Date,
                 note: String?) {
         self.clientID = clientID
         self.eventType = eventType
@@ -248,7 +228,6 @@ public struct FuelEventPayload: Codable, Hashable, Sendable {
         self.unitPrice = unitPrice.map(DecimalString.init)
         self.currency = currency
         self.machineID = machineID
-        self.jobID = jobID
         self.meterReading = meterReading.map(DecimalString.init)
         self.supplier = supplier
         self.occurredAt = occurredAt
@@ -258,6 +237,6 @@ public struct FuelEventPayload: Codable, Hashable, Sendable {
     enum CodingKeys: String, CodingKey {
         case litres, currency, supplier, note
         case clientID = "client_id", eventType = "event_type", unitPrice = "unit_price", machineID = "machine_id"
-        case jobID = "job_id", meterReading = "meter_reading", occurredAt = "occurred_at"
+        case meterReading = "meter_reading", occurredAt = "occurred_at"
     }
 }

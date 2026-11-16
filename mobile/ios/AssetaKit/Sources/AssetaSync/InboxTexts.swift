@@ -1,35 +1,6 @@
 import AssetaModel
 import Foundation
 
-/// The five bottom tabs, in order (same on Android).
-public enum SupervisorTab: String, CaseIterable, Sendable, Hashable {
-    case jobs, readings, fuel, money, inbox
-
-    public var label: String {
-        switch self {
-        case .jobs: "Jobs"
-        case .readings: "Readings"
-        case .fuel: "Fuel"
-        case .money: "Money"
-        case .inbox: "Inbox"
-        }
-    }
-}
-
-/// Jobs tab segments.
-public enum JobSegment: String, CaseIterable, Sendable, Hashable {
-    case inProgress, ready, closed, machines
-
-    public var label: String {
-        switch self {
-        case .inProgress: "In progress"
-        case .ready: "Ready to start"
-        case .closed: "Recently closed"
-        case .machines: "My machines"
-        }
-    }
-}
-
 /// `transfers` is shown only when the server accepts cash transfers and the user records cash.
 public enum MoneySegment: String, CaseIterable, Sendable, Hashable {
     case expenses, collections, handovers, transfers
@@ -59,15 +30,6 @@ public enum FuelSegment: String, CaseIterable, Sendable, Hashable {
 /// Wording of the supervisor tabs, word for word the Android `InboxTexts`. Pure functions so wording
 /// and the small display rules are unit-tested.
 public enum InboxTexts {
-    /// Jobs segment of a job by its status on this device.
-    public static func segment(_ displayStatus: JobStatus) -> JobSegment {
-        switch displayStatus {
-        case .inProgress: .inProgress
-        case .completed, .cancelled: .closed
-        default: .ready
-        }
-    }
-
     /// Second line of a notification row: the body, unless it only repeats the title.
     public static func notificationDetail(title: String, body: String) -> String? {
         let detail = body.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -77,27 +39,9 @@ public enum InboxTexts {
         return detail
     }
 
-    /// The Jobs tab opens on the first non-empty job group (in progress, then ready to start, then recently closed).
-    public static func defaultSegment(_ displayStatuses: [JobStatus]) -> JobSegment {
-        let present = Set(displayStatuses.map(segment))
-        return [JobSegment.inProgress, .ready, .closed].first { present.contains($0) } ?? .inProgress
-    }
-
-    public static func jobsEmpty(_ segment: JobSegment) -> (title: String, message: String) {
-        switch segment {
-        case .inProgress: ("No jobs in progress", "Jobs you have started appear here.")
-        case .ready: ("No jobs ready to start", "Approved jobs assigned to you appear here after a sync.")
-        case .closed: ("No recently closed jobs", "Jobs completed or cancelled in the last 14 days appear here.")
-        case .machines: ("No machines", "Machines of your jobs appear here after a sync.")
-        }
-    }
-
+    /// Every reading is a DAILY reading (ADR-008); a kind the app does not know is shown as sent.
     public static func readingKind(_ kind: String) -> String {
-        switch kind {
-        case "OPENING": "Opening reading"
-        case "DAILY": FieldAccountabilityTexts.meterReadingKindDaily
-        default: "Closing reading"
-        }
+        kind == ReadingKind.daily.rawValue || kind.isEmpty ? FieldAccountabilityTexts.meterReadingKindDaily : kind
     }
 
     public static func captureMode(_ mode: String) -> String {
@@ -199,8 +143,7 @@ public enum InboxTexts {
         case .fuel: "Fuel event"
         case .collection: "Cash collection"
         case .handover: "Cash handover"
-        case .operation: "Job step"
-        case .upload: "Photo or signature upload"
+        case .upload: "Photo upload"
         }
     }
 

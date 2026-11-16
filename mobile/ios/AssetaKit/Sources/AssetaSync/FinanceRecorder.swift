@@ -42,8 +42,8 @@ extension FieldRecorder {
                 clientID: clientID, categoryID: categoryID,
                 description: FinanceRules.clean(draft.description, max: 2000) ?? "",
                 amount: amount, currency: assessment.currency, incurredAt: incurredAt, paidFrom: draft.paidFrom,
-                supplier: FinanceRules.clean(draft.supplier, max: 200), machineID: draft.jobID == nil ? draft.machineID : nil,
-                jobID: draft.jobID, gps: gps, deviceID: deviceID,
+                supplier: FinanceRules.clean(draft.supplier, max: 200), machineID: draft.machineID,
+                gps: gps, deviceID: deviceID,
                 pettyCashFundID: petty ? draft.pettyCashFundID : nil, pettyCashAdvanceID: pettyAdvanceID)
             return try enqueue(.expense, entityType: "expense", entityID: clientID, payload: payload, dependsOn: [],
                                attachments: locals.map { ($0, .receiptUploads) }, createdAt: incurredAt)
@@ -51,44 +51,28 @@ extension FieldRecorder {
     }
 
     /// Cash received from a customer into the supervisor's custody (or, when the tenant lets recorders record for
-    /// others, into `custodianID`'s custody). A job, when chosen, only helps
-    /// pick the customer and is noted for the office (the collection itself has no job field); it must
-    /// belong to the chosen customer (`jobCustomerID`, when the job's contract is known).
+    /// others, into `custodianID`'s custody).
     @discardableResult
     public func recordCashCollection(customerID: UUID?, amountText: String, currency: String, reference: String?,
-                                     note: String?, jobNumber: String? = nil, jobCustomerID: UUID? = nil,
+                                     note: String?,
                                      custodianID: UUID? = nil, receivedAt: Date, purchaseID: UUID? = nil,
                                      purchaseOperationID: UUID? = nil, linkRequired: Bool = false,
-                                     invoice: SyncOpenInvoiceDTO? = nil, clientID: UUID = UUID()) throws -> ClientOperation {
+                                     clientID: UUID = UUID()) throws -> ClientOperation {
         guard let customerID else { throw FieldRecorderError.invalid("Choose the customer who paid.") }
-        if linkRequired && purchaseID == nil && invoice == nil { throw FieldRecorderError.invalid(FieldAccountabilityTexts.collectionErrLink) }
+        if linkRequired && purchaseID == nil { throw FieldRecorderError.invalid(FieldAccountabilityTexts.collectionErrLink) }
         if purchaseID != nil && serverCapabilities()?.contains(SyncCapability.cashDetailsV2) != true {
-            throw FieldRecorderError.notAllowed(FieldAccountabilityTexts.serverTooOld)
-        }
-        if let jobNumber, let jobCustomerID, jobCustomerID != customerID {
-            throw FieldRecorderError.invalid("Job \(jobNumber) belongs to another customer.")
-        }
-        if invoice != nil && serverCapabilities()?.contains(SyncCapability.syncOpenInvoices) != true {
             throw FieldRecorderError.notAllowed(FieldAccountabilityTexts.serverTooOld)
         }
         let amount = try FinanceRules.amount(amountText)
         let code = try FinanceRules.currency(currency)
-        if let invoice {
-            if invoice.customerID != customerID || invoice.currency != code {
-                throw FieldRecorderError.invalid(FieldAccountabilityTexts.allocationMismatch)
-            }
-        }
         let purchaseOp = try purchaseOperationID.flatMap { try store.outbox.operation(id: $0) }
         if purchaseOp?.status == .failed || purchaseOp?.status == .conflict {
             throw FieldRecorderError.notAllowed(FieldAccountabilityTexts.collectionPurchaseGone)
         }
-        let jobNote = jobNumber.map { "Job \($0)" }
-        let combined = [jobNote, FinanceRules.clean(note, max: 1000)].compactMap { $0 }.joined(separator: ". ")
         let payload = CashCollectionPayload(
             clientID: clientID, customerID: customerID, amount: amount, currency: code,
             receivedAt: receivedAt, reference: FinanceRules.clean(reference, max: 120),
-            note: FinanceRules.clean(combined, max: 1000), staffMemberID: custodianID, purchaseID: purchaseID,
-            allocations: invoice.map { [CollectionAllocation(invoiceID: $0.id, amount: OpenInvoices.allocation(amount: amount, invoice: $0))] })
+            note: FinanceRules.clean(note, max: 1000), staffMemberID: custodianID, purchaseID: purchaseID)
         // A purchase still in the outbox: the collection waits for it, so the server can resolve its client id.
         return try enqueue(.cashCollection, entityType: "cash_collection", entityID: clientID, payload: payload,
                            dependsOn: purchaseOp.flatMap { $0.status == .acked ? nil : [$0.id] } ?? [], createdAt: receivedAt)
@@ -143,10 +127,10 @@ extension FieldRecorder {
 
     @discardableResult
     public func recordFuelEvent(type: FuelEventType, litres: String, unitPrice: String, currency: String,
-                                machineID: UUID?, jobID: UUID?, meterReading: String, supplier: String?, note: String?,
+                                machineID: UUID?, meterReading: String, supplier: String?, note: String?,
                                 occurredAt: Date, clientID: UUID = UUID()) throws -> ClientOperation {
         let issues = FinanceRules.fuelIssues(type: type, litres: litres, unitPrice: unitPrice, meterReading: meterReading,
-                                             machineID: machineID, jobID: jobID)
+                                             machineID: machineID)
         if let issue = issues.first { throw FieldRecorderError.invalid(issue) }
         let litresValue = try FinanceRules.amount(litres, what: "Litres", decimals: FinanceRules.litresDecimals)
         var price: Decimal?
@@ -164,7 +148,7 @@ extension FieldRecorder {
         let payload = FuelEventPayload(
             clientID: clientID, eventType: type, litres: litresValue, unitPrice: price,
             currency: currencyCode,
-            machineID: jobID == nil ? machineID : nil, jobID: jobID, meterReading: meter,
+            machineID: machineID, meterReading: meter,
             supplier: FinanceRules.clean(supplier, max: 200), occurredAt: occurredAt, note: FinanceRules.clean(note, max: 1000))
         return try enqueue(.fuelEvent, entityType: "fuel_event", entityID: clientID, payload: payload, dependsOn: [],
                            createdAt: occurredAt)

@@ -9,7 +9,7 @@ public enum ClientOperationStatus: String, CaseIterable, Sendable, Codable {
     case acked = "ACKED"
     /// Rejected by the server (validation, permission). Evidence kept; error code visible.
     case failed = "FAILED"
-    /// Server state conflict (e.g. job cancelled). Kept with `server_state`; never auto-overwritten.
+    /// Server state conflict (e.g. a report already pending). Kept with `server_state`; never auto-overwritten.
     case conflict = "CONFLICT"
     /// Held by the server for a read-only tenant; re-sent later, never discarded.
     case quarantined = "QUARANTINED"
@@ -30,7 +30,6 @@ public enum ClientOperationStatus: String, CaseIterable, Sendable, Codable {
 /// Which payload field receives the server `attachment_id` once a local file is uploaded.
 public enum AttachmentPayloadField: String, Sendable, CaseIterable {
     case photo = "photo_attachment_id"
-    case signature = "signature_attachment_id"
     /// EXPENSE receipts: the upload session id is appended to this array (the server resolves it
     /// to the stored attachment, or answers DEFERRED `ATTACHMENT_PENDING` until it is complete).
     case receiptUploads = "receipt_upload_ids"

@@ -91,8 +91,6 @@ public struct FieldAccess: Sendable, Equatable {
     public var cashDetails: Bool { supports(SyncCapability.cashDetailsV2) }
     /// Collections offer "Pays for" (a purchase, or an offline purchase's client id).
     public var collectionLink: Bool { cashDetails && can(Self.collectionRecord) }
-    /// Open invoices appear in "Pays for" (DEC-032 Phase 4, server SYNC_OPEN_INVOICES).
-    public var collectionInvoices: Bool { collectionLink && supports(SyncCapability.syncOpenInvoices) }
     /// The collection must name its purchase (the tenant's `collection_link_required`).
     public var collectionLinkRequired: Bool { collectionLink && cash?.collectionLinkRequired == true }
     /// Under the full-remittance policy the hand-over asks why part of the balance stays with the custodian.
@@ -387,8 +385,6 @@ public enum AccountabilityRules {
         reason.trimmingCharacters(in: .whitespacesAndNewlines).count >= minCorrectionReason
     }
 
-    /// Provisional hours (in use by running jobs) as plain text, nil when there are none (DEC-031 Phase 4).
-    public static func inUse(_ value: Decimal) -> String? { value > 0 ? hoursNumber(value) : nil }
 
     /// An hours figure in the phone's number format: grouping, 0–2 decimals, no trailing zeros ("12", "1,234.5"); the
     /// same rule as the Owner app and Android (strings doc "DEC-031 Phase 5", hours parity).
@@ -605,8 +601,7 @@ extension FieldRecorder {
 
     // MARK: - Meter (engine hours)
 
-    /// Queues a DAILY reading of a machine outside a job (`METER_CAPTURE` kind DAILY, job_id null, machine_id set),
-    /// with the same evidence rules as a closing reading.
+    /// Queues a DAILY reading of a machine (`METER_CAPTURE` kind DAILY, machine_id set) under the policy's capture mode.
     @discardableResult
     public func recordDailyReading(machineID: UUID, mode: CaptureMode, reading: String, ocr: MeterOCRResult?,
                                    photo: StoredEvidence?, gps: GpsPayload, capturedAt: Date, snapshot: MeterPolicySnapshot,
@@ -617,7 +612,7 @@ extension FieldRecorder {
         }
         return try store.database.transaction {
             let photoLocal = try photo.map { try addAttachment($0, purpose: .meterPhoto) }
-            let payload = capturePayload(id: captureID, jobID: nil, machineID: machineID, kind: .daily, mode: mode,
+            let payload = capturePayload(id: captureID, machineID: machineID, kind: .daily, mode: mode,
                                          reading: reading, ocr: ocr, gps: gps, capturedAt: capturedAt, snapshot: snapshot)
             return try enqueue(.meterCapture, entityType: "meter_capture", entityID: captureID, payload: payload,
                                dependsOn: [], attachments: photoLocal.map { [($0, .photo)] } ?? [], createdAt: capturedAt)
@@ -645,7 +640,7 @@ extension FieldRecorder {
     }
 
     /// Queues a `METER_CORRECTION`: a replacement for one of my readings the server has and still counts (same kind,
-    /// job and machine), with a reason of 10+ characters; a second person approves it.
+    /// machine), with a reason of 10+ characters; a second person approves it.
     @discardableResult
     public func proposeCorrection(of reading: ReadingItem, machineID: UUID, mode: CaptureMode, value: String,
                                   ocr: MeterOCRResult?, photo: StoredEvidence?, gps: GpsPayload, capturedAt: Date,
@@ -662,7 +657,7 @@ extension FieldRecorder {
         if try alreadySaved(.meterCorrection, clientID: replacementID) { throw FieldRecorderError.notAllowed(FieldAccountabilityTexts.alreadySaved) }
         return try store.database.transaction {
             let photoLocal = try photo.map { try addAttachment($0, purpose: .meterPhoto) }
-            let replacement = capturePayload(id: replacementID, jobID: reading.jobID, machineID: machineID, kind: kind,
+            let replacement = capturePayload(id: replacementID, machineID: machineID, kind: kind,
                                              mode: mode, reading: value, ocr: ocr, gps: gps, capturedAt: capturedAt,
                                              snapshot: snapshot)
             let payload = MeterCorrectionPayload(supersededCaptureID: reading.id, reason: why, replacement: replacement)
@@ -679,10 +674,10 @@ extension FieldRecorder {
         return nil
     }
 
-    func capturePayload(id: UUID, jobID: UUID?, machineID: UUID?, kind: ReadingKind, mode: CaptureMode, reading: String,
+    func capturePayload(id: UUID, machineID: UUID, kind: ReadingKind, mode: CaptureMode, reading: String,
                         ocr: MeterOCRResult?, gps: GpsPayload, capturedAt: Date, snapshot: MeterPolicySnapshot) -> MeterCapturePayload {
         MeterCapturePayload(
-            id: id, jobID: jobID, machineID: machineID, kind: kind, captureMode: mode, reading: reading,
+            id: id, machineID: machineID, kind: kind, captureMode: mode, reading: reading,
             ocrRawText: ocr.map { String($0.rawText.prefix(500)) }, ocrValue: ocr?.value,
             ocrConfidence: ocr.map { ($0.confidence * 1000).rounded() / 1000 }, ocrEngine: ocr?.engine,
             photoAttachmentID: nil, gps: gps, deviceID: deviceID, capturedAt: capturedAt, policyVersionIDs: snapshot.versionIDs)

@@ -4,7 +4,7 @@ import Foundation
 // realtime frames (`NotificationDto`, `PushDeviceIn/Dto`, `NotificationRoutingDto/In`, docs/api.md).
 
 public struct NotificationTargetDTO: Codable, Hashable, Sendable {
-    /// e.g. `alert`, `approval`, `job`, `case`, `screen`.
+    /// e.g. `alert`, `approval`, `machine_report`, `case`, `screen`.
     public let entity: String
     public let id: String?
     /// The web console route to act on (e.g. `/tenant/cases/<id>`).
@@ -224,14 +224,8 @@ public enum RecordKind: String, CaseIterable, Sendable, Hashable {
     case meterBaseline = "METER_BASELINE"
     case meterCorrection = "METER_CORRECTION"
     case engineHoursClassification = "ENGINE_HOURS_CLASSIFICATION"
-    /// DEC-031 R3: a revenue difference to explain or decide.
-    case revenueDifference = "REVENUE_DIFFERENCE"
-    /// DEC-031: non-revenue time explained by one person, awaiting another's approval.
-    case nonRevenueApproval = "NON_REVENUE_APPROVAL"
     /// DEC-031 Phase 4: a prepaid-hours purchase (low balance, expiring, expired).
     case hoursPurchase = "HOURS_PURCHASE"
-    /// DEC-031 Phase 5: a job (UNBILLED_WORK: completed work not invoiced yet).
-    case job = "JOB"
     /// DEC-032: a daily operational report (submitted for review, or sent back to its supervisor).
     case dailyReport = "DAILY_REPORT"
     /// DEC-032: a proposed work allocation correction (`record_id` is the correction group).
@@ -256,8 +250,6 @@ public enum RecordKind: String, CaseIterable, Sendable, Hashable {
         case "baseline", "meter_baseline": self = .meterBaseline
         case "correction", "meter_correction": self = .meterCorrection
         case "classification", "engine_hours_classification": self = .engineHoursClassification
-        case "revenue_difference": self = .revenueDifference
-        case "non_revenue_approval": self = .nonRevenueApproval
         case "hours_purchase": self = .hoursPurchase
         case "daily_report": self = .dailyReport
         case "work_allocation_correction": self = .workAllocationCorrection

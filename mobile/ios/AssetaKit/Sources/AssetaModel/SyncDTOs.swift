@@ -67,13 +67,11 @@ public struct PolicySnapshotDTO: Codable, Hashable, Sendable {
 }
 
 /// Server-owned entities, kept as raw JSON objects so the local store can persist exactly what the
-/// server sent. Typed views (``JobDTO`` etc.) are decoded from them on read.
+/// server sent. Typed views (``MachineDTO`` etc.) are decoded from them on read.
 public struct SyncData: Codable, Hashable, Sendable {
-    public var jobs: [JSONValue]
     public var machines: [JSONValue]
     public var sites: [JSONValue]
     public var customers: [JSONValue]
-    public var contracts: [JSONValue]
     public var staff: [JSONValue]
     public var expenseCategories: [JSONValue]
     /// The supervisor's current custody per currency. Not an entity (no `id`) and always complete,
@@ -82,15 +80,9 @@ public struct SyncData: Codable, Hashable, Sendable {
     /// Company deposit accounts for the remittance picker (REMITTANCE_DETAILS_V1; bootstrap: active ones; deltas:
     /// every change, deactivations included). Stored as entities of type `deposit_account`.
     public var depositAccounts: [JSONValue]
-    /// Jobs a changeover can name on my machines (SYNC_CHANGEOVER_JOBS; bootstrap: waiting ones; deltas: every change, the
-    /// status says whether it still applies). Stored as entities of type `changeover_job`.
-    public var changeoverJobs: [JSONValue]
     /// The tenant's unbillable reasons (SYNC_UNBILLABLE_REASONS; deltas include deactivations, `is_active` false).
     /// Stored as entities of type `unbillable_reason`.
     public var unbillableReasons: [JSONValue]
-    /// Open invoices of the recorder's customers (SYNC_OPEN_INVOICES). A full snapshot on every pull, like `cashCustody`:
-    /// it replaces the local set (entities of type `open_invoice`) instead of being merged.
-    public var openInvoices: [JSONValue]
     /// DEC-033 petty cash (OP_PETTY_CASH): the funds I hold, money waiting for my acknowledgement, funds being handed to
     /// me and outstanding advances. Full snapshots on every pull: they replace the local sets.
     public var pettyCashFunds: [JSONValue] = []
@@ -115,29 +107,23 @@ public struct SyncData: Codable, Hashable, Sendable {
     /// the field (an older server): the stored inbox is then left untouched.
     public var inbox: [InboxList: [JSONValue]] = [:]
 
-    public init(jobs: [JSONValue] = [], machines: [JSONValue] = [], sites: [JSONValue] = [],
-                customers: [JSONValue] = [], contracts: [JSONValue] = [], staff: [JSONValue] = [],
+    public init(machines: [JSONValue] = [], sites: [JSONValue] = [], customers: [JSONValue] = [], staff: [JSONValue] = [],
                 expenseCategories: [JSONValue] = [], cashCustody: [JSONValue] = [], depositAccounts: [JSONValue] = [],
-                changeoverJobs: [JSONValue] = [], unbillableReasons: [JSONValue] = [], openInvoices: [JSONValue] = []) {
-        self.jobs = jobs
+                unbillableReasons: [JSONValue] = []) {
         self.machines = machines
         self.sites = sites
         self.customers = customers
-        self.contracts = contracts
         self.staff = staff
         self.expenseCategories = expenseCategories
         self.cashCustody = cashCustody
         self.depositAccounts = depositAccounts
-        self.changeoverJobs = changeoverJobs
         self.unbillableReasons = unbillableReasons
-        self.openInvoices = openInvoices
     }
 
     enum CodingKeys: String, CodingKey {
-        case jobs, machines, sites, customers, contracts, staff
+        case machines, sites, customers, staff
         case expenseCategories = "expense_categories", cashCustody = "cash_custody"
-        case depositAccounts = "deposit_accounts", changeoverJobs = "changeover_jobs", unbillableReasons = "unbillable_reasons"
-        case openInvoices = "open_invoices"
+        case depositAccounts = "deposit_accounts", unbillableReasons = "unbillable_reasons"
         case pettyCashFunds = "petty_cash_funds", pettyCashAwaiting = "petty_cash_awaiting"
         case pettyCashHolderChanges = "petty_cash_holder_changes", pettyCashAdvances = "petty_cash_advances"
         case pettyCashWitnesses = "petty_cash_witnesses"
@@ -150,25 +136,20 @@ public struct SyncData: Codable, Hashable, Sendable {
     /// The `my_*` inbox lists of `SyncData`.
     public enum InboxList: String, CodingKey, CaseIterable, Sendable {
         case meterCaptures = "my_meter_captures", meterResets = "my_meter_resets"
-        case jobActivities = "my_job_activities", acknowledgements = "my_acknowledgements"
         case expenses = "my_expenses", fuelEvents = "my_fuel_events"
         case cashCollections = "my_cash_collections", cashHandovers = "my_cash_handovers"
     }
 
     public func encode(to encoder: any Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(jobs, forKey: .jobs)
         try c.encode(machines, forKey: .machines)
         try c.encode(sites, forKey: .sites)
         try c.encode(customers, forKey: .customers)
-        try c.encode(contracts, forKey: .contracts)
         try c.encode(staff, forKey: .staff)
         try c.encode(expenseCategories, forKey: .expenseCategories)
         try c.encode(cashCustody, forKey: .cashCustody)
         try c.encode(depositAccounts, forKey: .depositAccounts)
-        try c.encode(changeoverJobs, forKey: .changeoverJobs)
         try c.encode(unbillableReasons, forKey: .unbillableReasons)
-        try c.encode(openInvoices, forKey: .openInvoices)
         try c.encode(pettyCashFunds, forKey: .pettyCashFunds)
         try c.encode(pettyCashAwaiting, forKey: .pettyCashAwaiting)
         try c.encode(pettyCashHolderChanges, forKey: .pettyCashHolderChanges)
@@ -190,18 +171,14 @@ public struct SyncData: Codable, Hashable, Sendable {
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        jobs = try c.decodeIfPresent([JSONValue].self, forKey: .jobs) ?? []
         machines = try c.decodeIfPresent([JSONValue].self, forKey: .machines) ?? []
         sites = try c.decodeIfPresent([JSONValue].self, forKey: .sites) ?? []
         customers = try c.decodeIfPresent([JSONValue].self, forKey: .customers) ?? []
-        contracts = try c.decodeIfPresent([JSONValue].self, forKey: .contracts) ?? []
         staff = try c.decodeIfPresent([JSONValue].self, forKey: .staff) ?? []
         expenseCategories = try c.decodeIfPresent([JSONValue].self, forKey: .expenseCategories) ?? []
         cashCustody = try c.decodeIfPresent([JSONValue].self, forKey: .cashCustody) ?? []
         depositAccounts = try c.decodeIfPresent([JSONValue].self, forKey: .depositAccounts) ?? []
-        changeoverJobs = try c.decodeIfPresent([JSONValue].self, forKey: .changeoverJobs) ?? []
         unbillableReasons = try c.decodeIfPresent([JSONValue].self, forKey: .unbillableReasons) ?? []
-        openInvoices = try c.decodeIfPresent([JSONValue].self, forKey: .openInvoices) ?? []
         pettyCashFunds = try c.decodeIfPresent([JSONValue].self, forKey: .pettyCashFunds) ?? []
         pettyCashAwaiting = try c.decodeIfPresent([JSONValue].self, forKey: .pettyCashAwaiting) ?? []
         pettyCashHolderChanges = try c.decodeIfPresent([JSONValue].self, forKey: .pettyCashHolderChanges) ?? []
@@ -222,9 +199,9 @@ public struct SyncData: Codable, Hashable, Sendable {
 
     /// Entity type name → objects, in a stable order.
     public var byType: [(String, [JSONValue])] {
-        [("job", jobs), ("machine", machines), ("site", sites), ("customer", customers),
-         ("contract", contracts), ("staff", staff), ("expense_category", expenseCategories),
-         ("deposit_account", depositAccounts), ("changeover_job", changeoverJobs), ("unbillable_reason", unbillableReasons)]
+        [("machine", machines), ("site", sites), ("customer", customers), ("staff", staff),
+         ("expense_category", expenseCategories), ("deposit_account", depositAccounts),
+         ("unbillable_reason", unbillableReasons)]
     }
 }
 
@@ -367,14 +344,12 @@ public struct PushResultDTO: Codable, Hashable, Sendable {
 }
 
 public enum BlobPurpose: String, Codable, Sendable, CaseIterable {
-    case meterPhoto = "METER_PHOTO", signature = "SIGNATURE", resetEvidence = "RESET_EVIDENCE"
+    case meterPhoto = "METER_PHOTO", resetEvidence = "RESET_EVIDENCE"
     case expenseReceipt = "EXPENSE_RECEIPT"
     /// Receipt photo / mobile-money screenshot of a payment taken with an hours purchase.
     case paymentEvidence = "PAYMENT_EVIDENCE"
     /// Deposit slip / payment confirmation of a remittance (CASH_HANDOVER, REMITTANCE_DETAILS_V1).
     case remittanceEvidence = "REMITTANCE_EVIDENCE"
-    /// Photo of a daily operational report (DAILY_REPORT, DEC-032 A4).
-    case dailyReportEvidence = "DAILY_REPORT_EVIDENCE"
     /// Evidence of an adjustment raised in the field (HOURS_TRANSFER_REQUEST, CASH_DETAILS_V2).
     case adjustmentEvidence = "ADJUSTMENT_EVIDENCE"
     /// Photos of a petty cash return or count (PETTY_CASH_RETURN / PETTY_CASH_COUNT, OP_PETTY_CASH, DEC-033).

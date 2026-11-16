@@ -51,15 +51,10 @@ struct ExpenseFormView: View {
                 }
                 if form.paidFromPettyCash { pettyCashSection }
                 Section {
-                    SearchablePickerField(label: "Job", options: model.jobOptions,
-                                          selection: Binding(get: { form.draft.jobID },
-                                                             set: { form.selectJob($0, model: model) }),
-                                          noneTitle: "No job", identifier: "expense.job")
                     SearchablePickerField(label: "Machine", options: model.machineOptions, selection: $form.draft.machineID,
                                           noneTitle: "No machine", identifier: "expense.machine")
-                        .disabled(form.draft.jobID != nil)
                 } header: { Text("Charge to") } footer: {
-                    Text(form.draft.jobID != nil ? "The cost is charged to the job's machine." : "Optional.")
+                    Text("Optional.")
                 }
                 receiptSection
                 gpsSection

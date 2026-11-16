@@ -6,11 +6,7 @@ import Testing
 
 /// Inbox rules and wording, identical to Android `InboxRulesTest` / `InboxTextsTest`.
 struct InboxRulesTests {
-    @Test func jobsTabOpensOnFirstNonEmptyGroupAndNotificationsSkipRepeatedTitle() {
-        #expect(InboxTexts.defaultSegment([.approved, .approved]) == .ready)
-        #expect(InboxTexts.defaultSegment([.approved, .inProgress]) == .inProgress)
-        #expect(InboxTexts.defaultSegment([.completed]) == .closed)
-        #expect(InboxTexts.defaultSegment([]) == .inProgress)
+    @Test func notificationsSkipRepeatedTitle() {
         #expect(InboxTexts.notificationDetail(title: "Tracker Stale — EX-01", body: "tracker stale — EX-01 ") == nil)
         #expect(InboxTexts.notificationDetail(title: "Tracker Stale", body: "Last fix 2 h ago") == "Last fix 2 h ago")
     }
@@ -69,26 +65,10 @@ struct InboxRulesTests {
         #expect(merged.dropFirst(3).allSatisfy { $0.server == nil })
     }
 
-    @Test func workTotalsPerTypeAndMeterHours() {
-        let t0 = Date(timeIntervalSince1970: 0)
-        let h: TimeInterval = 3600
-        let totals = JobFigures.minutesByType(
-            [WorkSpan(activityType: "WORK", start: t0, end: t0 + 2 * h),
-             WorkSpan(activityType: "STANDBY", start: t0 + 2 * h, end: t0 + 3 * h),
-             WorkSpan(activityType: "WORK", start: t0 + 3 * h, end: nil),
-             WorkSpan(activityType: "NOTE", start: t0, end: nil)],
-            now: t0 + 3 * h + 30 * 60)
-        #expect(totals.map(\.type) == ["WORK", "STANDBY"] && totals.map(\.minutes) == [150, 60])
-        #expect(JobFigures.duration(minutes: 150) == "2 h 30 min")
-        #expect(JobFigures.duration(minutes: 45) == "45 min")
-        #expect(JobFigures.meterHours(opening: "100.0", closing: "108.5") == Decimal(string: "8.5"))
-        #expect(JobFigures.meterHours(opening: "100", closing: nil) == nil)
-        #expect(JobFigures.meterHours(opening: "100", closing: "90") == nil)
-    }
-
     @Test func notificationTargetsOpenTheRelatedItem() {
         let id = UUID()
-        #expect(InboxLink.from(entity: "job", id: id.uuidString) == .job(id))
+        #expect(InboxLink.from(entity: "job", id: id.uuidString) == InboxLink.none) // jobs are gone (ADR-008)
+        #expect(InboxLink.from(entity: "machine", id: id.uuidString) == .machine(id))
         #expect(InboxLink.from(entity: "expense", id: id.uuidString) == .expense(id))
         #expect(InboxLink.from(entity: "staff_member", id: "s") == .money)
         #expect(InboxLink.from(entity: "screen", id: nil) == InboxLink.none)
@@ -104,17 +84,12 @@ struct InboxRulesTests {
         #expect(FindingTexts.type("METER_DECREASE") == "Reading lower than before")
         #expect(FindingTexts.type("BRAND_NEW") == "Brand new")
         #expect(FindingTexts.review("OPEN") == "Waiting for review")
-        #expect(SupervisorTab.allCases.map(\.label) == ["Jobs", "Readings", "Fuel", "Money", "Inbox"])
-        #expect(JobSegment.allCases.map(\.label) == ["In progress", "Ready to start", "Recently closed", "My machines"])
-        #expect(InboxTexts.segment(.inProgress) == .inProgress)
-        #expect(InboxTexts.segment(.approved) == .ready)
-        #expect(InboxTexts.segment(.completed) == .closed && InboxTexts.segment(.cancelled) == .closed)
-        #expect(InboxTexts.jobsEmpty(.closed).title == "No recently closed jobs")
+        #expect(FindingTexts.type("LOCATION_MISMATCH") == "Not at the site")
     }
 
     @Test func readingGpsAndMoneyWording() {
-        #expect(InboxTexts.readingKind("OPENING") == "Opening reading")
-        #expect(InboxTexts.readingKind("CLOSING") == "Closing reading")
+        #expect(InboxTexts.readingKind("DAILY") == "Daily reading" && InboxTexts.readingKind("") == "Daily reading")
+        #expect(InboxTexts.readingKind("SOMETHING_NEW") == "SOMETHING_NEW")
         #expect(InboxTexts.gps(status: "FIX", latitude: -6.8, longitude: 39.2, accuracyM: 12.4) == "-6.80000, 39.20000 (±12 m)")
         #expect(InboxTexts.gps(status: "TIMEOUT", latitude: nil, longitude: nil, accuracyM: nil) == "No GPS fix within 20 seconds")
         #expect(InboxTexts.confidence(0.92) == "92 %")

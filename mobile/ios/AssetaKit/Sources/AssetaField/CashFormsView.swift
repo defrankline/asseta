@@ -6,13 +6,12 @@ import AssetaSync
 import SwiftUI
 
 /// Record cash collection (`CASH_COLLECTION`): cash a customer paid the supervisor, entering their
-/// custody. Customer and job come from synced data (searchable). The client id is fixed per form.
+/// custody. The customer comes from synced data (searchable). The client id is fixed per form.
 struct CashCollectionFormView: View {
     let model: FieldModel
     @Environment(\.dismiss) private var dismiss
     @State private var clientID = UUID()
     @State private var customerID: UUID?
-    @State private var jobID: UUID?
     @State private var amount = ""
     @State private var currency = ""
     @State private var reference = ""
@@ -23,9 +22,8 @@ struct CashCollectionFormView: View {
     @State private var error: String?
 
     private var links: [CollectionLinkOption] {
-        model.accountabilityData?.collectionLinks(customerID: customerID, currency: currency) ?? []
+        model.accountabilityData?.collectionLinks(customerID: customerID) ?? []
     }
-    private var linkedInvoice: SyncOpenInvoiceDTO? { links.first { $0.id == linkID }?.invoice }
     private var linkMissing: Bool { model.access.collectionLinkRequired && linkID == nil }
     /// Why the required link stops saving (once the rest of the form is filled in, as Android).
     private var showLinkMissing: Bool { linkMissing && customerID != nil && !amount.isEmpty }
@@ -34,12 +32,8 @@ struct CashCollectionFormView: View {
         NavigationStack {
             Form {
                 Section {
-                    SearchablePickerField(label: "Job (optional)", options: model.jobOptions,
-                                          selection: $jobID, noneTitle: "No job",
-                                          identifier: "collection.job")
-                        .onChange(of: jobID) { _, id in selectJob(id) }
                     SearchablePickerField(label: "Customer", options: model.customerOptions, selection: $customerID,
-                                          emptyMessage: "Customers of your jobs appear here after a sync.",
+                                          emptyMessage: "Customers appear here after a sync.",
                                           identifier: "collection.customer")
                         .onChange(of: customerID) { _, _ in linkID = nil }
                     holderPicker
@@ -50,16 +44,12 @@ struct CashCollectionFormView: View {
                         SearchablePickerField(label: required ? FieldAccountabilityTexts.collectionLink : FieldAccountabilityTexts.collectionLinkOptional,
                                               options: links.map { PickerOption(id: $0.id, title: $0.title, subtitle: $0.subtitle) },
                                               selection: $linkID, noneTitle: required ? nil : FieldAccountabilityTexts.collectionLinkNone,
-                                              emptyMessage: model.access.collectionInvoices ? FieldAccountabilityTexts.collectionLinkEmptyAll : FieldAccountabilityTexts.collectionLinkEmpty,
+                                              emptyMessage: FieldAccountabilityTexts.collectionLinkEmpty,
                                               identifier: "collection.link")
                         if showLinkMissing {
                             Text(FieldAccountabilityTexts.collectionErrLink).font(.footnote).foregroundStyle(Palette.warning)
                         }
-                    } footer: { Text(linkedInvoice == nil ? FieldAccountabilityTexts.collectionLinkFooter : FieldAccountabilityTexts.collectionInvoiceFooter) }
-                    // A chosen invoice leaves when the list no longer has it (currency changed, paid off at the last pull).
-                    .onChange(of: links.filter { $0.invoice != nil }.map(\.id)) { old, new in
-                        if let linkID, old.contains(linkID), !new.contains(linkID) { self.linkID = nil }
-                    }
+                    } footer: { Text(FieldAccountabilityTexts.collectionLinkFooter) }
                 }
                 Section {
                     TextField("Amount", text: $amount).keyboardType(.decimalPad).font(.title3.monospacedDigit())
@@ -98,23 +88,16 @@ struct CashCollectionFormView: View {
 
     private var holder: UUID? { holderID.flatMap { model.access.recordForOthers && $0 != model.myStaffID ? $0 : nil } }
 
-    /// A job pre-selects its customer (via its contract).
-    private func selectJob(_ id: UUID?) {
-        if let customer = id.flatMap({ model.job($0)?.customer?.id }) { customerID = customer }
-    }
-
     private func save() {
         do {
             try model.perform {
                 try $0.recordCashCollection(customerID: customerID, amountText: amount, currency: currency,
                                             reference: reference, note: note,
-                                            jobNumber: jobID.flatMap { model.job($0)?.job.jobNumber },
-                                            jobCustomerID: jobID.flatMap { model.job($0)?.customer?.id },
                                             custodianID: holder, receivedAt: receivedAt,
-                                            purchaseID: model.access.collectionLink && linkedInvoice == nil ? linkID : nil,
+                                            purchaseID: model.access.collectionLink ? linkID : nil,
                                             purchaseOperationID: links.first { $0.id == linkID }?.operationID,
                                             linkRequired: model.access.collectionLinkRequired,
-                                            invoice: model.access.collectionInvoices ? linkedInvoice : nil, clientID: clientID)
+                                            clientID: clientID)
             }
             dismiss()
         } catch {
@@ -297,7 +280,6 @@ struct FuelFormView: View {
     @State private var litres = ""
     @State private var unitPrice = ""
     @State private var currency = ""
-    @State private var jobID: UUID?
     @State private var machineID: UUID?
     @State private var meterReading = ""
     @State private var supplier = ""
@@ -307,7 +289,7 @@ struct FuelFormView: View {
 
     private var issues: [String] {
         FinanceRules.fuelIssues(type: type, litres: litres, unitPrice: unitPrice, meterReading: meterReading,
-                                machineID: machineID, jobID: jobID)
+                                machineID: machineID)
     }
 
     var body: some View {
@@ -332,13 +314,8 @@ struct FuelFormView: View {
                     DatePicker("When", selection: $occurredAt, in: ...Date())
                 } footer: { Text(Self.explain(type)) }
                 Section("Machine") {
-                    SearchablePickerField(label: "Job", options: model.jobOptions,
-                                          selection: $jobID, noneTitle: "No job",
-                                          identifier: "fuel.job")
-                        .onChange(of: jobID) { _, id in selectJob(id) }
                     SearchablePickerField(label: "Machine", options: model.machineOptions, selection: $machineID,
                                           noneTitle: type == .purchase ? "No machine (stock)" : nil, identifier: "fuel.machine")
-                        .disabled(jobID != nil)
                     TextField("Meter reading (optional)", text: $meterReading).keyboardType(.decimalPad)
                 }
                 Section { TextField("Note (optional)", text: $note, axis: .vertical) }
@@ -379,15 +356,11 @@ struct FuelFormView: View {
         }
     }
 
-    private func selectJob(_ id: UUID?) {
-        if let machine = id.flatMap({ model.job($0)?.job.machineID }) { machineID = machine }
-    }
-
     private func save() {
         do {
             try model.perform {
                 try $0.recordFuelEvent(type: type, litres: litres, unitPrice: unitPrice, currency: currency,
-                                       machineID: machineID, jobID: jobID, meterReading: meterReading,
+                                       machineID: machineID, meterReading: meterReading,
                                        supplier: type == .purchase ? supplier : nil, note: note,
                                        occurredAt: occurredAt, clientID: clientID)
             }

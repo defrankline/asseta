@@ -19,26 +19,23 @@ public struct PushOutcomeApplier: Sendable {
     public static let deferDelay: TimeInterval = 10
     public static let quarantineRetry: TimeInterval = 15 * 60
     static let conflictCodes: Set<String> = [
-        "INVALID_JOB_TRANSITION", "READING_NOT_ALLOWED", "MACHINE_BUSY", "CAPTURE_ID_CONFLICT", "JOB_NOT_ACTIVE",
+        "READING_NOT_ALLOWED", "CAPTURE_ID_CONFLICT",
         "STALE_VERSION", "DUPLICATE_PAYMENT_REFERENCE",
         // Accountability ops (same set as the server's sync CONFLICT_CODES).
         "TRANSFER_ALREADY_DECIDED", "FLOAT_ALREADY_ACKNOWLEDGED", "NO_AVAILABLE_HOURS", "EXCEEDS_REMAINING_HOURS",
-        "BASELINE_REQUIRED", "OVERLAPPING_ALLOCATION", "OVERLAPPING_ACTIVITY", "BASELINE_PENDING", "CORRECTION_PENDING",
+        "BASELINE_REQUIRED", "BASELINE_PENDING", "CORRECTION_PENDING",
         "RETENTION_NOT_ALLOWED", "DUPLICATE_RETENTION",
         // A capability the tenant's policy switched off (F1).
         "ENGINE_HOURS_DISABLED", "CASH_CUSTODY_DISABLED",
         // Stronger remittances (DEC-031 D2): a requirement switched on, or the account deactivated, after queueing.
         "REMITTANCE_REFERENCE_REQUIRED", "REMITTANCE_EVIDENCE_REQUIRED", "REMITTANCE_ACCOUNT_REQUIRED",
         "DEPOSIT_ACCOUNT_INACTIVE",
-        // Site check-ins (DEC-031 Phase 5): switched off after queueing, or a client id reused for another check-in.
-        "SITE_CHECKIN_DISABLED", "CHECKIN_ID_CONFLICT",
-        // Daily reports and changeovers (DEC-032): the day's facts changed after queueing, or evidence became required.
+        // Daily reports (DEC-032): the day's facts changed after queueing, or evidence became required.
         "REPORT_READINGS_INVALID", "REPORT_HOURS_EXCEED_TOTAL", "REPORT_ID_CONFLICT", "REPORT_NOT_SUPERSEDABLE",
-        "REPORT_EVIDENCE_REQUIRED", "CHANGEOVER_NOT_ALLOWED", "CHANGEOVER_SAME_CUSTOMER",
-        "CHANGEOVER_JOB_REQUIRED", "CHANGEOVER_JOB_INVALID",
+        "REPORT_EVIDENCE_REQUIRED",
         // Independence and evidence (DEC-032 Phase 3): a requirement switched on, or the purchase changed, after queueing.
         "COLLECTION_LINK_REQUIRED", "PARTIAL_REMITTANCE_REASON_REQUIRED", "EVIDENCE_REQUIRED", "PURCHASE_NOT_FOUND",
-        "PURCHASE_CANCELLED", "OVER_ALLOCATION", "ALLOCATION_MISMATCH", "INVOICE_NOT_OPEN",
+        "PURCHASE_CANCELLED", "OVER_ALLOCATION", "ALLOCATION_MISMATCH",
     ]
 
     let outbox: any ClientOperationRepository

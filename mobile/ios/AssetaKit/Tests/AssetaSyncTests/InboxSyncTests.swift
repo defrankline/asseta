@@ -23,12 +23,12 @@ struct InboxSyncTests {
         if let finding {
             findings.append(["id": UUID().uuidString.lowercased(), "exception_type": "METER_DECREASE", "severity": "HIGH",
                              "blocking": true, "status": finding, "machine_id": SyncFixtures.machineID.uuidString.lowercased(),
-                             "job_id": SyncFixtures.jobID.uuidString.lowercased(), "meter_capture_id": id.uuidString.lowercased(),
+                             "meter_capture_id": id.uuidString.lowercased(),
                              "policy_version": NSNull(), "review_note": finding == "OPEN" ? NSNull() : "Meter was replaced",
                              "reviewed_at": NSNull(), "created_at": "2026-10-21T08:01:00Z", "evidence": [String: Any]()])
         }
-        return ["id": id.uuidString.lowercased(), "job_id": SyncFixtures.jobID.uuidString.lowercased(),
-                "machine_id": SyncFixtures.machineID.uuidString.lowercased(), "kind": "OPENING", "capture_mode": "AUTOMATIC",
+        return ["id": id.uuidString.lowercased(),
+                "machine_id": SyncFixtures.machineID.uuidString.lowercased(), "kind": "DAILY", "capture_mode": "AUTOMATIC",
                 "reading": "1234.5", "state": "PROVISIONAL", "gps_status": "FIX", "latitude": -15.4, "longitude": 28.3,
                 "accuracy_m": 8.0, "location_captured_at": "2026-10-21T08:00:00Z", "photo_attachment_id": NSNull(),
                 "photo_sha256": NSNull(), "ocr_value": "1234.5", "ocr_confidence": 0.92, "manually_corrected": false,
@@ -86,7 +86,7 @@ struct InboxSyncTests {
     @Test func capturesShowFindingsAndReviewAndMergeWithTheLocalCapture() async throws {
         let h = try SyncHarness()
         _ = try await h.engine().sync(force: true)
-        let (capture, _) = try h.recordOpeningAndStart()
+        let (capture, _) = try h.recordReadingAndReport()
         _ = try await h.engine().sync(force: true)
         h.server.mutate { $0.inbox = ["my_meter_captures": [captureRow(capture.entityID, revision: 30, finding: "OPEN")]] }
         _ = try await h.engine().sync(force: true)
@@ -99,7 +99,7 @@ struct InboxSyncTests {
         reading = try #require(try inbox(h).readings.first)
         #expect(reading.status == .reviewed)
         #expect(reading.findings.first?.reviewNote == "Meter was replaced")
-        #expect(try inbox(h).jobReading(SyncFixtures.jobID, kind: "OPENING")?.reading == "1234.5")
+        #expect(try inbox(h).latestReadingByMachine()[SyncFixtures.machineID]?.reading == "1234.5")
     }
 
     @Test func serverWithoutTheCapabilityKeepsCurrentBehaviour() async throws {
@@ -168,7 +168,7 @@ struct InboxSyncTests {
     @Test func bootstrapStartsTheInboxAfreshAndOldFinishedRecordsArePruned() async throws {
         let h = try SyncHarness()
         func row(_ id: UUID, _ status: String, _ at: Date) -> InboxRecord {
-            InboxRecord(kind: .expense, id: id, clientID: nil, jobID: nil, machineID: nil, status: status, occurredAt: at,
+            InboxRecord(kind: .expense, id: id, clientID: nil, machineID: nil, status: status, occurredAt: at,
                         syncRevision: 1, json: "{}")
         }
         try h.store.inbox.upsert([row(UUID(), "APPROVED", Date(timeIntervalSince1970: 1))], tenantID: SyncFixtures.tenant)

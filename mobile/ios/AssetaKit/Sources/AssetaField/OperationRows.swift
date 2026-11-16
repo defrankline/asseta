@@ -37,21 +37,15 @@ struct OperationRow: View {
         let type = OperationType(rawValue: operation.opType)
         if let type, let title = FieldAccountabilityTexts.operationTitle(type, payload: payload) { return title }
         switch type {
-        case .meterCapture:
-            let kind = payload?["kind"]?.stringValue == "OPENING" ? "Opening" : "Closing"
-            return "\(kind) reading \(payload?["reading"]?.stringValue ?? "")"
-        case .jobActivity: return "Work log: \(payload?["activity_type"]?.stringValue?.capitalized ?? "")"
-        case .jobAcknowledgement: return "Acknowledged by \(payload?["signer_name"]?.stringValue ?? "")"
-        case .jobTransition: return payload?["action"]?.stringValue == "START" ? "Job started" : "Job completed"
+        case .meterCapture: return "Reading \(payload?["reading"]?.stringValue ?? "")"
         case .expense: return "Expense \(payload?["amount"]?.stringValue ?? "")"
         case .fuelEvent:
             return "Fuel \(payload?["event_type"]?.stringValue?.lowercased() ?? ""): \(payload?["litres"]?.stringValue ?? "") L"
         case .cashCollection: return "Cash collection \(payload?["amount"]?.stringValue ?? "")"
         case .cashHandover: return "Cash handover \(payload?["amount"]?.stringValue ?? "")"
         case .meterResetRequest: return "Meter reset request"
-        case .jobRequest: return JobRequestText.operation
         case .hoursPurchase, .hoursTransferRequest, .cashTransfer, .cashTransferAcknowledgement, .cashFloatAcknowledgement,
-             .meterBaseline, .meterCorrection, .cashRetentionRequest, .siteCheckin, .dailyReport,
+             .meterBaseline, .meterCorrection, .cashRetentionRequest,
              .pettyCashAcknowledgement, .pettyCashTopUpRequest, .pettyCashReturn, .pettyCashCount,
              .pettyCashHolderChangeAcknowledgement, .pettyCashAdvanceClearance, .pettyCashAdvance,
              .machineReport, .creditInvoicePayment, nil: return operation.opType

@@ -310,7 +310,7 @@ extension FieldRecorder {
             var dependsOn: [UUID] = []
             if let reading {
                 let photoLocal = try reading.photo.map { try addAttachment($0, purpose: .meterPhoto) }
-                let payload = capturePayload(id: reading.captureID, jobID: nil, machineID: machineID, kind: .daily, mode: reading.mode,
+                let payload = capturePayload(id: reading.captureID, machineID: machineID, kind: .daily, mode: reading.mode,
                                              reading: reading.reading, ocr: reading.ocr, gps: reading.gps,
                                              capturedAt: reading.capturedAt, snapshot: reading.snapshot)
                 let capture = try enqueue(.meterCapture, entityType: "meter_capture", entityID: reading.captureID, payload: payload,

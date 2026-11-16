@@ -14,12 +14,11 @@ public final class FieldModel {
     public enum Phase: Equatable { case loading, ready, failed(String) }
 
     public private(set) var phase: Phase = .loading
-    public private(set) var jobs: [FieldJob] = []
     public private(set) var overview: SyncOverview?
     public private(set) var isSyncing = false
     public private(set) var lastOutcome: SyncReport.Outcome?
     public private(set) var isOnline = true
-    /// Every tab's records: server copies merged with this phone's (refreshed with the jobs).
+    /// Every screen's records: server copies merged with this phone's.
     public private(set) var inbox = InboxSnapshot()
     /// Server notifications (fetched online, kept on the phone for offline reading).
     public private(set) var notifications: [NotificationDTO] = []
@@ -31,8 +30,6 @@ public final class FieldModel {
     public private(set) var accountabilityTick = 0
     /// Overdue-remittance flags read online this session (shown while the screen re-reads them).
     var savedOverdue: [UUID: RemittanceOverdueDTO] = [:]
-    /// DEC-031: per job, the server's non-revenue work-log entries by server activity id (read online this session).
-    var nonRevenueByJob: [UUID: [UUID: NonRevenueActivityDTO]] = [:]
 
     let session: SessionModel
     let tenant: TenantMembership
@@ -116,7 +113,6 @@ public final class FieldModel {
 
     public func refresh() {
         guard let services else { return }
-        jobs = (try? services.directory.jobs()) ?? []
         overview = try? services.directory.overview()
         inbox = (try? services.inbox.snapshot()) ?? InboxSnapshot()
         access = services.accountability.access(permissions: tenant.permissions,
@@ -150,7 +146,7 @@ public final class FieldModel {
     var canReadNotifications: Bool { tenant.permissions.contains("tenant.notification.read") }
     var unreadNotifications: Int { notifications.filter(\.isUnread).count }
 
-    /// Decrypted local evidence of an attachment (meter photo, signature, reset evidence), or nil.
+    /// Decrypted local evidence of an attachment (meter photo, receipt, reset evidence), or nil.
     func localEvidence(_ attachment: LocalAttachment) -> Data? {
         try? services?.evidence.read(attachment.fileName)
     }
@@ -164,7 +160,6 @@ public final class FieldModel {
         stop()
         let failures = services?.wipe() ?? []
         services = nil
-        jobs = []
         overview = nil
         inbox = InboxSnapshot()
         notifications = []
@@ -174,25 +169,6 @@ public final class FieldModel {
     }
 
     // MARK: - Queries for views
-
-    func job(_ id: UUID) -> FieldJob? { services?.directory.job(id: id) ?? jobs.first { $0.id == id } }
-
-    func progress(_ job: FieldJob) -> JobProgress {
-        (try? services?.recorder.progress(jobID: job.id, serverStatus: job.job.status))
-            ?? JobProgress(serverStatus: job.job.status, operations: [])
-    }
-
-    func gate(_ job: FieldJob) -> CaptureGate {
-        (try? services?.directory.captureGate(machineID: job.job.machineID)) ?? .blocked(.noSnapshot)
-    }
-
-    func operations(for job: FieldJob) -> [ClientOperation] {
-        (try? services?.store.outbox.operations(tenantID: tenant.tenantID, owner: services?.account.subject, jobID: job.id)) ?? []
-    }
-
-    func workLog(for job: FieldJob) -> [WorkLogLine] { (try? services?.recorder.workLog(jobID: job.id)) ?? [] }
-
-    func runningEntry(for job: FieldJob) -> RunningWorkEntry? { try? services?.recorder.runningEntry(jobID: job.id) }
 
     var clockStatus: ClockStatus { services?.directory.clockStatus() ?? .unknown }
     var deviceID: String? { services?.deviceID }
@@ -258,7 +234,6 @@ public final class FieldModel {
             }
         }
         self.services = nil
-        jobs = []
         overview = nil
         inbox = InboxSnapshot()
         notifications = []

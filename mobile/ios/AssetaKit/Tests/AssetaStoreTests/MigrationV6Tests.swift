@@ -33,7 +33,7 @@ struct MigrationV6Tests {
     }
 
     private func record(_ id: UUID, status: String, revision: Int64, at: Date) -> InboxRecord {
-        InboxRecord(kind: .expense, id: id, clientID: nil, jobID: nil, machineID: nil, status: status, occurredAt: at,
+        InboxRecord(kind: .expense, id: id, clientID: nil, machineID: nil, status: status, occurredAt: at,
                     syncRevision: revision, json: #"{"rev":\#(revision)}"#)
     }
 

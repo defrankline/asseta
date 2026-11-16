@@ -8,15 +8,15 @@ struct PolicySnapshotTests {
     let machine = SyncFixtures.machineID
     let t0 = Date(timeIntervalSince1970: 1_792_000_000)
 
-    func snapshot(_ scope: String, opening: CaptureMode = .automatic, validFor: TimeInterval = 3600) -> MeterPolicySnapshot {
+    func snapshot(_ scope: String, mode: CaptureMode = .automatic, validFor: TimeInterval = 3600) -> MeterPolicySnapshot {
         MeterPolicySnapshot(scopeKey: scope, versionIDs: [UUID()], versionStamp: scope,
-                            policy: MeterCapturePolicy(openingMode: opening, closingMode: .manual, manualPhotoRequired: false,
+                            policy: MeterCapturePolicy(captureMode: mode, manualPhotoRequired: false,
                                                        minOCRConfidence: 0.85, maxRecaptureAttempts: 2),
                             validUntil: t0.addingTimeInterval(validFor))
     }
 
     @Test func machineSnapshotWinsOverTenant() {
-        let tenant = snapshot("tenant"), specific = snapshot("machine:\(machine.lowercased)", opening: .manual)
+        let tenant = snapshot("tenant"), specific = snapshot("machine:\(machine.lowercased)", mode: .manual)
         #expect(PolicySelection.select([tenant, specific], machineID: machine) == specific)
         #expect(PolicySelection.select([tenant, snapshot("machine:\(UUID().lowercased)")], machineID: machine) == tenant)
         #expect(PolicySelection.select([], machineID: machine) == nil)
@@ -50,11 +50,11 @@ struct PolicySnapshotTests {
             withJSONObject: SyncFixtures.snapshot(scope: "tenant", validUntil: t0)))
         let stored = try MeterPolicySnapshot.stored(dto, receivedAt: t0)
         let decoded = try #require(MeterPolicySnapshot(stored))
-        #expect(decoded.policy.openingMode == .automatic)
+        #expect(decoded.policy.captureMode == .automatic)
         #expect(decoded.policy.minOCRConfidence == 0.85)
         #expect(decoded.versionIDs == [SyncFixtures.versionID])
         let broken = StoredPolicySnapshot(policyType: "METER_CAPTURE", scopeKey: "tenant", versionIDsJSON: "[]",
-                                          versionStamp: "x", valuesJSON: #"{"opening_mode":"MAGIC"}"#, validUntil: t0, receivedAt: t0)
+                                          versionStamp: "x", valuesJSON: #"{"capture_mode":"MAGIC"}"#, validUntil: t0, receivedAt: t0)
         #expect(MeterPolicySnapshot(broken) == nil)
     }
 }

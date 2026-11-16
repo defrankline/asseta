@@ -14,7 +14,7 @@ struct SyncStatusView: View {
         List {
             summary
             group("Needs attention: rejected", .failed, footer: "The server refused these. The original evidence stays on this phone. Retry after fixing the cause, or ask your administrator.")
-            group("Needs attention: conflicts", .conflict, footer: "The job changed on the server (for example it was cancelled or reassigned). Nothing was overwritten; your record is kept for review.")
+            group("Needs attention: conflicts", .conflict, footer: "The record changed on the server (for example a report was already waiting, or the machine was reassigned). Nothing was overwritten; your record is kept for review.")
             group("Held: subscription read-only", .quarantined, footer: "Your company's subscription is read-only. These are kept by the server and re-sent automatically after reactivation.")
             group("Waiting to sync", .pending, footer: nil)
             group("Sending", .sent, footer: nil)
@@ -89,12 +89,6 @@ struct SyncStatusView: View {
                             Text(item.title).font(.subheadline)
                             Spacer()
                             SyncStateLabel(status: item.operation.status)
-                        }
-                        if let job = item.jobID.flatMap(model.job) { Text(job.job.jobNumber).font(.caption) }
-                        // An hours sale that booked its job: the job's number and status once the server has them.
-                        if item.operation.opType == OperationType.hoursPurchase.rawValue,
-                           let line = FieldAccountabilityTexts.hoursSaleJob(item.operation.serverResultJSON.flatMap { try? JSONValue.parse($0) }) {
-                            Text(line).font(.caption)
                         }
                         Text(item.operation.createdAtDevice.formatted(date: .abbreviated, time: .standard))
                             .font(.caption).foregroundStyle(.secondary)

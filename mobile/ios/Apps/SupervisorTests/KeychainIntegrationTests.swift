@@ -25,7 +25,7 @@ struct KeychainIntegrationTests {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).sqlite")
         let local = try LocalStore.open(at: url, keyProvider: keys)
         let op = try local.outbox.enqueue(NewClientOperation(
-            tenantID: UUID(), opType: "CREATE", entityType: "job", entityID: UUID(), payloadJSON: "{}"))
+            tenantID: UUID(), opType: "CREATE", entityType: "expense", entityID: UUID(), payloadJSON: "{}"))
         #expect(try LocalStore.open(at: url, keyProvider: keys).outbox.operation(id: op.id) != nil)
         #if !targetEnvironment(simulator)
         // The Simulator does not implement Data Protection classes, so this is device-only.

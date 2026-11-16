@@ -22,10 +22,8 @@ struct FuelTabView: View {
                 ForEach(events) { f in
                     NavigationLink(value: FieldRoute.fuel(f.id)) {
                         let machine = f.machineID.flatMap { model.inbox.machines[$0]?.assetCode }
-                        let job = f.jobID.flatMap { model.inbox.jobs[$0]?.jobNumber }
-                        let detail = [job, f.supplier].compactMap { $0 }.joined(separator: " · ")
                         InboxRow([InboxTexts.litres(f.litres), machine].compactMap { $0 }.joined(separator: " · "), f.status,
-                                 detail.isEmpty ? nil : detail, f.at.listText)
+                                 f.supplier, f.at.listText)
                     }
                 }
             }
@@ -53,7 +51,6 @@ struct FuelDetailView: View {
                 }
                 Section("Charge to") {
                     LabeledContent("Machine", value: machine.map { InboxTexts.machine($0.assetCode, $0.name) } ?? "None")
-                    LabeledContent("Job", value: f.jobID.flatMap { model.inbox.jobs[$0]?.jobNumber } ?? "None")
                     if let meter = f.meterReading { LabeledContent("Meter reading", value: meter) }
                     if let supplier = f.supplier { LabeledContent("Supplier", value: supplier) }
                 }
@@ -245,7 +242,7 @@ struct TodaySection: View {
     private func nonZero(_ text: String) -> Bool { (Decimal(string: text, locale: Locale(identifier: "en_US_POSIX")) ?? 0) != 0 }
 }
 
-/// One expense: amount, paid from, category, job/machine, receipts, the office's decision and sync state.
+/// One expense: amount, paid from, category, machine, receipts, the office's decision and sync state.
 struct ExpenseDetailView: View {
     let model: FieldModel
     let id: UUID
@@ -265,7 +262,6 @@ struct ExpenseDetailView: View {
                     LabeledContent("Description", value: e.description)
                     if let supplier = e.supplier { LabeledContent("Supplier", value: supplier) }
                     LabeledContent("When", value: e.at.listText)
-                    if let job = e.jobID.flatMap({ model.inbox.jobs[$0] }) { LabeledContent("Job", value: job.jobNumber) }
                     if let machine = e.machineID.flatMap({ model.inbox.machines[$0] }) {
                         LabeledContent("Machine", value: InboxTexts.machine(machine.assetCode, machine.name))
                     }
@@ -342,7 +338,6 @@ struct CashDetailView: View {
                     }
                     if let reference = c.reference { LabeledContent("Reference", value: reference) }
                     LabeledContent(collection ? "Received" : "Handed over", value: c.at.listText)
-                    if c.allocations > 0 { LabeledContent("Allocated to invoices", value: "\(c.allocations)") }
                 }
                 if let note = c.note { Section("Note") { Text(note).font(.subheadline) } }
                 if c.status == .verified || c.status == .rejected {

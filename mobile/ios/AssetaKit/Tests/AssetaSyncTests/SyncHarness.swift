@@ -33,42 +33,34 @@ final class TestClock: ClockSource, @unchecked Sendable {
 
 enum SyncFixtures {
     static let tenant = UUID(uuidString: "11111111-1111-4111-8111-111111111111")!
-    static let jobID = UUID(uuidString: "aaaaaaaa-0000-4000-8000-000000000001")!
     static let machineID = UUID(uuidString: "bbbbbbbb-0000-4000-8000-000000000002")!
     static let versionID = UUID(uuidString: "cccccccc-0000-4000-8000-000000000003")!
 
-    static func job(status: String = "APPROVED", version: Int = 1) -> [String: Any] {
-        ["id": jobID.uuidString.lowercased(), "contract_id": UUID().uuidString.lowercased(), "job_number": "J-1001",
-         "machine_id": machineID.uuidString.lowercased(), "job_site_id": NSNull(), "supervisor_id": NSNull(),
-         "status": status, "planned_start": "2026-10-20T06:00:00.000Z", "planned_end": NSNull(), "currency": "ZMW",
-         "hourly_rate": "100.00", "minimum_hours": "0", "standby_treatment": "EXCLUDED", "standby_rate": NSNull(),
-         "mobilization_fee": "0", "discount_percent": "0", "tax_rate_percent": "0", "rate_source": "CONTRACT",
-         "approved_at": NSNull(), "started_at": NSNull(), "completed_at": NSNull(), "version": version]
-    }
-
-    static func machine() -> [String: Any] {
+    static func machine(version: Int = 2) -> [String: Any] {
         ["id": machineID.uuidString.lowercased(), "asset_code": "EX-07", "name": "Excavator 7", "meter_decimal_places": 1,
-         "version": 2]
+         "version": version]
     }
 
-    static func meterValues(opening: String = "AUTOMATIC", closing: String = "MANUAL") -> [String: Any] {
-        ["opening_mode": opening, "closing_mode": closing, "manual_photo_required": true, "min_ocr_confidence": 0.85,
+    /// ``machine()`` as a typed JSON value (for writing the cached entity directly).
+    static var machineValue: [String: JSONValue] {
+        ["id": .string(machineID.uuidString.lowercased()), "asset_code": .string("EX-07"), "name": .string("Excavator 7"),
+         "meter_decimal_places": .number(1), "version": .number(2)]
+    }
+
+    static func meterValues(captureMode: String = "AUTOMATIC") -> [String: Any] {
+        ["capture_mode": captureMode, "manual_photo_required": true, "min_ocr_confidence": 0.85,
          "max_recapture_attempts": 2, "manual_correction_requires_review": true, "gps_enforcement": "SOFT",
          "gps_max_accuracy_m": 50, "gps_max_age_seconds": 120, "tracker_comparison_window_seconds": 600,
          "tracker_distance_tolerance_m": 200, "max_hours_per_elapsed_hour": "1.05", "continuity_tolerance_hours": "0.5",
          "telemetry_engine_hours_tolerance": "0.5"]
     }
 
-    static func snapshot(scope: String, validUntil: Date, opening: String = "AUTOMATIC") -> [String: Any] {
+    static func snapshot(scope: String, validUntil: Date, captureMode: String = "AUTOMATIC") -> [String: Any] {
         ["policy_type": "METER_CAPTURE", "scope_key": scope, "version_ids": [versionID.uuidString.lowercased()],
-         "version_stamp": "v1", "values": meterValues(opening: opening), "valid_until": AssetaJSON.formatInstant(validUntil)]
+         "version_stamp": "v1", "values": meterValues(captureMode: captureMode), "valid_until": AssetaJSON.formatInstant(validUntil)]
     }
 
-    static var jobDTO: JobDTO {
-        try! AssetaJSON.decoder().decode(JobDTO.self, from: try! JSONSerialization.data(withJSONObject: job()))
-    }
-
-    static let policy = MeterCapturePolicy(openingMode: .automatic, closingMode: .manual, manualPhotoRequired: true,
+    static let policy = MeterCapturePolicy(captureMode: .automatic, manualPhotoRequired: true,
                                            minOCRConfidence: 0.85, maxRecaptureAttempts: 2)
     static var meterSnapshot: MeterPolicySnapshot {
         MeterPolicySnapshot(scopeKey: "tenant", versionIDs: [versionID], versionStamp: "v1", policy: policy,
@@ -107,7 +99,6 @@ struct SyncHarness {
         api = SyncAPI(client: client, deviceID: deviceID)
         recorder = FieldRecorder(store: store, tenantID: SyncFixtures.tenant, deviceID: deviceID)
         server.mutate {
-            $0.jobs = [SyncFixtures.job()]
             $0.machines = [SyncFixtures.machine()]
             $0.snapshots = [SyncFixtures.snapshot(scope: "tenant", validUntil: $0.serverTime.addingTimeInterval(86400))]
         }
@@ -145,20 +136,36 @@ struct SyncHarness {
         FieldDirectory(store: store, tenantID: SyncFixtures.tenant, clock: clock, owner: account)
     }
 
-    /// Opening capture with a photo (AUTOMATIC) followed by START.
+    /// A machine report (the machine's first one, `opening`) with its new DAILY reading and photo (AUTOMATIC): the
+    /// `METER_CAPTURE` and the `MACHINE_REPORT` that waits for it (ADR-008).
     @discardableResult
-    func recordOpeningAndStart(photoBytes: Int = 2500) throws -> (capture: ClientOperation, start: ClientOperation) {
+    func recordReadingAndReport(photoBytes: Int = 2500, recorder: FieldRecorder? = nil,
+                                reading: String = "1234.5") throws -> (capture: ClientOperation, report: ClientOperation) {
+        let recorder = recorder ?? self.recorder
+        let tenant = SyncFixtures.tenant.lowercased
+        let known = (try store.syncState.value(SyncKey.capabilities, tenant: tenant)).map { $0.split(separator: ",").map(String.init) }
+        if !(known ?? []).contains(SyncCapability.machineReport) {
+            try store.syncState.setValue(((known ?? []) + [SyncCapability.machineReport]).joined(separator: ","),
+                                         for: SyncKey.capabilities, tenant: tenant)
+        }
+        if try store.syncState.entity(type: "machine", id: SyncFixtures.machineID, tenantID: SyncFixtures.tenant) == nil {
+            try store.syncState.upsert([StoredEntity(entityType: "machine", id: SyncFixtures.machineID, revision: 1, version: 2,
+                                                     json: try JSONValue.object(SyncFixtures.machineValue).jsonString())],
+                                       tenantID: SyncFixtures.tenant)
+        }
         let bytes = Data((0..<photoBytes).map { UInt8($0 % 251) })
         let photo = try evidence.store(bytes, fileExtension: "jpg", contentType: "image/jpeg")
-        let job = SyncFixtures.jobDTO
-        let capture = try recorder.recordCapture(
-            job: job, kind: .opening, mode: .automatic, reading: "1234.5",
-            ocr: MeterOCRResult(value: "1234.5", confidence: 0.92, rawText: "1234.5", engine: "test", note: ""),
+        let newReading = NewReportReading(
+            captureID: UUID(), mode: .automatic, reading: reading,
+            ocr: MeterOCRResult(value: reading, confidence: 0.92, rawText: reading, engine: "test", note: ""),
             photo: photo, gps: .fix(latitude: -15.4, longitude: 28.3, accuracyM: 8, capturedAt: clock.wallNow),
             capturedAt: clock.wallNow, snapshot: SyncFixtures.meterSnapshot)
-        clock.advance(1)
-        let start = try recorder.recordTransition(job: job, action: .start, at: clock.wallNow)
-        return (capture, start)
+        let report = try recorder.recordMachineReport(machineID: SyncFixtures.machineID, reading: newReading, report: nil,
+                                                      opening: true)
+        guard let captureOp = report.dependencies.first, let capture = try store.outbox.operation(id: captureOp) else {
+            throw OutboxError.notFound(newReading.captureID)
+        }
+        return (capture, report)
     }
 
     func status(_ id: UUID) throws -> ClientOperationStatus? { try store.outbox.operation(id: id)?.status }

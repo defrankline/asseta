@@ -17,15 +17,6 @@ struct ReadingsTabView: View {
         let readings = model.inbox.readings.filter { !attentionOnly || $0.status.needsAttention }
         let resets = model.inbox.resets.filter { !attentionOnly || $0.status.needsAttention }
         List {
-            if model.access.dailyReport && model.canReadDailyReports {
-                Button { open(.dailyReports) } label: {
-                    LabeledContent {
-                        let returned = model.dailyReportsReturned
-                        if returned > 0 { Text("\(returned)").font(.caption.bold()).foregroundStyle(Palette.warning) }
-                    } label: { Label(DailyReportTexts.menu, systemImage: "doc.text") }
-                }
-                .accessibilityIdentifier("readings.dailyReports")
-            }
             FilterChips(options: [(false, "All"), (true, "Needs attention")], selection: $attentionOnly)
             if readings.isEmpty && resets.isEmpty {
                 if attentionOnly {
@@ -33,7 +24,7 @@ struct ReadingsTabView: View {
                                            description: Text("Flagged or rejected readings appear here."))
                 } else {
                     ContentUnavailableView("No readings yet", systemImage: "gauge.with.dots.needle.33percent",
-                                           description: Text("Readings you capture on your jobs appear here with the office's review."))
+                                           description: Text("Readings you capture appear here with the office's review."))
                 }
             }
             if !readings.isEmpty {
@@ -60,9 +51,8 @@ struct ReadingRow: View {
     let reading: ReadingItem
 
     var body: some View {
-        let job = reading.jobID.flatMap { inbox.jobs[$0]?.jobNumber }
         let machine = inbox.machine(of: reading).flatMap { inbox.machines[$0]?.assetCode }
-        InboxRow([job, InboxTexts.readingKind(reading.kind)].compactMap { $0 }.joined(separator: " · "), reading.status,
+        InboxRow(InboxTexts.readingKind(reading.kind), reading.status,
                  [reading.reading, machine].compactMap { $0 }.joined(separator: " · "),
                  reading.at.listText + (reading.openFindings > 0 ? " · \(reading.openFindings) open finding(s)" : ""))
     }
@@ -106,7 +96,6 @@ struct ReadingDetailView: View {
             Section {
                 LabeledContent("Status") { StatusPill(status: r.status) }
                 LabeledContent(InboxTexts.readingKind(r.kind), value: r.reading)
-                if let jobID = r.jobID, let job = model.inbox.jobs[jobID] { LabeledContent("Job", value: job.jobNumber) }
                 if let machine { LabeledContent("Machine", value: InboxTexts.machine(machine.assetCode, machine.name)) }
                 LabeledContent("Captured", value: r.at.listText)
                 LabeledContent("Capture mode", value: InboxTexts.captureMode(r.captureMode))
@@ -177,13 +166,12 @@ struct ReadingDetailView: View {
     }
 }
 
-/// A machine of mine: latest reading, active job, my readings and reset requests; "Request meter reset".
+/// A machine of mine: latest reading, my readings and reset requests; "Request meter reset".
 struct MachineDetailView: View {
     let model: FieldModel
     let machineID: UUID
     let requestReset: (UUID, String?) -> Void
     var capture: (CaptureTarget) -> Void = { _ in }
-    var dailyReport: (UUID) -> Void = { _ in }
 
     var body: some View {
         if let machine = model.inbox.machines[machineID] {
@@ -199,9 +187,6 @@ struct MachineDetailView: View {
                                    : "\(machine.meterDecimalPlaces) decimal place(s)")
                 }
                 Section {
-                    if model.access.dailyReport {
-                        Button(DailyReportTexts.action, systemImage: "doc.text") { dailyReport(machineID) }
-                    }
                     if model.access.dailyReading {
                         Button(FieldAccountabilityTexts.meterRecordDaily, systemImage: "gauge.with.dots.needle.33percent") {
                             capture(.daily(machine))

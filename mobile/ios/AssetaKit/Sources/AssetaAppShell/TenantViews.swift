@@ -86,7 +86,7 @@ struct AccessBadge: View {
 }
 
 /// Post-login landing screen. Lists the modules the server says this user may see; the
-/// feature screens themselves arrive with their gates (jobs/meter in Gate 3-4, owner in Gate 7).
+/// feature screens themselves arrive with their gates (meter in Gate 3-4, owner in Gate 7).
 struct HomeView: View {
     let flavor: AppFlavor
     let me: MeResponse

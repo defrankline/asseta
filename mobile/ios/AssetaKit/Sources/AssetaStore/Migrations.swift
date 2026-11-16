@@ -180,6 +180,11 @@ public enum AssetaSchema {
             name: "petty_cash_evidence",
             statements: PettyCashEvidenceV11.statements
         ),
+        Migration(
+            version: 12,
+            name: "adr008_job_removal",
+            statements: JobRemovalV12.statements
+        ),
     ]
 }
 

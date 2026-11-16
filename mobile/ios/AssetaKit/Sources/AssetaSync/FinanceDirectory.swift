@@ -73,13 +73,13 @@ extension FieldDirectory {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    /// Customers of the supervisor's jobs (deactivated ones are hidden).
+    /// The company's customers synced to this device (deactivated ones are hidden).
     public func customers() throws -> [CustomerDTO] {
         try decodeAll("customer", as: CustomerDTO.self).filter { $0.isActive != false }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    /// Machines synced to this device (assigned machines and the machines of assigned jobs).
+    /// Machines synced to this device (the machines assigned to me).
     public func machines() throws -> [MachineDTO] {
         try decodeAll("machine", as: MachineDTO.self).sorted { $0.assetCode < $1.assetCode }
     }

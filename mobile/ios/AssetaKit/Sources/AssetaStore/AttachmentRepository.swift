@@ -4,7 +4,7 @@ public enum LocalAttachmentStatus: String, Sendable, CaseIterable {
     case pending = "PENDING", complete = "COMPLETE", failed = "FAILED"
 }
 
-/// A captured evidence file (meter photo, signature) waiting for, or done with, resumable upload.
+/// A captured evidence file (meter photo, receipt, …) waiting for, or done with, resumable upload.
 /// The file itself lives in the protected evidence directory; this row tracks the upload.
 public struct LocalAttachment: Equatable, Sendable, Identifiable {
     public let id: UUID
@@ -157,7 +157,7 @@ public final class AttachmentRepository: Sendable {
     }
 
     /// Permanent failure (e.g. the local evidence file no longer matches its recorded hash).
-    /// The local evidence files an operation carries (photo, signature, receipts, reset evidence), oldest first.
+    /// The local evidence files an operation carries (photo, receipts, reset evidence), oldest first.
     public func attachments(operationID: UUID) throws -> [LocalAttachment] {
         try db.query(
             """
@@ -222,7 +222,7 @@ public final class AttachmentRepository: Sendable {
                         """,
                         [.text(session.lowercased), .text(operationID)]
                     )
-                case .photo, .signature, .replacementPhoto:
+                case .photo, .replacementPhoto:
                     try db.execute(
                         """
                         UPDATE client_operation SET payload_json = json_set(payload_json, '$.\(field)', ?)

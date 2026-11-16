@@ -29,7 +29,7 @@ struct CashDetailsTests {
         {"id":"\(UUID().uuidString.lowercased())","purchase_number":"\(number)","client_id":\(clientID.map { "\"\($0.uuidString.lowercased())\"" } ?? "null"),
          "customer_id":"\(customer.uuidString.lowercased())","machine_id":"\(UUID().uuidString.lowercased())","hours":"10","currency":"TZS","amount":"1000",
          "status":"\(status)","created_at":"2026-11-01T08:00:00Z",
-         "totals":{"purchased":"10","activated":"10","consumed":"2","remaining":"8","transferred":"0","expired":"0","awaiting_activation":"0","provisional":"0"}}
+         "totals":{"purchased":"10","activated":"10","consumed":"2","remaining":"8","transferred":"0","expired":"0","awaiting_activation":"0"}}
         """
         return try AssetaJSON.decoder().decode(HoursPurchaseDTO.self, from: Data(json.utf8))
     }

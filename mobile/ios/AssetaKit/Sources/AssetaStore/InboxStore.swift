@@ -5,7 +5,7 @@ import Foundation
 ///   (SUPERVISOR_INBOX_V1), kept as the server JSON with the columns lists filter and sort on;
 /// - rebuilds `operation_attachment` so a meter reset request's evidence photo can fill
 ///   `evidence_upload_id` (SQLite cannot alter a CHECK; the child table is copied row by row).
-/// Same table and columns as Android Room v7 (`inbox_record`).
+/// Same table and columns as Android Room v7 (`inbox_record`). Migration 12 drops `job_id` (ADR-008).
 enum InboxV6 {
     static let statements: [String] = [
         """
@@ -48,8 +48,7 @@ enum InboxV6 {
 /// One server record of the supervisor inbox.
 public struct InboxRecord: Equatable, Sendable {
     public enum Kind: String, Sendable, CaseIterable {
-        case meterCapture = "METER_CAPTURE", meterReset = "METER_RESET", jobActivity = "JOB_ACTIVITY"
-        case acknowledgement = "ACKNOWLEDGEMENT", expense = "EXPENSE", fuelEvent = "FUEL_EVENT"
+        case meterCapture = "METER_CAPTURE", meterReset = "METER_RESET", expense = "EXPENSE", fuelEvent = "FUEL_EVENT"
         case cashCollection = "CASH_COLLECTION", cashHandover = "CASH_HANDOVER"
     }
 
@@ -57,21 +56,19 @@ public struct InboxRecord: Equatable, Sendable {
     public let id: UUID
     /// Device client id of the record (nil for server-created ones); a meter capture's id is its client id.
     public let clientID: UUID?
-    public let jobID: UUID?
     public let machineID: UUID?
     /// Server status (capture state or review status, expense/settlement/reset status).
     public let status: String?
-    /// When it happened (captured / started / incurred / received / handed): list order and pruning.
+    /// When it happened (captured / incurred / received / handed): list order and pruning.
     public let occurredAt: Date
     public let syncRevision: Int64
     public let json: String
 
-    public init(kind: Kind, id: UUID, clientID: UUID?, jobID: UUID?, machineID: UUID?, status: String?, occurredAt: Date,
+    public init(kind: Kind, id: UUID, clientID: UUID?, machineID: UUID?, status: String?, occurredAt: Date,
                 syncRevision: Int64, json: String) {
         self.kind = kind
         self.id = id
         self.clientID = clientID
-        self.jobID = jobID
         self.machineID = machineID
         self.status = status
         self.occurredAt = occurredAt
@@ -100,17 +97,17 @@ public final class InboxStore: Sendable {
             for r in records {
                 try db.execute(
                     """
-                    INSERT INTO inbox_record (kind, id, tenant_id, client_id, job_id, machine_id, status, occurred_at,
+                    INSERT INTO inbox_record (kind, id, tenant_id, client_id, machine_id, status, occurred_at,
                         sync_revision, json)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT (kind, id) DO UPDATE SET
-                        tenant_id = excluded.tenant_id, client_id = excluded.client_id, job_id = excluded.job_id,
+                        tenant_id = excluded.tenant_id, client_id = excluded.client_id,
                         machine_id = excluded.machine_id, status = excluded.status, occurred_at = excluded.occurred_at,
                         sync_revision = excluded.sync_revision, json = excluded.json
                     WHERE excluded.sync_revision >= inbox_record.sync_revision
                     """,
                     [.text(r.kind.rawValue), .text(r.id.lowercased), .text(tenantID.lowercased),
-                     .optionalText(r.clientID?.lowercased), .optionalText(r.jobID?.lowercased),
+                     .optionalText(r.clientID?.lowercased),
                      .optionalText(r.machineID?.lowercased), .optionalText(r.status),
                      .integer(r.occurredAt.millisecondsSince1970), .integer(r.syncRevision), .text(r.json)]
                 )
@@ -138,7 +135,7 @@ public final class InboxStore: Sendable {
     /// Every record of the tenant, newest first.
     public func records(tenantID: UUID, kind: InboxRecord.Kind? = nil) throws -> [InboxRecord] {
         var sql = """
-            SELECT kind, id, client_id, job_id, machine_id, status, occurred_at, sync_revision, json
+            SELECT kind, id, client_id, machine_id, status, occurred_at, sync_revision, json
             FROM inbox_record WHERE tenant_id = ?
             """
         var bindings: [SQLValue] = [.text(tenantID.lowercased)]
@@ -151,9 +148,9 @@ public final class InboxStore: Sendable {
             guard let kind = row.string(0).flatMap(InboxRecord.Kind.init(rawValue:)), let id = uuid(1) else {
                 throw DatabaseError.step(code: -1, message: "Corrupt inbox_record row")
             }
-            return InboxRecord(kind: kind, id: id, clientID: uuid(2), jobID: uuid(3), machineID: uuid(4), status: row.string(5),
-                               occurredAt: Date(millisecondsSince1970: row.int(6)), syncRevision: row.int(7),
-                               json: row.string(8) ?? "{}")
+            return InboxRecord(kind: kind, id: id, clientID: uuid(2), machineID: uuid(3), status: row.string(4),
+                               occurredAt: Date(millisecondsSince1970: row.int(5)), syncRevision: row.int(6),
+                               json: row.string(7) ?? "{}")
         }
     }
 

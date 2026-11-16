@@ -5,38 +5,40 @@ import Foundation
 import Testing
 
 struct CaptureRulesTests {
-    let policy = MeterCapturePolicy(openingMode: .automatic, closingMode: .manual, manualPhotoRequired: true,
-                                    minOCRConfidence: 0.85, maxRecaptureAttempts: 2)
-    var opening: CaptureRequirements { CaptureRequirements(policy: policy, kind: .opening, decimalPlaces: 1) }
-    var closing: CaptureRequirements { CaptureRequirements(policy: policy, kind: .closing, decimalPlaces: 1) }
+    let automaticPolicy = MeterCapturePolicy(captureMode: .automatic, manualPhotoRequired: true,
+                                             minOCRConfidence: 0.85, maxRecaptureAttempts: 2)
+    let manualPolicy = MeterCapturePolicy(captureMode: .manual, manualPhotoRequired: true,
+                                          minOCRConfidence: 0.85, maxRecaptureAttempts: 2)
+    var automatic: CaptureRequirements { CaptureRequirements(policy: automaticPolicy, decimalPlaces: 1) }
+    var manual: CaptureRequirements { CaptureRequirements(policy: manualPolicy, decimalPlaces: 1) }
     let gps = GpsPayload.failed(.timeout)
 
     func ocr(_ value: String?, _ confidence: Double) -> MeterOCRResult {
         MeterOCRResult(value: value, confidence: confidence, rawText: value ?? "", engine: "t", note: "")
     }
 
-    @Test func requiredModeComesFromTheSnapshotPerKind() {
-        #expect(opening.requiredMode == .automatic && opening.photoRequired)
-        #expect(closing.requiredMode == .manual && closing.photoRequired)
-        let noPhoto = MeterCapturePolicy(openingMode: .manual, closingMode: .manual, manualPhotoRequired: false,
+    @Test func requiredModeComesFromTheSnapshot() {
+        #expect(automatic.requiredMode == .automatic && automatic.photoRequired)
+        #expect(manual.requiredMode == .manual && manual.photoRequired)
+        let noPhoto = MeterCapturePolicy(captureMode: .manual, manualPhotoRequired: false,
                                          minOCRConfidence: 0.8, maxRecaptureAttempts: 1)
-        #expect(!CaptureRequirements(policy: noPhoto, kind: .opening, decimalPlaces: 0).photoRequired)
+        #expect(!CaptureRequirements(policy: noPhoto, decimalPlaces: 0).photoRequired)
         let draft = CaptureDraft(mode: .manual, readingText: "100.0", gps: gps)
-        #expect(CaptureValidator.issues(draft, opening).contains(.wrongMode(required: .automatic)))
+        #expect(CaptureValidator.issues(draft, automatic).contains(.wrongMode(required: .automatic)))
     }
 
     @Test func manualReadingFollowsMeterDecimalPlacesAndPhotoRule() throws {
-        #expect(CaptureValidator.issues(CaptureDraft(mode: .manual, readingText: "0123.4", hasPhoto: true, gps: gps), closing).isEmpty)
-        #expect(CaptureValidator.issues(CaptureDraft(mode: .manual, readingText: "123.45", hasPhoto: true, gps: gps), closing)
+        #expect(CaptureValidator.issues(CaptureDraft(mode: .manual, readingText: "0123.4", hasPhoto: true, gps: gps), manual).isEmpty)
+        #expect(CaptureValidator.issues(CaptureDraft(mode: .manual, readingText: "123.45", hasPhoto: true, gps: gps), manual)
                 == [.tooManyDecimals(max: 1)])
-        #expect(CaptureValidator.issues(CaptureDraft(mode: .manual, readingText: "12a", hasPhoto: true, gps: gps), closing)
+        #expect(CaptureValidator.issues(CaptureDraft(mode: .manual, readingText: "12a", hasPhoto: true, gps: gps), manual)
                 == [.readingInvalid])
-        #expect(CaptureValidator.issues(CaptureDraft(mode: .manual, readingText: "-5", hasPhoto: true, gps: gps), closing)
+        #expect(CaptureValidator.issues(CaptureDraft(mode: .manual, readingText: "-5", hasPhoto: true, gps: gps), manual)
                 == [.readingInvalid])
-        #expect(CaptureValidator.issues(CaptureDraft(mode: .manual, readingText: "", hasPhoto: true, gps: gps), closing)
+        #expect(CaptureValidator.issues(CaptureDraft(mode: .manual, readingText: "", hasPhoto: true, gps: gps), manual)
                 == [.readingMissing])
-        #expect(CaptureValidator.issues(CaptureDraft(mode: .manual, readingText: "5", gps: gps), closing) == [.photoRequired])
-        #expect(CaptureValidator.issues(CaptureDraft(mode: .manual, readingText: "5", hasPhoto: true), closing) == [.gpsNotAttempted])
+        #expect(CaptureValidator.issues(CaptureDraft(mode: .manual, readingText: "5", gps: gps), manual) == [.photoRequired])
+        #expect(CaptureValidator.issues(CaptureDraft(mode: .manual, readingText: "5", hasPhoto: true), manual) == [.gpsNotAttempted])
         #expect(try CaptureValidator.normalizeReading("0123,4", decimalPlaces: 2).get() == "123.40")
         #expect(try CaptureValidator.normalizeReading("7", decimalPlaces: 0).get() == "7")
     }
@@ -44,22 +46,22 @@ struct CaptureRulesTests {
     @Test func automaticNeedsPhotoAndConfidentOCRUntilRecapturesRunOut() {
         let base = CaptureDraft(mode: .automatic, readingText: "4521.7", hasPhoto: true, gps: gps)
         var draft = base
-        #expect(CaptureValidator.issues(draft, opening) == [.ocrNotAttempted])
+        #expect(CaptureValidator.issues(draft, automatic) == [.ocrNotAttempted])
         draft.ocr = ocr("4521.7", 0.5)
         draft.photoAttempts = 1
-        #expect(AutomaticCapturePolicy.decide(draft.ocr!, attempts: 1, requirements: opening) == .recapture(remaining: 1))
-        #expect(CaptureValidator.issues(draft, opening) == [.recaptureRequired])
+        #expect(AutomaticCapturePolicy.decide(draft.ocr!, attempts: 1, requirements: automatic) == .recapture(remaining: 1))
+        #expect(CaptureValidator.issues(draft, automatic) == [.recaptureRequired])
         draft.photoAttempts = 2
-        #expect(AutomaticCapturePolicy.decide(draft.ocr!, attempts: 2, requirements: opening) == .recapture(remaining: 0))
+        #expect(AutomaticCapturePolicy.decide(draft.ocr!, attempts: 2, requirements: automatic) == .recapture(remaining: 0))
         draft.photoAttempts = 3 // max_recapture_attempts (2) used up → manual entry, photo + OCR kept
-        #expect(AutomaticCapturePolicy.decide(draft.ocr!, attempts: 3, requirements: opening) == .manualEntry(suggestion: "4521.7"))
-        #expect(CaptureValidator.issues(draft, opening).isEmpty)
+        #expect(AutomaticCapturePolicy.decide(draft.ocr!, attempts: 3, requirements: automatic) == .manualEntry(suggestion: "4521.7"))
+        #expect(CaptureValidator.issues(draft, automatic).isEmpty)
         draft.ocr = ocr("4521.7", 0.92)
         draft.photoAttempts = 1
-        #expect(AutomaticCapturePolicy.decide(draft.ocr!, attempts: 1, requirements: opening) == .confirm(value: "4521.7", confidence: 0.92))
+        #expect(AutomaticCapturePolicy.decide(draft.ocr!, attempts: 1, requirements: automatic) == .confirm(value: "4521.7", confidence: 0.92))
         draft.readingText = "4521.9" // user corrects the recognized value: allowed (manual correction)
-        #expect(CaptureValidator.issues(draft, opening).isEmpty)
-        #expect(CaptureValidator.issues(CaptureDraft(mode: .automatic, readingText: "1", gps: gps), opening).contains(.photoRequired))
+        #expect(CaptureValidator.issues(draft, automatic).isEmpty)
+        #expect(CaptureValidator.issues(CaptureDraft(mode: .automatic, readingText: "1", gps: gps), automatic).contains(.photoRequired))
     }
 }
 

@@ -183,7 +183,7 @@ struct AccountabilityGapTests {
         #expect(InboxLink.from(try note(kind: nil, record: nil, entity: "supervisor_cash_custody", target: id))
             == .cashToAcknowledge(id, isFloat: true))
         // Kinds the field app does not show fall back as before.
-        #expect(InboxLink.from(try note(kind: "HOURS_DISCOUNT", record: id, entity: "job", target: id)) == .job(id))
+        #expect(InboxLink.from(try note(kind: "HOURS_DISCOUNT", record: id, entity: "machine", target: id)) == .machine(id))
         #expect(InboxLink.from(try note(kind: "UNKNOWN_KIND", record: id, entity: nil, target: nil)) == .none)
         #expect(InboxLink.from(try note(kind: "CASH_VARIANCE", record: id, entity: nil, target: nil)) == .none)
 

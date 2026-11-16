@@ -74,8 +74,8 @@ struct MigrationV5Tests {
         #expect(try store.outbox.statusCounts(tenantID: tenant, owner: "next-user").values.reduce(0, +) == 0)
         #expect(try store.outbox.heldAccounts(tenantID: tenant, excluding: "next-user")
             == [HeldAccount(subject: AccountIdentity.unknownSubject, label: nil, count: 2)])
-        // The held running entry survives the reset under its owner's key.
+        // Migration 12 (ADR-008, jobs removed) dropped running work-log entries; the held operations stay.
         #expect(try store.syncState.value("work_log_running.\(AccountIdentity.unknownSubject).\(job.lowercased)",
-                                          tenant: tenant.lowercased) != nil)
+                                          tenant: tenant.lowercased) == nil)
     }
 }

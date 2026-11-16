@@ -9,7 +9,6 @@ import Foundation
 public enum SyncCapability {
     public static let supervisorInbox = "SUPERVISOR_INBOX_V1"
     public static let meterResetRequest = "OP_METER_RESET_REQUEST"
-    public static let jobRequest = "OP_JOB_REQUEST"
 }
 
 /// `ExceptionDto`: a server finding on a reading (type, severity, blocking) and its review.
@@ -20,7 +19,6 @@ public struct FindingDTO: Codable, Hashable, Sendable, Identifiable {
     public let blocking: Bool
     public let status: String
     public let machineID: UUID
-    public let jobID: UUID?
     public let meterCaptureID: UUID?
     public let policyVersion: String?
     public let reviewNote: String?
@@ -30,7 +28,7 @@ public struct FindingDTO: Codable, Hashable, Sendable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case id, severity, blocking, status, evidence
-        case exceptionType = "exception_type", machineID = "machine_id", jobID = "job_id"
+        case exceptionType = "exception_type", machineID = "machine_id"
         case meterCaptureID = "meter_capture_id", policyVersion = "policy_version", reviewNote = "review_note"
         case reviewedAt = "reviewed_at", createdAt = "created_at"
     }
@@ -39,8 +37,6 @@ public struct FindingDTO: Codable, Hashable, Sendable, Identifiable {
 public struct SyncMeterCaptureDTO: Codable, Hashable, Sendable, Identifiable {
     /// The device-generated capture id (also the local capture's id).
     public let id: UUID
-    /// Nil for a DAILY reading outside a job.
-    public let jobID: UUID?
     public let machineID: UUID
     public let kind: String
     public let captureMode: String
@@ -67,7 +63,7 @@ public struct SyncMeterCaptureDTO: Codable, Hashable, Sendable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case id, kind, reading, state, latitude, longitude, findings
-        case jobID = "job_id", machineID = "machine_id", captureMode = "capture_mode", gpsStatus = "gps_status"
+        case machineID = "machine_id", captureMode = "capture_mode", gpsStatus = "gps_status"
         case accuracyM = "accuracy_m", locationCapturedAt = "location_captured_at"
         case photoAttachmentID = "photo_attachment_id", photoSHA256 = "photo_sha256", ocrValue = "ocr_value"
         case ocrConfidence = "ocr_confidence", manuallyCorrected = "manually_corrected", policyVersion = "policy_version"
@@ -78,7 +74,6 @@ public struct SyncMeterCaptureDTO: Codable, Hashable, Sendable, Identifiable {
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
-        jobID = try c.decodeIfPresent(UUID.self, forKey: .jobID)  // null for a DAILY reading outside a job
         machineID = try c.decode(UUID.self, forKey: .machineID)
         kind = try c.decode(String.self, forKey: .kind)
         captureMode = try c.decode(String.self, forKey: .captureMode)
@@ -129,51 +124,6 @@ public struct SyncMeterResetDTO: Codable, Hashable, Sendable, Identifiable {
     }
 }
 
-public struct SyncJobActivityDTO: Codable, Hashable, Sendable, Identifiable {
-    public let id: UUID
-    public let jobID: UUID
-    public let clientID: UUID
-    public let activityType: String
-    public let startedAt: Date
-    public let endedAt: Date?
-    public let durationMinutes: Int?
-    public let billable: Bool
-    public let note: String?
-    public let recordedBy: UUID?
-    public let receivedAt: Date
-    public let syncRevision: Int64
-
-    enum CodingKeys: String, CodingKey {
-        case id, billable, note
-        case jobID = "job_id", clientID = "client_id", activityType = "activity_type", startedAt = "started_at"
-        case endedAt = "ended_at", durationMinutes = "duration_minutes", recordedBy = "recorded_by"
-        case receivedAt = "received_at", syncRevision = "sync_revision"
-    }
-}
-
-public struct SyncAcknowledgementDTO: Codable, Hashable, Sendable, Identifiable {
-    public let id: UUID
-    public let jobID: UUID
-    public let clientID: UUID
-    public let method: String
-    public let signerName: String
-    public let signerPhone: String?
-    public let acknowledgedHours: String?
-    public let signatureAttachmentID: UUID?
-    public let capturedAt: Date
-    public let recordedBy: UUID?
-    public let receivedAt: Date
-    public let syncRevision: Int64
-
-    enum CodingKeys: String, CodingKey {
-        case id, method
-        case jobID = "job_id", clientID = "client_id", signerName = "signer_name", signerPhone = "signer_phone"
-        case acknowledgedHours = "acknowledged_hours", signatureAttachmentID = "signature_attachment_id"
-        case capturedAt = "captured_at", recordedBy = "recorded_by", receivedAt = "received_at"
-        case syncRevision = "sync_revision"
-    }
-}
-
 public struct SyncExpenseDTO: Codable, Hashable, Sendable, Identifiable {
     public let id: UUID
     public let clientID: UUID?
@@ -191,7 +141,6 @@ public struct SyncExpenseDTO: Codable, Hashable, Sendable, Identifiable {
     public let submittedAt: Date
     public let submittedBy: UUID?
     public let custodianStaffID: UUID?
-    public let jobID: UUID?
     public let machineID: UUID?
     public let gpsStatus: String?
     public let gpsAccuracyM: Double?
@@ -213,7 +162,7 @@ public struct SyncExpenseDTO: Codable, Hashable, Sendable, Identifiable {
         case id, description, supplier, amount, currency, status, latitude, longitude, source
         case clientID = "client_id", categoryID = "category_id", paidFrom = "paid_from", decisionNote = "decision_note"
         case decidedAt = "decided_at", decidedBy = "decided_by", incurredAt = "incurred_at", submittedAt = "submitted_at"
-        case submittedBy = "submitted_by", custodianStaffID = "custodian_staff_id", jobID = "job_id", machineID = "machine_id"
+        case submittedBy = "submitted_by", custodianStaffID = "custodian_staff_id", machineID = "machine_id"
         case gpsStatus = "gps_status", gpsAccuracyM = "gps_accuracy_m", policyVersion = "policy_version"
         case receiptRequired = "receipt_required", receiptAttachmentIDs = "receipt_attachment_ids"
         case approvalRequestID = "approval_request_id", syncRevision = "sync_revision"
@@ -237,7 +186,6 @@ public struct SyncExpenseDTO: Codable, Hashable, Sendable, Identifiable {
         submittedAt = try c.decode(Date.self, forKey: .submittedAt)
         submittedBy = try c.decodeIfPresent(UUID.self, forKey: .submittedBy)
         custodianStaffID = try c.decodeIfPresent(UUID.self, forKey: .custodianStaffID)
-        jobID = try c.decodeIfPresent(UUID.self, forKey: .jobID)
         machineID = try c.decodeIfPresent(UUID.self, forKey: .machineID)
         gpsStatus = try c.decodeIfPresent(String.self, forKey: .gpsStatus)
         gpsAccuracyM = try c.decodeIfPresent(Double.self, forKey: .gpsAccuracyM)
@@ -264,7 +212,6 @@ public struct SyncFuelEventDTO: Codable, Hashable, Sendable, Identifiable {
     public let attributedCost: String
     public let currency: String
     public let machineID: UUID?
-    public let jobID: UUID?
     public let expenseID: UUID?
     public let meterReading: String?
     public let supplier: String?
@@ -277,23 +224,8 @@ public struct SyncFuelEventDTO: Codable, Hashable, Sendable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, litres, currency, supplier, note, source
         case clientID = "client_id", eventType = "event_type", unitPrice = "unit_price", attributedCost = "attributed_cost"
-        case machineID = "machine_id", jobID = "job_id", expenseID = "expense_id", meterReading = "meter_reading"
+        case machineID = "machine_id", expenseID = "expense_id", meterReading = "meter_reading"
         case occurredAt = "occurred_at", recordedBy = "recorded_by", syncRevision = "sync_revision"
-    }
-}
-
-/// `HireAllocationDto`: the part of a collection the office allocated to an invoice.
-public struct HireAllocationDTO: Codable, Hashable, Sendable, Identifiable {
-    public let id: UUID
-    public let invoiceID: UUID
-    public let amount: String
-    public let createdAt: Date
-    public let releasedAt: Date?
-    public let releaseReason: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id, amount
-        case invoiceID = "invoice_id", createdAt = "created_at", releasedAt = "released_at", releaseReason = "release_reason"
     }
 }
 
@@ -315,14 +247,13 @@ public struct SyncCashCollectionDTO: Codable, Hashable, Sendable, Identifiable {
     public let verifiedAt: Date?
     public let verifiedBy: UUID?
     public let source: String
-    public let allocations: [HireAllocationDTO]
     public let syncRevision: Int64
     /// COL-/PAY- number (DEC-032 Phase 3); nil from older servers.
     public let collectionNumber: String?
 
     enum CodingKeys: String, CodingKey {
         case collectionNumber = "collection_number"
-        case id, amount, currency, method, status, reference, note, source, allocations
+        case id, amount, currency, method, status, reference, note, source
         case clientID = "client_id", customerID = "customer_id", decisionNote = "decision_note", receivedAt = "received_at"
         case receivedByStaffID = "received_by_staff_id", recordedAt = "recorded_at", recordedBy = "recorded_by"
         case verifiedAt = "verified_at", verifiedBy = "verified_by", syncRevision = "sync_revision"
@@ -347,7 +278,6 @@ public struct SyncCashCollectionDTO: Codable, Hashable, Sendable, Identifiable {
         verifiedAt = try c.decodeIfPresent(Date.self, forKey: .verifiedAt)
         verifiedBy = try c.decodeIfPresent(UUID.self, forKey: .verifiedBy)
         source = try c.decode(String.self, forKey: .source)
-        allocations = try c.decodeIfPresent([HireAllocationDTO].self, forKey: .allocations) ?? []
         syncRevision = try c.decode(Int64.self, forKey: .syncRevision)
         collectionNumber = try c.decodeIfPresent(String.self, forKey: .collectionNumber)
     }

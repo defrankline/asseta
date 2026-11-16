@@ -257,7 +257,7 @@ struct AccountabilityTests {
 
         // A correction of the synced DAILY reading (the server copy says it still counts).
         let server: [String: Any] = [
-            "id": daily.entityID.lowercased, "job_id": NSNull(), "machine_id": SyncFixtures.machineID.lowercased, "kind": "DAILY",
+            "id": daily.entityID.lowercased, "machine_id": SyncFixtures.machineID.lowercased, "kind": "DAILY",
             "capture_mode": "MANUAL", "reading": "1300.0", "state": "ACCEPTED", "gps_status": "FIX", "latitude": NSNull(),
             "longitude": NSNull(), "accuracy_m": NSNull(), "location_captured_at": NSNull(), "photo_attachment_id": NSNull(),
             "photo_sha256": NSNull(), "ocr_value": NSNull(), "ocr_confidence": NSNull(), "manually_corrected": false,
@@ -265,7 +265,7 @@ struct AccountabilityTests {
             "captured_at": AssetaJSON.formatInstant(h.clock.wallNow), "received_at": AssetaJSON.formatInstant(h.clock.wallNow),
             "sync_revision": 9, "review_status": "NONE", "findings": []]
         let dto = try AssetaJSON.decoder().decode(SyncMeterCaptureDTO.self, from: JSONSerialization.data(withJSONObject: server))
-        let reading = ReadingItem(id: dto.id, jobID: nil, machineID: dto.machineID, kind: "DAILY", reading: "1300.0",
+        let reading = ReadingItem(id: dto.id, machineID: dto.machineID, kind: "DAILY", reading: "1300.0",
                                   captureMode: "MANUAL", at: h.clock.wallNow, status: .accepted, server: dto, op: nil,
                                   localPayload: nil)
         #expect(throws: FieldRecorderError.invalid(FieldAccountabilityTexts.meterErrCorrectionReason)) {
@@ -284,7 +284,7 @@ struct AccountabilityTests {
         #expect(c["superseded_capture_id"] as? String == daily.entityID.lowercased && c["reason"] as? String == "Misread the tens digit")
         #expect(replacement["kind"] as? String == "DAILY" && replacement["job_id"] == nil)
         #expect(replacement["photo_attachment_id"] as? String != nil && c["photo_attachment_id"] == nil)
-        #expect(FieldRecorder.correctionBlocked(ReadingItem(id: UUID(), jobID: nil, machineID: nil, kind: "DAILY", reading: "1",
+        #expect(FieldRecorder.correctionBlocked(ReadingItem(id: UUID(), machineID: nil, kind: "DAILY", reading: "1",
                                                             captureMode: "MANUAL", at: .now, status: .notSynced, server: nil,
                                                             op: nil, localPayload: nil)) == FieldAccountabilityTexts.meterCorrectionNotSynced)
     }

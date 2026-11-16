@@ -275,35 +275,6 @@ public struct AttemptsFigureDTO: Codable, Hashable, Sendable {
     }
 }
 
-/// A next job left unapproved after a changeover: its hours stay unbilled while it waits.
-public struct ChangeoverWaitingJobDTO: Codable, Hashable, Sendable, Identifiable {
-    public var id: UUID { jobID }
-    public let jobID: UUID
-    public let jobNumber: String?
-    public let machineID: UUID
-    public let machineCode: String?
-    public let machineName: String?
-    public let customerID: UUID
-    public let customerName: String?
-    public let changedOverAt: Date
-    public let daysWaiting: Int
-    public let route: String
-
-    enum CodingKeys: String, CodingKey {
-        case route, jobID = "job_id", jobNumber = "job_number", machineID = "machine_id", machineCode = "machine_code"
-        case machineName = "machine_name", customerID = "customer_id", customerName = "customer_name"
-        case changedOverAt = "changed_over_at", daysWaiting = "days_waiting"
-    }
-}
-
-public struct ChangeoverJobsWaitingDTO: Codable, Hashable, Sendable {
-    public let count: Int
-    public let oldestDays: Int?
-    public let items: [ChangeoverWaitingJobDTO]
-
-    enum CodingKeys: String, CodingKey { case count, items, oldestDays = "oldest_days" }
-}
-
 public struct ExceptionsSectionDTO: Codable, Hashable, Sendable {
     public let unexplainedEngineHours: HoursFigureDTO
     public let shortages: MoneyFigureDTO
@@ -316,7 +287,6 @@ public struct ExceptionsSectionDTO: Codable, Hashable, Sendable {
     public let outstandingApprovals: OutstandingApprovalsDTO
     public let overdueReports: OverdueReportsDTO
     public let unresolvedVariances: UnresolvedVariancesDTO
-    public let changeoverJobsAwaitingApproval: ChangeoverJobsWaitingDTO
 
     enum CodingKeys: String, CodingKey {
         case shortages, overages
@@ -324,6 +294,6 @@ public struct ExceptionsSectionDTO: Codable, Hashable, Sendable {
         case overagesOpenedInPeriod = "overages_opened_in_period", pendingAdjustments = "pending_adjustments"
         case unauthorizedAttempts = "unauthorized_attempts", unconfirmedPayments = "unconfirmed_payments"
         case outstandingApprovals = "outstanding_approvals", overdueReports = "overdue_reports"
-        case unresolvedVariances = "unresolved_variances", changeoverJobsAwaitingApproval = "changeover_jobs_awaiting_approval"
+        case unresolvedVariances = "unresolved_variances"
     }
 }

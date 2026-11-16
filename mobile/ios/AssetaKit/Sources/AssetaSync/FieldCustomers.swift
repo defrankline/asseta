@@ -259,7 +259,7 @@ extension SupervisorOnline {
         return result
     }
 
-    /// Sync delivers only the customers on my jobs' contracts: a customer read or saved here is written into the synced
+    /// Sync delivers the company's active customers to `tenant.customer.read` holders; a customer read or saved here is written into the synced
     /// customer list, where the hours sale and cash collection pickers find it (an inactive one leaves the pickers).
     func remember(_ customers: [FieldCustomerDTO]) {
         guard !customers.isEmpty else { return }

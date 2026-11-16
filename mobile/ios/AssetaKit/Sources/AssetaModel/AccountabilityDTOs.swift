@@ -10,7 +10,7 @@ extension SyncCapability {
     public static let hoursTransferRequest = "OP_HOURS_TRANSFER_REQUEST"
     /// `CASH_TRANSFER`, `CASH_TRANSFER_ACKNOWLEDGEMENT` and `CASH_FLOAT_ACKNOWLEDGEMENT`.
     public static let cashTransfer = "OP_CASH_TRANSFER"
-    /// `METER_CAPTURE` accepts kind DAILY (job_id null, machine_id set).
+    /// `METER_CAPTURE` accepts kind DAILY (machine_id set).
     public static let meterDailyReading = "METER_DAILY_READING"
     public static let meterBaseline = "OP_METER_BASELINE"
     public static let meterCorrection = "OP_METER_CORRECTION"
@@ -457,8 +457,6 @@ public struct HoursPurchaseDTO: Codable, Hashable, Sendable, Identifiable {
         /// Hours moved to other machines; 0 when absent.
         public let transferred: DecimalString
         public let expired: DecimalString
-        /// DEC-031 Phase 4 daily drawdown: hours held by running jobs (already out of `remaining`); 0 when absent.
-        public let provisional: DecimalString
         /// Hours taken back by reversals; 0 when absent.
         public let reversed: DecimalString
         /// DEC-032 Phase 2: unused hours refunded; 0 when absent.
@@ -476,14 +474,13 @@ public struct HoursPurchaseDTO: Codable, Hashable, Sendable, Identifiable {
             awaitingActivation = try c.decode(DecimalString.self, forKey: .awaitingActivation)
             transferred = try c.decodeIfPresent(DecimalString.self, forKey: .transferred) ?? zero
             expired = try c.decodeIfPresent(DecimalString.self, forKey: .expired) ?? zero
-            provisional = try c.decodeIfPresent(DecimalString.self, forKey: .provisional) ?? zero
             reversed = try c.decodeIfPresent(DecimalString.self, forKey: .reversed) ?? zero
             refunded = try c.decodeIfPresent(DecimalString.self, forKey: .refunded) ?? zero
             corrected = try c.decodeIfPresent(DecimalString.self, forKey: .corrected) ?? zero
         }
 
         enum CodingKeys: String, CodingKey {
-            case purchased, activated, consumed, remaining, transferred, expired, provisional, reversed, refunded, corrected
+            case purchased, activated, consumed, remaining, transferred, expired, reversed, refunded, corrected
             case awaitingActivation = "awaiting_activation"
         }
     }
@@ -493,8 +490,6 @@ public struct HoursPurchaseDTO: Codable, Hashable, Sendable, Identifiable {
         public let machineCode: String?
         public let machineName: String?
         public let remaining: DecimalString
-        /// Hours of this machine held by running jobs (DEC-031 Phase 4); 0 when absent.
-        public let provisional: DecimalString
 
         public init(from decoder: any Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -502,17 +497,11 @@ public struct HoursPurchaseDTO: Codable, Hashable, Sendable, Identifiable {
             machineCode = try c.decodeIfPresent(String.self, forKey: .machineCode)
             machineName = try c.decodeIfPresent(String.self, forKey: .machineName)
             remaining = try c.decode(DecimalString.self, forKey: .remaining)
-            provisional = try c.decodeIfPresent(DecimalString.self, forKey: .provisional) ?? DecimalString(0)
         }
 
         enum CodingKeys: String, CodingKey {
-            case remaining, provisional, machineID = "machine_id", machineCode = "machine_code", machineName = "machine_name"
+            case remaining, machineID = "machine_id", machineCode = "machine_code", machineName = "machine_name"
         }
-    }
-
-    /// Hours held by running jobs on `machineID` (after transfers), else on the whole purchase.
-    public func provisional(on machineID: UUID?) -> Decimal {
-        machines?.first { $0.machineID == machineID }?.provisional.value ?? totals.provisional.value
     }
 
     /// Remaining hours on `machineID` (after transfers), else the purchase total remaining.

@@ -35,9 +35,6 @@ enum AccountabilityKey {
     static let transfers = "cash_transfers_cache"
     static let transferReasons = "hours_transfer_reasons_cache"
     static let retentionReasons = "cash_retention_reasons_cache"
-    static let dailyReports = "daily_reports_cache"
-    static let unbillableReasons = "unbillable_reasons_cache"
-    static let engineHoursPolicy = "policy_engine_hours"
 }
 
 /// Saved accountability lookups of the signed-in user (read side; works offline).
@@ -113,7 +110,7 @@ public struct AccountabilityDirectory: Sendable {
         let queued = Set(((try? store.outbox.operations(tenantID: tenantID, owner: owner?.subject,
                                                         statuses: Set(ClientOperationStatus.allCases))) ?? [])
             .filter { ($0.opType == OperationType.cashTransferAcknowledgement.rawValue
-                        || $0.opType == OperationType.cashFloatAcknowledgement.rawValue) && JobProgress.live($0) }
+                        || $0.opType == OperationType.cashFloatAcknowledgement.rawValue) && $0.status != .failed && $0.status != .conflict }
             .map(\.entityID))
         let pendingTransfers = (transfers?.value ?? []).filter {
             $0.status == "PENDING_ACKNOWLEDGEMENT" && !queued.contains($0.id) && (myStaffID == nil || $0.fromStaffID != myStaffID)
@@ -150,15 +147,6 @@ extension SupervisorOnline {
     public func refreshAccountability(permissions: [String], myStaffID: UUID?, disabledCapabilities: [String] = []) async {
         let has = Set(permissions)
         let disabled = Set(disabledCapabilities)
-        // Daily reports: the reasons work offline; the policy only tells the form a photo is needed (a user who may
-        // not read policies gets a 403 and the server still enforces it).
-        if has.contains(FieldAccess.meterCapture) && !disabled.contains(TenantCapability.engineHours) {
-            await save(AccountabilityKey.unbillableReasons, APIRequest<Page<EngineHourReasonDTO>>.get(
-                "\(Self.tenant)/engine-hour-reasons",
-                query: Self.page(200) + [URLQueryItem(name: "kind", value: EngineHourReasonKinds.unbillable)])) { $0.items }
-            await save(AccountabilityKey.engineHoursPolicy,
-                       APIRequest<EffectivePolicyDTO<EngineHoursPolicyValues>>.get("\(Self.tenant)/policies/ENGINE_HOURS/effective")) { $0.values }
-        }
         // CASH_CUSTODY off: the DEC-030 cash additions (policy, holders, transfers, floats to acknowledge, reasons,
         // retentions) are not read.
         let record = has.contains(FieldAccess.collectionRecord) && !disabled.contains(TenantCapability.cashCustody)

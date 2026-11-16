@@ -14,13 +14,13 @@ public struct SetupStepKey: OpenStringEnum {
     public static let machines = SetupStepKey(rawValue: "MACHINES")
     public static let trackers = SetupStepKey(rawValue: "TRACKERS")
     public static let sites = SetupStepKey(rawValue: "SITES")
-    public static let customersAndContracts = SetupStepKey(rawValue: "CUSTOMERS_AND_CONTRACTS")
+    public static let customers = SetupStepKey(rawValue: "CUSTOMERS")
     public static let controlsChosen = SetupStepKey(rawValue: "CONTROLS_CHOSEN")
     public static let reasonLists = SetupStepKey(rawValue: "REASON_LISTS")
     public static let depositAccounts = SetupStepKey(rawValue: "DEPOSIT_ACCOUNTS")
     public static let meterBaselines = SetupStepKey(rawValue: "METER_BASELINES")
     public static let fieldAppSignedIn = SetupStepKey(rawValue: "FIELD_APP_SIGNED_IN")
-    public static let firstJob = SetupStepKey(rawValue: "FIRST_JOB")
+    public static let firstMachineReport = SetupStepKey(rawValue: "FIRST_MACHINE_REPORT")
 }
 
 /// `StepStatus`.

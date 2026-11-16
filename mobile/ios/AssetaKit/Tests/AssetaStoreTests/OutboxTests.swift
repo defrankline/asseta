@@ -13,7 +13,7 @@ struct OutboxTests {
     }
 
     private func newOp(dependsOn: UUID? = nil, tenant: UUID? = nil, at seconds: TimeInterval = 0) -> NewClientOperation {
-        NewClientOperation(tenantID: tenant ?? self.tenant, opType: "CREATE", entityType: "job", entityID: UUID(),
+        NewClientOperation(tenantID: tenant ?? self.tenant, opType: "CREATE", entityType: "expense", entityID: UUID(),
                            payloadJSON: #"{"amount":"10.00"}"#, dependsOn: dependsOn.map { [$0] } ?? [],
                            createdAtDevice: Date(timeIntervalSince1970: 1_700_000_000 + seconds))
     }
@@ -24,13 +24,14 @@ struct OutboxTests {
         let applied = try store.database.query("SELECT version, name FROM schema_migration") { $0.string(1) }
         #expect(applied == ["create_client_operation_outbox", "outbox_sync_protocol", "sync_state_entities_policies",
                            "finance_receipts_cash_custody", "per_user_field_data", "supervisor_inbox", "accountability_evidence",
-                           "remittance_evidence", "daily_report_evidence", "adjustment_evidence", "petty_cash_evidence"])
+                           "remittance_evidence", "daily_report_evidence", "adjustment_evidence", "petty_cash_evidence",
+                           "adr008_job_removal"])
     }
 
     /// "Delete my account" erases the field data only when no other account has unsynced work, in any tenant.
     @Test func unsyncedWorkOfOtherAccountsIsSeenInEveryTenant() throws {
         func op(_ owner: String, tenant: UUID) -> NewClientOperation {
-            NewClientOperation(tenantID: tenant, opType: "CREATE", entityType: "job", entityID: UUID(), payloadJSON: "{}",
+            NewClientOperation(tenantID: tenant, opType: "CREATE", entityType: "expense", entityID: UUID(), payloadJSON: "{}",
                                owner: AccountIdentity(subject: owner))
         }
         #expect(try !store.outbox.hasUnsyncedWork(excluding: "me"))
@@ -68,7 +69,7 @@ struct OutboxTests {
     }
 
     @Test func invalidPayloadIsRejected() {
-        let bad = NewClientOperation(tenantID: tenant, opType: "X", entityType: "job", entityID: UUID(), payloadJSON: "{nope")
+        let bad = NewClientOperation(tenantID: tenant, opType: "X", entityType: "expense", entityID: UUID(), payloadJSON: "{nope")
         #expect(throws: OutboxError.invalidPayload) { try store.outbox.enqueue(bad) }
     }
 

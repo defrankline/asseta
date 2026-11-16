@@ -4,27 +4,12 @@ import AssetaSecurity
 import AssetaStore
 import Foundation
 
-/// One job with the cached entities the Supervisor screens show.
-public struct FieldJob: Sendable, Equatable, Identifiable {
-    public let job: JobDTO
-    public let machine: MachineDTO?
-    public let site: JobSiteDTO?
-    public let customer: CustomerDTO?
-    public let contract: ContractDTO?
-    /// Set for a job this supervisor requested from the field, until the owner approves it.
-    public var request: JobRequestState?
-    public var id: UUID { job.id }
-    /// Meter display precision (machine setting; default 1 like the server).
-    public var decimalPlaces: Int { machine?.meterDecimalPlaces ?? 1 }
-}
-
 /// One outbox item as shown on the sync status screen.
 public struct OutboxItem: Sendable, Equatable, Identifiable {
     public let operation: ClientOperation
-    public let jobID: UUID?
-    /// `server_state` returned with a conflict (e.g. the job's current status), if any.
+    /// `server_state` returned with a conflict, if any.
     public let serverState: String?
-    /// Waiting for an earlier item, or for its photo/signature upload.
+    /// Waiting for an earlier item, or for its photo upload.
     public let waitingFor: String?
     public var id: UUID { operation.id }
 
@@ -35,19 +20,15 @@ public struct OutboxItem: Sendable, Equatable, Identifiable {
         }
         return switch type {
         case .meterCapture: "Meter reading"
-        case .jobActivity: "Work log entry"
-        case .jobAcknowledgement: "Customer acknowledgement"
-        case .jobTransition: operation.payloadJSON.contains("COMPLETE") ? "Complete job" : "Start job"
         case .expense: "Expense"
         case .cashCollection: "Cash collection"
         case .cashHandover: "Cash handover"
         case .fuelEvent: "Fuel event"
         case .meterResetRequest: "Meter reset request"
-        case .jobRequest: JobRequestText.operation
         case .machineReport: "Machine report"
         case .creditInvoicePayment: "Credit invoice payment"
         case .hoursPurchase, .hoursTransferRequest, .cashTransfer, .cashTransferAcknowledgement, .cashFloatAcknowledgement,
-             .meterBaseline, .meterCorrection, .cashRetentionRequest, .siteCheckin, .dailyReport,
+             .meterBaseline, .meterCorrection, .cashRetentionRequest,
              .pettyCashAcknowledgement, .pettyCashTopUpRequest, .pettyCashReturn, .pettyCashCount,
              .pettyCashHolderChangeAcknowledgement, .pettyCashAdvanceClearance, .pettyCashAdvance, nil: operation.opType
         }
@@ -71,7 +52,7 @@ public struct SyncOverview: Sendable, Equatable {
     public var unsyncedCount: Int { counts.filter { $0.key != .acked }.values.reduce(0, +) }
 }
 
-/// Read side for the UI: cached jobs and entities, policy gate, sync overview.
+/// Read side for the UI: cached entities, policy gate, sync overview.
 /// Device-owned records (operations, evidence) are the signed-in `owner`'s only.
 public struct FieldDirectory: Sendable {
     let store: LocalStore
@@ -88,36 +69,6 @@ public struct FieldDirectory: Sendable {
     }
 
     private var tenantKey: String { tenantID.uuidString.lowercased() }
-
-    private func decode<T: Decodable>(_ type: String, _ id: UUID?) -> T? {
-        guard let id, let entity = try? store.syncState.entity(type: type, id: id, tenantID: tenantID) else { return nil }
-        return try? AssetaJSON.decoder().decode(T.self, from: Data(entity.json.utf8))
-    }
-
-    /// Synced jobs plus this user's job requests the server has not delivered yet (shown right away).
-    public func jobs() throws -> [FieldJob] {
-        let requests = try requestOperations()
-        let byID = Dictionary(requests.map { ($0.entityID, $0) }, uniquingKeysWith: { first, _ in first })
-        let server = try store.syncState.entities(type: "job", tenantID: tenantID)
-            .compactMap { try? AssetaJSON.decoder().decode(JobDTO.self, from: Data($0.json.utf8)) }
-        let serverIDs = Set(server.map(\.id))
-        let local = pendingRequests(requests, serverIDs: serverIDs).compactMap(localRequestJob)
-        return (server.map { fieldJob($0, requestOp: byID[$0.id]) } + local)
-            .sorted { ($0.job.plannedStart, $0.job.jobNumber) < ($1.job.plannedStart, $1.job.jobNumber) }
-    }
-
-    public func job(id: UUID) -> FieldJob? {
-        let op = try? requestOperations().first { $0.entityID == id }
-        if let job = decode("job", id) as JobDTO? { return fieldJob(job, requestOp: op) }
-        return op.flatMap(localRequestJob)
-    }
-
-    private func fieldJob(_ job: JobDTO, requestOp: ClientOperation? = nil) -> FieldJob {
-        let contract: ContractDTO? = decode("contract", job.contractID)
-        return FieldJob(job: job, machine: decode("machine", job.machineID), site: decode("site", job.jobSiteID),
-                        customer: decode("customer", contract?.customerID), contract: contract,
-                        request: JobRequestState.of(job: job, requestOp: requestOp))
-    }
 
     public func meterSnapshots() throws -> [MeterPolicySnapshot] {
         try store.syncState.policySnapshots(policyType: MeterPolicySnapshot.policyType, tenantID: tenantID)
@@ -153,7 +104,6 @@ public struct FieldDirectory: Sendable {
         let unsynced = all.filter { $0.status != .acked }
         let awaitingUpload = try store.attachments.operationsAwaitingUpload(tenantID: tenantID)
         let items = unsynced.map { op -> OutboxItem in
-            let payload = try? JSONValue.parse(op.payloadJSON)
             let result = op.serverResultJSON.flatMap { try? JSONValue.parse($0) }
             let state = result?["result"]?["server_state"].flatMap { try? $0.jsonString() }
             var waiting: String?
@@ -161,12 +111,10 @@ public struct FieldDirectory: Sendable {
                 waiting = parent.status == .failed || parent.status == .conflict
                     ? "Blocked by an earlier item that needs attention" : "Waiting for an earlier item"
             } else if awaitingUpload.contains(op.id) {
-                waiting = op.opType == OperationType.dailyReport.rawValue ? DailyReportTexts.waitingPhotos
-                    : op.opType == OperationType.cashHandover.rawValue || op.opType == OperationType.hoursTransferRequest.rawValue
-                    ? FieldAccountabilityTexts.outboxWaitingPhotos : "Waiting for its photo/receipt/signature upload"
+                waiting = op.opType == OperationType.cashHandover.rawValue || op.opType == OperationType.hoursTransferRequest.rawValue
+                    ? FieldAccountabilityTexts.outboxWaitingPhotos : "Waiting for its photo/receipt upload"
             }
-            return OutboxItem(operation: op, jobID: payload?["job_id"]?.stringValue.flatMap(UUID.init(uuidString:)),
-                              serverState: state, waitingFor: waiting)
+            return OutboxItem(operation: op, serverState: state, waitingFor: waiting)
         }
         func int(_ key: String) -> Int { Int((try? store.syncState.value(key, tenant: tenantKey)) ?? nil ?? "0") ?? 0 }
         func date(_ key: String) -> Date? {

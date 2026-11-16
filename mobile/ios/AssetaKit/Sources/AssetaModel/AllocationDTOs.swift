@@ -1,16 +1,10 @@
 import Foundation
 
-// DEC-032 Phase 1 (every engine hour allocated): the work allocation ledger, allocation corrections, the daily
-// operational report and the sync operation that carries a report. Shapes follow `contracts/openapi.json`.
+// DEC-032 Phase 1 (every engine hour allocated): the work allocation ledger, allocation corrections and the daily
+// operational report (reviewed in the Owner app). Shapes follow `contracts/openapi.json`.
 
 extension SyncCapability {
-    /// `DAILY_REPORT` (a machine's daily operational report, queued offline).
-    public static let dailyReport = "OP_DAILY_REPORT"
-    /// `METER_CAPTURE` kind DAILY on the running job accepts `changeover_to_customer_id` (and `changeover_to_job_id`).
-    public static let meterChangeover = "METER_CHANGEOVER"
-    /// `SyncData.changeover_jobs`: jobs a changeover can name on my machines, office-created ones included.
-    public static let changeoverJobs = "SYNC_CHANGEOVER_JOBS"
-    /// `SyncData.unbillable_reasons`: the tenant's reasons for the daily report form.
+    /// `SyncData.unbillable_reasons`: the tenant's unbillable reasons (still announced; the app stores them only).
     public static let unbillableReasons = "SYNC_UNBILLABLE_REASONS"
 }
 
@@ -37,58 +31,6 @@ public enum DailyReportStatuses {
     public static let superseded = "SUPERSEDED"
 }
 
-/// `UnbillableLineIn`: hours of the day that were not billable, for one tenant reason.
-public struct UnbillableLineIn: Codable, Hashable, Sendable {
-    public let reasonID: UUID
-    public let hours: DecimalString
-
-    public init(reasonID: UUID, hours: Decimal) {
-        self.reasonID = reasonID
-        self.hours = DecimalString(hours)
-    }
-
-    enum CodingKeys: String, CodingKey { case hours, reasonID = "reason_id" }
-}
-
-/// `DAILY_REPORT` (`DailyReportIn` without `id` + `evidence_upload_ids`). The operation id is the report id; evidence
-/// photos are resumable uploads (purpose DAILY_REPORT_EVIDENCE) appended when complete, and the op waits for them.
-public struct DailyReportPayload: Codable, Hashable, Sendable {
-    public let machineID: UUID
-    /// The tenant-local day, `YYYY-MM-DD`.
-    public let reportDate: String
-    public let openingRef: UUID
-    public let closingRef: UUID
-    /// Nil: the server uses the total minus the unbillable hours.
-    public let billableHours: DecimalString?
-    public let unbillable: [UnbillableLineIn]
-    public let note: String?
-    public let evidenceUploadIDs: [UUID]
-    /// The report this one replaces (a returned report being resubmitted).
-    public let supersedesID: UUID?
-    public let clientCreatedAt: Date
-
-    public init(machineID: UUID, reportDate: String, openingRef: UUID, closingRef: UUID, billableHours: Decimal?,
-                unbillable: [UnbillableLineIn], note: String?, supersedesID: UUID?, clientCreatedAt: Date) {
-        self.machineID = machineID
-        self.reportDate = reportDate
-        self.openingRef = openingRef
-        self.closingRef = closingRef
-        self.billableHours = billableHours.map(DecimalString.init)
-        self.unbillable = unbillable
-        self.note = note
-        self.evidenceUploadIDs = []
-        self.supersedesID = supersedesID
-        self.clientCreatedAt = clientCreatedAt
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case unbillable, note
-        case machineID = "machine_id", reportDate = "report_date", openingRef = "opening_ref", closingRef = "closing_ref"
-        case billableHours = "billable_hours", evidenceUploadIDs = "evidence_upload_ids", supersedesID = "supersedes_id"
-        case clientCreatedAt = "client_created_at"
-    }
-}
-
 /// `UnbillableLineDto`.
 public struct UnbillableLineDTO: Codable, Hashable, Sendable {
     public let reasonID: UUID
@@ -104,9 +46,6 @@ public struct ReportAllocationDTO: Codable, Hashable, Sendable, Identifiable {
     public let kind: String
     public let customerID: UUID?
     public let customerName: String?
-    public let jobID: UUID?
-    public let jobNumber: String?
-    public let activityType: String?
     public let startReading: DecimalString
     public let endReading: DecimalString
     public let hours: DecimalString
@@ -115,9 +54,8 @@ public struct ReportAllocationDTO: Codable, Hashable, Sendable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case kind, hours
-        case allocationID = "allocation_id", customerID = "customer_id", customerName = "customer_name", jobID = "job_id"
-        case jobNumber = "job_number", activityType = "activity_type", startReading = "start_reading"
-        case endReading = "end_reading"
+        case allocationID = "allocation_id", customerID = "customer_id", customerName = "customer_name"
+        case startReading = "start_reading", endReading = "end_reading"
     }
 }
 
@@ -277,14 +215,10 @@ public struct WorkAllocationDTO: Codable, Hashable, Sendable, Identifiable {
     public let endAt: Date
     public let customerID: UUID?
     public let customerName: String?
-    public let jobID: UUID?
-    public let jobNumber: String?
-    public let activityType: String?
     public let reasonID: UUID?
     public let reasonName: String?
     public let lots: [AllocationLotDTO]
     public let evidenceAttachmentIDs: [UUID]
-    public let changeoverID: UUID?
     public let correctionGroupID: UUID?
     public let correctionReason: String?
     public let supersedesID: UUID?
@@ -317,14 +251,10 @@ public struct WorkAllocationDTO: Codable, Hashable, Sendable, Identifiable {
         endAt = try c.decode(Date.self, forKey: .endAt)
         customerID = try c.decodeIfPresent(UUID.self, forKey: .customerID)
         customerName = try c.decodeIfPresent(String.self, forKey: .customerName)
-        jobID = try c.decodeIfPresent(UUID.self, forKey: .jobID)
-        jobNumber = try c.decodeIfPresent(String.self, forKey: .jobNumber)
-        activityType = try c.decodeIfPresent(String.self, forKey: .activityType)
         reasonID = try c.decodeIfPresent(UUID.self, forKey: .reasonID)
         reasonName = try c.decodeIfPresent(String.self, forKey: .reasonName)
         lots = try c.decodeIfPresent([AllocationLotDTO].self, forKey: .lots) ?? []
         evidenceAttachmentIDs = try c.decodeIfPresent([UUID].self, forKey: .evidenceAttachmentIDs) ?? []
-        changeoverID = try c.decodeIfPresent(UUID.self, forKey: .changeoverID)
         correctionGroupID = try c.decodeIfPresent(UUID.self, forKey: .correctionGroupID)
         correctionReason = try c.decodeIfPresent(String.self, forKey: .correctionReason)
         supersedesID = try c.decodeIfPresent(UUID.self, forKey: .supersedesID)
@@ -344,8 +274,7 @@ public struct WorkAllocationDTO: Codable, Hashable, Sendable, Identifiable {
         case machineID = "machine_id", machineCode = "machine_code", machineName = "machine_name", workDate = "work_date"
         case startRef = "start_ref", startReading = "start_reading", startAt = "start_at", endRef = "end_ref"
         case endReading = "end_reading", endAt = "end_at", customerID = "customer_id", customerName = "customer_name"
-        case jobID = "job_id", jobNumber = "job_number", activityType = "activity_type", reasonID = "reason_id"
-        case reasonName = "reason_name", evidenceAttachmentIDs = "evidence_attachment_ids", changeoverID = "changeover_id"
+        case reasonID = "reason_id", reasonName = "reason_name", evidenceAttachmentIDs = "evidence_attachment_ids"
         case correctionGroupID = "correction_group_id", correctionReason = "correction_reason"
         case supersedesID = "supersedes_id", supersededAt = "superseded_at", supersededByIDs = "superseded_by_ids"
         case recordedBy = "recorded_by", recordedByName = "recorded_by_name", decidedAt = "decided_at"
@@ -394,18 +323,16 @@ public struct AllocationPartIn: Encodable, Hashable, Sendable {
     public let hours: DecimalString
     public let kind: String
     public let customerID: UUID?
-    public let jobID: UUID?
     public let reasonID: UUID?
 
-    public init(hours: Decimal, kind: String, customerID: UUID? = nil, jobID: UUID? = nil, reasonID: UUID? = nil) {
+    public init(hours: Decimal, kind: String, customerID: UUID? = nil, reasonID: UUID? = nil) {
         self.hours = DecimalString(hours)
         self.kind = kind
         self.customerID = customerID
-        self.jobID = jobID
         self.reasonID = reasonID
     }
 
-    enum CodingKeys: String, CodingKey { case hours, kind, customerID = "customer_id", jobID = "job_id", reasonID = "reason_id" }
+    enum CodingKeys: String, CodingKey { case hours, kind, customerID = "customer_id", reasonID = "reason_id" }
 }
 
 /// `AllocationCorrectionIn`.
@@ -453,49 +380,4 @@ public struct SyncUnbillableReasonDTO: Codable, Hashable, Sendable, Identifiable
     public let isActive: Bool
 
     enum CodingKeys: String, CodingKey { case id, code, name, description, isActive = "is_active" }
-}
-
-/// `SyncChangeoverJobDto`: a job a changeover can name, whoever created it.
-public struct ChangeoverJobDTO: Codable, Hashable, Sendable, Identifiable {
-    public let id: UUID
-    public let jobNumber: String
-    public let machineID: UUID
-    public let customerID: UUID
-    public let customerName: String
-    public let status: JobStatus
-
-    /// Whether the job is still waiting to run: every other status (a delta) drops it from the phone's choices.
-    public var stillApplies: Bool { status == .pendingApproval || status == .approved }
-
-    enum CodingKeys: String, CodingKey {
-        case id, status
-        case jobNumber = "job_number", machineID = "machine_id", customerID = "customer_id", customerName = "customer_name"
-    }
-}
-
-/// The ENGINE_HOURS policy keys the phones read (`GET /policies/ENGINE_HOURS/effective`).
-public struct EngineHoursPolicyValues: Codable, Hashable, Sendable {
-    public let dailyReportEvidenceRequired: Bool
-    public let changeoverSplitsBilling: Bool
-    public let allocationCorrectionRequiresApproval: Bool
-
-    public init(dailyReportEvidenceRequired: Bool = false, changeoverSplitsBilling: Bool = false,
-                allocationCorrectionRequiresApproval: Bool = true) {
-        self.dailyReportEvidenceRequired = dailyReportEvidenceRequired
-        self.changeoverSplitsBilling = changeoverSplitsBilling
-        self.allocationCorrectionRequiresApproval = allocationCorrectionRequiresApproval
-    }
-
-    public init(from decoder: any Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        dailyReportEvidenceRequired = try c.decodeIfPresent(Bool.self, forKey: .dailyReportEvidenceRequired) ?? false
-        changeoverSplitsBilling = try c.decodeIfPresent(Bool.self, forKey: .changeoverSplitsBilling) ?? false
-        allocationCorrectionRequiresApproval = try c.decodeIfPresent(Bool.self, forKey: .allocationCorrectionRequiresApproval) ?? true
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case dailyReportEvidenceRequired = "daily_report_evidence_required"
-        case changeoverSplitsBilling = "changeover_splits_billing"
-        case allocationCorrectionRequiresApproval = "allocation_correction_requires_approval"
-    }
 }

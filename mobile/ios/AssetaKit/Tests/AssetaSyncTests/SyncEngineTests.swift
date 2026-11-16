@@ -23,8 +23,7 @@ struct SyncEngineTests {
         #expect(registration["device_id"] as? String == h.deviceID)
         #expect(registration["app_version"] as? String == "0.1.0 (1)")
         #expect(try h.store.syncState.value("cursor", tenant: SyncFixtures.tenant.lowercased) == "100")
-        #expect(try h.directoryView.jobs().map(\.job.jobNumber) == ["J-1001"])
-        #expect(try h.directoryView.jobs().first?.machine?.assetCode == "EX-07")
+        #expect(try h.directoryView.machines().map(\.assetCode) == ["EX-07"])
         #expect(try h.directoryView.meterSnapshots().map(\.scopeKey) == ["tenant"])
         // Second cycle does not register or bootstrap again.
         _ = try await h.engine().sync()
@@ -35,7 +34,7 @@ struct SyncEngineTests {
         let h = try SyncHarness()
         let engine = h.engine()
         _ = try await engine.sync()
-        let (capture, start) = try h.recordOpeningAndStart()
+        let (capture, start) = try h.recordReadingAndReport()
         h.server.mutate { $0.offline = true }
         let offline = try await engine.sync(force: true)
         guard case .offline = offline.outcome else { Issue.record("expected offline, got \(offline.outcome)"); return }
@@ -52,7 +51,7 @@ struct SyncEngineTests {
         #expect(try h.status(capture.id) == .acked)
         #expect(try h.status(start.id) == .acked)
         #expect(h.server.read { $0.applyOrder } == [capture.id, start.id])
-        // START waited for the capture's ACK: separate batches, never ahead of its dependency.
+        // The report waited for the capture's ACK: separate batches, never ahead of its dependency.
         #expect(h.server.read { $0.pushedBatchSizes }.suffix(2) == [1, 1])
         let payload = try JSONValue.parse(try #require(try h.store.outbox.operation(id: capture.id)).payloadJSON)
         let attachmentID = try #require(payload["photo_attachment_id"]?.stringValue)
@@ -64,9 +63,8 @@ struct SyncEngineTests {
         let h = try SyncHarness()
         let engine = h.engine()
         _ = try await engine.sync()
-        let job = SyncFixtures.jobDTO
-        let capture = try h.recorder.recordCapture(
-            job: job, kind: .opening, mode: .manual, reading: "10.0", ocr: nil, photo: nil, gps: .failed(.timeout),
+        let capture = try h.recorder.recordDailyReading(
+            machineID: SyncFixtures.machineID, mode: .manual, reading: "10.0", ocr: nil, photo: nil, gps: .failed(.timeout),
             capturedAt: h.clock.wallNow, snapshot: SyncFixtures.meterSnapshot)
         h.server.mutate { $0.dropNextPushResponse = true }
         _ = try await engine.sync(force: true)
@@ -83,7 +81,7 @@ struct SyncEngineTests {
         let h = try SyncHarness()
         let engine = h.engine()
         _ = try await engine.sync()
-        let (capture, _) = try h.recordOpeningAndStart()
+        let (capture, _) = try h.recordReadingAndReport()
         h.server.mutate { $0.script[capture.id] = ["DEFERRED"] }
         _ = try await engine.sync(force: true)
         let deferred = try #require(try h.store.outbox.operation(id: capture.id))
@@ -98,29 +96,27 @@ struct SyncEngineTests {
         let h = try SyncHarness()
         let engine = h.engine()
         _ = try await engine.sync()
-        let (_, start) = try h.recordOpeningAndStart()
-        let activity = try h.recorder.recordActivity(job: SyncFixtures.jobDTO, type: .work, startedAt: h.clock.wallNow,
-                                                     endedAt: nil, billable: true, note: "dig")
-        h.server.mutate { $0.script[start.id] = ["CONFLICT"] }
+        let (capture, report) = try h.recordReadingAndReport()
+        h.server.mutate { $0.script[capture.id] = ["CONFLICT"] }
         _ = try await engine.sync(force: true)
-        let op = try #require(try h.store.outbox.operation(id: start.id))
+        let op = try #require(try h.store.outbox.operation(id: capture.id))
         #expect(op.status == .conflict)
-        #expect(op.errorCode == "INVALID_JOB_TRANSITION")
-        #expect(try h.status(activity.id) == .pending) // not sent: its parent was never ACKED
+        #expect(op.errorCode == "REPORT_PENDING")
+        #expect(try h.status(report.id) == .pending) // not sent: its parent was never ACKED
         let overview = try h.directoryView.overview()
-        let item = try #require(overview.items.first { $0.id == start.id })
-        #expect(item.serverState?.contains("CANCELLED") == true)
-        #expect(overview.items.first { $0.id == activity.id }?.waitingFor?.contains("Blocked") == true)
+        let item = try #require(overview.items.first { $0.id == capture.id })
+        #expect(item.serverState?.contains("MR-2026-00009") == true)
+        #expect(overview.items.first { $0.id == report.id }?.waitingFor?.contains("Blocked") == true)
         // No auto-overwrite: re-syncing leaves the conflict as it is.
         _ = try await engine.sync(force: true)
-        #expect(try h.status(start.id) == .conflict)
+        #expect(try h.status(capture.id) == .conflict)
     }
 
     @Test func rejectedBecomesFailedWithVisibleCode() async throws {
         let h = try SyncHarness()
         let engine = h.engine()
         _ = try await engine.sync()
-        let (capture, _) = try h.recordOpeningAndStart()
+        let (capture, _) = try h.recordReadingAndReport()
         h.server.mutate { $0.script[capture.id] = ["REJECTED"] }
         _ = try await engine.sync(force: true)
         let op = try #require(try h.store.outbox.operation(id: capture.id))
@@ -133,7 +129,7 @@ struct SyncEngineTests {
         let h = try SyncHarness()
         let engine = h.engine()
         _ = try await engine.sync()
-        let (capture, _) = try h.recordOpeningAndStart()
+        let (capture, _) = try h.recordReadingAndReport()
         h.server.mutate { $0.readOnly = true }
         _ = try await engine.sync(force: true)
         #expect(try h.status(capture.id) == .quarantined)
@@ -153,7 +149,7 @@ struct SyncEngineTests {
     @Test func deviceRevokedTriggersFullLocalWipe() async throws {
         let h = try SyncHarness()
         _ = try await h.engine().sync()
-        try h.recordOpeningAndStart() // unsynced evidence on the phone
+        try h.recordReadingAndReport() // unsynced evidence on the phone
         h.server.mutate { $0.revoked = true }
         do {
             _ = try await h.engine().sync(force: true)
@@ -192,7 +188,7 @@ struct SyncEngineTests {
         let h = try SyncHarness()
         let engine = h.engine()
         _ = try await engine.sync()
-        let (capture, _) = try h.recordOpeningAndStart(photoBytes: 2500) // 3 chunks of 1000 bytes
+        let (capture, _) = try h.recordReadingAndReport(photoBytes: 2500) // 3 chunks of 1000 bytes
         h.server.mutate { $0.failChunkPut = (index: 1, times: 1) }
         let first = try await engine.sync(force: true)
         guard case .offline = first.outcome else { Issue.record("\(first.outcome)"); return }
@@ -210,7 +206,7 @@ struct SyncEngineTests {
         let h = try SyncHarness()
         let engine = h.engine()
         _ = try await engine.sync()
-        let (capture, _) = try h.recordOpeningAndStart()
+        let (capture, _) = try h.recordReadingAndReport()
         h.server.mutate { $0.corruptNextComplete = true }
         let report = try await engine.sync(force: true)
         #expect(report.outcome == .synced)
@@ -225,7 +221,7 @@ struct SyncEngineTests {
         let bytes = Data((0..<2500).map { UInt8($0 % 251) })
         let known = UUID()
         h.server.mutate { $0.knownContent[EvidenceStore.sha256Hex(bytes)] = known }
-        let (capture, _) = try h.recordOpeningAndStart()
+        let (capture, _) = try h.recordReadingAndReport()
         _ = try await engine.sync(force: true)
         #expect(h.server.read { $0.chunkPuts.isEmpty })
         #expect(try h.store.outbox.operation(id: capture.id)?.payloadJSON.contains(known.lowercased) == true)
@@ -234,8 +230,8 @@ struct SyncEngineTests {
     @Test func operationsSentBeforeTerminationAreResent() async throws {
         let h = try SyncHarness()
         _ = try await h.engine().sync()
-        let capture = try h.recorder.recordCapture(
-            job: SyncFixtures.jobDTO, kind: .opening, mode: .manual, reading: "10.0", ocr: nil, photo: nil,
+        let capture = try h.recorder.recordDailyReading(
+            machineID: SyncFixtures.machineID, mode: .manual, reading: "10.0", ocr: nil, photo: nil,
             gps: .failed(.permissionDenied), capturedAt: h.clock.wallNow, snapshot: SyncFixtures.meterSnapshot)
         try h.store.outbox.markSent(id: capture.id) // app killed while the push was in flight
         _ = try await h.engine().sync(force: true)   // fresh engine = relaunch
@@ -246,12 +242,12 @@ struct SyncEngineTests {
         let h = try SyncHarness(batchSize: 4)
         let engine = h.engine()
         _ = try await engine.sync()
-        let (_, _) = try h.recordOpeningAndStart()
+        let (_, _) = try h.recordReadingAndReport()
         h.clock.advance(1)
         _ = try await engine.sync(force: true)
         for i in 0..<9 {
-            try h.recorder.recordActivity(job: SyncFixtures.jobDTO, type: .note, startedAt: h.clock.wallNow, endedAt: nil,
-                                          billable: nil, note: "n\(i)")
+            try h.recorder.recordCashHandover(amountText: "\(i + 1)", currency: "TZS", reference: nil, note: "n\(i)",
+                                              handedAt: h.clock.wallNow)
         }
         _ = try await engine.sync(force: true)
         #expect(h.server.read { $0.pushedBatchSizes }.suffix(3) == [4, 4, 1])
@@ -264,13 +260,15 @@ struct SyncEngineTests {
         let h = try SyncHarness()
         let engine = h.engine()
         _ = try await engine.sync()
-        h.server.mutate { $0.jobs = [SyncFixtures.job(status: "IN_PROGRESS", version: 2)]; $0.cursor = 120 }
+        var renamed = SyncFixtures.machine(version: 3)
+        renamed["name"] = "Excavator 7 (rebuilt)"
+        h.server.mutate { $0.machines = [renamed]; $0.cursor = 120 }
         _ = try await engine.sync(force: true)
-        #expect(try h.directoryView.jobs().first?.job.status == .inProgress)
-        // A replayed older page (lookback overlap) must not roll the job back.
-        let stale = StoredEntity(entityType: "job", id: SyncFixtures.jobID, revision: 90, version: 1,
-                                 json: String(decoding: try JSONSerialization.data(withJSONObject: SyncFixtures.job()), as: UTF8.self))
+        #expect(try h.directoryView.machines().first?.name == "Excavator 7 (rebuilt)")
+        // A replayed older page (lookback overlap) must not roll the machine back.
+        let stale = StoredEntity(entityType: "machine", id: SyncFixtures.machineID, revision: 90, version: 2,
+                                 json: String(decoding: try JSONSerialization.data(withJSONObject: SyncFixtures.machine()), as: UTF8.self))
         #expect(try h.store.syncState.upsert([stale], tenantID: SyncFixtures.tenant) == 0)
-        #expect(try h.directoryView.jobs().first?.job.version == 2)
+        #expect(try h.directoryView.machines().first?.version == 3)
     }
 }

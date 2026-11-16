@@ -89,13 +89,6 @@ final class ExpenseFormModel {
         return receipt + gps + approval + " (Rules \(snapshot.versionStamp).)"
     }
 
-    func selectJob(_ id: UUID?, model: FieldModel) {
-        draft.jobID = id
-        let machine = id.flatMap { model.job($0)?.job.machineID }
-        draft.jobMachineID = machine
-        if let machine { draft.machineID = machine }
-    }
-
     /// A fresh fix for every expense (never a cached location).
     func locate(using locator: LocationCapturer) async {
         gpsState = .locating

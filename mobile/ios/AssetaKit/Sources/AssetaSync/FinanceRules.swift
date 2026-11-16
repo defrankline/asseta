@@ -92,9 +92,6 @@ public struct ExpenseDraft: Sendable, Equatable {
     public var description = ""
     public var supplier = ""
     public var machineID: UUID?
-    public var jobID: UUID?
-    /// The machine of the selected job (the server attributes a job's cost to its machine).
-    public var jobMachineID: UUID?
     public var paidFrom: ExpensePaidFrom = .cashCustody
     /// PETTY_CASH (DEC-033): the fund that paid and, optionally, the advance of that fund given to me.
     public var pettyCashFundID: UUID?
@@ -116,7 +113,6 @@ public enum ExpenseIssue: Sendable, Equatable, CustomStringConvertible {
     case gpsPending
     case gpsRequired(status: GpsStatus)
     case gpsTooInaccurate(accuracyM: Double, maxM: Double)
-    case attributionMismatch
 
     public var description: String {
         switch self {
@@ -129,7 +125,6 @@ public enum ExpenseIssue: Sendable, Equatable, CustomStringConvertible {
         case let .gpsRequired(status): "Your company requires a GPS fix for expenses (\(status.rawValue)). Try location again outdoors."
         case let .gpsTooInaccurate(accuracy, maxM):
             "The location is accurate to ±\(Int(accuracy.rounded())) m; your company requires ±\(Int(maxM)) m or better. Try location again."
-        case .attributionMismatch: "The machine does not match the selected job's machine."
         }
     }
 
@@ -180,7 +175,6 @@ public enum ExpenseRules {
         // Unknown base currency + an explicit code: treat as foreign (stricter; the server decides).
         let foreign = currency.map { $0 != baseCurrency } ?? false
         if draft.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { issues.append(.descriptionMissing) }
-        if let job = draft.jobMachineID, let machine = draft.machineID, job != machine { issues.append(.attributionMismatch) }
 
         let threshold = policy.receiptRequiredAbove.value
         let receiptRequired = foreign || (amount.map { $0 > threshold } ?? (threshold == 0))
@@ -252,10 +246,10 @@ public enum FinanceRules {
         }
     }
 
-    /// Fuel event shape rules from `FuelEventIn`: ISSUE/USAGE need a machine or job; PURCHASE/ISSUE
+    /// Fuel event shape rules from `FuelEventIn`: ISSUE/USAGE need a machine; PURCHASE/ISSUE
     /// need a unit price; USAGE carries no price.
     public static func fuelIssues(type: FuelEventType, litres: String, unitPrice: String, meterReading: String,
-                                  machineID: UUID?, jobID: UUID?) -> [String] {
+                                  machineID: UUID?) -> [String] {
         var issues: [String] = []
         if case let .failure(f) = DecimalInput.parse(litres, maxFractionDigits: litresDecimals) {
             issues.append(ExpenseIssue.describe(f, what: "Litres"))
@@ -267,7 +261,7 @@ public enum FinanceRules {
            case let .failure(f) = DecimalInput.parse(meterReading, maxFractionDigits: meterDecimals, allowZero: true) {
             issues.append(ExpenseIssue.describe(f, what: "Meter reading"))
         }
-        if type != .purchase && machineID == nil && jobID == nil { issues.append("Choose the machine or job the fuel went to.") }
+        if type != .purchase && machineID == nil { issues.append("Choose the machine the fuel went to.") }
         return issues
     }
 }

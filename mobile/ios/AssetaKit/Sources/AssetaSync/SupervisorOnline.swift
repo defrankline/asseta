@@ -18,7 +18,7 @@ public enum OnlineResult<T: Sendable>: Sendable {
 }
 
 /// The Supervisor's optional online reads: server notifications (EXPENSE_DECIDED,
-/// CASH_NOT_HANDED_OVER, JOB_MISSING_READINGS, ...) cached in the encrypted store for offline viewing
+/// CASH_NOT_HANDED_OVER, MACHINE_REPORT_DECIDED, ...) cached in the encrypted store for offline viewing
 /// (cleared with the tenant's state when another user signs in), today's cash reconciliation (likewise saved) and
 /// short-lived evidence URLs. Conveniences on top of sync: the app works fully without them.
 /// Same behaviour as Android `SupervisorOnline`.

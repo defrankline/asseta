@@ -1,7 +1,7 @@
 import AssetaModel
 import Foundation
 
-/// What the active policy snapshot demands for one reading (OPENING or CLOSING).
+/// What the active policy snapshot demands for one (DAILY) reading.
 public struct CaptureRequirements: Sendable, Equatable {
     public let kind: ReadingKind
     public let requiredMode: CaptureMode
@@ -10,9 +10,9 @@ public struct CaptureRequirements: Sendable, Equatable {
     public let minOCRConfidence: Double
     public let maxRecaptureAttempts: Int
 
-    public init(policy: MeterCapturePolicy, kind: ReadingKind, decimalPlaces: Int) {
+    public init(policy: MeterCapturePolicy, kind: ReadingKind = .daily, decimalPlaces: Int) {
         self.kind = kind
-        self.requiredMode = policy.mode(for: kind)
+        self.requiredMode = policy.captureMode
         // AUTOMATIC is "camera photo + OCR", so it always has a photo; MANUAL follows the policy.
         self.photoRequired = requiredMode == .automatic || policy.manualPhotoRequired
         self.decimalPlaces = min(max(decimalPlaces, 0), 2)

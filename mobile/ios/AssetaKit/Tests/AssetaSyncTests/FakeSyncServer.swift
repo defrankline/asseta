@@ -25,23 +25,17 @@ final class FakeSyncServer: @unchecked Sendable {
     var knownContent: [String: UUID] = [:]
     var serverTime = Date(timeIntervalSince1970: 1_792_000_000)
     var cursor: Int64 = 100
-    var jobs: [[String: Any]] = []
-    /// Whether an accepted JOB_REQUEST's job is delivered by the next pull (false: the pull misses it).
-    var deliverRequestedJobs = true
-    var requestedJobNumber = 104
     var machines: [[String: Any]] = []
     var snapshots: [[String: Any]] = []
     var customers: [[String: Any]] = []
     var expenseCategories: [[String: Any]] = []
     var cashCustody: [[String: Any]] = []
     var depositAccounts: [[String: Any]] = []
-    var openInvoices: [[String: Any]] = []
     /// Other `SyncData` lists sent as given (e.g. the DEC-033 `petty_cash_*` snapshots).
     var extraData: [String: [[String: Any]]] = [:]
-    var changeoverJobs: [[String: Any]] = []
     var unbillableReasons: [[String: Any]] = []
     /// Advertised protocol capabilities (nil: an older server that sends none).
-    var capabilities: [String]? = ["SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST", "OP_JOB_REQUEST"]
+    var capabilities: [String]? = ["SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST", "METER_DAILY_READING", "OP_MACHINE_REPORT"]
     /// The tenant's time zone in bootstrap and changes; nil: not sent (an older server).
     var timezone: String?
     /// Supervisor inbox lists sent with every bootstrap/changes (`my_expenses` → rows); empty: not sent.
@@ -151,12 +145,12 @@ final class FakeSyncServer: @unchecked Sendable {
             case "ATTACHMENT_PENDING":
                 return ["id": id.uuidString.lowercased(), "status": "DEFERRED", "error": ["code": "ATTACHMENT_PENDING"]]
             case "CONFLICT":
-                let error: [String: Any] = ["code": "INVALID_JOB_TRANSITION", "message": "Job is CANCELLED"]
-                let result: [String: Any] = ["error": error, "server_state": ["job_status": "CANCELLED", "job_version": 7]]
+                let error: [String: Any] = ["code": "REPORT_PENDING", "message": "A report on this machine waits for a decision"]
+                let result: [String: Any] = ["error": error, "server_state": ["pending_report_number": "MR-2026-00009"]]
                 stored[id] = StoredOp(status: "CONFLICT", result: result, error: error)
                 return ["id": id.uuidString.lowercased(), "status": "CONFLICT", "result": result, "error": error]
             case let refusal where refusal.hasPrefix("CONFLICT:"):
-                // A business refusal kept for review, with its code (e.g. "CONFLICT:CONTRACT_REQUIRED").
+                // A business refusal kept for review, with its code (e.g. "CONFLICT:HOURS_NOT_AVAILABLE").
                 let error: [String: Any] = ["code": String(refusal.dropFirst("CONFLICT:".count)), "message": "refused"]
                 stored[id] = StoredOp(status: "CONFLICT", result: ["error": error], error: error)
                 return ["id": id.uuidString.lowercased(), "status": "CONFLICT", "result": ["error": error], "error": error]
@@ -167,7 +161,7 @@ final class FakeSyncServer: @unchecked Sendable {
             }
         }
         let payload = op["payload"] as? [String: Any] ?? [:]
-        for field in ["photo_attachment_id", "signature_attachment_id"] {
+        for field in ["photo_attachment_id"] {
             if let text = payload[field] as? String,
                !blobs.values.contains(where: { $0.attachmentID?.uuidString.lowercased() == text }),
                !knownContent.values.contains(where: { $0.uuidString.lowercased() == text }) {
@@ -249,26 +243,6 @@ final class FakeSyncServer: @unchecked Sendable {
             applyOrder.append(id)
             return ["id": id.uuidString.lowercased(), "status": "ACKED", "result": result, "error": NSNull()]
         }
-        if op["op_type"] as? String == "JOB_REQUEST" {
-            // Mirrors JobService.request_job: client_id becomes the job id, numbered by the server, PENDING_APPROVAL.
-            let jobID = payload["client_id"] as? String ?? id.uuidString.lowercased()
-            requestedJobNumber += 1
-            let job: [String: Any] = ["id": jobID, "contract_id": payload["contract_id"] ?? NSNull(),
-                                      "job_number": "J-2026-\(requestedJobNumber)", "machine_id": payload["machine_id"] ?? NSNull(),
-                                      "job_site_id": payload["job_site_id"] ?? NSNull(), "supervisor_id": NSNull(),
-                                      "status": "PENDING_APPROVAL", "planned_start": payload["planned_start"] ?? NSNull(),
-                                      "planned_end": payload["planned_end"] ?? NSNull(), "currency": "TZS", "hourly_rate": "0",
-                                      "minimum_hours": "0", "rate_source": "PENDING_PRICE", "approved_at": NSNull(),
-                                      "started_at": NSNull(), "completed_at": NSNull(), "version": 1,
-                                      "requested_by_staff_id": "dddddddd-0000-4000-8000-00000000000d",
-                                      "requested_by_name": "Juma Field", "request_note": payload["note"] ?? NSNull()]
-            if deliverRequestedJobs { jobs.append(job) }
-            let result: [String: Any] = ["entity": job]
-            stored[id] = StoredOp(status: "ACKED", result: result, error: nil)
-            appliedPayloads[id] = payload
-            applyOrder.append(id)
-            return ["id": id.uuidString.lowercased(), "status": "ACKED", "result": result, "error": NSNull()]
-        }
         let result: [String: Any] = ["entity": ["id": id.uuidString.lowercased(), "version": 3]]
         stored[id] = StoredOp(status: "ACKED", result: result, error: nil)
         appliedPayloads[id] = payload
@@ -330,10 +304,9 @@ final class FakeSyncServer: @unchecked Sendable {
     // MARK: - Helpers
 
     private func data() -> [String: Any] {
-        var data: [String: Any] = ["jobs": jobs, "machines": machines, "sites": [], "customers": customers, "contracts": [],
-                                   "staff": [], "expense_categories": expenseCategories, "cash_custody": cashCustody,
-                                   "deposit_accounts": depositAccounts, "changeover_jobs": changeoverJobs,
-                                   "unbillable_reasons": unbillableReasons, "open_invoices": openInvoices]
+        var data: [String: Any] = ["machines": machines, "sites": [], "customers": customers, "staff": [],
+                                   "expense_categories": expenseCategories, "cash_custody": cashCustody,
+                                   "deposit_accounts": depositAccounts, "unbillable_reasons": unbillableReasons]
         for (key, rows) in inbox { data[key] = rows }
         for (key, rows) in extraData { data[key] = rows }
         return data

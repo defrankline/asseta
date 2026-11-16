@@ -10,9 +10,6 @@ public enum HoursLedgerEntryType {
     public static let transferIn = "TRANSFER_IN"
     public static let expired = "EXPIRED"
     public static let reversal = "REVERSAL"
-    /// Hours a running job used on a day (daily drawdown); replaced by CONSUMED when the job completes.
-    public static let provisional = "PROVISIONAL"
-    public static let provisionalReversed = "PROVISIONAL_REVERSED"
     /// DEC-032 Phase 2: an approved correction added or removed hours; unused hours refunded.
     public static let correctionAdd = "CORRECTION_ADD"
     public static let correctionDeduct = "CORRECTION_DEDUCT"
@@ -35,8 +32,6 @@ public struct HoursBalanceDTO: Codable, Hashable, Sendable, Identifiable {
     public let reversed: DecimalString
     public let transferredIn: DecimalString
     public let transferredOut: DecimalString
-    /// Hours held by running jobs (daily drawdown), already out of `remaining`; 0 when absent.
-    public let provisional: DecimalString
 
     public var id: String { "\(customerID.uuidString):\(machineID.uuidString)" }
 
@@ -57,11 +52,10 @@ public struct HoursBalanceDTO: Codable, Hashable, Sendable, Identifiable {
         reversed = try c.decodeIfPresent(DecimalString.self, forKey: .reversed) ?? zero
         transferredIn = try c.decodeIfPresent(DecimalString.self, forKey: .transferredIn) ?? zero
         transferredOut = try c.decodeIfPresent(DecimalString.self, forKey: .transferredOut) ?? zero
-        provisional = try c.decodeIfPresent(DecimalString.self, forKey: .provisional) ?? zero
     }
 
     enum CodingKeys: String, CodingKey {
-        case purchases, activated, consumed, remaining, expired, reversed, provisional
+        case purchases, activated, consumed, remaining, expired, reversed
         case customerID = "customer_id", customerName = "customer_name", machineID = "machine_id"
         case machineCode = "machine_code", machineName = "machine_name", awaitingActivation = "awaiting_activation"
         case transferredIn = "transferred_in", transferredOut = "transferred_out"
@@ -96,7 +90,6 @@ public struct HoursStatementDTO: Codable, Hashable, Sendable {
         public let expired: DecimalString
         public let cancelled: DecimalString
         public let closingBalance: DecimalString
-        public let provisionalAtClose: DecimalString
         public let awaitingActivation: DecimalString
         /// DEC-032 Phase 2: unused hours refunded in the period; 0 when absent.
         public let refunded: DecimalString
@@ -114,7 +107,6 @@ public struct HoursStatementDTO: Codable, Hashable, Sendable {
             expired = try c.decode(DecimalString.self, forKey: .expired)
             cancelled = try c.decode(DecimalString.self, forKey: .cancelled)
             closingBalance = try c.decode(DecimalString.self, forKey: .closingBalance)
-            provisionalAtClose = try c.decode(DecimalString.self, forKey: .provisionalAtClose)
             awaitingActivation = try c.decode(DecimalString.self, forKey: .awaitingActivation)
             refunded = try c.decodeIfPresent(DecimalString.self, forKey: .refunded) ?? DecimalString(0)
             corrected = try c.decodeIfPresent(DecimalString.self, forKey: .corrected) ?? DecimalString(0)
@@ -123,7 +115,7 @@ public struct HoursStatementDTO: Codable, Hashable, Sendable {
         enum CodingKeys: String, CodingKey {
             case bought, activated, used, expired, cancelled, refunded, corrected
             case openingBalance = "opening_balance", transferredIn = "transferred_in", transferredOut = "transferred_out"
-            case closingBalance = "closing_balance", provisionalAtClose = "provisional_at_close"
+            case closingBalance = "closing_balance"
             case awaitingActivation = "awaiting_activation"
         }
     }
@@ -157,22 +149,20 @@ public struct HoursStatementDTO: Codable, Hashable, Sendable {
         }
     }
 
-    /// Hours used on one day by one job: `DAILY` (provisional while the job runs) or `FINAL` (job completed).
+    /// Hours used on one day by one approved machine report.
     public struct Usage: Codable, Hashable, Sendable {
         public let day: String
-        public let jobID: UUID?
-        public let jobNumber: String?
+        public let machineReportID: UUID?
+        public let machineReportNumber: String?
         public let machineID: UUID
         public let machineCode: String?
         public let machineName: String?
         public let hours: DecimalString
-        public let basis: String
-        public let jobRunning: Bool
 
         enum CodingKeys: String, CodingKey {
-            case day, hours, basis
-            case jobID = "job_id", jobNumber = "job_number", machineID = "machine_id", machineCode = "machine_code"
-            case machineName = "machine_name", jobRunning = "job_running"
+            case day, hours
+            case machineReportID = "machine_report_id", machineReportNumber = "machine_report_number"
+            case machineID = "machine_id", machineCode = "machine_code", machineName = "machine_name"
         }
     }
 
@@ -189,8 +179,8 @@ public struct HoursStatementDTO: Codable, Hashable, Sendable {
         public let machineID: UUID
         public let machineCode: String?
         public let machineName: String?
-        public let jobID: UUID?
-        public let jobNumber: String?
+        public let machineReportID: UUID?
+        public let machineReportNumber: String?
         public let reason: String?
 
         public var id: UUID { entryID }
@@ -199,7 +189,8 @@ public struct HoursStatementDTO: Codable, Hashable, Sendable {
             case day, hours, reason
             case entryID = "entry_id", occurredAt = "occurred_at", entryType = "entry_type", balanceAfter = "balance_after"
             case purchaseID = "purchase_id", purchaseNumber = "purchase_number", machineID = "machine_id"
-            case machineCode = "machine_code", machineName = "machine_name", jobID = "job_id", jobNumber = "job_number"
+            case machineCode = "machine_code", machineName = "machine_name"
+            case machineReportID = "machine_report_id", machineReportNumber = "machine_report_number"
         }
     }
 
@@ -209,12 +200,6 @@ public struct HoursStatementDTO: Codable, Hashable, Sendable {
         case machineCode = "machine_code", machineName = "machine_name", dateFrom = "date_from", dateTo = "date_to"
         case generatedAt = "generated_at", pdfPath = "pdf_path"
     }
-}
-
-/// `HoursStatementUsageDto.basis` values.
-public enum HoursUsageBasis {
-    public static let daily = "DAILY"
-    public static let final = "FINAL"
 }
 
 /// `LowBalanceAlertDto`: a purchase's available hours crossed the tenant's low-balance threshold.
