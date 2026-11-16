@@ -31,21 +31,21 @@ struct OwnerBusinessParityTests {
     // MARK: Figures
 
     @Test func figuresFollowTheDesignRules() {
-        #expect(OwnerFiguresB.compact(850_000) == "850,000")
-        #expect(OwnerFiguresB.compact(3_850_000) == "3.85M")
-        #expect(OwnerFiguresB.compact(2_000_000) == "2.0M")
-        #expect(OwnerFiguresB.compact(91_200_000) == "91.2M")
-        #expect(OwnerFiguresB.compact(1_200_000_000) == "1.2B")
-        #expect(OwnerFiguresB.compact(-5_200_000) == "-5.2M")
-        #expect(OwnerFiguresB.money(3_800_000, currency: "TZS") == "TZS 3,800,000")
-        #expect(OwnerFiguresB.money(Decimal(string: "3800000.5")!, currency: "TZS") == "TZS 3,800,000.50")
-        #expect(OwnerFiguresB.hours(Decimal(string: "3182.80")!) == "3,182.8 h")
-        #expect(OwnerFiguresB.hours(1510) == "1,510 h")
-        #expect(OwnerFiguresB.percent(30, of: 310) == "10%")
-        #expect(OwnerFiguresB.percent(1, of: 0) == nil)
-        #expect(OwnerFiguresB.day("2026-11-30") == "30 Nov")
-        #expect(OwnerFiguresB.day("soon") == "soon")
-        #expect(OwnerFiguresB.days(1) == "1 day" && OwnerFiguresB.days(3) == "3 days")
+        #expect(OwnerFigures.compactMoney(850_000) == "850,000")
+        #expect(OwnerFigures.compactMoney(3_850_000) == "3.85M")
+        #expect(OwnerFigures.compactMoney(2_000_000) == "2.0M")
+        #expect(OwnerFigures.compactMoney(91_200_000) == "91.2M")
+        #expect(OwnerFigures.compactMoney(1_200_000_000) == "1.2B")
+        #expect(OwnerFigures.compactMoney(-5_200_000) == "-5.2M")
+        #expect(OwnerFigures.money(3_800_000, currency: "TZS") == "TZS 3,800,000")
+        #expect(OwnerFigures.money(Decimal(string: "3800000.5")!, currency: "TZS") == "TZS 3,800,000.50")
+        #expect(OwnerFigures.hours(Decimal(string: "3182.80")!) == "3,182.8 h")
+        #expect(OwnerFigures.hours(1510) == "1,510 h")
+        #expect(OwnerFigures.percent(30, of: 310) == "10%")
+        #expect(OwnerFigures.percent(1, of: 0) == nil)
+        #expect(OwnerFigures.day("2026-11-30") == "30 Nov")
+        #expect(OwnerFigures.day("soon") == "soon")
+        #expect(OwnerFigures.days(1) == "1 day" && OwnerFigures.days(3) == "3 days")
     }
 
     // MARK: Customers & hours

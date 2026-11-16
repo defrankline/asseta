@@ -4,7 +4,7 @@ import Foundation
 // ADR-008 Owner Customers & hours, Machines and Money: the same rules and wording as Android (`CustomersScreen.kt`,
 // `MachinesScreen.kt`, `MoneyScreen.kt`; strings doc "ADR-008 apps › Owner").
 
-private typealias F = OwnerFiguresB
+private typealias F = OwnerFigures
 
 /// The tone of a status pill, mapped to the shell pill by the views.
 public enum OwnerPillTone: Sendable, Equatable { case waiting, good, bad, neutral }
@@ -48,11 +48,11 @@ public enum OwnerCustomersParity {
         let tail: String? = if owed == 0 && awaiting == 0 {
             MachineReportOwnerTexts.allPaid
         } else if owed > 0 && awaiting > 0 {
-            MachineReportOwnerTexts.awaitingCredit(F.compact(owed))
+            MachineReportOwnerTexts.awaitingCredit(F.compactMoney(owed))
         } else {
             nil
         }
-        return ["Bought \(F.formatHours(c.bought.value)) h", "used \(F.formatHours(c.used.value)) h", tail]
+        return ["Bought \(F.hoursNumber(c.bought.value)) h", "used \(F.hoursNumber(c.used.value)) h", tail]
             .compactMap { $0 }.joined(separator: " · ")
     }
 
@@ -100,7 +100,7 @@ public enum OwnerMachinesParity {
 
     /// "Last approved reading 1,510 h" or that there is none yet.
     public static func overdueDetail(_ s: MachineReportStatusDTO) -> String {
-        s.lastApprovedReading.map { "Last approved reading \(F.formatHours($0.value)) h" } ?? "No approved reading yet"
+        s.lastApprovedReading.map { "Last approved reading \(F.hoursNumber($0.value)) h" } ?? "No approved reading yet"
     }
 
     /// Every machine with a report status or a report this week (rejected reports left out); overdue ones first, then
@@ -124,9 +124,9 @@ public enum OwnerMachinesParity {
             let overdue = status.flatMap { OverdueMachine.of($0, reminderDays: reminderDays) }
             let latest = week.max { $0.submittedAt < $1.submittedAt }
             let reading: String? = if let latest {
-                "last reading \(F.formatHours(latest.endReading.value)) h" + (latest.state == .submitted ? " (pending)" : "")
+                "last reading \(F.hoursNumber(latest.endReading.value)) h" + (latest.state == .submitted ? " (pending)" : "")
             } else if let last = status?.lastApprovedReading {
-                "last reading \(F.formatHours(last.value)) h"
+                "last reading \(F.hoursNumber(last.value)) h"
             } else {
                 nil
             }
@@ -137,7 +137,7 @@ public enum OwnerMachinesParity {
                                        motion: OwnerFormat.humanize(m.observedMotion.rawValue)) : nil
                 } ?? reading ?? overdueDetail(status)
             } else {
-                detail = [F.hours(hours), "\(F.formatHours(productive)) productive", reading].compactMap { $0 }.joined(separator: " · ")
+                detail = [F.hours(hours), "\(F.hoursNumber(productive)) productive", reading].compactMap { $0 }.joined(separator: " · ")
             }
             let open: OwnerMachineWeek.Open? = if fleetOn {
                 .machine(id)
@@ -170,7 +170,7 @@ public enum OwnerMoneyParity {
     /// "Cash 5.4M · Bank 2.0M · Mobile 1.4M · Credit 3.8M" (methods with nothing left out).
     public static func methods(_ s: SoldByMethod) -> String {
         [("CASH", s.cash), ("BANK", s.bank), ("MOBILE_MONEY", s.mobileMoney), ("CREDIT", s.credit)]
-            .filter { $0.1 > 0 }.map { "\(OwnerMoneyWords.method($0.0)) \(F.compact($0.1))" }.joined(separator: " · ")
+            .filter { $0.1 > 0 }.map { "\(OwnerMoneyWords.method($0.0)) \(F.compactMoney($0.1))" }.joined(separator: " · ")
     }
 
     /// Whether the period has any sale (orders not cancelled).
@@ -197,7 +197,7 @@ public enum OwnerMoneyParity {
     public static func invoiceDetail(_ i: CreditInvoiceDTO) -> String {
         let paid = i.paid.value
         let method = OwnerMoneyWords.singleMethod(i).map { " by \(OwnerMoneyWords.method($0).lowercased())" } ?? ""
-        return [F.compact(i.amount.value), paid > 0 ? "paid \(F.compact(paid))\(method)" : nil, "due \(F.day(i.dueDate))"]
+        return [F.compactMoney(i.amount.value), paid > 0 ? "paid \(F.compactMoney(paid))\(method)" : nil, "due \(F.day(i.dueDate))"]
             .compactMap { $0 }.joined(separator: " · ")
     }
 
@@ -235,6 +235,6 @@ public enum OwnerMoneyParity {
             return overdue(days: days)
         }
         let claimed = s.claimedUnverifiedHandovers.value
-        return claimed > 0 ? MachineReportOwnerTexts.handedAwaiting(F.compact(claimed)) : nil
+        return claimed > 0 ? MachineReportOwnerTexts.handedAwaiting(F.compactMoney(claimed)) : nil
     }
 }

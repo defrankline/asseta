@@ -7,7 +7,7 @@ import AssetaOwnerKit
 import SwiftUI
 
 private typealias T = MachineReportOwnerTexts
-private typealias Fig = OwnerFiguresB
+private typealias Fig = OwnerFigures
 
 private func percent(_ part: Decimal, of total: Decimal) -> Double {
     total > 0 ? min(1, NSDecimalNumber(decimal: part / total).doubleValue) : 0
@@ -66,7 +66,7 @@ struct OwnerCustomersView: View {
                         HStack(spacing: 8) {
                             stat(T.bought, Fig.hours(all.reduce(Decimal(0)) { $0 + $1.bought.value }))
                             stat(T.used, Fig.hours(all.reduce(Decimal(0)) { $0 + $1.used.value }))
-                            stat(T.creditOwed, Fig.compact(owed), warn: owed > 0)
+                            stat(T.creditOwed, Fig.compactMoney(owed), warn: owed > 0)
                         }
                         .padding(16).background(Shell.card, in: RoundedRectangle(cornerRadius: 18))
                         if rows.isEmpty {
@@ -100,7 +100,7 @@ struct OwnerCustomersView: View {
                 HStack {
                     Text(row.customerName ?? row.customerID.uuidString).font(.system(size: 16, weight: .semibold))
                     Spacer()
-                    Text(T.hoursLeft(Fig.formatHours(row.left.value))).font(.system(size: 15, weight: .bold))
+                    Text(T.hoursLeft(Fig.hoursNumber(row.left.value))).font(.system(size: 15, weight: .bold))
                         .foregroundStyle(row.left.value > 0 ? Shell.accent : Shell.muted)
                 }
                 .foregroundStyle(Shell.text)
@@ -113,7 +113,7 @@ struct OwnerCustomersView: View {
                             Text(OwnerCustomersParity.invoiceLine(invoice)).font(.system(size: 12)).foregroundStyle(Shell.muted)
                         }
                         Spacer()
-                        ShellPill(T.owed(Fig.compact(invoice.balance.value)), tone: invoice.overdue ? .bad : .waiting)
+                        ShellPill(T.owed(Fig.compactMoney(invoice.balance.value)), tone: invoice.overdue ? .bad : .waiting)
                     }
                     .padding(10).background(Shell.raised, in: RoundedRectangle(cornerRadius: 12))
                 }
@@ -325,7 +325,7 @@ struct OwnerMoneyView: View {
                         let flag = flags.first { $0.staffMemberID == row.staffMemberID }
                         Button { push(OwnerRoute.cash) } label: {
                             CardRow(row.staffName, subtitle: OwnerMoneyParity.cashDetail(row, overdue: flag), last: index == rows.count - 1) {
-                                Text(Fig.compact(row.closingOutstanding.value)).font(.system(size: 16, weight: .bold))
+                                Text(Fig.compactMoney(row.closingOutstanding.value)).font(.system(size: 16, weight: .bold))
                                     .foregroundStyle(Shell.text)
                             }
                         }

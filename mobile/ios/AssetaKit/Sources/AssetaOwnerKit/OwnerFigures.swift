@@ -66,10 +66,13 @@ public enum OwnerFigures {
         return sign + format(round(magnitude, 0), minFraction: 0, maxFraction: 0)
     }
 
-    /// "TZS 3,800,000" (whole amounts) or the currency format with cents when there are some.
+    /// "TZS 3,800,000" (whole amounts) or "TZS 3,800,000.50" (cents only when there are some). An empty currency gives
+    /// the bare amount.
     public static func money(_ value: Decimal, currency: String) -> String {
-        if round(value, 0) == value { return "\(currency) \(format(value, minFraction: 0, maxFraction: 0))" }
-        return OwnerFormat.money(value, currency: currency, locale: Locale(identifier: "en_US"))
+        let amount = round(value, 0) == value
+            ? format(value, minFraction: 0, maxFraction: 0)
+            : format(round(value, 2), minFraction: 2, maxFraction: 2)
+        return currency.isEmpty ? amount : "\(currency) \(amount)"
     }
 
     /// Hours without trailing zeros, grouped ("300", "12.5", "1,240"; at most two decimals).

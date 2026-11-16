@@ -4,7 +4,7 @@ import Foundation
 // ADR-008 Owner "Record payment" of a credit invoice: the same rules and wording as Android `ui/money/PaymentForm.kt`
 // (strings doc "ADR-008 apps › Owner › Record payment"). The server re-checks everything.
 
-private typealias F = OwnerFiguresB
+private typealias F = OwnerFigures
 
 /// Record payment wording.
 public enum OwnerPaymentTexts {

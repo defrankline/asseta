@@ -4,7 +4,7 @@ import Foundation
 // ADR-008 Owner Reports: the same rules and wording as Android `ui/reports/OwnerReportsScreen.kt` (strings doc
 // "ADR-008 apps › Owner › Reports"). Each REPORTS row opens a screen; nothing is downloaded.
 
-private typealias F = OwnerFiguresB
+private typealias F = OwnerFigures
 
 public enum OwnerReportsTexts {
     public static let byReason = "Non-productive hours by reason"
@@ -109,7 +109,7 @@ public enum OwnerReportsPresentation {
     public static func sold(_ orders: [HoursPurchaseDTO]) -> (hours: Decimal, amount: String?) {
         let live = orders.filter { $0.cancelledAt == nil }
         let amounts = Dictionary(grouping: live, by: \.currency).sorted { $0.key < $1.key }.map { currency, list in
-            "\(currency) \(F.compact(list.reduce(Decimal(0)) { $0 + $1.amount.value }))".trimmingCharacters(in: .whitespaces)
+            "\(currency) \(F.compactMoney(list.reduce(Decimal(0)) { $0 + $1.amount.value }))".trimmingCharacters(in: .whitespaces)
         }
         return (live.reduce(Decimal(0)) { $0 + $1.hours.value }, amounts.isEmpty ? nil : amounts.joined(separator: ", "))
     }
