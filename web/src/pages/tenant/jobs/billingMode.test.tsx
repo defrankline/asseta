@@ -62,6 +62,7 @@ function render(policyRead: boolean) {
     tenantPermissions: [
       'tenant.job.read',
       'tenant.job.write',
+      'tenant.machine.read',
       ...(policyRead ? ['tenant.policy.read'] : []),
     ],
   });

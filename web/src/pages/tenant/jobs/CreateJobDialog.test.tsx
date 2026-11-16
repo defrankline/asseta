@@ -56,7 +56,7 @@ async function choose(user: User, label: RegExp, option: string) {
 
 function render() {
   renderWithProviders(<CreateJobDialog timeZone="UTC" onClose={vi.fn()} onCreated={vi.fn()} />, {
-    tenantPermissions: ['tenant.job.read', 'tenant.job.write'],
+    tenantPermissions: ['tenant.job.read', 'tenant.job.write', 'tenant.machine.read'],
   });
 }
 

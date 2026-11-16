@@ -1,11 +1,11 @@
 import { useCallback } from 'react';
 import { customerService } from '../../../api/services/customerService';
-import { machineService } from '../../../api/services/machineService';
 import { staffService } from '../../../api/services/staffService';
 import type { ContractDto, MachineDto, StaffDto } from '../../../api/types';
 import { FormikAsyncAutocomplete } from '../../../components/forms/FormikAsyncAutocomplete';
 import { machineLabel } from './display';
 import { contractLabel } from './jobDisplay';
+import { useMachineSearch } from './useMachineSearch';
 
 interface PickerProps {
   name: string;
@@ -35,11 +35,7 @@ export function FormikContractPicker(props: PickerProps) {
 
 /** Machine search (asset code / name) bound to a Formik field. */
 export function FormikMachinePicker(props: PickerProps) {
-  const fetchOptions = useCallback(
-    async (q: string, signal: AbortSignal) =>
-      (await machineService.list({ page: 1, page_size: 20, q }, signal)).items,
-    [],
-  );
+  const fetchOptions = useMachineSearch();
   return (
     <FormikAsyncAutocomplete<MachineDto>
       {...props}

@@ -1,8 +1,7 @@
-import { useCallback } from 'react';
-import { machineService } from '../../../api/services/machineService';
 import type { MachineDto } from '../../../api/types';
 import { AsyncAutocomplete } from '../../../components/data/AsyncAutocomplete';
 import { machineLabel } from './display';
+import { useMachineSearch } from './useMachineSearch';
 
 interface MachinePickerProps {
   label?: string;
@@ -15,13 +14,9 @@ interface MachinePickerProps {
   onBlur?: () => void;
 }
 
-/** Server-backed machine search (asset code / name), debounced. */
+/** Server-backed machine search (asset code / name), debounced; field users search their own machines. */
 export function MachinePicker({ label = 'Machine', ...rest }: MachinePickerProps) {
-  const fetchOptions = useCallback(
-    async (q: string, signal: AbortSignal) =>
-      (await machineService.list({ page: 1, page_size: 20, q }, signal)).items,
-    [],
-  );
+  const fetchOptions = useMachineSearch();
   return (
     <AsyncAutocomplete<MachineDto>
       label={label}
