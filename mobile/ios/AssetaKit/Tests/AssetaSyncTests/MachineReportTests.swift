@@ -57,7 +57,7 @@ struct MachineReportTests {
     @Test func eachCustomerIsCappedByTheirAvailableHours() {
         let lines = [Self.customer(Self.pwani, "150"), Self.idle("150")]
         let problems = MachineReportRules.problems(lines, difference: 300, decimalPlaces: 1, available: Self.caps)
-        #expect(problems == [MachineReportTexts.errOverCap("Pwani Road Contractors", "140")])
+        #expect(problems == [MachineReportTexts.errOverCap("C", "140")])
         // Unknown customer (no usable hours) is capped at 0.
         let stranger = MachineReportRules.problems([Self.customer(UUID(), "10")], difference: 10, decimalPlaces: 1, available: Self.caps)
         #expect(stranger.count == 1 && stranger[0].contains("0 h available"))
@@ -67,13 +67,17 @@ struct MachineReportTests {
         #expect(twice.contains(MachineReportTexts.errDuplicateCustomer))
     }
 
-    @Test func linesNeedHoursInMeterStepsAndNonProductiveNeedsReasonAndNote() {
-        var line = Self.idle("2.55", note: "  ")
-        line.reasonID = nil
+    @Test func linesNeedHoursInMeterStepsAndNonProductiveNeedsANote() {
+        let line = Self.idle("2.55", note: "  ")
         let problems = MachineReportRules.problems([line], difference: Decimal(string: "2.5")!, decimalPlaces: 1, available: [:])
-        #expect(problems.contains(MachineReportTexts.errLineHours(1)))
-        #expect(problems.contains(MachineReportTexts.errReason) && problems.contains(MachineReportTexts.errNote))
-        #expect(MachineReportRules.problems([], difference: 0, decimalPlaces: 1, available: [:]) == [MachineReportTexts.errNothingToReport])
+        #expect(problems == ["Enter the hours (more than 0, at most 1 decimal).", "Say what happened for “Breakdown / repair”.",
+                             "2.5 h still to account for"])
+        #expect(MachineReportTexts.errLineHours(0) == "Enter whole hours (more than 0).")
+        #expect(MachineReportTexts.errLineHours(2) == "Enter the hours (more than 0, at most 2 decimals).")
+        #expect(MachineReportRules.problems([], difference: 10, decimalPlaces: 1, available: [:])
+            == ["Add a customer or a non-productive line.", "10 h still to account for"])
+        let many = Array(repeating: Self.idle("1"), count: 51)
+        #expect(MachineReportRules.problems(many, difference: 51, decimalPlaces: 0, available: [:]) == ["At most 50 lines per report."])
     }
 
     @Test func availableHoursFollowTheScopeAndUnsentReports() {

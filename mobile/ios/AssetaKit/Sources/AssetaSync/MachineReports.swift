@@ -46,8 +46,8 @@ extension MachineReportStanding {
         switch self {
         case .opening: MachineReportTexts.pillOpening
         case .due: MachineReportTexts.pillDue
-        case let .awaitingApproval(notSent): notSent ? MachineReportTexts.pillNotSent : MachineReportTexts.pillAwaiting
-        case .rejected: MachineReportTexts.pillRejected
+        case .awaitingApproval: MachineReportTexts.pillAwaiting
+        case .rejected: MachineReportTexts.stateRejected
         case .upToDate: MachineReportTexts.pillUpToDate
         }
     }
@@ -129,37 +129,32 @@ public enum MachineReportRules {
         return result
     }
 
-    /// Every problem with the split, in the order the form shows them; empty = Review may open.
-    /// `available`: each customer's cap (``available(_:machineID:heldByUnsent:)``).
+    /// Every problem with the split, in the order the form shows them (Android `MachineReportRules.check`); empty =
+    /// Review may open. Every line has hours > 0 in the meter's steps; a customer appears once and gets no more than its
+    /// `available` hours (``available(_:machineID:heldByUnsent:)``); a non-productive line has a note; the lines add up
+    /// to `difference` exactly.
     public static func problems(_ lines: [ReportLineDraft], difference: Decimal, decimalPlaces: Int,
                                 available: [UUID: (name: String, hours: Decimal)]) -> [String] {
         typealias T = MachineReportTexts
         var m: [String] = []
         func add(_ s: String) { if !m.contains(s) { m.append(s) } }
-        if difference <= 0 { add(T.errNothingToReport) }
-        var perCustomer: [UUID: Decimal] = [:]
+        if lines.isEmpty { add(T.errNoLines) }
+        if lines.count > maxLines { add(T.errTooManyLines) }
+        let customers = lines.filter { $0.kind == .customer }.compactMap(\.customerID)
+        if Set(customers).count != customers.count { add(T.errDuplicateCustomer) }
         for line in lines {
             let value = hours(line.hoursText, decimalPlaces: decimalPlaces)
             if value == nil { add(T.errLineHours(decimalPlaces)) }
             switch line.kind {
             case .customer:
-                guard let customer = line.customerID else { add(T.errCustomer); continue }
-                if perCustomer[customer] != nil { add(T.errDuplicateCustomer) }
-                perCustomer[customer, default: 0] += value ?? 0
+                let cap = line.customerID.flatMap { available[$0]?.hours } ?? 0
+                if let value, value > cap { add(T.errOverCap(line.customerName, hoursText(cap))) }
             case .nonProductive:
-                if line.reasonID == nil { add(T.errReason) }
-                if line.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { add(T.errNote) }
+                if line.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { add(T.errNote(line.reasonName)) }
             }
         }
-        for (customer, total) in perCustomer.sorted(by: { $0.key.uuidString < $1.key.uuidString }) {
-            let cap = available[customer]
-            if total > (cap?.hours ?? 0) {
-                add(T.errOverCap(cap?.name ?? lines.first { $0.customerID == customer }?.customerName ?? "",
-                                 hoursText(cap?.hours ?? 0)))
-            }
-        }
-        let sum = accounted(lines, decimalPlaces: decimalPlaces)
-        if difference > 0 && sum != difference { add(T.leftToAccount(difference - sum)) }
+        let left = difference - accounted(lines, decimalPlaces: decimalPlaces)
+        if left != 0 { add(T.leftToAccount(left)) }
         return m
     }
 
@@ -179,10 +174,10 @@ public enum MachineReportRules {
     }
 
     /// Hours for display: grouping, 0–1 decimals, no trailing zeros ("300", "1,210.5").
-    public static func hoursText(_ value: Decimal) -> String { AccountabilityRules.hoursNumber(value) }
+    public static func hoursText(_ value: Decimal) -> String { AccountabilityRules.hoursNumber(value, locale: Locale(identifier: "en_US")) }
 
     /// A reading for display with the meter's precision ("1,210.0").
-    public static func readingText(_ value: Decimal, decimalPlaces: Int = 1, locale: Locale = .current) -> String {
+    public static func readingText(_ value: Decimal, decimalPlaces: Int = 1, locale: Locale = Locale(identifier: "en_US")) -> String {
         value.formatted(.number.precision(.fractionLength(decimalPlaces)).locale(locale))
     }
 

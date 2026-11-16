@@ -52,47 +52,51 @@ public enum MachineReportTexts {
     public static let roleSupervisor = "Supervisor"
 
     // Status pills
-    public static let pillOpening = "Opening reading"
+    public static let pillOpening = "First reading needed"
     public static let pillDue = "Report due"
     public static let pillAwaiting = "Awaiting approval"
     public static let pillNotSent = "Not sent yet"
     public static let pillRejected = "Rejected · redo"
+    /// A machine whose last report was rejected (field.report.state.rejected).
+    public static let stateRejected = "Rejected · redo the split"
     public static let pillUpToDate = "Up to date"
 
     // Step 1: reading
     public static let title = "Machine report"
     public static func step(_ n: Int, _ name: String) -> String { "Step \(n) of 3 · \(name)" }
     public static let stepReading = "New reading"
+    public static let stepSplit = "Account for hours"
+    public static let stepReview = "Review & submit"
     public static let machine = "Machine"
-    public static let chooseMachine = "Choose one of your machines"
-    public static let noMachines = "No machines are assigned to you. Ask the office to assign your machines."
+    public static let chooseMachine = "Choose a machine"
+    public static let noMachines = "No machines are assigned to you. The office assigns machines to supervisors."
     public static let lastReading = "Last reading"
-    public static func lastReadingWhen(_ when: String, approved: Bool) -> String { approved ? "\(when)\napproved" : when }
-    public static let noPreviousReading = "No starting reading yet"
-    public static let openingExplain = "This machine has no starting reading yet. Take the meter photo: this first report only records the reading; the next one accounts for the hours."
-    public static let photoLine = "Meter photo · read by the phone"
+    public static let sourceApproved = "approved"
     public static let readingPhoto = "Reading the meter on this phone…"
     public static let readingsAndReset = "Readings and meter reset"
-    public static func photoGps(_ accuracy: Int) -> String { "Meter photo · read by the phone · GPS ±\(accuracy) m" }
-    public static let photoNoGps = "Meter photo · read by the phone · no GPS fix"
-    public static let takePhoto = "Take meter photo"
+    public static let takePhoto = "Take a photo of the meter"
     public static let retakePhoto = "Retake photo"
     public static let newReading = "New reading (check the number)"
     public static let hoursToAccount = "Hours to account for"
     public static func next(_ hours: String) -> String { "Next: account for \(hours) h" }
-    public static let submitOpening = "Submit reading"
+    public static let nextPlain = "Next"
     public static let nothingFooter = "No difference since the last reading? Nothing to report."
-    public static let awaitingExplain = "A report on this machine waits for approval. The next report can be made once it is decided."
-    public static let rejectedExplain = "Your last report was rejected. Redo the split on the same reading."
+    public static let openingTitle = "First reading for this machine"
+    public static let openingBody = "This machine has no starting reading yet. Record the meter now; the next report counts the hours from it."
+    public static let submitOpening = "Submit the reading"
+    /// "Rejected: {reason}. Split the same reading again." (no reason: "Rejected. Split the same reading again.").
+    public static func rejected(_ reason: String?) -> String {
+        let r = reason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return "Rejected" + (r.isEmpty ? "" : ": \(reason ?? "")") + ". Split the same reading again."
+    }
     public static func rejectedReason(_ reason: String) -> String { "Reason: \(reason)" }
-    public static let redoSplit = "Redo the split"
 
     // Step 2: account for hours
     public static func reconcileTitle(_ code: String, _ from: String, _ to: String) -> String { "\(code) · \(from) → \(to)" }
     public static let accountedFor = "Accounted for"
     public static func ofHours(_ total: String) -> String { "/ \(total) h" }
     public static func stillToAccount(_ hours: String) -> String { "\(hours) h still to account for" }
-    public static func overAccounted(_ hours: String) -> String { "\(hours) h more than the meter" }
+    public static func overAccounted(_ hours: String) -> String { "\(hours) h more than the meter shows" }
     public static let allAccounted = "All hours accounted for"
     public static let customersHeader = "CUSTOMERS (FROM HOURS THEY BOUGHT)"
     public static let nonProductiveHeader = "NON-PRODUCTIVE (REASON NEEDED)"
@@ -102,20 +106,19 @@ public enum MachineReportTexts {
     public static func reviewLeft(_ hours: String) -> String { "Review — \(hours) h left to account for" }
     public static let review = "Review"
     public static let reconcileFooter = "A customer can only get hours they have bought and that are usable."
-    public static let noCustomersWithHours = "No customer has usable hours. Sell hours first, or account for the hours as non-productive."
+    public static let noCustomersWithHours = "No customer has usable hours on this phone. Sync, or account for the hours as non-productive."
     public static let customer = "Customer"
     public static let reason = "Reason"
     public static let hours = "Hours"
-    public static let note = "Note (needed)"
-    public static let notePlaceholder = "What happened"
+    public static let whatHappened = "What happened (required)"
     public static let removeLine = "Remove"
     public static let lineDone = "Done"
-    public static let fillRest = "Use the hours left"
 
     // Step 3: review & submit
     public static let reviewTitle = "Review & submit"
     public static func readingRange(_ from: String, _ to: String) -> String { "\(from) h → \(to) h" }
-    public static func periodLine(_ from: String, _ to: String) -> String { "\(from) → \(to) · photo + GPS" }
+    /// "12 Nov, 17:30 → 13 Nov, 08:10 · photo + GPS" (no start: only the end).
+    public static func periodLine(_ from: String?, _ to: String) -> String { (from.map { "\($0) → \(to)" } ?? to) + " · photo + GPS" }
     public static func productiveHeader(_ hours: String) -> String { "PRODUCTIVE · \(hours) h" }
     public static func nonProductiveHeaderTotal(_ hours: String) -> String { "NON-PRODUCTIVE · \(hours) h" }
     public static let total = "Total"
@@ -125,20 +128,22 @@ public enum MachineReportTexts {
     }
     public static let approverNote = "Note for the approver (optional)"
     public static let submit = "Submit for approval"
-    public static let submitted = "Report saved. It is sent when the phone is online."
+    public static let submitting = "Submitting…"
+    public static let queued = "Saved on this phone. It is sent when you are online."
 
     // Errors
     public static let errReading = "Take the meter reading first."
-    public static let errReadingInvalid = "Enter the meter reading."
-    public static func errNotHigher(_ previous: String) -> String { "The new reading must be higher than the last reading (\(previous) h)." }
-    public static let errNothingToReport = "No difference since the last reading. Nothing to report."
+    public static let errReadingInvalid = "Enter the new reading."
+    public static let errReadingLower = "The new reading is below the last reading. Check the number, or ask the office about a meter reset."
+    public static let errNothingToReport = "No difference since the last reading? Nothing to report."
+    public static let errNoLines = "Add a customer or a non-productive line."
+    public static let errTooManyLines = "At most 50 lines per report."
     public static func errLineHours(_ decimals: Int) -> String {
-        decimals == 0 ? "Enter whole hours above 0 on every line." : "Enter hours above 0 on every line (at most \(decimals) decimal)."
+        decimals <= 0 ? "Enter whole hours (more than 0)."
+            : "Enter the hours (more than 0, at most \(decimals) decimal\(decimals == 1 ? "" : "s"))."
     }
-    public static let errCustomer = "Choose the customer."
-    public static let errDuplicateCustomer = "A customer can appear only once."
-    public static let errReason = "Choose the reason."
-    public static let errNote = "Write a note for every non-productive line."
+    public static let errDuplicateCustomer = "Each customer can appear only once."
+    public static func errNote(_ reason: String) -> String { "Say what happened for “\(reason)”." }
     public static func errOverCap(_ name: String, _ available: String) -> String { "\(name) has only \(available) h available." }
     public static func leftToAccount(_ diff: Decimal) -> String {
         diff > 0 ? stillToAccount(MachineReportRules.hoursText(diff)) : overAccounted(MachineReportRules.hoursText(-diff))

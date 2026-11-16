@@ -409,7 +409,7 @@ public enum FieldAccountabilityTexts {
         case "INVOICE_NOT_OPEN": "This invoice is no longer open. Record it again and choose another."
         case "DEPOSIT_ACCOUNT_CURRENCY_MISMATCH":
             "The account you chose holds a different currency. Record the handover again with another account."
-        default: nil
+        default: MachineReportTexts.conflict(code)
         }
     }
 
@@ -453,7 +453,7 @@ public enum FieldAccountabilityTexts {
     public static func operationTitle(_ type: OperationType, payload: JSONValue?) -> String? {
         switch type {
         case .hoursPurchase: hoursSaleOutbox(payload)
-        case .machineReport: payload?["opening"]?.boolValue == true ? MachineReportTexts.pillOpening : MachineReportTexts.title
+        case .machineReport: MachineReportTexts.title
         case .creditInvoicePayment: MachineReportTexts.payTitle
         case .hoursTransferRequest: outboxHoursTransfer
         case .cashTransfer: outboxCashTransfer

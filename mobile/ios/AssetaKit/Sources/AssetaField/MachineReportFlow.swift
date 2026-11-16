@@ -60,6 +60,8 @@ struct MachineReportFlow: View {
     @State private var reportID = UUID()
     /// Redo of a rejected report: its reading and number.
     @State private var redo: MachineReportDTO?
+    /// A submit is under way (the button reads "Submitting…" and cannot be pressed twice).
+    @State private var saving = false
     @Environment(\.openURL) private var openURL
 
     init(model: FieldModel, machineID: UUID?, close: @escaping () -> Void, openMachine: @escaping (UUID) -> Void = { _ in }) {
@@ -90,7 +92,11 @@ struct MachineReportFlow: View {
             ShellHeader(step == 2 ? T.reconcileTitle(code, readingShort(previous), readingShort(newReading))
                         : step == 3 ? T.reviewTitle : T.title,
                         action: back)
-            StepBar(step: step).padding(.horizontal, 16).padding(.top, 6).padding(.bottom, 14)
+            StepBar(step: step).padding(.horizontal, 16).padding(.top, 6)
+            Text(T.step(step, step == 2 ? T.stepSplit : step == 3 ? T.stepReview : T.stepReading))
+                .font(.system(size: 13)).foregroundStyle(Shell.muted)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16).padding(.top, 6).padding(.bottom, 14)
             switch step {
             case 1: readingStep
             case 2: reconcileStep
@@ -115,8 +121,7 @@ struct MachineReportFlow: View {
             Button("OK") { error = nil }
         } message: { Text(error ?? "") }
         .sheet(item: $editing) { line in
-            ReportLineEditor(model: model, line: line, caps: caps, reasons: model.reportReasons, decimals: decimals,
-                             left: left(excluding: line.id)) { saved in
+            ReportLineEditor(model: model, line: line, caps: caps, reasons: model.reportReasons, decimals: decimals) { saved in
                 if let saved {
                     if let i = lines.firstIndex(where: { $0.id == saved.id }) { lines[i] = saved } else { lines.append(saved) }
                 } else {
@@ -128,29 +133,45 @@ struct MachineReportFlow: View {
     }
 
     private func readingShort(_ value: Decimal?) -> String {
-        value.map { $0.formatted(.number.precision(.fractionLength(0...decimals))) } ?? "—"
+        value.map(MachineReportRules.hoursText) ?? "—"
     }
 
     private var caps: [UUID: (name: String, hours: Decimal)] { machineID.map { model.reportCaps(machineID: $0) } ?? [:] }
+
+    /// A new line starts with the hours still to account for (empty when none are left).
+    private var suggestedHours: String { left() > 0 ? AccountabilityRules.plain(left()) : "" }
+
+    /// Customer lines are offered only while customer hours are on; otherwise only non-productive lines.
+    private var customerLines: Bool { model.access.customerHoursOn }
 
     private func left(excluding id: UUID? = nil) -> Decimal {
         (difference ?? 0) - MachineReportRules.accounted(lines.filter { $0.id != id }, decimalPlaces: decimals)
     }
 
     private func back() {
+        if saving { return }
         if step > 1 { step -= 1; return }
         capture?.cancel(model: model)
         close()
     }
 
-    /// A new machine: a fresh capture under its rules (photo, OCR, GPS start now).
+    /// A new machine: a fresh capture under its rules (photo, OCR, GPS start now). A rejected report brings back its
+    /// reading and lines instead (same reading, new split).
     private func prepare(_ id: UUID?) {
         capture?.cancel(model: model)
         capture = nil
         lines = []
+        note = ""
         redo = nil
         reportID = UUID()
-        guard let id, let machine = model.reportMachine(id) else { return }
+        guard let id else { return }
+        if case let .rejected(rejectedID) = model.machineStandings.first(where: { $0.state.machineID == id })?.standing,
+           let report = model.myReports.first(where: { $0.id == rejectedID }) {
+            redo = report
+            lines = MachineReportRules.drafts(from: report)
+            return
+        }
+        guard let machine = model.reportMachine(id) else { return }
         if case let .allowed(snapshot) = model.gate(machineID: id) {
             let c = MeterCaptureModel(target: .daily(machine), snapshot: snapshot)
             capture = c
@@ -167,37 +188,47 @@ struct MachineReportFlow: View {
     @ViewBuilder private var readingStep: some View {
         ScrollView {
             VStack(spacing: 12) {
-                Text(T.step(1, T.stepReading)).font(.system(size: 13)).foregroundStyle(Shell.muted)
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 if machineOptions.isEmpty {
                     ShellCard { Text(T.noMachines).foregroundStyle(Shell.muted) }
+                } else {
+                    ShellPicker(label: T.machine, options: machineOptions, selection: $machineID, placeholder: T.chooseMachine,
+                                emptyMessage: T.noMachines, identifier: "report.machine")
                 }
-                ShellPicker(label: T.machine, options: machineOptions, selection: $machineID, placeholder: T.chooseMachine,
-                            emptyMessage: T.noMachines, identifier: "report.machine")
                 if let entry {
                     switch entry.standing {
-                    case .awaitingApproval:
-                        ShellCard { Text(T.awaitingExplain).foregroundStyle(Shell.muted) }
-                    case let .rejected(reportID):
-                        rejectedCard(reportID)
+                    case let .awaitingApproval(notSent):
+                        ShellCard {
+                            VStack(alignment: .leading, spacing: 8) {
+                                ShellPill(T.pillAwaiting, tone: .waiting)
+                                if let line = entry.state.pendingReportNumber ?? (notSent ? T.queued : nil) {
+                                    Text(line).foregroundStyle(Shell.muted)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                     default:
-                        lastReadingCard(entry.state)
+                        if entry.standing == .opening {
+                            openingCard
+                        } else {
+                            lastReadingCard(entry.state)
+                        }
                         if model.inbox.machines[entry.state.machineID] != nil {
                             Button(T.readingsAndReset) { openMachine(entry.state.machineID) }
                                 .font(.system(size: 13, weight: .semibold)).foregroundStyle(Shell.accent)
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                                 .accessibilityIdentifier("report.readings")
                         }
-                        if case .blocked(let reason) = model.gate(machineID: entry.state.machineID) {
+                        if let redo {
+                            rejectedCard(redo)
+                        } else if case .blocked(let reason) = model.gate(machineID: entry.state.machineID) {
                             ShellCard { Text(reason.message).foregroundStyle(Shell.warnText) }
-                        } else {
+                        } else if capture != nil {
                             photoArea
+                            gpsFailure
                             readingField
-                            if entry.standing == .opening {
-                                ShellCard(fill: Shell.raised) { Text(T.openingExplain).font(.system(size: 14)).foregroundStyle(Shell.text) }
-                            } else {
-                                toAccountCard
-                            }
+                        }
+                        if entry.standing != .opening, let difference, difference > 0, readingIssues.isEmpty {
+                            toAccountCard
                         }
                     }
                 }
@@ -206,47 +237,69 @@ struct MachineReportFlow: View {
         }
         bottom {
             if let entry {
+                let issues = readingIssues
+                let typed = capture?.photoData != nil || !(capture?.draft.readingText.isEmpty ?? true)
                 switch entry.standing {
-                case .awaitingApproval, .rejected: EmptyView()
+                case .awaitingApproval: EmptyView()
                 case .opening:
-                    PrimaryButton(T.submitOpening, enabled: readingProblem == nil, identifier: "report.submitOpening") { submitOpening() }
-                    footnote(readingProblem ?? T.nothingFooter)
+                    if !issues.isEmpty && typed { issueList(issues) }
+                    PrimaryButton(saving ? T.submitting : T.submitOpening, enabled: issues.isEmpty && !saving,
+                                  identifier: "report.submitOpening") { submitOpening() }
                 default:
-                    PrimaryButton(T.next(MachineReportRules.hoursText(max(0, difference ?? 0))), enabled: readingProblem == nil,
-                                  identifier: "report.next") { step = 2 }
-                    footnote(readingProblem ?? T.nothingFooter)
+                    if !issues.isEmpty && (typed || redo != nil) { issueList(issues) }
+                    PrimaryButton(difference.flatMap { $0 > 0 ? T.next(MachineReportRules.hoursText($0)) : nil } ?? T.nextPlain,
+                                  enabled: issues.isEmpty, identifier: "report.next") { step = 2 }
+                    footnote(T.nothingFooter)
                 }
             }
         }
     }
 
-    /// Why step 1 cannot go on (nil = it can).
-    private var readingProblem: String? {
-        guard let capture else { return T.errReading }
-        if capture.isReadingPhoto { return T.readingPhoto }
-        if let issue = capture.issues.first { return issue.description }
-        guard let reading = newReading else { return T.errReadingInvalid }
-        if entry?.standing == .opening { return nil }
-        guard let previous else { return T.errReading }
-        if reading == previous { return T.errNothingToReport }
-        if reading < previous { return T.errNotHigher(MachineReportRules.readingText(previous, decimalPlaces: decimals)) }
-        return nil
+    /// What still blocks step 1 (capture evidence, then the reading against the last one); empty = it can go on.
+    private var readingIssues: [String] {
+        guard let entry else { return [T.chooseMachine] }
+        if case .awaitingApproval = entry.standing { return [T.pillAwaiting] }
+        if redo != nil { return [] }
+        if case .blocked(let reason) = model.gate(machineID: entry.state.machineID) { return [reason.message] }
+        guard let capture else { return [T.chooseMachine] }
+        if capture.isReadingPhoto { return [T.readingPhoto] }
+        let issues = capture.issues.map(\.description)
+        if !issues.isEmpty { return issues }
+        return [MachineReportRules.readingProblem(previous: previous, reading: newReading)].compactMap { $0 }
     }
 
+    private func issueList(_ issues: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(issues, id: \.self) { Text($0) }
+        }
+        .font(.system(size: 13)).foregroundStyle(Shell.warnText).frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var openingCard: some View {
+        ShellCard {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(T.openingTitle).font(.system(size: 17, weight: .semibold)).foregroundStyle(Shell.text)
+                Text(T.openingBody).font(.system(size: 14)).foregroundStyle(Shell.muted)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// "Last reading 1,210.0 h · 12 Nov, 17:30 · approved" (baseline / meter reset by where the reading comes from).
     private func lastReadingCard(_ state: MachineReportStatusDTO) -> some View {
         ShellCard(padding: 14) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(T.lastReading).font(.system(size: 13)).foregroundStyle(Shell.muted)
-                    Text(state.previousReading.map { MachineReportRules.readingText($0.value, decimalPlaces: decimals) + " h" }
-                         ?? T.noPreviousReading)
+                    Text(previous.map { MachineReportRules.readingText($0, decimalPlaces: decimals) + " h" } ?? "—")
                         .font(.system(size: 22, weight: .bold)).foregroundStyle(Shell.text)
                 }
                 Spacer()
-                if let at = state.previousAt {
-                    Text(T.lastReadingWhen(at.formatted(.dateTime.day().month(.abbreviated).hour().minute()),
-                                           approved: state.previousSource == "REPORT"))
-                        .font(.system(size: 13)).foregroundStyle(Shell.muted).multilineTextAlignment(.trailing)
+                VStack(alignment: .trailing, spacing: 2) {
+                    if let at = redo?.startAt ?? state.previousAt {
+                        Text(MachineReportRules.dayTime(at)).font(.system(size: 13)).foregroundStyle(Shell.muted)
+                    }
+                    Text(T.source(state.previousSource)).font(.system(size: 13)).foregroundStyle(Shell.goodText)
                 }
             }
         }
@@ -257,16 +310,16 @@ struct MachineReportFlow: View {
             if let capture, let data = capture.photoData, let image = UIImage(data: data) {
                 Image(uiImage: image).resizable().scaledToFill().frame(height: 110).clipped()
                     .clipShape(RoundedRectangle(cornerRadius: 10)).padding(.horizontal, 14)
-                    .accessibilityLabel("Meter photo")
+                    .accessibilityLabel(T.photoCaption(readByPhone: false, gps: nil))
                 if let value = capture.draft.ocr?.value {
                     Text(value).font(.system(size: 30, weight: .bold, design: .monospaced)).tracking(3)
                         .foregroundStyle(Color(red: 0x0B / 255, green: 0x17 / 255, blue: 0x22 / 255))
                         .padding(.horizontal, 16).padding(.vertical, 6)
                         .background(Color(red: 0xF3 / 255, green: 0xF6 / 255, blue: 0xF9 / 255), in: RoundedRectangle(cornerRadius: 6))
                 }
+                Text(photoCaption(capture)).font(.system(size: 13)).foregroundStyle(Shell.muted)
             }
-            if let capture, capture.isReadingPhoto { ProgressView() }
-            Text(gpsLine).font(.system(size: 13)).foregroundStyle(Shell.muted)
+            if let capture, capture.isReadingPhoto { ProgressView(T.readingPhoto) }
             Button { Task { if await CameraAccess.request() { showCamera = true } else { cameraDenied = true } } } label: {
                 Text(capture?.photoData == nil ? T.takePhoto : T.retakePhoto)
                     .font(.system(size: 13, weight: .medium)).foregroundStyle(Shell.text)
@@ -282,10 +335,19 @@ struct MachineReportFlow: View {
         .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Shell.outline, style: StrokeStyle(lineWidth: 1, dash: [5])))
     }
 
-    private var gpsLine: String {
-        guard let capture, case let .done(gps) = capture.gpsState else { return T.photoLine }
-        if gps.status == .fix, let accuracy = gps.accuracyM { return T.photoGps(Int(accuracy.rounded())) }
-        return T.photoNoGps
+    /// "Meter photo · read by the phone · GPS ±6 m".
+    private func photoCaption(_ capture: MeterCaptureModel) -> String {
+        var gps: String?
+        if case let .done(result) = capture.gpsState, result.status == .fix { gps = T.gpsAccuracy(result.accuracyM) }
+        return T.photoCaption(readByPhone: capture.draft.mode == .automatic && capture.draft.ocr?.value != nil, gps: gps)
+    }
+
+    /// Why there is no location fix (the reading is still saved, flagged for review).
+    @ViewBuilder private var gpsFailure: some View {
+        if let capture, case let .done(result) = capture.gpsState, result.status != .fix {
+            Text(MeterCaptureView.describe(result.status)).font(.system(size: 13)).foregroundStyle(Shell.warnText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     @ViewBuilder private var readingField: some View {
@@ -303,31 +365,23 @@ struct MachineReportFlow: View {
             HStack {
                 Text(T.hoursToAccount).font(.system(size: 15)).foregroundStyle(Shell.text)
                 Spacer()
-                Text("\(MachineReportRules.hoursText(max(0, difference ?? 0))) h").font(.system(size: 28, weight: .bold))
+                Text("\(MachineReportRules.readingText(max(0, difference ?? 0), decimalPlaces: decimals)) h").font(.system(size: 28, weight: .bold))
                     .foregroundStyle(Shell.accent).monospacedDigit()
             }
         }
     }
 
-    @ViewBuilder private func rejectedCard(_ reportID: UUID) -> some View {
-        let report = model.myReports.first { $0.id == reportID }
+    /// The rejected report: its reason and its reading, split again on Next.
+    private func rejectedCard(_ report: MachineReportDTO) -> some View {
         ShellCard {
             VStack(alignment: .leading, spacing: 8) {
-                ShellPill(T.pillRejected, tone: .bad)
-                Text(T.rejectedExplain).foregroundStyle(Shell.text)
-                if let reason = report?.decisionNote { Text(T.rejectedReason(reason)).foregroundStyle(Shell.muted) }
-                if let report {
-                    Text(T.readingRange(MachineReportRules.readingText(report.startReading.value, decimalPlaces: decimals),
-                                        MachineReportRules.readingText(report.endReading.value, decimalPlaces: decimals)))
-                        .font(.system(size: 15, weight: .semibold)).foregroundStyle(Shell.text)
-                    PrimaryButton(T.redoSplit, identifier: "report.redo") {
-                        redo = report
-                        lines = MachineReportRules.drafts(from: report)
-                        note = report.note ?? ""
-                        step = 2
-                    }
-                }
+                ShellPill(T.stateRejected, tone: .bad)
+                Text(T.rejected(report.decisionNote)).foregroundStyle(Shell.muted)
+                Text(T.newReading).font(.system(size: 13)).foregroundStyle(Shell.muted).padding(.top, 4)
+                Text(MachineReportRules.readingText(report.endReading.value, decimalPlaces: decimals))
+                    .font(.system(size: 28, weight: .bold)).foregroundStyle(Shell.text).monospacedDigit()
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -355,25 +409,26 @@ struct MachineReportFlow: View {
                             .font(.system(size: 13)).foregroundStyle(accounted == diff ? Shell.goodText : Shell.warnText)
                     }
                 }
-                SectionLabel(T.customersHeader).padding(.top, 16).padding(.bottom, 8)
-                lineList(.customer)
+                if customerLines {
+                    SectionLabel(T.customersHeader).padding(.top, 16).padding(.bottom, 8)
+                    lineList(.customer)
+                }
                 SectionLabel(T.nonProductiveHeader).padding(.top, 16).padding(.bottom, 8)
                 lineList(.nonProductive)
                 HStack(spacing: 10) {
-                    OutlineButton(T.addCustomer) {
-                        editing = ReportLineDraft(kind: .customer, hoursText: AccountabilityRules.plain(max(0, left())))
+                    if customerLines {
+                        OutlineButton(T.addCustomer) {
+                            editing = ReportLineDraft(kind: .customer, hoursText: suggestedHours)
+                        }
+                        .accessibilityIdentifier("report.addCustomer")
                     }
-                    .accessibilityIdentifier("report.addCustomer")
                     OutlineButton(T.addNonProductive) {
-                        editing = ReportLineDraft(kind: .nonProductive, hoursText: AccountabilityRules.plain(max(0, left())))
+                        editing = ReportLineDraft(kind: .nonProductive, hoursText: suggestedHours)
                     }
                     .accessibilityIdentifier("report.addNonProductive")
                 }
                 .padding(.top, 12)
-                if caps.values.allSatisfy({ $0.hours <= 0 }) {
-                    Text(T.noCustomersWithHours).font(.system(size: 13)).foregroundStyle(Shell.muted).padding(.top, 10)
-                }
-                let others = problems.filter { $0 != T.leftToAccount(diff - accounted) }
+                let others = problems.filter { diff - accounted <= 0 || $0 != T.leftToAccount(diff - accounted) }
                 if !others.isEmpty && !lines.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(others, id: \.self) { Text($0) }
@@ -385,8 +440,7 @@ struct MachineReportFlow: View {
             .padding(.horizontal, 16)
         }
         bottom {
-            PrimaryButton(problems.isEmpty ? T.review : (accounted != diff ? T.reviewLeft(MachineReportRules.hoursText(diff - accounted))
-                                                         : T.review),
+            PrimaryButton(diff - accounted > 0 ? T.reviewLeft(MachineReportRules.hoursText(diff - accounted)) : T.review,
                           enabled: problems.isEmpty, identifier: "report.review") { step = 3 }
             footnote(T.reconcileFooter)
         }
@@ -492,18 +546,16 @@ struct MachineReportFlow: View {
             .padding(.horizontal, 16)
         }
         bottom {
-            PrimaryButton(T.submit, enabled: true, identifier: "report.submit") { submit() }
+            PrimaryButton(saving ? T.submitting : T.submit, enabled: !saving, identifier: "report.submit") { submit() }
         }
     }
 
-    private var periodStart: String {
-        let at = redo?.startAt ?? entry?.state.previousAt
-        return at?.formatted(.dateTime.day().month(.abbreviated).hour().minute()) ?? "—"
+    private var periodStart: String? {
+        (redo?.startAt ?? entry?.state.previousAt).map { MachineReportRules.dayTime($0) }
     }
 
     private var periodEnd: String {
-        let at = redo?.endAt ?? capture?.photoTakenAt ?? Date()
-        return at.formatted(.dateTime.day().month(.abbreviated).hour().minute())
+        MachineReportRules.dayTime(redo?.endAt ?? capture?.photoTakenAt ?? Date())
     }
 
     @ViewBuilder private func reviewGroup(_ title: String, _ items: [ReportLineDraft]) -> some View {
@@ -535,7 +587,20 @@ struct MachineReportFlow: View {
                                 snapshot: capture.snapshot)
     }
 
-    private func submitOpening() {
+    /// Runs a submit once: the button reads "Submitting…" until the report is queued (then the flow closes) or refused.
+    private func saveOnce(_ work: @escaping @MainActor () -> Void) {
+        guard !saving else { return }
+        saving = true
+        Task { @MainActor in
+            await Task.yield()
+            work()
+            saving = false
+        }
+    }
+
+    private func submitOpening() { saveOnce(queueOpening) }
+
+    private func queueOpening() {
         guard let machineID, let reading = reading() else { error = T.errReading; return }
         do {
             try model.submitReport(machineID: machineID, reading: reading, existingCaptureID: nil, correctsReportID: nil,
@@ -546,7 +611,9 @@ struct MachineReportFlow: View {
         }
     }
 
-    private func submit() {
+    private func submit() { saveOnce(queueReport) }
+
+    private func queueReport() {
         guard let machineID, let diff = difference else { return }
         let checked: CheckedReport
         switch MachineReportRules.check(lines, difference: diff, decimalPlaces: decimals, available: caps, note: note) {
@@ -587,7 +654,6 @@ struct ReportLineEditor: View {
     let caps: [UUID: (name: String, hours: Decimal)]
     let reasons: [MachineReportReasonDTO]
     let decimals: Int
-    let left: Decimal
     let done: (ReportLineDraft?) -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -611,15 +677,10 @@ struct ReportLineEditor: View {
                 Section {
                     TextField(T.hours, text: $line.hoursText).keyboardType(.decimalPad).font(.title3.monospacedDigit())
                         .accessibilityIdentifier("line.hours")
-                    if left > 0 {
-                        Button(T.fillRest + " (\(MachineReportRules.hoursText(left)) h)") {
-                            line.hoursText = AccountabilityRules.plain(left)
-                        }
-                    }
                 } header: { Text(T.hours) }
                 if line.kind == .nonProductive {
-                    Section(T.note) {
-                        TextField(T.notePlaceholder, text: $line.note, axis: .vertical).lineLimit(2...5)
+                    Section(T.whatHappened) {
+                        TextField("", text: $line.note, axis: .vertical).lineLimit(2...5)
                             .accessibilityIdentifier("line.note")
                     }
                 }
