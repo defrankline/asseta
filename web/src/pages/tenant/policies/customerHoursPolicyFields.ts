@@ -1,15 +1,15 @@
 /** Customer hours policy fields (CUSTOMER_HOURS; mirrors backend CustomerHoursPolicy). */
 import type { FieldOption, PolicyFieldDef } from './policyFields';
 
-const BILLING_MODE_OPTIONS: readonly FieldOption[] = [
-  { value: 'INVOICE', label: 'Invoice after the work' },
-  { value: 'PREPAID_HOURS', label: 'Prepaid customer hours' },
-];
-
 const CASH_ACTIVATION_OPTIONS: readonly FieldOption[] = [
   { value: 'VERIFY', label: 'By the office (Verify)' },
   { value: 'ON_HANDOVER', label: 'When the handover is confirmed' },
   { value: 'ON_RECORDING', label: 'When recorded' },
+];
+
+const REPORT_HOURS_SCOPE_OPTIONS: readonly FieldOption[] = [
+  { value: 'CUSTOMER', label: 'Any of the customer’s hours' },
+  { value: 'MACHINE', label: 'Only the customer’s hours on the reported machine' },
 ];
 
 export const CUSTOMER_HOURS_FIELDS: readonly PolicyFieldDef[] = [
@@ -17,22 +17,9 @@ export const CUSTOMER_HOURS_FIELDS: readonly PolicyFieldDef[] = [
     key: 'enabled',
     label: 'Customer hours switched on',
     kind: 'bool',
-    help: 'Off: no purchases or prepaid jobs; jobs are invoiced.',
+    help: 'Off: no hours sales, credit invoices or customer lines on machine reports.',
   },
   { key: 'walk_in_allowed', label: 'Walk-in customers allowed', kind: 'bool' },
-  {
-    key: 'billing_modes',
-    label: 'Billing methods allowed on jobs',
-    kind: 'multiEnum',
-    options: BILLING_MODE_OPTIONS,
-    help: 'The default billing below must be one of these.',
-  },
-  {
-    key: 'default_billing_mode',
-    label: 'Default billing of new jobs',
-    kind: 'enum',
-    options: BILLING_MODE_OPTIONS,
-  },
   {
     key: 'activation_basis',
     label: 'Hours activate from',
@@ -58,20 +45,6 @@ export const CUSTOMER_HOURS_FIELDS: readonly PolicyFieldDef[] = [
     help: 'Counted from activation; leave empty to never expire.',
   },
   { key: 'expiry_warning_days', label: 'Warn before expiry', kind: 'int', unit: 'days' },
-  {
-    key: 'over_consumption',
-    label: 'When a prepaid job has no hours left',
-    kind: 'enum',
-    options: [
-      { value: 'BLOCK_START', label: 'Do not let the job start' },
-      { value: 'FLAG_EXCESS', label: 'Allow it and flag the excess' },
-    ],
-  },
-  {
-    key: 'overrun_exception_blocking',
-    label: 'Excess hours block the job until reviewed',
-    kind: 'bool',
-  },
   {
     key: 'transfer_requires_approval',
     label: 'Transfers between machines need a second person',
@@ -131,16 +104,6 @@ export const CUSTOMER_HOURS_FIELDS: readonly PolicyFieldDef[] = [
     unit: 'h',
   },
   {
-    key: 'drawdown',
-    label: 'Take prepaid hours from the balance',
-    kind: 'enum',
-    options: [
-      { value: 'AT_COMPLETION', label: 'When the job is completed' },
-      { value: 'DAILY', label: 'Every day from the readings (final at completion)' },
-    ],
-    help: 'Daily: the balance goes down each day the machine works; completion replaces the daily figures.',
-  },
-  {
     key: 'low_balance_hours',
     label: 'Warn the office when hours left fall to',
     kind: 'nullableDecimal',
@@ -153,15 +116,24 @@ export const CUSTOMER_HOURS_FIELDS: readonly PolicyFieldDef[] = [
     kind: 'bool',
   },
   {
-    key: 'walk_in_standard_contract',
-    label: 'Walk-in customers get a standard rate-card contract with their first sale',
+    key: 'field_credit_sales',
+    label:
+      'Field staff may sell hours on credit (a credit invoice is created; the office approves the hours)',
     kind: 'bool',
+    help: 'People allowed to activate credit may always record a credit part.',
   },
   {
-    key: 'prepaid_job_auto_approval',
-    label:
-      'Prepaid jobs booked with a sale are approved automatically once the sale is fully paid and verified',
-    kind: 'bool',
+    key: 'report_hours_scope',
+    label: 'Machine reports draw customer hours from',
+    kind: 'enum',
+    options: REPORT_HOURS_SCOPE_OPTIONS,
+  },
+  {
+    key: 'machine_report_reminder_days',
+    label: 'Remind approvers when a machine moved with no report for',
+    kind: 'nullableNumber',
+    unit: 'days',
+    help: 'Counted from the meter or tracker; leave empty for no reminder.',
   },
   {
     key: 'cash_activation',

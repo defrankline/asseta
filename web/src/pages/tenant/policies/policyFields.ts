@@ -223,6 +223,12 @@ export const EXPENSE_CAPTURE_FIELDS: readonly PolicyFieldDef[] = [
     kind: 'decimal',
     help: 'Expenses up to this amount are approved automatically; 0 means every expense needs an approver.',
   },
+  {
+    key: 'fuel_enabled',
+    label: 'Fuel recording switched on',
+    kind: 'bool',
+    help: 'Off: no Fuel tab, menu, approvals, fuel checks or fuel insights anywhere; recorded fuel is kept, hidden.',
+  },
 ];
 
 export const POLICY_FIELDS: Readonly<Record<PolicyType, readonly PolicyFieldDef[]>> = {

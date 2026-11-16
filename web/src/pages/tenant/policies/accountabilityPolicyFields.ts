@@ -103,7 +103,6 @@ const DASHBOARD_TILES: readonly FieldOption[] = [
   { value: 'unexplained_hours', label: 'Unexplained engine hours' },
   { value: 'missing_daily_reports', label: 'Missing daily reports' },
   { value: 'revenue_differences', label: 'Revenue differences' },
-  { value: 'unbilled_work', label: 'Unbilled work' },
   { value: 'idle_machines', label: 'Idle machines' },
   { value: 'investigations', label: 'Investigations' },
   { value: 'cash', label: 'Cash' },
@@ -122,10 +121,9 @@ const SCORECARD_ITEMS: readonly FieldOption[] = [
   { value: 'CASH_DIFFERENCE', label: 'Cash differences' },
   { value: 'REVENUE_DIFFERENCE', label: 'Revenue differences' },
   { value: 'REFUSED_ATTEMPT', label: 'Refused attempts' },
-  { value: 'MISSED_CHECKIN', label: 'Missed site check-ins' },
 ];
 
-/** DEC-031 Phase 5 (all off by default): people scorecard, unbilled work, idle machines, site check-ins. */
+/** DEC-031 Phase 5 (all off by default): people scorecard and idle machines. */
 const PHASE5_OVERSIGHT_FIELDS: readonly PolicyFieldDef[] = [
   {
     key: 'scorecard_enabled',
@@ -155,43 +153,11 @@ const PHASE5_OVERSIGHT_FIELDS: readonly PolicyFieldDef[] = [
     minItems: 0,
   },
   {
-    key: 'unbilled_after_days',
-    label: 'Completed work not invoiced after',
-    kind: 'nullableNumber',
-    unit: 'days',
-    help: 'Billing-ready jobs not on an issued invoice after this many days are listed and notified. Empty = off.',
-  },
-  {
     key: 'idle_after_days',
     label: 'Machine idle after',
     kind: 'nullableNumber',
     unit: 'days',
-    help: 'Active machines with no job and no engine hours for this many days are listed. Empty = off.',
-  },
-  {
-    key: 'site_checkin_required',
-    label: 'Supervisors check in at the site',
-    kind: 'bool',
-    help: 'GPS check-in in the Supervisor app at the times below while running a job. Shown to the person.',
-  },
-  {
-    key: 'site_checkin_times',
-    label: 'Check-in times',
-    kind: 'timeList',
-    help: 'Tenant local times of day (HH:MM, 24 h). Add as many as needed; leave none for no check-ins.',
-  },
-  {
-    key: 'site_checkin_window_minutes',
-    label: 'Check-in window (before or after)',
-    kind: 'int',
-    unit: 'min',
-  },
-  {
-    key: 'site_checkin_max_distance_m',
-    label: 'Check-in distance from the site',
-    kind: 'nullableNumber',
-    unit: 'm',
-    help: 'Check-ins farther than this from the site centre are marked; leave empty to only show the distance.',
+    help: 'Active machines with no approved report hours for this many days are listed. Empty = off.',
   },
 ];
 
