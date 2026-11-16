@@ -2799,6 +2799,7 @@ Rules (Android `ShellModel`, `MachineReportRules`, `FieldAccess`; iOS the same n
 | field.sell.status.full | Fully paid · balance 0 |
 | field.sell.status.part | Part paid · balance {amount} |
 | field.sell.status.none | Not paid yet |
+| field.sell.received | No received date or time on the form: the lines are received when the sale is saved. |
 | field.sell.save | Save sale |
 | field.sell.saving | Saving… |
 | field.sell.footer | No job is created. Hours become usable when the money is verified. A credit part creates an invoice automatically; its hours wait for office approval. |
@@ -2962,6 +2963,9 @@ Rules (Android `ShellModel`, `MachineReportRules`, `FieldAccess`; iOS the same n
 | field.dashboard.report.approved | Approved |
 | field.dashboard.report.rejected | Rejected |
 | field.settings.title | Settings |
+| field.settings.version | Asseta Supervisor {version} (caption under the rows: Notifications on this phone, Change password, Delete my account, Sign out) |
+| field.sell.linePhoto | Photo of the slip or message (optional) / Photo of the message attached / Photo of the message attached ({n}) |
+| field.report.screenTitle | Step 1: Machine report · step 2: the split header · step 3: Review & submit (the step line shows under the bars on every step) |
 
 ### Owner
 
