@@ -131,7 +131,8 @@ async function assignFlow(swap: boolean) {
       onClose={vi.fn()}
       onAssigned={onAssigned}
     />,
-    { tenantPermissions: WRITE },
+    // The machine picker searches the register (tenant.machine.read).
+    { tenantPermissions: [...WRITE, P.tenantMachineRead] },
   );
   await user.click(screen.getByRole('combobox', { name: /^Machine/ }));
   await user.click(await screen.findByRole('option', { name: 'EX-01 · Excavator' }));
