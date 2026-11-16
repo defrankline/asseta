@@ -34,6 +34,8 @@ object FieldOps {
     const val CASH_RETENTION = "cash_retention"
     const val SITE_CHECKIN = "site_checkin"
     const val DAILY_REPORT = "daily_report"
+    const val MACHINE_REPORT = "machine_report"
+    const val CREDIT_INVOICE_PAYMENT = "credit_invoice_payment"
 
     /** Field-finance op types (not part of a job workflow chain). */
     val FINANCE_OP_TYPES = listOf(OpTypes.EXPENSE, OpTypes.CASH_COLLECTION, OpTypes.CASH_HANDOVER, OpTypes.FUEL_EVENT)
@@ -104,11 +106,13 @@ class FieldOutbox(
         attachmentLocalIds: List<String> = emptyList(),
         dependsOn: List<String> = emptyList(),
         jobId: String? = null,
+        /** The operation id when the server uses it as the record's id (MACHINE_REPORT, CREDIT_INVOICE_PAYMENT). */
+        operationId: String? = null,
     ): String {
         require(dependsOn.size <= JobOperationPlanner.MAX_DEPENDENCIES) { "Too many dependencies" }
         val owner = checkNotNull(account()) { "Sign in to record field work" }
         val op = ClientOperationEntity(
-            id = UUID.randomUUID().toString(),
+            id = operationId ?: UUID.randomUUID().toString(),
             tenantId = tenantId,
             opType = opType,
             entityType = entityType,

@@ -20,7 +20,6 @@ import com.asseta.core.model.sync.CashTransferPayload
 import com.asseta.core.model.sync.HoursPurchasePayload
 import com.asseta.core.model.sync.HoursTransferPayload
 import com.asseta.core.model.sync.PurchasePaymentPayload
-import com.asseta.core.model.sync.SaleJobPayload
 import com.asseta.core.model.sync.SyncCapabilities
 import com.asseta.core.model.sync.WalkInCustomerPayload
 import com.asseta.core.sync.data.FieldOps
@@ -48,6 +47,8 @@ data class HoursSaleRequest(
     val paymentEvidence: List<List<ByteArray>>,
     /** The tenant lets field staff record bank and mobile-money parts (CUSTOMER_HOURS `field_noncash_payments`). */
     val noncashAllowed: Boolean = false,
+    /** ADR-008: a CREDIT line may be recorded ([com.asseta.core.domain.accountability.FieldAccess.creditSales]). */
+    val creditAllowed: Boolean = false,
 )
 
 data class HoursTransferRequest(
@@ -134,13 +135,18 @@ class AccountabilityCapture(
     suspend fun hoursSale(r: HoursSaleRequest): FinanceResult {
         unavailable(r.tenantId, SyncCapabilities.OP_HOURS_PURCHASE)?.let { return FinanceResult.Blocked(it) }
         val d = r.draft
-        // Booking the job needs a server that takes `job` on the sale (else it would be dropped without a word).
-        if (d.job != null) unavailable(r.tenantId, SyncCapabilities.OP_HOURS_SALE_BOOKING)?.let { return FinanceResult.Blocked(it) }
+        // A credit part needs a server that takes CREDIT lines (else the sale would be refused).
+        if (d.payments.any { it.method == PaymentMethod.CREDIT }) {
+            unavailable(r.tenantId, SyncCapabilities.OP_HOURS_SALE_CREDIT)?.let { return FinanceResult.Blocked(it) }
+        }
         // Each payment line's photos (the bank slip, the mobile-money receipt); lines without photos have none.
-        val evidence = d.payments.indices.map { i -> r.paymentEvidence.getOrNull(i).orEmpty().filter { it.isNotEmpty() } }
+        // A credit line carries no evidence (amount only).
+        val evidence = d.payments.indices.map { i ->
+            if (d.payments[i].method == PaymentMethod.CREDIT) emptyList() else r.paymentEvidence.getOrNull(i).orEmpty().filter { it.isNotEmpty() }
+        }
         // The parts may not exceed the total this phone knows (the server checks again with its own price).
         val price = HoursPricing.price(finance.observeHoursPrices(r.tenantId).first(), d.machineId, d.customerId, d.walkIn, d.hoursText)
-        val values = when (val check = AccountabilityRules.hoursSale(d, r.walkInAllowed, r.noncashAllowed, price)) {
+        val values = when (val check = AccountabilityRules.hoursSale(d, r.walkInAllowed, r.noncashAllowed, price, r.creditAllowed)) {
             is FormCheck.Invalid -> return FinanceResult.Invalid(check.messages)
             is FormCheck.Valid -> check.value
         }
@@ -152,10 +158,12 @@ class AccountabilityCapture(
         val stored = evidence.map { line -> line.map { bytes -> Triple(UUID.randomUUID().toString(), files.write(bytes), bytes) } }
         val split = values.payments.size > 1
         val parts = values.payments.mapIndexed { i, part ->
+            val credit = part.method == PaymentMethod.CREDIT
             PurchasePaymentPayload(
                 method = part.method.wire,
                 amount = DecimalAmount.of(part.amount),
-                receivedAt = IsoTime.format(r.receivedAtMs),
+                // ADR-008: a CREDIT line is amount only (no received time, reference or holder).
+                receivedAt = if (credit) null else IsoTime.format(r.receivedAtMs),
                 reference = part.reference,
                 // Cash parts go to the holder's custody (the recorder's unless recording for another holder).
                 staffMemberId = r.cashHolderId.takeIf { part.method == PaymentMethod.CASH },
@@ -177,10 +185,6 @@ class AccountabilityCapture(
             note = values.note,
             payment = payment,
             payments = splitParts,
-            // The server books the job with the sale (job id uuid5(client_id, "job"), so a replay books it once).
-            job = values.job?.let { j ->
-                SaleJobPayload(IsoTime.format(j.startMs), j.endMs?.let(IsoTime::format), j.siteId, j.contractId, j.note)
-            },
         )
         val all = stored.flatten()
         val database = db()

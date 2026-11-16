@@ -77,6 +77,13 @@ data class SyncData(
     @SerialName("hours_prices") val hoursPrices: List<HoursPriceDto> = emptyList(),
     /** SYNC_HOURS_PRICES: customers' approved discounts in force today (full snapshot, replaced on every pull). */
     @SerialName("customer_discounts") val customerDiscounts: List<CustomerDiscountRateDto> = emptyList(),
+    /** OP_MACHINE_REPORT (ADR-008): full snapshots on every pull, so each local set is replaced. */
+    @SerialName("machine_report_reasons") val machineReportReasons: List<MachineReportReasonDto> = emptyList(),
+    @SerialName("machine_report_states") val machineReportStates: List<MachineReportStatusDto> = emptyList(),
+    @SerialName("machine_report_hours") val machineReportHours: List<AvailableHoursDto> = emptyList(),
+    @SerialName("my_machine_reports") val myMachineReports: List<MachineReportDto> = emptyList(),
+    /** OP_CREDIT_INVOICE_PAYMENT: credit invoices with a balance, oldest due first (full snapshot). */
+    @SerialName("open_credit_invoices") val openCreditInvoices: List<CreditInvoiceDto> = emptyList(),
 )
 
 /** `SyncOpenInvoiceDto`: an issued invoice with money still owed, so a collection can name it. */

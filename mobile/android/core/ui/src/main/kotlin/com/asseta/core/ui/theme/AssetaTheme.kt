@@ -22,7 +22,7 @@ object AssetaColors {
     val SlateLight = Color(0xFF2B4A60)
     val Amber = Color(0xFFF5A300)
     val AmberDark = Color(0xFFB87A00)
-    val OnAmber = Color(0xFF1B1300)
+    val OnAmber = Color(0xFF1A1203)
     val OffWhite = Color(0xFFF7F8FA)
     val Error = Color(0xFFB3261E)
 }
@@ -46,40 +46,54 @@ data class AssetaPalette(
     val offline: Color,
     val neutral: Color,
     val dark: Boolean,
+    /** ADR-008 design: raised surfaces on a card (icon wells, the selected menu row). */
+    val raised: Color = cell,
+    /** Primary text on the screen background. */
+    val text: Color = Color.Unspecified,
+    /** The side menu's sheet. */
+    val drawer: Color = cell,
 ) {
     val critical: Color get() = offline
     val warning: Color get() = stale
     val info: Color get() = recent
 }
 
+/** Light equivalent of the ADR-008 design (the dark palette is the reference). */
 val LightPalette = AssetaPalette(
     accent = AssetaColors.Amber,
-    groupedBackground = Color(0xFFF2F2F7),
+    groupedBackground = Color(0xFFF1F4F7),
     cell = Color(0xFFFFFFFF),
-    separator = Color(0xFFC6C6C8),
-    secondaryText = Color(0xFF6C6C70),
-    chrome = Color(0xFFF9F9F9),
-    live = Color(0xFF248A3D),
+    separator = Color(0xFFD5DEE6),
+    secondaryText = Color(0xFF55687A),
+    chrome = Color(0xFFFFFFFF),
+    live = Color(0xFF1F7A43),
     recent = Color(0xFF0071A4),
     stale = AssetaColors.AmberDark,
-    offline = Color(0xFFD70015),
-    neutral = Color(0xFF6C6C70),
+    offline = Color(0xFFC0392B),
+    neutral = Color(0xFF55687A),
     dark = false,
+    raised = Color(0xFFE6EDF3),
+    text = Color(0xFF0B1722),
+    drawer = Color(0xFFFFFFFF),
 )
 
+/** ADR-008 design colours: background #0B1722, cards #15283A, raised #1E3A52, borders #22394D, muted text #B7C4D1. */
 val DarkPalette = AssetaPalette(
     accent = AssetaColors.Amber,
-    groupedBackground = Color(0xFF000000),
-    cell = Color(0xFF1C1C1E),
-    separator = Color(0xFF38383A),
-    secondaryText = Color(0xFF98989F),
-    chrome = Color(0xFF161616),
-    live = Color(0xFF30D158),
+    groupedBackground = Color(0xFF0B1722),
+    cell = Color(0xFF15283A),
+    separator = Color(0xFF22394D),
+    secondaryText = Color(0xFFB7C4D1),
+    chrome = Color(0xFF102030),
+    live = Color(0xFF5FD08A),
     recent = Color(0xFF64D2FF),
-    stale = AssetaColors.Amber,
-    offline = Color(0xFFFF453A),
-    neutral = Color(0xFF98989F),
+    stale = Color(0xFFF5C04A),
+    offline = Color(0xFFD9483B),
+    neutral = Color(0xFF8597A8),
     dark = true,
+    raised = Color(0xFF1E3A52),
+    text = Color(0xFFF3F6F9),
+    drawer = Color(0xFF102030),
 )
 
 val LocalAssetaPalette = staticCompositionLocalOf { LightPalette }
@@ -90,29 +104,29 @@ val palette: AssetaPalette
 
 private fun scheme(p: AssetaPalette) = if (p.dark) {
     darkColorScheme(
-        primary = p.accent, onPrimary = AssetaColors.Slate,
+        primary = p.accent, onPrimary = AssetaColors.OnAmber,
         primaryContainer = AssetaColors.AmberDark, onPrimaryContainer = Color.White,
-        secondary = p.accent, onSecondary = AssetaColors.Slate,
-        secondaryContainer = Color(0xFF3A2E12), onSecondaryContainer = Color.White,
-        background = p.groupedBackground, onBackground = Color.White,
-        surface = p.groupedBackground, onSurface = Color.White,
+        secondary = p.accent, onSecondary = AssetaColors.OnAmber,
+        secondaryContainer = Color(0xFF3A2E10), onSecondaryContainer = Color.White,
+        background = p.groupedBackground, onBackground = p.text,
+        surface = p.groupedBackground, onSurface = p.text,
         surfaceVariant = p.cell, onSurfaceVariant = p.secondaryText,
         surfaceContainerLowest = p.groupedBackground, surfaceContainerLow = p.cell, surfaceContainer = p.chrome,
-        surfaceContainerHigh = p.cell, surfaceContainerHighest = Color(0xFF2C2C2E),
-        outline = Color(0xFF545458), outlineVariant = p.separator,
+        surfaceContainerHigh = p.cell, surfaceContainerHighest = p.raised,
+        outline = Color(0xFF3A5268), outlineVariant = p.separator,
         error = p.offline, onError = Color.White, errorContainer = Color(0xFF4A1512), onErrorContainer = Color(0xFFFFDAD6),
     )
 } else {
     lightColorScheme(
-        primary = p.accent, onPrimary = AssetaColors.Slate,
+        primary = p.accent, onPrimary = AssetaColors.OnAmber,
         primaryContainer = Color(0xFFFFE2A8), onPrimaryContainer = AssetaColors.OnAmber,
-        secondary = p.accent, onSecondary = AssetaColors.Slate,
+        secondary = p.accent, onSecondary = AssetaColors.OnAmber,
         secondaryContainer = Color(0xFFFFF1D6), onSecondaryContainer = AssetaColors.OnAmber,
-        background = p.groupedBackground, onBackground = Color.Black,
-        surface = p.groupedBackground, onSurface = Color.Black,
-        surfaceVariant = Color(0xFFE5E5EA), onSurfaceVariant = p.secondaryText,
+        background = p.groupedBackground, onBackground = p.text,
+        surface = p.groupedBackground, onSurface = p.text,
+        surfaceVariant = p.raised, onSurfaceVariant = p.secondaryText,
         surfaceContainerLowest = p.cell, surfaceContainerLow = p.cell, surfaceContainer = p.chrome,
-        surfaceContainerHigh = p.cell, surfaceContainerHighest = Color(0xFFE5E5EA),
+        surfaceContainerHigh = p.cell, surfaceContainerHighest = p.raised,
         outline = Color(0xFFAEAEB2), outlineVariant = p.separator,
         error = p.offline, onError = Color.White, errorContainer = Color(0xFFFFDAD6), onErrorContainer = Color(0xFF410002),
     )

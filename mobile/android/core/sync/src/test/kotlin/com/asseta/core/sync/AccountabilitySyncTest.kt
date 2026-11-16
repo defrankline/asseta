@@ -7,7 +7,6 @@ import com.asseta.core.domain.accountability.HoursPricing
 import com.asseta.core.domain.accountability.HoursSalePrice
 import com.asseta.core.domain.accountability.PaymentLine
 import com.asseta.core.domain.accountability.PaymentMethod
-import com.asseta.core.domain.accountability.SaleJobDraft
 import com.asseta.core.domain.capture.GpsOutcome
 import com.asseta.core.domain.policy.CaptureMode
 import com.asseta.core.domain.policy.ReadingKind
@@ -37,6 +36,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -220,50 +220,35 @@ class AccountabilitySyncTest : SyncTestBase() {
     }
 
     @Test
-    fun saleWithABookedJobCarriesTheJobAndShowsTheBookedJobOnceAcked() = runBlocking {
-        fake.capabilities = fake.capabilities.orEmpty() + SyncCapabilities.OP_HOURS_SALE_BOOKING
+    fun aCreditPartTravelsAsAmountOnlyAndNeedsTheServerCapability() = runBlocking {
         synced()
-        val start = Instant.parse("2026-11-12T05:00:00Z").toEpochMilli()
-        val job = SaleJobDraft(start, start + 6 * 3_600_000L, "5e000000-0000-4000-8000-000000000001", null, " Dig the trench ")
-        val request = split(listOf(PaymentLine(PaymentMethod.CASH, "520000", ""))).let { it.copy(draft = it.draft.copy(job = job)) }
-        val opId = saved(accountability.hoursSale(request)).operationId
-        val sent = payload(opId)["job"]!!.jsonObject
-        assertEquals("2026-11-12T05:00:00Z", sent["planned_start"]!!.jsonPrimitive.content.replace(".000Z", "Z"))
-        assertEquals("2026-11-12T11:00:00Z", sent["planned_end"]!!.jsonPrimitive.content.replace(".000Z", "Z"))
-        assertEquals("5e000000-0000-4000-8000-000000000001", sent["job_site_id"]!!.jsonPrimitive.content)
-        assertEquals("Dig the trench", sent["note"]!!.jsonPrimitive.content)
-        // Offline the contract stays empty: the server uses the customer's only contract.
-        assertNull(sent["contract_id"])
-        fake.handler = { op ->
-            if (op["op_type"]!!.jsonPrimitive.content != AccountabilityOps.HOURS_PURCHASE) null
-            else "ACKED" to buildJsonObject {
-                put("entity", buildJsonObject {
-                    put("id", UUID.randomUUID().toString())
-                    put("job", buildJsonObject { put("id", UUID.randomUUID().toString()); put("job_number", "JB-2026-00042"); put("status", "APPROVED") })
-                })
-            }
-        }
+        val lines = listOf(PaymentLine(PaymentMethod.CASH, "300000", ""), PaymentLine(PaymentMethod.CREDIT, "270000", "ignored"))
+        // Without OP_HOURS_SALE_CREDIT the server would refuse the credit part: blocked on the phone.
+        assertEquals(FinanceResult.Blocked(com.asseta.core.sync.usecase.CaptureMeterReading.SERVER_TOO_OLD),
+            accountability.hoursSale(split(lines).copy(creditAllowed = true)))
+        fake.capabilities = fake.capabilities.orEmpty() + SyncCapabilities.OP_HOURS_SALE_CREDIT
         synced()
-        assertEquals(ACKED, status(opId))
-        assertEquals(sent, fake.stored[opId]!!.payload["job"])
-        assertEquals("JB-2026-00042", json.parseToJsonElement(op(opId).resultJson!!).jsonObject["entity"]!!.jsonObject["job"]!!.jsonObject["job_number"]!!.jsonPrimitive.content)
+        // Not allowed for this user (field_credit_sales off): refused with the office wording.
+        val off = accountability.hoursSale(split(lines))
+        assertEquals(listOf(AccountabilityMessages.CREDIT_OFF), (off as FinanceResult.Invalid).messages)
+        val opId = saved(accountability.hoursSale(split(lines).copy(creditAllowed = true))).operationId
+        val parts = payload(opId)["payments"]!!.jsonArray.map { it.jsonObject }
+        assertEquals("CASH", parts[0]["method"]!!.jsonPrimitive.content)
+        assertNotNull(parts[0]["received_at"])
+        assertEquals("CREDIT", parts[1]["method"]!!.jsonPrimitive.content)
+        assertEquals("270000", parts[1]["amount"]!!.jsonPrimitive.content)
+        assertNull(parts[1]["received_at"])
+        assertNull(parts[1]["reference"])
+        assertNull(parts[1]["staff_member_id"])
+        assertNull(payload(opId)["job"])
     }
 
     @Test
-    fun aBookingNeedsTheServerCapabilityAndARefusalKeepsItsCode() = runBlocking {
+    fun aWalkInCannotBuyOnCredit() = runBlocking {
+        fake.capabilities = fake.capabilities.orEmpty() + SyncCapabilities.OP_HOURS_SALE_CREDIT
         synced()
-        val start = clock.now + 86_400_000L
-        val booked = split(listOf(PaymentLine(PaymentMethod.CASH, "520000", ""))).let { it.copy(draft = it.draft.copy(job = SaleJobDraft(start))) }
-        assertEquals(FinanceResult.Blocked(com.asseta.core.sync.usecase.CaptureMeterReading.SERVER_TOO_OLD), accountability.hoursSale(booked))
-        val ended = booked.copy(draft = booked.draft.copy(job = SaleJobDraft(start, start)))
-        fake.capabilities = fake.capabilities.orEmpty() + SyncCapabilities.OP_HOURS_SALE_BOOKING
-        synced()
-        assertEquals(listOf(AccountabilityMessages.JOB_END), (accountability.hoursSale(ended.copy(clientId = UUID.randomUUID().toString())) as FinanceResult.Invalid).messages)
-        val opId = saved(accountability.hoursSale(booked)).operationId
-        fake.handler = { "CONFLICT" to buildJsonObject { put("error", fake.err("CONTRACT_REQUIRED")) } }
-        synced()
-        assertEquals(com.asseta.core.model.ClientOperationStatus.CONFLICT, status(opId))
-        assertEquals("CONTRACT_REQUIRED", op(opId).errorCode)
+        val walkIn = sale(walkIn = true, method = PaymentMethod.CREDIT).copy(creditAllowed = true)
+        assertTrue(AccountabilityMessages.CREDIT_WALK_IN in (accountability.hoursSale(walkIn) as FinanceResult.Invalid).messages)
     }
 
     @Test

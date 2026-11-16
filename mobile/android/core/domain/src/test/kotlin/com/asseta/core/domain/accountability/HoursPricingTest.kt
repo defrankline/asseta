@@ -194,9 +194,9 @@ class HoursPricingTest {
         val access = { policy: CustomerHoursPolicy? -> FieldAccess(setOf(com.asseta.core.model.sync.SyncCapabilities.OP_HOURS_PURCHASE), setOf("tenant.hours.purchase"), hours = policy) }
         val off = CustomerHoursPolicy.fromValues(values(""))
         val on = CustomerHoursPolicy.fromValues(values(""","field_noncash_payments":true"""))
-        assertEquals(listOf(PaymentMethod.CASH), access(off).saleMethods)
-        assertEquals(PaymentMethod.entries, access(on).saleMethods)
-        assertEquals(listOf(PaymentMethod.CASH), access(CustomerHoursPolicy.fromValues(values(""","field_noncash_payments":false"""))).saleMethods)
+        assertEquals(listOf(PaymentMethod.CASH), access(off).saleMethods(false))
+        assertEquals(listOf(PaymentMethod.CASH, PaymentMethod.BANK, PaymentMethod.MOBILE_MONEY), access(on).saleMethods(false))
+        assertEquals(listOf(PaymentMethod.CASH), access(CustomerHoursPolicy.fromValues(values(""","field_noncash_payments":false"""))).saleMethods(false))
     }
 
     @Test

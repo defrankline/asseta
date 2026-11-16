@@ -169,7 +169,6 @@ private fun ItemRow(item: OutboxItem, onRetry: (ClientOperationEntity) -> Unit) 
         item.jobNumber?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         // An hours sale that booked its job: the job's number and status once the server has them.
         if (op.opType == com.asseta.core.model.sync.AccountabilityOps.HOURS_PURCHASE) {
-            FieldAccountabilityTexts.hoursSaleJob(op.resultJson)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         }
         Text(LocalTime.formatSeconds(op.createdAtDevice), style = MaterialTheme.typography.bodySmall, color = palette.secondaryText)
         val code = op.errorCode

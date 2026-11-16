@@ -183,59 +183,24 @@ class AccountabilityPresentationTest {
     }
 
     @Test
-    fun `a sale that books its job is titled so and shows the booked job once synced`() {
+    fun `credit sale wording`() {
+        val T = FieldAccountabilityTexts
+        assertEquals(listOf("Cash", "Bank", "M-money", "Credit"), com.asseta.core.domain.accountability.PaymentMethod.entries.map(T::methodChip))
+        assertEquals("On credit", T.amountLabel(com.asseta.core.domain.accountability.PaymentMethod.CREDIT))
+        assertEquals("A walk-in customer cannot buy on credit. The sale is kept for review.", T.conflict("WALK_IN_NO_CREDIT"))
         fun title(json: String) = com.asseta.supervisor.ui.FieldTexts.outboxTitle(
             AccountabilityOps.HOURS_PURCHASE, kotlinx.serialization.json.Json.parseToJsonElement(json) as kotlinx.serialization.json.JsonObject,
         )
-        assertEquals("Hours sale + job booking · Cash 520,000",
-            title("""{"payment":{"method":"CASH","amount":"520000"},"job":{"planned_start":"2026-11-12T05:00:00Z"}}"""))
-        assertEquals("Hours sale + job booking · Not paid yet", title("""{"job":{"planned_start":"2026-11-12T05:00:00Z"}}"""))
-        assertEquals("Hours sale · Not paid yet", title("""{"job":null}"""))
-        val T = FieldAccountabilityTexts
-        assertEquals("Job JB-2026-00042 · Approved",
-            T.hoursSaleJob("""{"entity":{"id":"p1","job":{"id":"j1","job_number":"JB-2026-00042","status":"APPROVED"}}}"""))
-        assertEquals("Job JB-2026-00043 · Waiting for approval",
-            T.hoursSaleJob("""{"result":{"entity":{"job":{"job_number":"JB-2026-00043","status":"PENDING_APPROVAL"}}}}"""))
-        assertNull(T.hoursSaleJob("""{"entity":{"id":"p1","job":null}}"""))
-        assertNull(T.hoursSaleJob(null))
-        assertEquals("End after the sale hours (6 h)", T.jobEndFromHours("6"))
-    }
-
-    @Test
-    fun `a refused booking and a busy machine read in plain words`() {
-        val T = FieldAccountabilityTexts
-        assertEquals("This customer has no contract yet; the office creates one. The sale and its booking are kept for review.",
-            T.conflict("CONTRACT_REQUIRED"))
-        listOf("CONTRACT_CHOICE_REQUIRED", "CONTRACT_CUSTOMER_MISMATCH", "CONTRACT_NOT_ACTIVE", "JOB_REQUEST_NOT_PERMITTED", "NO_STAFF_RECORD")
-            .forEach { code -> assertTrue(code, T.conflict(code)!!.endsWith("The sale and its booking are kept for review.") || T.conflict(code)!!.contains("kept for review;")) }
-        assertEquals("Another job is running on this machine; finish it first.", T.conflict("MACHINE_BUSY"))
-    }
-
-    @Test
-    fun `the booking joins the draft only when on and offers the contract only for several`() {
-        val contracts = listOf(
-            com.asseta.core.model.sync.FieldContractDto("k1", "CT-1", "c1", "Acme"),
-            com.asseta.core.model.sync.FieldContractDto("k2", "CT-2", "c1", "Acme"),
-            com.asseta.core.model.sync.FieldContractDto("k3", "CT-3", "c2", "Beta"),
-        )
-        val form = HoursSaleForm(customerId = "c1", machineId = "m1", hours = "6", jobStartMs = 1_000L)
-        assertNull(form.draft(contracts).job)
-        val on = form.copy(bookJob = true, jobContractId = "k3")
-        assertEquals(listOf("k1", "k2"), on.contractChoices(contracts).map { it.id })
-        assertTrue(on.draft(contracts).job!!.contractRequired)
-        assertNull(on.draft(contracts).job!!.contractId) // another customer's contract is dropped
-        assertEquals("k2", on.copy(jobContractId = "k2").draft(contracts).job!!.contractId)
-        assertTrue(on.copy(customerId = "c2").contractChoices(contracts).isEmpty())
-        assertTrue(on.copy(walkIn = true).contractChoices(contracts).isEmpty())
-        assertFalse(on.draft(emptyList()).job!!.contractRequired)
+        assertEquals("Hours sale · Cash 1,000,000 + Credit 900,000",
+            title("""{"payments":[{"method":"CASH","amount":"1000000"},{"method":"CREDIT","amount":"900000"}]}"""))
     }
 
     @Test
     fun `routes are titled and presented as forms`() {
-        assertEquals("Sell customer hours", Route.HoursSale.title("Acme"))
+        assertEquals("Sell hours", Route.HoursSale.title("Acme"))
         assertEquals("Daily reading", Route.DailyReading("m1").title("Acme"))
         assertEquals("Cash float", Route.CashAck("f1", isFloat = true).title("Acme"))
-        listOf(Route.HoursSale, Route.HoursTransfer, Route.CashTransfer, Route.Retention, Route.Baseline("m"), Route.Correction("r"))
+        listOf(Route.HoursTransfer, Route.CashTransfer, Route.Retention, Route.Baseline("m"), Route.Correction("r"))
             .forEach { assertTrue(it.isForm) }
     }
 }

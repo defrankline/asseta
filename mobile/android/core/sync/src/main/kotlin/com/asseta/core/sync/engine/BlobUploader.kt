@@ -199,6 +199,10 @@ class BlobUploader(
                     // Petty cash returns and counts name their photos by upload ids too (DEC-033).
                     PettyCashOps.RETURN, PettyCashOps.COUNT -> "evidence_upload_ids" to appendUploadId(op.payloadJson, dto.id, "evidence_upload_ids")
                     AccountabilityOps.METER_BASELINE -> "photo_attachment_id" to JsonPrimitive(serverId)
+                    // ADR-008: a machine report names its meter photo by upload id (it becomes the reading's photo).
+                    com.asseta.core.model.sync.MachineReportOps.MACHINE_REPORT -> "photo_upload_id" to JsonPrimitive(dto.id)
+                    // A credit-invoice payment names its evidence photos by upload ids.
+                    com.asseta.core.model.sync.MachineReportOps.CREDIT_INVOICE_PAYMENT -> "evidence_upload_ids" to appendUploadId(op.payloadJson, dto.id, "evidence_upload_ids")
                     // A correction's photo belongs to its replacement reading.
                     AccountabilityOps.METER_CORRECTION -> "replacement" to replacementWithPhoto(op.payloadJson, serverId)
                     else -> return@forEach

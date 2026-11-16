@@ -1,6 +1,12 @@
 package com.asseta.supervisor.ui.accountability
 
 import android.Manifest
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.runtime.LaunchedEffect
+import com.asseta.core.ui.shell.ChoiceChip
+import com.asseta.core.ui.shell.PrimaryAction
+import com.asseta.core.ui.shell.SectionLabel
+import com.asseta.core.ui.shell.ShellCard
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -40,10 +46,6 @@ import com.asseta.core.domain.accountability.HoursSaleDraft
 import com.asseta.core.domain.accountability.HoursSalePrice
 import com.asseta.core.domain.accountability.PaymentLine
 import com.asseta.core.domain.accountability.PaymentMethod
-import com.asseta.core.domain.accountability.SaleBooking
-import com.asseta.core.domain.accountability.SaleJobDraft
-import com.asseta.core.model.sync.FieldContractDto
-import com.asseta.core.sync.usecase.SiteChoice
 import com.asseta.core.domain.finance.FormCheck
 import com.asseta.core.model.sync.CustodianDto
 import com.asseta.core.model.sync.FieldHoursPurchaseDto
@@ -150,32 +152,9 @@ data class HoursSaleForm(
     val atMs: Long = 0,
     /** Photos per payment line, by line index (a line without photos may have no entry yet). */
     val photos: List<List<CapturedPhoto>> = emptyList(),
-    /** "Book the job" (offered with OP_HOURS_SALE_BOOKING and tenant.job.request). */
-    val bookJob: Boolean = false,
-    val jobStartMs: Long = 0,
-    val jobEndMs: Long? = null,
-    val jobSiteId: String? = null,
-    val jobContractId: String? = null,
-    val jobNote: String = "",
 ) {
-    /**
-     * The customer's contracts to choose from for the job: only when this visit read them from the server and the
-     * customer has more than one (offline, or with one contract, the server picks it).
-     */
-    fun contractChoices(contracts: List<FieldContractDto>): List<FieldContractDto> =
-        if (walkIn || customerId == null) emptyList() else contracts.filter { it.customerId == customerId }.takeIf { it.size > 1 }.orEmpty()
-
-    /** The sale as typed; [contracts] are the contracts read online this visit (for the job's contract choice). */
-    fun draft(contracts: List<FieldContractDto> = emptyList()): HoursSaleDraft {
-        val choices = contractChoices(contracts)
-        val job = if (bookJob) {
-            SaleJobDraft(jobStartMs, jobEndMs, jobSiteId, jobContractId?.takeIf { id -> choices.any { it.id == id } }, jobNote,
-                contractRequired = choices.isNotEmpty())
-        } else {
-            null
-        }
-        return HoursSaleDraft(walkIn, customerId, walkInName, walkInPhone, machineId, hours, payments, note, job)
-    }
+    /** The sale as typed. */
+    fun draft(): HoursSaleDraft = HoursSaleDraft(walkIn, customerId, walkInName, walkInPhone, machineId, hours, payments, note)
 
     fun line(index: Int, change: (PaymentLine) -> PaymentLine) = copy(payments = payments.mapIndexed { i, l -> if (i == index) change(l) else l })
 
@@ -192,13 +171,7 @@ data class HoursSaleForm(
 }
 
 class HoursSaleViewModel(field: FieldGraph, tenantId: String, permissions: Set<String>) : AccountabilityFormViewModel(field, tenantId, permissions) {
-    val form = MutableStateFlow(HoursSaleForm(atMs = field.clock.nowMs(), jobStartMs = SaleBooking.defaultStartMs(field.clock.nowMs())))
-    private val _jobContracts = MutableStateFlow<List<FieldContractDto>>(emptyList())
-    /** Contracts read from the server during this visit (empty offline: the server picks the contract then). */
-    val jobContracts: StateFlow<List<FieldContractDto>> = _jobContracts.asStateFlow()
-    private val _jobSites = MutableStateFlow<List<SiteChoice>>(emptyList())
-    /** Sites the job can name (synced sites and the contracts' sites). */
-    val jobSites: StateFlow<List<SiteChoice>> = _jobSites.asStateFlow()
+    val form = MutableStateFlow(HoursSaleForm(atMs = field.clock.nowMs()))
     val customers: StateFlow<List<PickerOption>> = field.financeRepository.observeCustomers(tenantId)
         .map { list -> list.map { PickerOption(it.id, it.name, it.code, it.contactName) } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -212,22 +185,11 @@ class HoursSaleViewModel(field: FieldGraph, tenantId: String, permissions: Set<S
     init {
         // The opening Cash line follows the total as the prices arrive or change.
         viewModelScope.launch { prices.collect { book -> form.update { it.following(book) } } }
-        // "Book the job": the sites on this phone, then (online) the contracts, for a customer with more than one.
-        if (FieldAccess.JOB_REQUEST in permissions) {
-            viewModelScope.launch {
-                val saved = field.jobRequests.savedLookups(tenantId)
-                _jobSites.value = saved.sites
-                val fresh = field.jobRequests.refreshLookups(tenantId)
-                _jobSites.value = fresh.sites
-                // Only a list read from the server now (a new fetch time): offline the server picks the contract.
-                if (fresh.fetchedAtMs != null && fresh.fetchedAtMs != saved.fetchedAtMs) _jobContracts.value = fresh.contracts
-            }
-        }
     }
 
-    /** The draft to check and save: the booking only while the user may book jobs here. */
-    fun draft(f: HoursSaleForm = form.value, a: FieldAccess? = access.value): HoursSaleDraft =
-        f.draft(jobContracts.value).let { if (a?.bookSaleJob == true) it else it.copy(job = null) }
+    /** The draft to check and save. */
+    @Suppress("UNUSED_PARAMETER")
+    fun draft(f: HoursSaleForm = form.value, a: FieldAccess? = access.value): HoursSaleDraft = f.draft()
 
     fun edit(change: (HoursSaleForm) -> HoursSaleForm) {
         form.update { change(it).following(prices.value) }
@@ -259,6 +221,7 @@ class HoursSaleViewModel(field: FieldGraph, tenantId: String, permissions: Set<S
                     receivedAtMs = f.atMs.coerceAtMost(field.clock.nowMs()),
                     paymentEvidence = f.payments.indices.map { i -> f.photosOf(i).map { it.jpeg } },
                     noncashAllowed = a?.noncashPayments == true,
+                    creditAllowed = a?.creditSales == true,
                 ),
             )
             _save.update { it.after(result) }
@@ -266,6 +229,11 @@ class HoursSaleViewModel(field: FieldGraph, tenantId: String, permissions: Set<S
     }
 }
 
+/**
+ * Sell hours (approved design SellHours): registered or walk-in customer, machine, hours with the live total, then the
+ * payment lines (Cash by default, Bank and Mobile money per policy, Credit for registered customers when allowed), and
+ * "Save sale". No job is created; queued offline as HOURS_PURCHASE.
+ */
 @Composable
 fun HoursSaleScreen(vm: HoursSaleViewModel, onDone: () -> Unit) {
     val form by vm.form.collectAsStateWithLifecycle()
@@ -276,65 +244,75 @@ fun HoursSaleScreen(vm: HoursSaleViewModel, onDone: () -> Unit) {
     val customers by vm.customers.collectAsStateWithLifecycle()
     val machines by vm.machines.collectAsStateWithLifecycle()
     val prices by vm.prices.collectAsStateWithLifecycle()
-    val jobContracts by vm.jobContracts.collectAsStateWithLifecycle()
-    val jobSites by vm.jobSites.collectAsStateWithLifecycle()
     val a = access ?: return
     val draft = vm.draft(form, a)
     val editable = !save.saving && !save.saved
     val now = System.currentTimeMillis()
     val price = HoursPricing.price(prices, form.machineId, form.customerId, form.walkIn, form.hours)
-    val priceLine = T.hoursPrice(price)
-    FormColumn {
+    val methods = a.saleMethods(form.walkIn)
+    LaunchedEffect(save.saved) { if (save.saved) onDone() }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (!a.sellHours) {
-            NoticeCard(T.TITLE_HOURS_SALE, if (a.hours == null) T.NEEDS_RULES else T.HOURS_OFF, isError = true)
-            return@FormColumn
+            Column(Modifier.padding(horizontal = 16.dp)) { NoticeCard(T.TITLE_HOURS_SALE, if (a.hours == null) T.NEEDS_RULES else T.HOURS_OFF, isError = true) }
+            return@Column
         }
-        Section(T.SECTION_CUSTOMER, footer = if (form.walkIn) T.WALK_IN_FOOTER else null) {
-            if (a.walkIn) SegmentedChoice(listOf(false, true), form.walkIn, { if (it) T.WALK_IN else T.REGISTERED }, { w -> vm.edit { it.copy(walkIn = w) } }, editable)
-            if (form.walkIn) {
-                TextInput(T.WALK_IN_NAME, form.walkInName, { v -> vm.edit { it.copy(walkInName = v) } }, editable)
-                TextInput(T.WALK_IN_PHONE, form.walkInPhone, { v -> vm.edit { it.copy(walkInPhone = v) } }, editable)
-            } else {
-                SearchablePickerField(T.CUSTOMER, customers, form.customerId, { id -> vm.edit { it.copy(customerId = id) } }, emptyText = T.CUSTOMER_EMPTY, enabled = editable)
-            }
-        }
-        Section(T.SECTION_HOURS, footer = T.HOURS_FOOTER) {
-            SearchablePickerField(T.MACHINE, machines, form.machineId, { id -> vm.edit { it.copy(machineId = id) } }, enabled = editable)
-            DecimalField(T.HOURS, form.hours, { v -> vm.edit { it.copy(hours = v) } }, editable)
-            priceLine?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
-            TextInput(T.NOTE_OPTIONAL, form.note, { v -> vm.edit { it.copy(note = v) } }, editable, singleLine = false)
-        }
-        if (a.bookSaleJob) SaleJobSection(vm, form, form.contractChoices(jobContracts), jobSites, editable)
-        val paymentFooter = listOfNotNull(
-            if (form.payments.isEmpty()) T.NOT_PAID_FOOTER else T.paymentFooter(form.payments.map { it.method }, a.cashActivation),
-            T.NONCASH_BY_OFFICE.takeIf { !a.noncashPayments },
-        ).joinToString(" ")
-        Section(T.SECTION_PAYMENT, footer = paymentFooter) {
-            form.payments.forEachIndexed { index, line ->
-                Text(T.paymentNumber(index + 1), style = MaterialTheme.typography.titleSmall)
-                if (a.saleMethods.size > 1) {
-                    SegmentedChoice(a.saleMethods, line.method, T::method, { m -> vm.edit { it.line(index) { l -> l.copy(method = m) } } }, editable)
+        if (a.walkIn) {
+            Row(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ChoiceChip(T.REGISTERED_CUSTOMER, !form.walkIn, editable, Modifier.weight(1f)) { vm.edit { it.copy(walkIn = false) } }
+                ChoiceChip(T.WALK_IN, form.walkIn, editable, Modifier.weight(1f)) {
+                    // A walk-in never buys on credit: a credit line turns back into cash.
+                    vm.edit { f -> f.copy(walkIn = true, payments = f.payments.map { l -> if (l.method == PaymentMethod.CREDIT) l.copy(method = PaymentMethod.CASH) else l }) }
                 }
-                DecimalField(T.AMOUNT_RECEIVED, line.amountText, { v -> vm.edit { it.line(index) { l -> l.typed(v) } } }, editable)
-                if (line.method != PaymentMethod.CASH) {
-                    TextInput(T.REFERENCE, line.reference, { v -> vm.edit { it.line(index) { l -> l.copy(reference = v) } } }, editable,
-                        error = AccountabilityMessages.REFERENCE_LINE.takeIf { AccountabilityRules.referenceMissing(line) })
+            }
+        }
+        ShellCard {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (form.walkIn) {
+                    TextInput(T.WALK_IN_NAME, form.walkInName, { v -> vm.edit { it.copy(walkInName = v) } }, editable)
+                    TextInput(T.WALK_IN_PHONE, form.walkInPhone, { v -> vm.edit { it.copy(walkInPhone = v) } }, editable)
+                    Text(T.WALK_IN_FOOTER, style = MaterialTheme.typography.bodySmall, color = palette.secondaryText)
+                } else {
+                    SearchablePickerField(T.CUSTOMER, customers, form.customerId, { id -> vm.edit { it.copy(customerId = id) } }, emptyText = T.CUSTOMER_EMPTY, enabled = editable)
                 }
-                // The line's own photos (the bank slip, the mobile-money message), sent with that payment.
-                EvidencePhotos(form.photosOf(index), { p -> vm.edit { it.photos(index) { l -> l + p } } },
-                    { i -> vm.edit { it.photos(index) { l -> l.filterIndexed { j, _ -> j != i } } } }, vm::onPhotoError, editable,
-                    title = if (form.payments.size == 1) T.EVIDENCE else T.LINE_PHOTO, inline = true)
-                if (editable) TextButton(onClick = { vm.removePayment(index) }) { Text(T.REMOVE_PAYMENT, color = palette.offline) }
+                SearchablePickerField(T.MACHINE, machines, form.machineId, { id -> vm.edit { it.copy(machineId = id) } }, enabled = editable)
+                DecimalField(T.HOURS, form.hours, { v -> vm.edit { it.copy(hours = v) } }, editable)
             }
-            if (editable && form.payments.size < HoursPayments.MAX) OutlinedButton(onClick = vm::addPayment) { Text(T.ADD_PAYMENT) }
-            T.paymentSummary(HoursPayments.summary(form.payments, price)).forEach { line ->
-                Text(line, style = MaterialTheme.typography.bodyLarge)
+        }
+        SaleTotal(price)
+        SectionLabel(T.SECTION_PAYMENT, Modifier)
+        form.payments.forEachIndexed { index, line ->
+            ShellCard {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (methods.size > 1) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            methods.forEach { m ->
+                                ChoiceChip(T.methodChip(m), line.method == m, editable, Modifier.weight(1f)) { vm.edit { it.line(index) { l -> l.copy(method = m) } } }
+                            }
+                        }
+                    }
+                    DecimalField(T.amountLabel(line.method), line.amountText, { v -> vm.edit { it.line(index) { l -> l.typed(v) } } }, editable)
+                    if (line.method.needsReference) {
+                        TextInput(T.REFERENCE, line.reference, { v -> vm.edit { it.line(index) { l -> l.copy(reference = v) } } }, editable,
+                            error = AccountabilityMessages.REFERENCE_LINE.takeIf { AccountabilityRules.referenceMissing(line) })
+                        // The line's own photos (the bank slip, the mobile-money message), sent with that payment.
+                        EvidencePhotos(form.photosOf(index), { p -> vm.edit { it.photos(index) { l -> l + p } } },
+                            { i -> vm.edit { it.photos(index) { l -> l.filterIndexed { j, _ -> j != i } } } }, vm::onPhotoError, editable,
+                            title = T.LINE_PHOTO, inline = true)
+                    }
+                    if (line.method == PaymentMethod.CREDIT) Text(T.CREDIT_LINE_NOTE, style = MaterialTheme.typography.bodySmall, color = palette.secondaryText)
+                    if (editable) TextButton(onClick = { vm.removePayment(index) }) { Text(T.REMOVE_PAYMENT, color = palette.offline) }
+                }
             }
-            // Why Save is off, in one line (Save is disabled, so no save attempt would show it).
-            AccountabilityRules.hoursSaleBlockers(draft, a.walkIn, a.noncashPayments, price)?.let {
-                Text(it, color = palette.offline, style = MaterialTheme.typography.bodyMedium)
+        }
+        Row(Modifier.padding(horizontal = 20.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            if (editable && form.payments.size < HoursPayments.MAX) {
+                TextButton(onClick = vm::addPayment) { Text(T.ADD_PAYMENT_PLUS, color = palette.accent) }
             }
-            if (form.payments.isNotEmpty()) {
+            Spacer(Modifier.weight(1f))
+            Text(T.paymentStatus(HoursPayments.summary(form.payments, price)), style = MaterialTheme.typography.bodyMedium, color = palette.secondaryText)
+        }
+        if (form.payments.any { it.method != PaymentMethod.CREDIT }) {
+            Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 DateTimeField(T.RECEIVED, form.atMs, { v -> vm.edit { it.copy(atMs = v) } }, editable, notAfter = now)
                 if (form.payments.any { it.method == PaymentMethod.CASH } && a.recordForOthers) {
                     SearchablePickerField(T.CASH_HOLDER, custodianOptions(cache.custodians, me), form.holderId ?: me, { id -> vm.edit { it.copy(holderId = id) } },
@@ -342,45 +320,30 @@ fun HoursSaleScreen(vm: HoursSaleViewModel, onDone: () -> Unit) {
                 }
             }
         }
-        val check = AccountabilityRules.hoursSale(draft, a.walkIn, a.noncashPayments, price)
-        SaveSection(save, vm::save, onDone, enabled = check is FormCheck.Valid)
+        // Why Save is off, in one line (Save is disabled, so no save attempt would show it).
+        Column(Modifier.padding(horizontal = 20.dp)) {
+            AccountabilityRules.hoursSaleBlockers(draft, a.walkIn, a.noncashPayments, price, a.creditSales)?.let {
+                Text(it, color = palette.offline, style = MaterialTheme.typography.bodyMedium)
+            }
+            save.messages.forEach { Text(it, color = palette.offline) }
+        }
+        val check = AccountabilityRules.hoursSale(draft, a.walkIn, a.noncashPayments, price, a.creditSales)
+        PrimaryAction(if (save.saving) T.SAVING else T.SAVE_SALE, enabled = check is FormCheck.Valid && editable, onClick = vm::save)
+        Text(T.SELL_FOOTER, style = MaterialTheme.typography.bodySmall, color = palette.secondaryText, modifier = Modifier.padding(horizontal = 20.dp))
     }
 }
 
-/**
- * "Book the job" with the sale: start (tomorrow 08:00 by default), optional end (the sale's hours after the start is
- * offered), the contract when the customer has more than one (online), optional site and note.
- */
+/** The total card: "Total", the amount, and "20 h × 95,000 · rate card"; the office prices an unpriced machine. */
 @Composable
-private fun SaleJobSection(vm: HoursSaleViewModel, form: HoursSaleForm, contracts: List<FieldContractDto>, sites: List<SiteChoice>, editable: Boolean) {
-    Section(T.SECTION_JOB, footer = if (form.bookJob) T.JOB_FOOTER else T.JOB_FOOTER_OFF) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(T.BOOK_JOB, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-            Switch(form.bookJob, { on -> vm.edit { it.copy(bookJob = on) } }, enabled = editable)
+private fun SaleTotal(price: HoursSalePrice) {
+    when (price) {
+        HoursSalePrice.Hidden -> Unit
+        HoursSalePrice.Unpriced -> ShellCard { Text(T.HOURS_PRICE_LATER, color = palette.secondaryText) }
+        is HoursSalePrice.Priced -> ShellCard {
+            Text(T.TOTAL, style = MaterialTheme.typography.bodySmall, color = palette.secondaryText)
+            Text(HoursPricing.money(price.quote.amount, price.quote.currency, price.quote.minorUnits), style = MaterialTheme.typography.headlineSmall)
+            Text(T.totalDetail(price.quote), style = MaterialTheme.typography.bodySmall, color = palette.secondaryText)
         }
-        if (!form.bookJob) return@Section
-        DateTimeField(T.JOB_START, form.jobStartMs, { v -> vm.edit { it.copy(jobStartMs = v) } }, editable)
-        val end = form.jobEndMs
-        if (end != null) {
-            DateTimeField(T.JOB_END, end, { v -> vm.edit { it.copy(jobEndMs = v) } }, editable, notBefore = form.jobStartMs)
-            if (end <= form.jobStartMs) Text(AccountabilityMessages.JOB_END, color = palette.offline, style = MaterialTheme.typography.bodyMedium)
-            if (editable) TextButton(onClick = { vm.edit { it.copy(jobEndMs = null) } }) { Text(T.JOB_CLEAR_END, color = palette.offline) }
-        } else {
-            LabeledRow(T.JOB_END, T.JOB_END_NOT_SET)
-        }
-        val suggested = SaleBooking.endAfterHoursMs(form.jobStartMs, form.hours)
-        if (editable && suggested != null && suggested != end) {
-            OutlinedButton(onClick = { vm.edit { it.copy(jobEndMs = suggested) } }) { Text(T.jobEndFromHours(form.hours)) }
-        }
-        if (contracts.isNotEmpty()) {
-            SearchablePickerField(T.JOB_CONTRACT, contracts.map { PickerOption(it.id, it.contractNumber, it.jobSiteName, it.reference) },
-                form.jobContractId?.takeIf { id -> contracts.any { it.id == id } },
-                { id -> vm.edit { it.copy(jobContractId = id) } }, enabled = editable)
-            Text(T.JOB_CONTRACT_FOOTER, style = MaterialTheme.typography.bodySmall, color = palette.secondaryText)
-        }
-        SearchablePickerField(T.JOB_SITE, sites.map { PickerOption(it.id, it.name) }, form.jobSiteId, { id -> vm.edit { it.copy(jobSiteId = id) } },
-            noneLabel = T.JOB_SITE_NONE, emptyText = T.JOB_SITES_EMPTY, enabled = editable)
-        TextInput(T.JOB_NOTE, form.jobNote, { v -> vm.edit { it.copy(jobNote = v) } }, editable, singleLine = false)
     }
 }
 

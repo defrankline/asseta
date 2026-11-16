@@ -880,4 +880,62 @@ interface TenantApi {
     /** cancelCompanyDeletion: before the deletion starts; normal access is restored. */
     @POST("api/v1/tenant/company/deletion-request/cancel")
     suspend fun cancelCompanyClosure(@Body body: com.asseta.core.model.owner.ClosureCancelIn): com.asseta.core.model.owner.CompanyClosureRequestDto
+
+    // --- ADR-008: machine reports, credit invoices, customer hours ------------------------------------------------------
+
+    /** listMachineReports: [queue] PENDING = the approval queue; [mine] the caller's own. */
+    @GET("api/v1/tenant/machine-reports")
+    suspend fun machineReports(
+        @Query("status") status: String? = null,
+        @Query("queue") queue: String? = null,
+        @Query("machine_id") machineId: String? = null,
+        @Query("customer_id") customerId: String? = null,
+        @Query("mine") mine: Boolean? = null,
+        @Query("date_from") dateFrom: String? = null,
+        @Query("date_to") dateTo: String? = null,
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 100,
+    ): PageDto<com.asseta.core.model.sync.MachineReportDto>
+
+    /** getMachineReport: detail with the reading's findings and the tracker cross-check. */
+    @GET("api/v1/tenant/machine-reports/{id}")
+    suspend fun machineReport(@Path("id") id: String): com.asseta.core.model.sync.MachineReportDto
+
+    /** approveMachineReport (tenant.machine_report.approve; never your own). */
+    @POST("api/v1/tenant/machine-reports/{id}/approve")
+    suspend fun approveMachineReport(@Path("id") id: String, @Body body: com.asseta.core.model.sync.MachineReportDecisionIn): com.asseta.core.model.sync.MachineReportDto
+
+    /** rejectMachineReport: the reason is required; the supervisor corrects the split on the same reading. */
+    @POST("api/v1/tenant/machine-reports/{id}/reject")
+    suspend fun rejectMachineReport(@Path("id") id: String, @Body body: com.asseta.core.model.sync.MachineReportRejectIn): com.asseta.core.model.sync.MachineReportDto
+
+    /** listMachineReportStatus: per machine, where it stands for its next report. */
+    @GET("api/v1/tenant/machine-reports/status")
+    suspend fun machineReportStatus(@Query("machine_id") machineId: String? = null): List<com.asseta.core.model.sync.MachineReportStatusDto>
+
+    /** listCreditInvoices. */
+    @GET("api/v1/tenant/credit-invoices")
+    suspend fun creditInvoices(
+        @Query("customer_id") customerId: String? = null,
+        @Query("status") status: String? = null,
+        @Query("overdue") overdue: Boolean? = null,
+        @Query("q") q: String? = null,
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 100,
+    ): PageDto<com.asseta.core.model.sync.CreditInvoiceDto>
+
+    @GET("api/v1/tenant/credit-invoices/{id}")
+    suspend fun creditInvoice(@Path("id") id: String): com.asseta.core.model.sync.CreditInvoiceDto
+
+    /** recordCreditInvoicePayment (tenant.hours.invoice_payment): returns the invoice. */
+    @POST("api/v1/tenant/credit-invoices/{id}/payments")
+    suspend fun recordCreditInvoicePayment(@Path("id") id: String, @Body body: com.asseta.core.model.sync.CreditInvoicePaymentIn): com.asseta.core.model.sync.CreditInvoiceDto
+
+    /** listCustomerHours: bought / activated / used / left / awaiting / credit owed per customer. */
+    @GET("api/v1/tenant/customer-hours")
+    suspend fun customerHours(@Query("customer_id") customerId: String? = null): List<com.asseta.core.model.sync.CustomerHoursSummaryDto>
+
+    /** activateHoursOnCredit (tenant.hours.credit_activate; never by the order's recorder). */
+    @POST("api/v1/tenant/hours-purchases/{id}/credit-activations")
+    suspend fun activateHoursOnCredit(@Path("id") id: String, @Body body: com.asseta.core.model.sync.CreditActivationIn): kotlinx.serialization.json.JsonObject
 }

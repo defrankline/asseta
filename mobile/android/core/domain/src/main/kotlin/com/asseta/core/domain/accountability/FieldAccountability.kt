@@ -67,6 +67,10 @@ data class CustomerHoursPolicy(
     val fieldNoncashPayments: Boolean = false,
     /** When the cash parts of a sale count as verified (CUSTOMER_HOURS `cash_activation`; missing = [HoursCashActivation.VERIFY]). */
     val cashActivation: HoursCashActivation = HoursCashActivation.VERIFY,
+    /** ADR-008: field staff may record a CREDIT line (CUSTOMER_HOURS `field_credit_sales`; missing = off). */
+    val fieldCreditSales: Boolean = false,
+    /** ADR-008: a machine is due for a report after this many days (`machine_report_reminder_days`; null = off). */
+    val reportReminderDays: Int? = DEFAULT_REMINDER_DAYS,
 ) {
     companion object {
         const val TYPE = "CUSTOMER_HOURS"
@@ -80,8 +84,17 @@ data class CustomerHoursPolicy(
                 transferEvidenceRequired = values.optionalFlag("transfer_evidence_required"),
                 fieldNoncashPayments = values.optionalFlag("field_noncash_payments"),
                 cashActivation = HoursCashActivation.fromWire((values["cash_activation"] as? JsonPrimitive)?.contentOrNull),
+                fieldCreditSales = values.optionalFlag("field_credit_sales"),
+                reportReminderDays = if ("machine_report_reminder_days" in values) {
+                    (values["machine_report_reminder_days"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull()
+                } else {
+                    DEFAULT_REMINDER_DAYS
+                },
             )
         }.getOrNull()
+
+        /** The server's default for `machine_report_reminder_days`. */
+        const val DEFAULT_REMINDER_DAYS = 3
     }
 }
 
@@ -132,15 +145,38 @@ data class FieldAccess(
     val walkIn: Boolean get() = sellHours && hours?.walkInAllowed == true
     /** Bank and mobile-money parts may be recorded on a sale (CUSTOMER_HOURS `field_noncash_payments`); else cash only. */
     val noncashPayments: Boolean get() = sellHours && hours?.fieldNoncashPayments == true
-    /** The payment methods the sale form offers. */
     /** When the cash parts of a sale count as verified (VERIFY while the policy is unknown). */
     val cashActivation: HoursCashActivation get() = hours?.cashActivation ?: HoursCashActivation.VERIFY
-    val saleMethods: List<PaymentMethod> get() = if (noncashPayments) PaymentMethod.entries else listOf(PaymentMethod.CASH)
+
     /**
-     * "Book the job" on the sale: the server takes `job` on HOURS_PURCHASE (OP_HOURS_SALE_BOOKING) and the user may
-     * request jobs (tenant.job.request).
+     * ADR-008: a CREDIT line may be recorded on a sale to a registered customer: the server takes it
+     * (OP_HOURS_SALE_CREDIT) and the company lets field staff sell on credit (`field_credit_sales`), or the user may
+     * approve credit anyway (`tenant.hours.credit_activate`).
      */
-    val bookSaleJob: Boolean get() = sellHours && supports(SyncCapabilities.OP_HOURS_SALE_BOOKING) && can(JOB_REQUEST)
+    val creditSales: Boolean
+        get() = sellHours && supports(SyncCapabilities.OP_HOURS_SALE_CREDIT) && (hours?.fieldCreditSales == true || can(HOURS_CREDIT_ACTIVATE))
+
+    /** The payment methods the sale form offers: Cash always; Bank and Mobile money per policy; Credit for registered customers. */
+    fun saleMethods(walkIn: Boolean): List<PaymentMethod> = PaymentMethod.entries.filter {
+        when (it) {
+            PaymentMethod.CASH -> true
+            PaymentMethod.BANK, PaymentMethod.MOBILE_MONEY -> noncashPayments
+            PaymentMethod.CREDIT -> creditSales && !walkIn
+        }
+    }
+
+    /** ADR-008 machine reports: the server takes MACHINE_REPORT and the user may submit reports. */
+    val machineReport: Boolean get() = supports(SyncCapabilities.OP_MACHINE_REPORT) && can(MACHINE_REPORT_SUBMIT)
+
+    /** Customer lines in a report (customer hours on); otherwise only non-productive lines can be given. */
+    val reportCustomerLines: Boolean get() = customerHours
+
+    /** Record a payment on a customer's open credit invoice (offline, CREDIT_INVOICE_PAYMENT). */
+    val creditInvoicePayment: Boolean
+        get() = customerHours && supports(SyncCapabilities.OP_CREDIT_INVOICE_PAYMENT) && can(INVOICE_PAYMENT)
+
+    /** ADR-008 §3: fuel capture is on for the company (FUEL not listed in `/me` `disabled_capabilities`). */
+    val fuel: Boolean get() = FuelSwitch.on(disabled)
     val requestHoursTransfer: Boolean
         get() = supports(SyncCapabilities.OP_HOURS_TRANSFER_REQUEST) && can(HOURS_TRANSFER) && customerHours
     /** The tenant uses the DEC-030 cash custody additions (CASH_CUSTODY not switched off in `/me`). */
@@ -242,7 +278,11 @@ data class FieldAccess(
         const val PETTY_CASH_COUNT = "tenant.pettycash.count"
         const val EXPENSE_WRITE = "tenant.expense.write"
         const val HOURS_PURCHASE = "tenant.hours.purchase"
-        const val JOB_REQUEST = "tenant.job.request"
+        const val HOURS_CREDIT_ACTIVATE = "tenant.hours.credit_activate"
+        const val MACHINE_REPORT_SUBMIT = "tenant.machine_report.submit"
+        const val MACHINE_REPORT_READ = "tenant.machine_report.read"
+        const val MACHINE_REPORT_APPROVE = "tenant.machine_report.approve"
+        const val INVOICE_PAYMENT = "tenant.hours.invoice_payment"
         const val HOURS_TRANSFER = "tenant.hours.transfer"
         const val HOURS_READ = "tenant.hours.read"
         const val COLLECTION_RECORD = "tenant.collection.record"
@@ -254,7 +294,18 @@ data class FieldAccess(
     }
 }
 
-enum class PaymentMethod(val wire: String) { CASH("CASH"), BANK("BANK"), MOBILE_MONEY("MOBILE_MONEY") }
+/** ADR-008: CREDIT is amount only (no reference, no received time), registered customers only, at most one per sale. */
+enum class PaymentMethod(val wire: String) {
+    CASH("CASH"), BANK("BANK"), MOBILE_MONEY("MOBILE_MONEY"), CREDIT("CREDIT");
+
+    /** Bank and mobile money carry the bank or mobile-money reference. */
+    val needsReference: Boolean get() = this == BANK || this == MOBILE_MONEY
+}
+
+/** ADR-008 §3: the fuel switch. Off (FUEL in `/me` `disabled_capabilities`): no Fuel entry anywhere. */
+object FuelSwitch {
+    fun on(disabledCapabilities: Collection<String>): Boolean = TenantAccess.FUEL !in disabledCapabilities
+}
 
 /**
  * One payment line of the hours sale as typed (the reference only for bank and mobile money). [followsTotal]: the opening
@@ -280,42 +331,7 @@ data class HoursSaleDraft(
     val hoursText: String,
     val payments: List<PaymentLine>,
     val note: String,
-    /** "Book the job" as typed; null = no booking. */
-    val job: SaleJobDraft? = null,
 )
-
-/**
- * The job booked with the sale as typed. [contractRequired]: the customer has more than one contract and the form offers
- * the picker (online), so one must be chosen; otherwise [contractId] stays null and the server picks the contract.
- */
-data class SaleJobDraft(
-    val startMs: Long,
-    val endMs: Long? = null,
-    val siteId: String? = null,
-    val contractId: String? = null,
-    val note: String = "",
-    val contractRequired: Boolean = false,
-)
-
-/** A checked booking (`SaleJobIn`). */
-data class SaleJobValues(val startMs: Long, val endMs: Long?, val siteId: String?, val contractId: String?, val note: String?)
-
-/** Defaults of "Book the job" (same as iOS `SaleBooking`). */
-object SaleBooking {
-    /** The start the form opens with: tomorrow at 08:00, local time. */
-    fun defaultStartMs(nowMs: Long, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): Long =
-        java.time.Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate().plusDays(1).atTime(8, 0).atZone(zone).toInstant().toEpochMilli()
-
-    /** The end offered by default: the sale's hours after the start (whole minutes); null while the hours are not valid. */
-    fun endAfterHoursMs(startMs: Long, hoursText: String): Long? {
-        val hours = AccountabilityRules.saleHours(hoursText)?.takeIf { it.signum() > 0 } ?: return null
-        val minutes = hours.multiply(BigDecimal(60)).setScale(0, java.math.RoundingMode.HALF_UP).toLong()
-        return startMs + minutes * 60_000L
-    }
-
-    /** The end must come after the start (an end is optional). */
-    fun endValid(job: SaleJobDraft): Boolean = job.endMs == null || job.endMs > job.startMs
-}
 
 /** A checked payment part (`PurchasePaymentIn`). */
 data class PaymentPart(val method: PaymentMethod, val amount: BigDecimal, val reference: String?)
@@ -326,7 +342,6 @@ data class HoursSaleValues(
     val walkInName: String?,
     val walkInPhone: String?,
     val note: String?,
-    val job: SaleJobValues? = null,
 )
 
 data class HoursTransferValues(val hours: BigDecimal, val reason: String)
@@ -360,6 +375,7 @@ object AccountabilityRules {
         walkInAllowed: Boolean,
         noncashAllowed: Boolean = false,
         price: HoursSalePrice = HoursSalePrice.Hidden,
+        creditAllowed: Boolean = false,
     ): FormCheck<HoursSaleValues> {
         val m = mutableListOf<String>()
         var name: String? = null
@@ -382,27 +398,26 @@ object AccountabilityRules {
             val amount = AmountParser.valueOrNull(line.amountText, DecimalLimit.MONEY)
             if (amount == null) lineProblems += AccountabilityMessages.AMOUNT_RECEIVED
             val reference = line.reference.trim().take(MAX_REFERENCE).ifEmpty { null }
-            if (line.method != PaymentMethod.CASH) {
+            if (line.method == PaymentMethod.CREDIT) {
+                if (!creditAllowed) lineProblems += AccountabilityMessages.CREDIT_OFF
+                if (d.walkIn) lineProblems += AccountabilityMessages.CREDIT_WALK_IN
+            } else if (line.method != PaymentMethod.CASH) {
                 if (!noncashAllowed) lineProblems += AccountabilityMessages.NONCASH_OFF
                 if (reference == null) lineProblems += AccountabilityMessages.REFERENCE
             }
-            amount?.let { PaymentPart(line.method, it, reference.takeIf { line.method != PaymentMethod.CASH }) }
+            amount?.let { PaymentPart(line.method, it, reference.takeIf { line.method.needsReference }) }
         }
+        if (d.payments.count { it.method == PaymentMethod.CREDIT } > 1) lineProblems += AccountabilityMessages.ONE_CREDIT
         m += lineProblems
         if (price is HoursSalePrice.Priced && parts.fold(BigDecimal.ZERO) { s, p -> s + p.amount } > price.quote.amount) {
             m += AccountabilityMessages.paymentsExceed(HoursPricing.money(price.quote.amount, price.quote.currency, price.quote.minorUnits))
         }
-        val job = d.job?.let { j ->
-            if (!SaleBooking.endValid(j)) m += AccountabilityMessages.JOB_END
-            if (j.contractRequired && j.contractId.isNullOrBlank()) m += AccountabilityMessages.JOB_CONTRACT
-            SaleJobValues(j.startMs, j.endMs, j.siteId?.ifBlank { null }, j.contractId?.ifBlank { null }, j.note.trim().take(MAX_NOTE).ifEmpty { null })
-        }
         val note = d.note.trim().take(MAX_NOTE).ifEmpty { null }
-        return if (m.isEmpty()) FormCheck.Valid(HoursSaleValues(hours!!, parts, name, phone, note, job)) else FormCheck.Invalid(m)
+        return if (m.isEmpty()) FormCheck.Valid(HoursSaleValues(hours!!, parts, name, phone, note)) else FormCheck.Invalid(m)
     }
 
     /** True when a bank or mobile-money line has no reference yet (shown under that line's Reference field). */
-    fun referenceMissing(line: PaymentLine): Boolean = line.method != PaymentMethod.CASH && line.reference.isBlank()
+    fun referenceMissing(line: PaymentLine): Boolean = line.method.needsReference && line.reference.isBlank()
 
     /**
      * Every rule of [hoursSale] that keeps Save off, as one plain line ("To save: enter the reference for payments 2 and
@@ -413,8 +428,9 @@ object AccountabilityRules {
         walkInAllowed: Boolean,
         noncashAllowed: Boolean = false,
         price: HoursSalePrice = HoursSalePrice.Hidden,
+        creditAllowed: Boolean = false,
     ): String? {
-        if (hoursSale(d, walkInAllowed, noncashAllowed, price) is FormCheck.Valid) return null
+        if (hoursSale(d, walkInAllowed, noncashAllowed, price, creditAllowed) is FormCheck.Valid) return null
         val todo = mutableListOf<String>()
         if (d.walkIn) {
             if (!walkInAllowed) todo += AccountabilityMessages.TODO_REGISTERED
@@ -431,15 +447,16 @@ object AccountabilityRules {
         numbers { AmountParser.valueOrNull(it.amountText, DecimalLimit.MONEY) == null }
             .takeIf { it.isNotEmpty() }?.let { todo += AccountabilityMessages.todoAmount(it) }
         if (!noncashAllowed) {
-            numbers { it.method != PaymentMethod.CASH }.takeIf { it.isNotEmpty() }?.let { todo += AccountabilityMessages.todoCash(it) }
+            numbers { it.method.needsReference }.takeIf { it.isNotEmpty() }?.let { todo += AccountabilityMessages.todoCash(it) }
+        }
+        if (!creditAllowed || d.walkIn) {
+            numbers { it.method == PaymentMethod.CREDIT }.takeIf { it.isNotEmpty() }?.let { todo += AccountabilityMessages.todoCash(it) }
+        } else if (d.payments.count { it.method == PaymentMethod.CREDIT } > 1) {
+            todo += AccountabilityMessages.TODO_ONE_CREDIT
         }
         numbers(::referenceMissing).takeIf { it.isNotEmpty() }?.let { todo += AccountabilityMessages.todoReference(it) }
         if (price is HoursSalePrice.Priced && HoursPayments.paid(d.payments) > price.quote.amount) {
             todo += AccountabilityMessages.todoLower(HoursPricing.money(price.quote.amount, price.quote.currency, price.quote.minorUnits))
-        }
-        d.job?.let { j ->
-            if (!SaleBooking.endValid(j)) todo += AccountabilityMessages.TODO_JOB_END
-            if (j.contractRequired && j.contractId.isNullOrBlank()) todo += AccountabilityMessages.TODO_JOB_CONTRACT
         }
         return AccountabilityMessages.toSave(todo)
     }
@@ -539,8 +556,9 @@ object AccountabilityMessages {
     const val NONCASH_OFF = "Bank and mobile-money payments are recorded by the office."
     const val TOO_MANY_PAYMENTS = "At most 10 payments per sale."
     fun paymentsExceed(total: String) = "The payments add up to more than the total of $total."
-    const val JOB_END = "The job's end must be after its start."
-    const val JOB_CONTRACT = "Choose the contract for the job."
+    const val CREDIT_OFF = "Credit sales are recorded by the office."
+    const val CREDIT_WALK_IN = "A walk-in customer cannot buy on credit."
+    const val ONE_CREDIT = "A sale can have only one credit part."
 
     /** Under a bank or mobile-money line's Reference field while it is empty. */
     const val REFERENCE_LINE = "Enter the reference for this payment"
@@ -557,8 +575,7 @@ object AccountabilityMessages {
     fun todoCash(n: List<Int>) = "change ${payments(n)} to cash"
     fun todoReference(n: List<Int>) = "enter the reference for ${payments(n)}"
     fun todoLower(total: String) = "lower the payments to the total of $total"
-    const val TODO_JOB_END = "set the job's end after its start"
-    const val TODO_JOB_CONTRACT = "choose the job's contract"
+    const val TODO_ONE_CREDIT = "keep one credit part"
 
     /** "To save: a, b and c."; null when there is nothing to do. */
     fun toSave(todo: List<String>): String? = if (todo.isEmpty()) null else "To save: ${and(todo)}."

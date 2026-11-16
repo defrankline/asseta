@@ -15,13 +15,13 @@ import com.asseta.core.model.sync.CashTransferDto
  */
 object FieldAccountabilityTexts {
     // Money "+" menu
-    const val MENU_SELL_HOURS = "Sell customer hours"
+    const val MENU_SELL_HOURS = "Sell hours"
     const val MENU_HOURS_TRANSFER = "Request hours transfer"
     const val MENU_TRANSFER_CASH = "Transfer cash to a colleague"
     const val MENU_KEEP_CASH = "Ask to keep cash"
 
     // Titles
-    const val TITLE_HOURS_SALE = "Sell customer hours"
+    const val TITLE_HOURS_SALE = "Sell hours"
     const val TITLE_HOURS_TRANSFER = "Request hours transfer"
     const val TITLE_CASH_TRANSFER = "Transfer cash"
     const val TITLE_ACK_TRANSFER = "Cash transfer"
@@ -45,7 +45,49 @@ object FieldAccountabilityTexts {
     const val ONLINE_ONLY = "Connect to the internet to send this request."
     fun lastUpdated(time: String) = "Last updated $time."
 
-    // Sell customer hours
+    // Sell hours (ADR-008 design SellHours)
+    const val REGISTERED_CUSTOMER = "Registered customer"
+    const val TOTAL = "Total"
+    const val ADD_PAYMENT_PLUS = "+ Add payment"
+    const val SAVE_SALE = "Save sale"
+    const val SAVING = "Saving…"
+    const val SELL_FOOTER = "No job is created. Hours become usable when the money is verified. A credit part creates an invoice automatically; its hours wait for office approval."
+    const val CREDIT_LINE_NOTE = "Amount only. An invoice is created for it; its hours wait for office approval."
+
+    /** "20 h × 95,000 · rate card", with " less 10%" when the customer has an approved discount. */
+    fun totalDetail(q: HoursSaleQuote): String {
+        val discount = if (q.discountPercent.signum() > 0) " less ${HoursPricing.figure(q.discountPercent)}%" else ""
+        return "${HoursPricing.figure(q.hours)} h × ${HoursPricing.rate(q.hourlyRate)} · rate card$discount"
+    }
+
+    /** The payment chips: Cash, Bank, M-money, Credit. */
+    fun methodChip(m: PaymentMethod): String = when (m) {
+        PaymentMethod.CASH -> "Cash"
+        PaymentMethod.BANK -> "Bank"
+        PaymentMethod.MOBILE_MONEY -> "M-money"
+        PaymentMethod.CREDIT -> "Credit"
+    }
+
+    /** The amount field of a payment line. */
+    fun amountLabel(m: PaymentMethod): String = when (m) {
+        PaymentMethod.CASH -> "Cash received"
+        PaymentMethod.BANK -> "Paid by bank"
+        PaymentMethod.MOBILE_MONEY -> "Paid by mobile money"
+        PaymentMethod.CREDIT -> "On credit"
+    }
+
+    /** "Fully paid · balance 0", "Part paid · balance 270,000", "Not paid yet" (credit counts as covered). */
+    fun paymentStatus(s: PaymentSummary): String {
+        val q = s.quote
+        return when (val st = s.status) {
+            PaymentStatus.NotPaid -> NOT_PAID
+            PaymentStatus.FullyPaid -> "Fully paid · balance 0"
+            is PaymentStatus.PartPaid -> "Part paid · balance ${HoursPricing.rate(st.balance)}"
+            PaymentStatus.OverTotal -> com.asseta.core.domain.accountability.AccountabilityMessages.paymentsExceed(money(q!!.amount, q))
+            PaymentStatus.NoTotal -> "Paid ${HoursPricing.rate(s.paid)}"
+        }
+    }
+
     const val SECTION_CUSTOMER = "Customer"
     const val REGISTERED = "Registered"
     const val WALK_IN = "Walk-in"
@@ -98,12 +140,11 @@ object FieldAccountabilityTexts {
     }
 
     /**
-     * The sale on the sync status screen: "Hours sale · Cash 300,000 + Bank 270,000" (or "· Not paid yet"); a sale that
-     * books its job reads "Hours sale + job booking · …".
+     * The sale on the sync status screen: "Hours sale · Cash 300,000 + Credit 270,000" (or "· Not paid yet").
      */
     fun outboxHoursSale(payload: kotlinx.serialization.json.JsonObject?): String {
         if (payload == null) return OUTBOX_HOURS_SALE
-        val title = if (payload["job"] is kotlinx.serialization.json.JsonObject) OUTBOX_HOURS_SALE_BOOKING else OUTBOX_HOURS_SALE
+        val title = OUTBOX_HOURS_SALE
         val parts = (payload["payments"] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { it as? kotlinx.serialization.json.JsonObject }
             ?: listOfNotNull(payload["payment"] as? kotlinx.serialization.json.JsonObject)
         if (parts.isEmpty()) return "$title · $NOT_PAID"
@@ -136,7 +177,7 @@ object FieldAccountabilityTexts {
      */
     fun paymentFooter(methods: List<PaymentMethod>, activation: HoursCashActivation): String {
         val cash = PaymentMethod.CASH in methods
-        val noncash = methods.any { it != PaymentMethod.CASH }
+        val noncash = methods.any { it.needsReference }
         return when {
             activation == HoursCashActivation.VERIFY || !cash -> PAYMENT_FOOTER
             noncash -> "$PAYMENT_FOOTER $PAYMENT_FOOTER_CASH_PARTS"
@@ -151,49 +192,11 @@ object FieldAccountabilityTexts {
     const val ADD_PHOTO = "Add another photo"
     const val HOURS_OFF = "Customer hours are turned off for your company."
 
-    // Book the job with the sale (OP_HOURS_SALE_BOOKING)
-    const val SECTION_JOB = "Job"
-    const val BOOK_JOB = "Book the job"
-    const val JOB_START = "Start"
-    const val JOB_END = "End (optional)"
-    const val JOB_END_NOT_SET = "Not set"
-    const val JOB_CLEAR_END = "Clear end"
-    const val JOB_SITE = "Site (optional)"
-    const val JOB_SITE_NONE = "Not set"
-    const val JOB_SITES_EMPTY = "Sites appear here after a sync."
-    const val JOB_CONTRACT = "Contract"
-    const val JOB_NOTE = "What the customer asked for (optional)"
-    const val JOB_FOOTER_OFF = "Turn on to book the job for this customer and machine, billed from these hours."
-    const val JOB_FOOTER = "The job is billed from these hours. It is approved once the sale is paid and verified, or by the office; then it appears under Ready to start."
-    const val JOB_CONTRACT_FOOTER = "This customer has more than one contract: choose the one for this job."
-
-    /** The default end offered: "End after the sale hours (6 h)". */
-    fun jobEndFromHours(hours: String) = "End after the sale hours (${hoursNumber(hours)} h)"
-
-    /** The booked job once the sale synced: "Job JB-2026-00042 · Approved"; null when the acked sale has no job. */
-    fun hoursSaleJob(resultJson: String?): String? {
-        val result = resultJson?.let { runCatching { kotlinx.serialization.json.Json.parseToJsonElement(it) as? kotlinx.serialization.json.JsonObject }.getOrNull() } ?: return null
-        fun obj(o: kotlinx.serialization.json.JsonObject?, key: String) = o?.get(key) as? kotlinx.serialization.json.JsonObject
-        fun text(o: kotlinx.serialization.json.JsonObject?, key: String) = (o?.get(key) as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content
-        val body = obj(result, "result") ?: result
-        val job = obj(obj(body, "entity"), "job") ?: obj(body, "job") ?: return null
-        val number = text(job, "job_number") ?: return null
-        return "Job $number" + (text(job, "status")?.let { " · " + bookedJobStatus(it) } ?: "")
-    }
-
-    fun bookedJobStatus(status: String): String = when (status) {
-        "PENDING_APPROVAL" -> "Waiting for approval"
-        "APPROVED" -> "Approved"
-        "IN_PROGRESS" -> "In progress"
-        "COMPLETED" -> "Completed"
-        "CANCELLED" -> "Cancelled"
-        else -> status.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
-    }
-
     fun method(m: PaymentMethod): String = when (m) {
         PaymentMethod.CASH -> "Cash"
         PaymentMethod.BANK -> "Bank"
         PaymentMethod.MOBILE_MONEY -> "Mobile money"
+        PaymentMethod.CREDIT -> "Credit"
     }
 
     // Request hours transfer
@@ -278,7 +281,6 @@ object FieldAccountabilityTexts {
 
     // Sync status titles
     const val OUTBOX_HOURS_SALE = "Hours sale"
-    const val OUTBOX_HOURS_SALE_BOOKING = "Hours sale + job booking"
     const val OUTBOX_HOURS_TRANSFER = "Hours transfer request"
     const val OUTBOX_CASH_TRANSFER = "Cash transfer"
     const val OUTBOX_TRANSFER_ACK = "Transfer acknowledgement"
@@ -408,16 +410,12 @@ object FieldAccountabilityTexts {
         "DEPOSIT_ACCOUNT_INACTIVE" -> "The account you chose is no longer in use. Record the handover again with another account."
         "REMITTANCE_ACCOUNT_MISMATCH" -> "The account you chose does not match how the money was handed over. Record the handover again."
         "DEPOSIT_ACCOUNT_CURRENCY_MISMATCH" -> "The account you chose holds a different currency. Record the handover again with another account."
-        // The job booked with an hours sale: a refused booking refuses the whole sale, kept for the office to review.
-        "CONTRACT_REQUIRED" -> "This customer has no contract yet; the office creates one. The sale and its booking are kept for review."
-        "CONTRACT_CHOICE_REQUIRED" ->
-            "This customer has several contracts, so the job needs one chosen. The sale and its booking are kept for review; book it again online and choose the contract."
-        "CONTRACT_CUSTOMER_MISMATCH" -> "The contract you chose belongs to another customer. The sale and its booking are kept for review."
-        "CONTRACT_NOT_ACTIVE" -> "The contract you chose is no longer active. The sale and its booking are kept for review."
-        "JOB_REQUEST_NOT_PERMITTED" -> "You are not allowed to book jobs. The sale and its booking are kept for review."
-        "NO_STAFF_RECORD" -> "Your account has no staff record, so the job could not be booked. The sale and its booking are kept for review; ask your administrator."
-        "MACHINE_BUSY" -> "Another job is running on this machine; finish it first."
-        else -> DailyReportTexts.conflict(code) ?: SiteCheckinTexts.conflict(code)
+        // ADR-008: credit sales, machine reports and credit-invoice payments.
+        "CREDIT_SALES_NOT_ALLOWED" -> "Your company records credit sales at the office. The sale is kept for review."
+        "CREDIT_NOT_ALLOWED" -> "Your company does not sell on credit now. The sale is kept for review."
+        "WALK_IN_NO_CREDIT" -> "A walk-in customer cannot buy on credit. The sale is kept for review."
+        "PAYMENTS_EXCEED_TOTAL" -> "The payments add up to more than the sale. The sale is kept for review."
+        else -> com.asseta.supervisor.ui.report.ReportTexts.conflict(code) ?: DailyReportTexts.conflict(code) ?: SiteCheckinTexts.conflict(code)
     }
 
     /** A colleague's name from the server, else from the saved cash holders, else the short id (DEC-030 G2). */

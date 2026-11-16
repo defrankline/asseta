@@ -80,6 +80,7 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
             replaceOpenInvoices(database, tenantId, dto.capabilities, dto.data.openInvoices)
             replacePettyCash(database, tenantId, dto.capabilities, dto.data)
             replaceHoursPrices(database, tenantId, dto.capabilities, dto.data)
+            replaceMachineReports(database, tenantId, dto.capabilities, dto.data)
             applySnapshots(database, tenantId, dto.policySnapshots)
             val states = database.syncStateDao()
             val current = states.get(tenantId) ?: SyncStateEntity(tenantId)
@@ -104,6 +105,7 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
             replaceOpenInvoices(database, tenantId, dto.capabilities, dto.data.openInvoices)
             replacePettyCash(database, tenantId, dto.capabilities, dto.data)
             replaceHoursPrices(database, tenantId, dto.capabilities, dto.data)
+            replaceMachineReports(database, tenantId, dto.capabilities, dto.data)
             applySnapshots(database, tenantId, dto.policySnapshots)
             val states = database.syncStateDao()
             val current = states.get(tenantId) ?: SyncStateEntity(tenantId)
@@ -180,6 +182,27 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
         val sets = listOf(
             KIND_HOURS_PRICE to (if (on) data.hoursPrices.map { ref(KIND_HOURS_PRICE, it.machineId, tenantId, it.currency, json.encodeToString(it)) } else emptyList()),
             KIND_CUSTOMER_DISCOUNT to (if (on) data.customerDiscounts.map { ref(KIND_CUSTOMER_DISCOUNT, it.customerId, tenantId, it.percent, json.encodeToString(it)) } else emptyList()),
+        )
+        sets.forEach { (kind, rows) ->
+            keepOnly(field, tenantId, kind, rows.map { it.id })
+            if (rows.isNotEmpty()) field.upsertReferences(rows)
+        }
+    }
+
+    /**
+     * ADR-008 machine reports (OP_MACHINE_REPORT) and open credit invoices (OP_CREDIT_INVOICE_PAYMENT) are full
+     * snapshots on every pull: each local set is replaced. Without the capability nothing of them is kept.
+     */
+    private suspend fun replaceMachineReports(database: AssetaDatabase, tenantId: String, capabilities: List<String>, data: SyncData) {
+        val field = database.fieldDataDao()
+        val reports = SyncCapabilities.OP_MACHINE_REPORT in capabilities
+        val invoices = SyncCapabilities.OP_CREDIT_INVOICE_PAYMENT in capabilities
+        val sets = listOf(
+            KIND_REPORT_REASON to (if (reports) data.machineReportReasons.map { ref(KIND_REPORT_REASON, it.id, tenantId, it.name, json.encodeToString(it)) } else emptyList()),
+            KIND_REPORT_STATE to (if (reports) data.machineReportStates.map { ref(KIND_REPORT_STATE, it.machineId, tenantId, it.machineCode.orEmpty(), json.encodeToString(it)) } else emptyList()),
+            KIND_REPORT_HOURS to (if (reports) data.machineReportHours.map { ref(KIND_REPORT_HOURS, hoursKey(it.customerId, it.machineId), tenantId, it.customerName.orEmpty(), json.encodeToString(it)) } else emptyList()),
+            KIND_MY_REPORT to (if (reports) data.myMachineReports.map { ref(KIND_MY_REPORT, it.id, tenantId, it.submittedAt, json.encodeToString(it)) } else emptyList()),
+            KIND_CREDIT_INVOICE to (if (invoices) data.openCreditInvoices.map { ref(KIND_CREDIT_INVOICE, it.id, tenantId, it.dueDate, json.encodeToString(it)) } else emptyList()),
         )
         sets.forEach { (kind, rows) ->
             keepOnly(field, tenantId, kind, rows.map { it.id })
@@ -283,5 +306,13 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
         const val KIND_PETTY_WITNESS = "petty_cash_witness"
         const val KIND_HOURS_PRICE = "hours_price"
         const val KIND_CUSTOMER_DISCOUNT = "customer_discount"
+        const val KIND_REPORT_REASON = "machine_report_reason"
+        const val KIND_REPORT_STATE = "machine_report_state"
+        const val KIND_REPORT_HOURS = "machine_report_hours"
+        const val KIND_MY_REPORT = "my_machine_report"
+        const val KIND_CREDIT_INVOICE = "open_credit_invoice"
+
+        /** Key of an available-hours row: the customer, per machine when the company's report scope is MACHINE. */
+        fun hoursKey(customerId: String, machineId: String?) = if (machineId == null) customerId else "$customerId:$machineId"
     }
 }

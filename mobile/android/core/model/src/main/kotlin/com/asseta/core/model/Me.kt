@@ -69,6 +69,9 @@ data class TenantAccess(
 
         /** DEC-033 petty cash funds (PETTY_CASH policy `enabled`; platform default off, listed in `/me` while off). */
         const val PETTY_CASH = "PETTY_CASH"
+
+        /** ADR-008 §3: fuel capture (EXPENSE_CAPTURE `fuel_enabled`); listed in `/me` while off, the Fuel entries are hidden. */
+        const val FUEL = "FUEL"
     }
 }
 
