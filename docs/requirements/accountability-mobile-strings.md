@@ -2685,3 +2685,277 @@ screen, reusing its map (Android `:core:map`, iOS `AssetaFleetMap`). Rules (Andr
 | field.map.neverSeen | Never seen |
 | field.map.reported | Reported: {work status} |
 | field.map.a11y (Android) | Map of your machines with {n} machines. Use the List view for details. |
+
+## ADR-008 apps
+
+Machine reports replace jobs ([ADR-008](../adr/ADR-008-machine-reports-replace-jobs.md), API
+[api-machine-reports.md](../api-machine-reports.md)). Both apps get a sliding side menu and a Home of big tiles (approved
+designs: Supervisor Main, SideNav, SellHours, MachineReading, Reconcile, ReviewSubmit, Money, Dashboard; Owner OwnerHome,
+OwnerSideNav, OwnerApprovals, OwnerReportApproval, OwnerCustomers, OwnerMachines, OwnerMoney, OwnerReports). Colours
+(dark is the reference; the light theme is derived): background #0B1722, cards #15283A, raised #1E3A52, borders #22394D,
+muted text #B7C4D1, accent amber #F5A300 with text #1A1203 on it. Android and iOS are carbon copies: same screens, rules
+and wording.
+
+Rules (Android `ShellModel`, `MachineReportRules`, `FieldAccess`; iOS the same names):
+- **Gone:** the bottom tab bar, Jobs (list, detail, start/close, opening/closing readings, work log, customer
+  acknowledgement), Request job, "Book the job", changeover, daily readings and daily reports, site check-ins.
+- **Side menu (Supervisor):** Home, Sell hours (`tenant.hours.purchase` + OP_HOURS_PURCHASE + customer hours on), Machine
+  report (`tenant.machine_report.submit` + OP_MACHINE_REPORT; badge = machines that need a report), Money, Fuel (only
+  while FUEL is not in `/me` `disabled_capabilities` and the user records expenses), Dashboard, Inbox (red badge = unread
+  + needs attention), Customers; footer Sync, Switch company (several companies), Settings, Sign out. A menu entry opens
+  on top of Home (back returns Home); Delete my account, Change password and Notifications on this phone are in Settings.
+- **Fuel switch:** FUEL in `/me` `disabled_capabilities` hides Fuel everywhere (menu, routes, fuel event form) from the
+  first frame (the flag comes with `/me`, never after a load).
+- **Sell hours:** Cash is the default line; Bank and Mobile money per `field_noncash_payments`; Credit only for
+  registered customers, at most one credit line, amount only (no reference, no received time, no photo), offered when
+  the server announces OP_HOURS_SALE_CREDIT and the company sets `field_credit_sales` (or the user holds
+  `tenant.hours.credit_activate`). Choosing Walk-in turns a Credit line back into Cash. No job is created.
+- **Machine report state** per machine: Awaiting approval (a SUBMITTED report on the server or one still on this phone),
+  Rejected · redo the split (the same reading is split again: `capture_id` + `corrects_report_id`), First reading
+  needed (no starting reading: the report sends the reading only, `opening: true`, no lines), Report due (never reported,
+  or no report for `CUSTOMER_HOURS.machine_report_reminder_days`, default 3; never when the setting is off), else Up to
+  date. "Hours to report" and the tile badge count First reading needed, Rejected and Report due.
+- **Step 1:** the reading is a new DAILY capture with the same evidence rules as every reading (photo, on-phone OCR per
+  the capture policy, a fresh GPS attempt). It must be above the previous reading; equal = nothing to report.
+- **Step 2:** lines add up to the difference exactly (Review stays off until they do); one line per customer, never more
+  than the customer's usable hours (the synced `machine_report_hours` less this phone's unsent reports); every
+  non-productive line has a note; hours in steps of the meter's precision. New lines start with the hours still to
+  account for.
+- **Offline:** a report queues as MACHINE_REPORT (operation id = report id; it waits for its meter photo, sent as
+  `photo_upload_id`); a credit-invoice payment as CREDIT_INVOICE_PAYMENT (operation id = payment client id), never above
+  the invoice's balance on the phone (less what the phone already queued against it). Server refusals show as sync
+  conflicts with the wording below.
+- **Money / Dashboard figures** come from the phone: sales and invoice payments recorded on this phone (by method; Credit
+  "awaiting approval"), my handovers and expenses (from the Inbox records), my cash custody, my machine reports (server
+  copies of the last 30 days and those still on the phone). Periods are the local day, the week from Monday, the month.
+
+### Supervisor
+| Key | English |
+|---|---|
+| field.shell.menu.home | Home |
+| field.shell.menu.sellHours | Sell hours |
+| field.shell.menu.machineReport | Machine report |
+| field.shell.menu.money | Money |
+| field.shell.menu.fuel | Fuel |
+| field.shell.menu.dashboard | Dashboard |
+| field.shell.menu.inbox | Inbox |
+| field.shell.menu.customers | Customers |
+| field.shell.menu.sync.waiting | Sync · {n} waiting |
+| field.shell.menu.sync.allSent | Sync · all sent |
+| field.shell.menu.switchCompany | Switch company |
+| field.shell.menu.settings | Settings |
+| field.shell.menu.signOut | Sign out |
+| field.shell.menu.role | Supervisor · {company} |
+| field.shell.menu.caption | Asseta Supervisor {version} · Delete my account in Settings |
+| field.shell.menu.open (a11y) | Open menu |
+| field.home.greeting.morning | Good morning, {first name} |
+| field.home.greeting.afternoon | Good afternoon, {first name} |
+| field.home.greeting.evening | Good evening, {first name} |
+| field.home.allSynced | All synced |
+| field.home.notSynced | {n} not synced |
+| field.home.cashInHand | Cash in hand |
+| field.home.hoursToReport | Hours to report |
+| field.home.hoursToReport.none | None |
+| field.home.hoursToReport.one | 1 machine |
+| field.home.hoursToReport.other | {n} machines |
+| field.home.awaitingApproval | Awaiting approval |
+| field.home.whatToDo | WHAT DO YOU WANT TO DO? |
+| field.home.tile.sellHours.subtitle | Customer buys machine hours |
+| field.home.tile.machineReport.subtitle | Reading → account for hours |
+| field.home.tile.machineReport.badge | {n} due |
+| field.home.tile.money.subtitle | Collections, hand over, expenses |
+| field.home.tile.dashboard.subtitle | Reports, my machines |
+| field.home.recent | RECENT |
+| field.home.recent.empty | Your sales and machine reports appear here. |
+| field.home.recent.report | {machine} report · {hours} h |
+| field.home.recent.sale | Sold {hours} h · {customer} |
+| field.home.recent.when.today | Today {HH:mm} |
+| field.home.recent.when.yesterday | Yesterday {HH:mm} |
+| field.home.recent.pill.paid | Paid |
+| field.home.recent.pill.credit | Credit |
+| field.home.recent.pill.notPaid | Not paid |
+| field.home.recent.pill.waiting | Waiting to sync |
+| field.home.recent.pill.notSynced | Not synced |
+| field.sell.title | Sell hours |
+| field.sell.registered | Registered customer |
+| field.sell.walkIn | Walk-in |
+| field.sell.total | Total |
+| field.sell.totalDetail | {hours} h × {rate} · rate card |
+| field.sell.totalDetail.discount | {hours} h × {rate} · rate card less {percent}% |
+| field.sell.payment | PAYMENT |
+| field.sell.method.cash | Cash |
+| field.sell.method.bank | Bank |
+| field.sell.method.mobile | M-money |
+| field.sell.method.credit | Credit |
+| field.sell.amount.cash | Cash received |
+| field.sell.amount.bank | Paid by bank |
+| field.sell.amount.mobile | Paid by mobile money |
+| field.sell.amount.credit | On credit |
+| field.sell.creditNote | Amount only. An invoice is created for it; its hours wait for office approval. |
+| field.sell.addPayment | + Add payment |
+| field.sell.status.full | Fully paid · balance 0 |
+| field.sell.status.part | Part paid · balance {amount} |
+| field.sell.status.none | Not paid yet |
+| field.sell.save | Save sale |
+| field.sell.saving | Saving… |
+| field.sell.footer | No job is created. Hours become usable when the money is verified. A credit part creates an invoice automatically; its hours wait for office approval. |
+| field.sell.err.creditOff | Credit sales are recorded by the office. |
+| field.sell.err.creditWalkIn | A walk-in customer cannot buy on credit. |
+| field.sell.err.oneCredit | A sale can have only one credit part. |
+| field.sell.toSave.oneCredit | keep one credit part |
+| field.sell.conflict.CREDIT_SALES_NOT_ALLOWED | Your company records credit sales at the office. The sale is kept for review. |
+| field.sell.conflict.CREDIT_NOT_ALLOWED | Your company does not sell on credit now. The sale is kept for review. |
+| field.sell.conflict.WALK_IN_NO_CREDIT | A walk-in customer cannot buy on credit. The sale is kept for review. |
+| field.sell.conflict.PAYMENTS_EXCEED_TOTAL | The payments add up to more than the sale. The sale is kept for review. |
+| field.sell.outbox | Hours sale · {Method amount} + … (e.g. "Hours sale · Cash 1,000,000 + Credit 900,000") |
+| field.report.title | Machine report |
+| field.report.step1 | Step 1 of 3 · New reading |
+| field.report.step2 | Step 2 of 3 · Account for hours |
+| field.report.step3 | Step 3 of 3 · Review & submit |
+| field.report.machine | Machine |
+| field.report.chooseMachine | Choose a machine |
+| field.report.noMachines | No machines are assigned to you. The office assigns machines to supervisors. |
+| field.report.lastReading | Last reading |
+| field.report.source.approved | approved |
+| field.report.source.baseline | baseline |
+| field.report.source.reset | meter reset |
+| field.report.takePhoto | Take a photo of the meter |
+| field.report.retakePhoto | Retake photo |
+| field.report.readingPhone | Reading the meter on this phone… |
+| field.report.photoCaption | Meter photo · read by the phone · GPS ±{m} m |
+| field.report.newReading | New reading (check the number) |
+| field.report.hoursToAccount | Hours to account for |
+| field.report.next | Next: account for {hours} h |
+| field.report.nextPlain | Next |
+| field.report.nothing | No difference since the last reading? Nothing to report. |
+| field.report.err.reading | Enter the new reading. |
+| field.report.err.lower | The new reading is below the last reading. Check the number, or ask the office about a meter reset. |
+| field.report.opening.title | First reading for this machine |
+| field.report.opening.body | This machine has no starting reading yet. Record the meter now; the next report counts the hours from it. |
+| field.report.opening.submit | Submit the reading |
+| field.report.rejected | Rejected: {reason}. Split the same reading again. |
+| field.report.split.header | {machine} · {from} → {to} |
+| field.report.split.accounted | Accounted for |
+| field.report.split.ofTotal | / {hours} h |
+| field.report.split.left | {hours} h still to account for |
+| field.report.split.over | {hours} h more than the meter shows |
+| field.report.split.done | All hours accounted for |
+| field.report.split.customers | CUSTOMERS (FROM HOURS THEY BOUGHT) |
+| field.report.split.nonProductive | NON-PRODUCTIVE (REASON NEEDED) |
+| field.report.split.available | Available {hours} h · after this {after} h |
+| field.report.split.whatHappened | What happened (required) |
+| field.report.split.remove | Remove |
+| field.report.split.addCustomer | + Customer |
+| field.report.split.addNonProductive | + Non-productive |
+| field.report.split.noCustomerHours | No customer has usable hours on this phone. Sync, or account for the hours as non-productive. |
+| field.report.split.review | Review — {hours} h left to account for |
+| field.report.split.reviewReady | Review |
+| field.report.split.capFooter | A customer can only get hours they have bought and that are usable. |
+| field.report.err.noLines | Add a customer or a non-productive line. |
+| field.report.err.tooManyLines | At most 50 lines per report. |
+| field.report.err.customerTwice | Each customer can appear only once. |
+| field.report.err.hours | Enter the hours (more than 0, at most {n} decimal(s)). / Enter whole hours (more than 0). |
+| field.report.err.overAvailable | {customer} has only {hours} h available. |
+| field.report.err.note | Say what happened for “{reason}”. |
+| field.report.review.readings | {from} h → {to} h |
+| field.report.review.period | {from} → {to} · photo + GPS |
+| field.report.review.productive | PRODUCTIVE · {hours} h |
+| field.report.review.nonProductive | NON-PRODUCTIVE · {hours} h |
+| field.report.review.total | Total |
+| field.report.review.matches | {hours} h ✓ matches meter |
+| field.report.review.approval | The owner or manager approves this report. Until then the {hours} customer hours are reserved; on approval they come off each customer’s purchased hours. |
+| field.report.review.note | Note for the approver (optional) |
+| field.report.submit | Submit for approval |
+| field.report.submitting | Submitting… |
+| field.report.queued | Saved on this phone. It is sent when you are online. |
+| field.report.state.opening | First reading needed |
+| field.report.state.awaiting | Awaiting approval |
+| field.report.state.rejected | Rejected · redo the split |
+| field.report.state.due | Report due |
+| field.report.state.upToDate | Up to date |
+| field.report.outbox | Machine report |
+| field.report.conflict.MACHINE_NOT_ASSIGNED | This machine is no longer assigned to you. The report is kept for review. |
+| field.report.conflict.MACHINE_NOT_FOUND | This machine is no longer on record. The report is kept for review. |
+| field.report.conflict.REPORT_PENDING | Another report on this machine waits for approval. Send this one after it is decided. |
+| field.report.conflict.REPORT_ID_CONFLICT | This report was already sent with other details. It is kept for review. |
+| field.report.conflict.BASELINE_REQUIRED | This machine has no starting reading yet. The office sets it first; the report is kept for review. |
+| field.report.conflict.READING_NOT_HIGHER | The new reading is below the machine's last reading. The report is kept for review. |
+| field.report.conflict.NOTHING_TO_REPORT | The reading is the same as the last one, so there is nothing to report. |
+| field.report.conflict.REPORT_SUM_MISMATCH | The hours do not add up to the meter difference. Redo the split. |
+| field.report.conflict.HOURS_NOT_AVAILABLE | A customer no longer has enough usable hours. Redo the split. |
+| field.report.conflict.HOURS_DISABLED | Your company has switched off customer hours, so customer lines were not accepted. |
+| field.report.conflict.REASON_INVALID | A reason you chose is no longer in use. Redo the split. (also REASON_NOT_FOUND) |
+| field.report.conflict.CUSTOMER_NOT_FOUND | A customer you chose is no longer on record. Redo the split. |
+| field.report.conflict.CAPTURE_REJECTED | The meter reading was not accepted. Take the reading again. |
+| field.report.conflict.CAPTURE_ALREADY_REPORTED | This reading already has a report. |
+| field.report.conflict.CORRECTS_INVALID | The rejected report could not be corrected. The report is kept for review. |
+| field.report.conflict.HOURS_PRECISION | The hours have more decimals than the meter shows. |
+| field.report.conflict.DUPLICATE_CUSTOMER_LINE | A customer appears twice. Redo the split. |
+| field.money.period.today | Today |
+| field.money.period.week | Week |
+| field.money.period.month | Month |
+| field.money.cashInHand | CASH IN HAND |
+| field.money.noCash | No cash balance yet. It appears after a sync. |
+| field.money.formula | Collected {a} − handed over {b} − expenses {c} |
+| field.money.byMethod | COLLECTIONS BY METHOD |
+| field.money.cash | Cash |
+| field.money.bank | Bank |
+| field.money.mobile | Mobile money |
+| field.money.credit | Credit · awaiting approval |
+| field.money.totalSold | Total sold |
+| field.money.handedOver | Handed over to HQ |
+| field.money.awaitingCheck | Awaiting office check |
+| field.money.expenses | Expenses |
+| field.money.receipts | {n} receipt(s) · {m} pending |
+| field.money.handOver | Hand over |
+| field.money.expense | Expense |
+| field.money.pettyCash | Petty cash |
+| field.money.invoicePayment | Record a credit invoice payment |
+| field.money.records | Cash records, transfers and more |
+| field.money.footer | Sales and payments recorded on this phone, and your cash records. |
+| field.invoicePayment.title | Credit invoice payment |
+| field.invoicePayment.invoice | Invoice |
+| field.invoicePayment.option | {invoice number} · {customer} |
+| field.invoicePayment.owes | owes {balance} · due {date} |
+| field.invoicePayment.none | No open credit invoices on this phone. They appear after a sync. |
+| field.invoicePayment.amount | Amount received |
+| field.invoicePayment.save | Save payment |
+| field.invoicePayment.footer | Cash goes into your cash in hand. Bank and mobile money wait for the office to verify them. |
+| field.invoicePayment.err.amount | Enter the amount received (more than 0). |
+| field.invoicePayment.err.method | Choose Cash, Bank or Mobile money. |
+| field.invoicePayment.err.overBalance | The invoice still owes only {balance}. |
+| field.invoicePayment.outbox | Credit invoice payment |
+| field.invoicePayment.conflict.INVOICE_PAID | This invoice is already paid. The payment is kept for review. |
+| field.invoicePayment.conflict.INVOICE_OVERPAYMENT | The payment is more than the invoice still owes. It is kept for review. |
+| field.invoicePayment.conflict.INVOICE_CANCELLED | This invoice was cancelled. The payment is kept for review. |
+| field.invoicePayment.conflict.INVOICE_NOT_FOUND | This invoice is no longer on record. The payment is kept for review. |
+| field.invoicePayment.conflict.PAYMENT_NOT_PERMITTED | Bank and mobile-money payments are recorded by the office. |
+| field.dashboard.title | Dashboard |
+| field.dashboard.hoursSold | Hours sold |
+| field.dashboard.hoursUsed | Hours used by customers |
+| field.dashboard.fromBought | from bought hours |
+| field.dashboard.machineHours.today | Machine hours today |
+| field.dashboard.machineHours.week | Machine hours this week |
+| field.dashboard.machineHours.month | Machine hours this month |
+| field.dashboard.productive | Productive {hours} h ({percent}%) |
+| field.dashboard.nonProductive | Non-productive {hours} h |
+| field.dashboard.myMachines | MY MACHINES |
+| field.dashboard.lastReading | Last reading {reading} h · {when} |
+| field.dashboard.noReading | No reading yet |
+| field.dashboard.ago.today | today {HH:mm} |
+| field.dashboard.ago.yesterday | yesterday |
+| field.dashboard.ago.days | {n} days ago |
+| field.dashboard.reports | REPORTS |
+| field.dashboard.customerBalances | Customer balances |
+| field.dashboard.myReports | My machine reports |
+| field.dashboard.mySales | My sales |
+| field.dashboard.myCash | My cash |
+| field.dashboard.reports.empty | Your machine reports of the last 30 days appear here. |
+| field.dashboard.sales.empty | Hours you sell on this phone appear here. |
+| field.dashboard.balances.empty | Customers with usable hours appear here after a sync. |
+| field.dashboard.balances.hours | {hours} h usable |
+| field.dashboard.balances.footer | Hours each customer can still use in a machine report (bought, activated, not yet used or reserved). |
+| field.dashboard.report.submitted | Awaiting approval |
+| field.dashboard.report.approved | Approved |
+| field.dashboard.report.rejected | Rejected |
+| field.settings.title | Settings |

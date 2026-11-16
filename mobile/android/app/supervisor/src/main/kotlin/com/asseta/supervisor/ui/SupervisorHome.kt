@@ -574,7 +574,7 @@ fun SupervisorHome(
                             displayName, tenant.name, access, data, syncing, ::refresh, com.asseta.core.ui.session.CompanyNotice.banner(tenant), ::push,
                         ) {
                             Box(Modifier.statusBarsPadding()) {
-                                HomeTopRow(onMenu = { coroutines.launch { drawer.open() } }, menuBadge = inboxBadge) {
+                                HomeTopRow(onMenu = { coroutines.launch { drawer.open() } }) {
                                     StatusChip(
                                         if (unsynced.isEmpty()) HomeTexts.ALL_SYNCED else HomeTexts.notSynced(unsynced.size),
                                         if (problems > 0) CoreR.drawable.ic_cloud_off else CoreR.drawable.ic_shell_check,
