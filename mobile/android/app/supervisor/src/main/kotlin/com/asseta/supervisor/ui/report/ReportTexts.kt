@@ -15,6 +15,16 @@ object ReportTexts {
     const val STEP_REVIEW = "Step 3 of 3 · Review & submit"
     const val REVIEW_TITLE = "Review & submit"
 
+    /**
+     * The screen title per step (designs MachineReading, Reconcile, ReviewSubmit): "Machine report", the split header
+     * "{machine} · {from} → {to}", "Review & submit". The step line under the progress bars says which step it is.
+     */
+    fun title(step: ReportStep, splitHeader: String?): String = when (step) {
+        ReportStep.READING -> TITLE
+        ReportStep.SPLIT -> splitHeader ?: TITLE
+        ReportStep.REVIEW -> REVIEW_TITLE
+    }
+
     // Step 1
     const val MACHINE = "Machine"
     const val CHOOSE_MACHINE = "Choose a machine"

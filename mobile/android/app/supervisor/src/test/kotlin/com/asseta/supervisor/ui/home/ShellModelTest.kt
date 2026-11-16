@@ -105,6 +105,12 @@ class ShellModelTest {
         assertEquals("Review", ReportTexts.reviewButton(BigDecimal.ZERO))
         assertEquals("Available 140 h · after this 20 h", ReportTexts.available(BigDecimal("140"), BigDecimal("20")))
         assertEquals("EX-01 · 1,210 → 1,510", ReportTexts.splitHeader("EX-01", BigDecimal("1210.0"), BigDecimal("1510.0")))
+        // Titles per step (designs) with the step line under the progress bars.
+        assertEquals("Machine report", ReportTexts.title(com.asseta.supervisor.ui.report.ReportStep.READING, "EX-01 · 1,210 → 1,510"))
+        assertEquals("EX-01 · 1,210 → 1,510", ReportTexts.title(com.asseta.supervisor.ui.report.ReportStep.SPLIT, "EX-01 · 1,210 → 1,510"))
+        assertEquals("Machine report", ReportTexts.title(com.asseta.supervisor.ui.report.ReportStep.SPLIT, null))
+        assertEquals("Review & submit", ReportTexts.title(com.asseta.supervisor.ui.report.ReportStep.REVIEW, null))
+        assertEquals("Step 2 of 3 · Account for hours", ReportTexts.STEP_SPLIT)
         assertEquals("Meter photo · read by the phone · GPS ±6 m", ReportTexts.photoCaption(true, ReportTexts.gpsAccuracy(6.2)))
     }
 }

@@ -337,6 +337,8 @@ fun SupervisorHome(
     var nav by remember(tenantId) { mutableStateOf(NavStack()) }
     val route = nav.route
     val stack = nav.stack
+    // The open screen's own title (null = the route's title); cleared whenever another screen opens.
+    var screenTitle by remember(route) { mutableStateOf<String?>(null) }
     fun push(r: Route) { nav = nav.push(r) }
     fun pop() { nav = nav.pop() }
     val drawer = rememberDrawerState(DrawerValue.Closed)
@@ -543,7 +545,8 @@ fun SupervisorHome(
         },
     ) {
         Column(Modifier.fillMaxSize().background(p.groupedBackground)) {
-            val title = route.title(tenant.name)
+            // A screen may name itself per step (the machine report's split header); else the route's title.
+            val title = screenTitle ?: route.title(tenant.name)
             when {
                 route == Route.Home -> Unit
                 route.isForm -> AssetaTopBar(
@@ -582,7 +585,7 @@ fun SupervisorHome(
                             }
                         }
                         else -> RouteContent(field, tenantId, scope, route, snapshot, syncing, ::refresh, ::push, ::pop, inbox, permissions, access, data, fuelOn,
-                            onRecordExpense = ::recordExpense, onNotification = ::openNotification, onAttention = ::openAttention)
+                            onRecordExpense = ::recordExpense, onNotification = ::openNotification, onAttention = ::openAttention, onTitle = { screenTitle = it })
                     }
                 }
             }
@@ -617,6 +620,7 @@ private fun RouteContent(
     onRecordExpense: () -> Unit,
     onNotification: (NotificationDto) -> Unit,
     onAttention: (AttentionItem) -> Unit,
+    onTitle: (String) -> Unit,
 ) {
     when (route) {
         Route.Home -> Unit
@@ -632,7 +636,7 @@ private fun RouteContent(
             val visit = remember(route) { System.nanoTime() }
             val vm: MachineReportViewModel = viewModel(key = "machine-report-$visit") { MachineReportViewModel(field, tenantId, permissions, route.machineId) }
             BackHandler { if (!vm.back()) pop() }
-            MachineReportScreen(vm, onDone = pop)
+            MachineReportScreen(vm, onDone = pop, onTitle = onTitle)
         }
         is Route.InvoicePayment -> {
             val visit = remember(route) { System.nanoTime() }

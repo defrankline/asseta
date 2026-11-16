@@ -77,7 +77,7 @@ private val T = ReportTexts
 
 /** Machine report in three steps; system back steps back before leaving. [onDone] after the report is queued. */
 @Composable
-fun MachineReportScreen(vm: MachineReportViewModel, onDone: () -> Unit) {
+fun MachineReportScreen(vm: MachineReportViewModel, onDone: () -> Unit, onTitle: (String) -> Unit = {}) {
     val form by vm.form.collectAsStateWithLifecycle()
     val view by vm.view.collectAsStateWithLifecycle()
     val access by vm.access.collectAsStateWithLifecycle()
@@ -85,6 +85,11 @@ fun MachineReportScreen(vm: MachineReportViewModel, onDone: () -> Unit) {
     LaunchedEffect(form.saved) { if (form.saved) onDone() }
     val machines = vm.machines(view)
     val machine = machines.firstOrNull { it.id == form.machineId }
+    val previous = vm.previous()
+    val difference = vm.difference()
+    val header = if (machine != null && previous != null && difference != null) T.splitHeader(machine.code, previous, previous + difference) else null
+    val title = T.title(form.step, header)
+    LaunchedEffect(title) { onTitle(title) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         when {
             view.loaded && machines.isEmpty() -> Column(Modifier.padding(horizontal = 16.dp)) { EmptyState(T.TITLE, T.NO_MACHINES) }
@@ -253,7 +258,7 @@ private fun SplitStep(vm: MachineReportViewModel, machine: ReportMachine, custom
     val accounted = MachineReportRules.accounted(form.lines, decimals)
     val left = difference - accounted
     var picker by remember { mutableStateOf<String?>(null) }
-    StepBars(2, label = T.splitHeader(machine.code, previous, previous + difference))
+    StepBars(2, label = T.STEP_SPLIT)
     ShellCard {
         Text(T.ACCOUNTED, style = MaterialTheme.typography.bodySmall, color = palette.secondaryText)
         Row(verticalAlignment = Alignment.Bottom) {
@@ -383,7 +388,8 @@ private fun ReviewStep(vm: MachineReportViewModel, machine: ReportMachine) {
     }
     if (non.isNotEmpty()) {
         SectionLabel(T.nonProductive(sum(non)))
-        ShellCard { non.forEach { ReviewRow(it.reasonName, it.hoursText, it.note) } }
+        // No non-productive notes on review (design ReviewSubmit): the reason and its hours.
+        ShellCard { non.forEach { ReviewRow(it.reasonName, it.hoursText) } }
     }
     ShellCard {
         Row {
@@ -400,12 +406,9 @@ private fun ReviewStep(vm: MachineReportViewModel, machine: ReportMachine) {
 }
 
 @Composable
-private fun ReviewRow(title: String, hours: String, note: String? = null) {
-    Column(Modifier.padding(vertical = 6.dp)) {
-        Row {
-            Text(title, modifier = Modifier.weight(1f))
-            Text("${MachineReportRules.formatHours(hours.replace(',', '.').toBigDecimalOrNull() ?: BigDecimal.ZERO)} h", fontWeight = FontWeight.SemiBold)
-        }
-        note?.takeIf { it.isNotBlank() }?.let { Text("“$it”", style = MaterialTheme.typography.bodySmall, color = palette.secondaryText) }
+private fun ReviewRow(title: String, hours: String) {
+    Row(Modifier.padding(vertical = 6.dp)) {
+        Text(title, modifier = Modifier.weight(1f))
+        Text("${MachineReportRules.formatHours(hours.replace(',', '.').toBigDecimalOrNull() ?: BigDecimal.ZERO)} h", fontWeight = FontWeight.SemiBold)
     }
 }
