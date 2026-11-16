@@ -247,11 +247,24 @@ struct SyncContractTests {
         try Self.checkPayload(HoursPurchasePayload(clientID: id, machineID: id, hours: 5, customerID: id, walkIn: nil, jobSiteID: nil,
                                                    note: nil, payment: nil, payments: [payment, payment]),
                               schema: "HoursPurchaseIn", opOnly: ["evidence_upload_ids"])
-        let booking = SaleJobPayload(plannedStart: at, plannedEnd: at.addingTimeInterval(3600), jobSiteID: id, contractID: id, note: "n")
-        try Self.checkPayload(booking, schema: "SaleJobIn")
+        // ADR-008: a CREDIT line is amount only; machine reports and credit invoice payments.
+        let credit = PurchasePaymentPayload(method: "CREDIT", amount: 300, receivedAt: nil, reference: nil, note: nil, staffMemberID: nil)
+        try Self.checkPayload(credit, schema: "PurchasePaymentIn")
         try Self.checkPayload(HoursPurchasePayload(clientID: id, machineID: id, hours: 5, customerID: id, walkIn: nil, jobSiteID: nil,
-                                                   note: nil, payment: payment, job: booking),
+                                                   note: nil, payment: nil, payments: [payment, credit]),
                               schema: "HoursPurchaseIn", opOnly: ["evidence_upload_ids"])
+        let line = MachineReportLinePayload(kind: .nonProductive, customerID: nil, reasonID: id, hours: 4, note: "Transit")
+        try Self.checkPayload(line, schema: "MachineReportLineIn")
+        try Self.checkPayload(MachineReportPayload(machineID: id, captureID: id, correctsReportID: id, lines: [line], note: "n"),
+                              schema: "MachineReportIn")
+        try Self.checkPayload(MachineReportPayload(machineID: id, captureID: id, correctsReportID: nil, lines: [], note: nil,
+                                                   opening: true),
+                              schema: "MachineReportIn", opOnly: ["opening"])
+        try Self.checkPayload(CreditInvoicePaymentPayload(invoiceID: id, amount: 85000, method: "CASH", reference: nil, receivedAt: at,
+                                                          staffMemberID: id, note: "n"),
+                              schema: "CreditInvoicePaymentIn", opOnly: ["invoice_id", "evidence_upload_ids"])
+        try Self.checkPayload(CreditInvoicePaymentIn(clientID: id, amount: 5, method: "BANK", reference: "R1", receivedAt: at, note: nil),
+                              schema: "CreditInvoicePaymentIn")
         try Self.checkPayload(HoursTransferPayload(clientID: id, purchaseID: id, fromMachineID: id, toMachineID: UUID(), hours: 2,
                                                    reason: "Moved site", reasonCodeID: id), schema: "TransferIn")
         try Self.checkPayload(CashTransferPayload(clientID: id, fromStaffID: id, toStaffID: UUID(), amount: 5, amountReceived: 4,

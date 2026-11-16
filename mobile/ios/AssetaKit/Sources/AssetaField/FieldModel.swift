@@ -77,8 +77,6 @@ public final class FieldModel {
         await sync(force: true)
         await refreshNotifications()
         await refreshAccountability()
-        // Saved for offline job requests (the form refreshes them again when opened online).
-        if canRequestJobs { await refreshRequestLookups() }
     }
 
     public func stop() {

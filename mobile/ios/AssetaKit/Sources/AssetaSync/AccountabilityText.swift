@@ -129,7 +129,6 @@ public enum FieldAccountabilityTexts {
     public static func hoursSaleOutbox(_ payload: JSONValue?) -> String {
         guard let payload else { return outboxHoursSale }
         var title = outboxHoursSale
-        if case .object? = payload["job"] { title = outboxHoursSaleBooking }
         let parts: [JSONValue]
         if case let .array(list)? = payload["payments"] {
             parts = list
@@ -522,6 +521,8 @@ public enum FieldAccountabilityTexts {
     public static func operationTitle(_ type: OperationType, payload: JSONValue?) -> String? {
         switch type {
         case .hoursPurchase: hoursSaleOutbox(payload)
+        case .machineReport: payload?["opening"]?.boolValue == true ? MachineReportTexts.pillOpening : MachineReportTexts.title
+        case .creditInvoicePayment: MachineReportTexts.payTitle
         case .hoursTransferRequest: outboxHoursTransfer
         case .cashTransfer: outboxCashTransfer
         case .cashTransferAcknowledgement: outboxTransferAck
@@ -546,7 +547,7 @@ public enum FieldAccountabilityTexts {
 
     /// Payment methods of the sale form with their labels.
     public static let paymentMethods: [(wire: String, label: String)] = [
-        ("CASH", hoursMethodCash), ("BANK", hoursMethodBank), ("MOBILE_MONEY", hoursMethodMobileMoney),
+        ("CASH", hoursMethodCash), ("BANK", hoursMethodBank), ("MOBILE_MONEY", hoursMethodMobileMoney), ("CREDIT", "Credit"),
     ]
 }
 

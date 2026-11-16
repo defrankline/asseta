@@ -31,227 +31,6 @@ private func purchaseOptions(_ purchases: [HoursPurchaseDTO]) -> [PickerOption] 
     }
 }
 
-// MARK: - Sell customer hours (`HOURS_PURCHASE`, offline)
-
-extension FieldModel {
-    /// The field contracts read from the server now, for the job booked with a sale (empty offline or when the read
-    /// fails: the server then picks the customer's contract).
-    func saleJobContracts() async -> [FieldContractDTO] {
-        guard let services, isOnline, access.bookSaleJob else { return [] }
-        let before = services.directory.cachedFieldContracts()?.fetchedAt
-        await services.online.refreshRequestLookups()
-        guard let fresh = services.directory.cachedFieldContracts(), fresh.fetchedAt != before else { return [] }
-        return fresh.items
-    }
-}
-
-struct HoursSaleFormView: View {
-    let model: FieldModel
-    @Environment(\.dismiss) private var dismiss
-    @State private var clientID = UUID()
-    /// Opens with one Cash line that follows the total until typed into.
-    @State private var draft = HoursSaleDraft.newSale()
-    @State private var receivedAt = Date()
-    @State private var holderID: UUID?
-    /// Photos per payment line (by the line's id).
-    @State private var photos: [UUID: [(evidence: StoredEvidence, data: Data)]] = [:]
-    @State private var error: String?
-    /// "Book the job" (offered with OP_HOURS_SALE_BOOKING and tenant.job.request).
-    @State private var bookJob = false
-    @State private var jobStart = SaleBooking.defaultStart()
-    @State private var jobEnd: Date?
-    @State private var jobSiteID: UUID?
-    @State private var jobContractID: UUID?
-    @State private var jobNote = ""
-    /// Contracts read from the server during this visit (empty offline: the server picks the contract then).
-    @State private var onlineContracts: [FieldContractDTO] = []
-
-    private var contractChoices: [FieldContractDTO] {
-        SaleBooking.contractChoices(onlineContracts, customerID: draft.customerID, walkIn: draft.walkIn)
-    }
-
-    /// The draft to check and save: the booking only while the user may book jobs here.
-    private func saleDraft(_ a: FieldAccess) -> HoursSaleDraft {
-        var d = draft
-        d.job = SaleBooking.job(on: a.bookSaleJob && bookJob, start: jobStart, end: jobEnd, siteID: jobSiteID,
-                                contractID: jobContractID, note: jobNote, choices: contractChoices)
-        return d
-    }
-
-    var body: some View {
-        let a = model.access
-        let prices = model.hoursPrices
-        let price = HoursPricing.price(prices, machineID: draft.machineID, customerID: draft.customerID, walkIn: draft.walkIn,
-                                       hoursText: draft.hoursText)
-        let sale = saleDraft(a)
-        let check = AccountabilityRules.hoursSale(sale, walkInAllowed: a.walkIn, noncashAllowed: a.noncashPayments, price: price)
-        NavigationStack {
-            Form {
-                if !a.sellHours {
-                    NoticeSection(title: T.titleHoursSale, message: a.hours == nil ? T.needsRules : T.hoursOff)
-                } else {
-                    Section {
-                        if a.walkIn {
-                            Picker(T.hoursSectionCustomer, selection: $draft.walkIn) {
-                                Text(T.hoursRegistered).tag(false)
-                                Text(T.hoursWalkIn).tag(true)
-                            }.pickerStyle(.segmented)
-                        }
-                        if draft.walkIn {
-                            TextField(T.hoursWalkInName, text: $draft.walkInName).textContentType(.name)
-                            TextField(T.hoursWalkInPhone, text: $draft.walkInPhone).keyboardType(.phonePad)
-                        } else {
-                            SearchablePickerField(label: T.hoursCustomer, options: model.customerOptions, selection: $draft.customerID,
-                                                  emptyMessage: T.hoursCustomerEmpty, identifier: "hours.customer")
-                        }
-                    } header: { Text(T.hoursSectionCustomer) } footer: { if draft.walkIn { Text(T.hoursWalkInFooter) } }
-                    Section {
-                        SearchablePickerField(label: T.hoursMachine, options: model.machineOptions, selection: $draft.machineID,
-                                              identifier: "hours.machine")
-                        TextField(T.hoursHours, text: $draft.hoursText).keyboardType(.decimalPad)
-                            .font(.title3.monospacedDigit()).accessibilityIdentifier("hours.hours")
-                        if let line = T.hoursPrice(price) {
-                            Text(line).font(.body).accessibilityIdentifier("hours.total")
-                        }
-                        TextField(T.noteOptional, text: $draft.note, axis: .vertical)
-                    } header: { Text(T.hoursSectionHours) } footer: { Text(T.hoursHoursFooter) }
-                    if a.bookSaleJob { jobSection }
-                    Section {
-                        ForEach(Array(draft.payments.enumerated()), id: \.element.id) { index, _ in
-                            Text(T.hoursPaymentNumber(index + 1)).font(.subheadline.weight(.semibold))
-                            if a.saleMethods.count > 1 {
-                                Picker(T.hoursMethod, selection: $draft.payments[index].method) {
-                                    ForEach(T.paymentMethods.filter { a.saleMethods.contains($0.wire) }, id: \.wire) { Text($0.label).tag($0.wire) }
-                                }.pickerStyle(.segmented)
-                            }
-                            TextField(T.hoursAmountReceived, text: $draft.payments[index].typedAmount).keyboardType(.decimalPad)
-                                .font(.title3.monospacedDigit()).accessibilityIdentifier("hours.amount.\(index)")
-                            if draft.payments[index].method != "CASH" {
-                                TextField(T.hoursReference, text: $draft.payments[index].reference)
-                                if AccountabilityRules.referenceMissing(draft.payments[index]) {
-                                    Text(T.hoursReferenceLine).font(.footnote).foregroundStyle(.red)
-                                        .accessibilityIdentifier("hours.referenceMissing.\(index)")
-                                }
-                            }
-                            // The line's own photos (the bank slip, the mobile-money message), sent with that payment.
-                            let lineID = draft.payments[index].id
-                            EvidencePhotosSection(model: model,
-                                                  photos: Binding(get: { photos[lineID] ?? [] }, set: { photos[lineID] = $0 }),
-                                                  error: $error,
-                                                  title: draft.payments.count == 1 ? T.hoursEvidence : T.hoursLinePhoto,
-                                                  inline: true)
-                            Button(T.hoursRemovePayment, role: .destructive) {
-                                // The line's photos go with it.
-                                let removed = draft.payments.remove(at: index)
-                                photos.removeValue(forKey: removed.id)?.forEach { model.discardEvidence($0.evidence) }
-                            }
-                        }
-                        if draft.payments.count < HoursPayments.max {
-                            Button(T.hoursAddPayment, systemImage: "plus") {
-                                // The amount is filled once, with what is still owed; typed values are never changed.
-                                draft.payments.append(HoursPayments.newLine(draft.payments, price: price))
-                            }.accessibilityIdentifier("hours.addPayment")
-                        }
-                        ForEach(T.hoursPaymentSummary(HoursPayments.summary(draft.payments, price: price)), id: \.self) { line in
-                            Text(line).font(.body).accessibilityIdentifier("hours.paid")
-                        }
-                        // Why Save is off, in one line (Save is disabled, so no save attempt would show it).
-                        if let blockers = AccountabilityRules.hoursSaleBlockers(sale, walkInAllowed: a.walkIn,
-                                                                                noncashAllowed: a.noncashPayments, price: price) {
-                            Text(blockers).font(.callout).foregroundStyle(.red).accessibilityIdentifier("hours.toSave")
-                        }
-                        if !draft.payments.isEmpty {
-                            DatePicker(T.hoursReceived, selection: $receivedAt, in: ...Date())
-                            if draft.payments.contains(where: { $0.method == "CASH" }) && a.recordForOthers {
-                                SearchablePickerField(label: T.cashHolder, options: model.custodianOptions(),
-                                                      selection: Binding(get: { holderID ?? model.myStaffID }, set: { holderID = $0 }),
-                                                      emptyMessage: T.cashTransferCustodiansEmpty, identifier: "hours.holder")
-                            }
-                        }
-                    } header: { Text(T.hoursSectionPayment) } footer: {
-                        Text([draft.payments.isEmpty ? T.hoursNotPaidFooter
-                                : T.hoursPaymentFooter(methods: draft.payments.map(\.method), activation: a.cashActivation),
-                              a.noncashPayments ? nil : T.hoursNoncashByOffice].compactMap { $0 }.joined(separator: " "))
-                    }
-                }
-            }
-            // The opening Cash line follows the total (hours, machine, customer, prices) until the user types into it.
-            .onChange(of: price, initial: true) { _, p in draft.payments = HoursPayments.follow(draft.payments, price: p) }
-            .task { onlineContracts = await model.saleJobContracts() }
-            .navigationTitle(T.titleHoursSale)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { discardPhotos(); dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save", action: save).disabled(!a.sellHours || !check.isValid).accessibilityIdentifier("hours.save")
-                }
-            }
-            .alert("Not saved", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
-                Button("OK") { error = nil }
-            } message: { Text(error ?? "") }
-        }
-        .interactiveDismissDisabled()
-    }
-
-    /// "Book the job" with the sale: start (tomorrow 08:00 by default), optional end (the sale's hours after the start is
-    /// offered), the contract when the customer has more than one (online), optional site and note (Android `SaleJobSection`).
-    @ViewBuilder private var jobSection: some View {
-        Section {
-            Toggle(T.jobBook, isOn: $bookJob).accessibilityIdentifier("hours.bookJob")
-            if bookJob {
-                DatePicker(T.jobStart, selection: $jobStart)
-                if let end = jobEnd {
-                    DatePicker(T.jobEnd, selection: Binding(get: { end }, set: { jobEnd = $0 }), in: jobStart...)
-                    if end <= jobStart { Text(T.hoursErrJobEnd).font(.footnote).foregroundStyle(.red) }
-                    Button(T.jobClearEnd, role: .destructive) { jobEnd = nil }
-                } else {
-                    LabeledContent(T.jobEnd) { Text(T.jobEndNotSet).foregroundStyle(.secondary) }
-                }
-                if let suggested = SaleBooking.endAfterHours(start: jobStart, hoursText: draft.hoursText), suggested != jobEnd,
-                   let hours = AccountabilityRules.saleHours(draft.hoursText) {
-                    Button(T.jobEndFromHours(hours)) { jobEnd = suggested }.accessibilityIdentifier("hours.jobEndFromHours")
-                }
-                if !contractChoices.isEmpty {
-                    SearchablePickerField(label: T.jobContract,
-                                          options: contractChoices.map { PickerOption(id: $0.id, title: $0.contractNumber, subtitle: $0.siteName) },
-                                          selection: Binding(get: { contractChoices.contains { $0.id == jobContractID } ? jobContractID : nil },
-                                                             set: { jobContractID = $0 }),
-                                          identifier: "hours.jobContract")
-                    Text(T.jobContractFooter).font(.footnote).foregroundStyle(.secondary)
-                }
-                SearchablePickerField(label: T.jobSite, options: model.requestSiteOptions, selection: $jobSiteID,
-                                      noneTitle: T.jobSiteNone, emptyMessage: T.jobSitesEmpty, identifier: "hours.jobSite")
-                TextField(T.jobNote, text: $jobNote, axis: .vertical).lineLimit(2...5)
-                    .onChange(of: jobNote) { _, text in
-                        if text.count > AccountabilityRules.maxNote { jobNote = String(text.prefix(AccountabilityRules.maxNote)) }
-                    }
-            }
-        } header: { Text(T.jobSection) } footer: { Text(bookJob ? T.jobFooter : T.jobFooterOff) }
-    }
-
-    private func discardPhotos() {
-        photos.values.joined().forEach { model.discardEvidence($0.evidence) }
-        photos = [:]
-    }
-
-    private func save() {
-        let a = model.access
-        let holder = holderID.flatMap { a.recordForOthers && $0 != model.myStaffID ? $0 : nil }
-        let sale = saleDraft(a)
-        do {
-            try model.perform {
-                try $0.recordHoursSale(sale, walkInAllowed: a.walkIn, cashHolderID: holder,
-                                       evidence: sale.payments.map { (photos[$0.id] ?? []).map(\.evidence) },
-                                       receivedAt: min(receivedAt, Date()), clientID: clientID, noncashAllowed: a.noncashPayments)
-            }
-            photos = [:] // now owned by the queued sale
-            dismiss()
-        } catch {
-            self.error = JobDetailView.describe(error)
-        }
-    }
-}
-
 /// Payment evidence photos through the in-app camera (originals stored encrypted at once; at most ten).
 struct EvidencePhotosSection: View {
     let model: FieldModel
@@ -459,7 +238,7 @@ struct HoursTransferFormView: View {
             photos = [] // now owned by the queued request
             dismiss()
         } catch {
-            self.error = JobDetailView.describe(error)
+            self.error = FieldErrors.describe(error)
         }
     }
 }
@@ -542,7 +321,7 @@ struct CashTransferFormView: View {
             }
             dismiss()
         } catch {
-            self.error = JobDetailView.describe(error)
+            self.error = FieldErrors.describe(error)
         }
     }
 }
@@ -620,7 +399,7 @@ struct CashAckFormView: View {
             }
             dismiss()
         } catch {
-            self.error = JobDetailView.describe(error)
+            self.error = FieldErrors.describe(error)
         }
     }
 }
@@ -719,7 +498,7 @@ struct RetentionFormView: View {
                 savedID = clientID
                 messages = []
             } catch {
-                messages = [JobDetailView.describe(error)]
+                messages = [FieldErrors.describe(error)]
             }
             return
         }
@@ -856,7 +635,7 @@ enum AccountabilityErrors {
             if case .transport = api { return T.onlineOnly }
             return api.localizedDescription
         }
-        return JobDetailView.describe(error)
+        return FieldErrors.describe(error)
     }
 }
 

@@ -303,7 +303,7 @@ struct PettyCashAckFormView: View {
                 try $0.acknowledgePettyCash(movementID: movementID, acknowledge: acknowledge, receivedText: received ?? issued, note: note)
             }
             dismiss()
-        } catch { self.error = JobDetailView.describe(error) }
+        } catch { self.error = FieldErrors.describe(error) }
     }
 }
 
@@ -352,7 +352,7 @@ struct PettyCashTopUpFormView: View {
                 try $0.requestPettyCashTopUp(fundID: fundID, amountText: amount, note: note, aboveReason: aboveReason, clientID: clientID)
             }
             dismiss()
-        } catch { self.error = JobDetailView.describe(error) }
+        } catch { self.error = FieldErrors.describe(error) }
     }
 }
 
@@ -424,7 +424,7 @@ struct PettyCashReturnFormView: View {
             }
             photos = []
             dismiss()
-        } catch { self.error = JobDetailView.describe(error) }
+        } catch { self.error = FieldErrors.describe(error) }
     }
 }
 
@@ -512,7 +512,7 @@ struct PettyCashCountFormView: View {
             }
             photos = []
             dismiss()
-        } catch { self.error = JobDetailView.describe(error) }
+        } catch { self.error = FieldErrors.describe(error) }
     }
 }
 
@@ -567,7 +567,7 @@ struct PettyCashGiveAdvanceFormView: View {
                                             policy: model.pettyCash.policy, clientID: clientID)
             }
             dismiss()
-        } catch { self.error = JobDetailView.describe(error) }
+        } catch { self.error = FieldErrors.describe(error) }
     }
 }
 
@@ -618,7 +618,7 @@ struct PettyCashHolderChangeFormView: View {
         do {
             try model.perform { try $0.answerPettyCashHolderChange(changeID: changeID, accept: accept, note: note) }
             dismiss()
-        } catch { self.error = JobDetailView.describe(error) }
+        } catch { self.error = FieldErrors.describe(error) }
     }
 }
 
@@ -670,7 +670,7 @@ struct PettyCashAdvanceFormView: View {
         do {
             try model.perform { try $0.clearPettyCashAdvance(advanceID: advanceID, changeText: change ?? prefill, note: note) }
             dismiss()
-        } catch { self.error = JobDetailView.describe(error) }
+        } catch { self.error = FieldErrors.describe(error) }
     }
 }
 #endif

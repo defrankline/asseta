@@ -64,6 +64,14 @@ public struct MachineDTO: Codable, Hashable, Sendable, Identifiable {
     public let meterDecimalPlaces: Int
     public let version: Int
 
+    public init(id: UUID, assetCode: String, name: String, meterDecimalPlaces: Int = 1, version: Int = 0) {
+        self.id = id
+        self.assetCode = assetCode
+        self.name = name
+        self.meterDecimalPlaces = meterDecimalPlaces
+        self.version = version
+    }
+
     enum CodingKeys: String, CodingKey {
         case id, name, version, assetCode = "asset_code", meterDecimalPlaces = "meter_decimal_places"
     }
@@ -173,6 +181,9 @@ public enum OperationType: String, Codable, Sendable, CaseIterable {
     case pettyCashAdvanceClearance = "PETTY_CASH_ADVANCE_CLEARANCE"
     /// The holder hands out an advance (``SyncCapability/pettyCashAdvance``).
     case pettyCashAdvance = "PETTY_CASH_ADVANCE"
+    /// ADR-008: a machine report (``SyncCapability/machineReport``; the operation id is the report id) and a payment of
+    /// a credit invoice (``SyncCapability/creditInvoicePayment``; the operation id is the payment's client id).
+    case machineReport = "MACHINE_REPORT", creditInvoicePayment = "CREDIT_INVOICE_PAYMENT"
 }
 
 public enum GpsStatus: String, Codable, Sendable, CaseIterable {

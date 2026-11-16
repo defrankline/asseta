@@ -44,6 +44,8 @@ public struct OutboxItem: Sendable, Equatable, Identifiable {
         case .fuelEvent: "Fuel event"
         case .meterResetRequest: "Meter reset request"
         case .jobRequest: JobRequestText.operation
+        case .machineReport: "Machine report"
+        case .creditInvoicePayment: "Credit invoice payment"
         case .hoursPurchase, .hoursTransferRequest, .cashTransfer, .cashTransferAcknowledgement, .cashFloatAcknowledgement,
              .meterBaseline, .meterCorrection, .cashRetentionRequest, .siteCheckin, .dailyReport,
              .pettyCashAcknowledgement, .pettyCashTopUpRequest, .pettyCashReturn, .pettyCashCount,

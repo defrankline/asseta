@@ -118,7 +118,7 @@ struct CashCollectionFormView: View {
             }
             dismiss()
         } catch {
-            self.error = JobDetailView.describe(error)
+            self.error = FieldErrors.describe(error)
         }
     }
 }
@@ -271,7 +271,7 @@ struct CashHandoverFormView: View {
             photos = [] // now owned by the queued handover
             dismiss()
         } catch {
-            self.error = JobDetailView.describe(error)
+            self.error = FieldErrors.describe(error)
         }
     }
 
@@ -393,7 +393,7 @@ struct FuelFormView: View {
             }
             dismiss()
         } catch {
-            self.error = JobDetailView.describe(error)
+            self.error = FieldErrors.describe(error)
         }
     }
 }

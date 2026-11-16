@@ -190,7 +190,6 @@ struct MachineDetailView: View {
             let inbox = model.inbox
             let readings = inbox.readings.filter { inbox.machine(of: $0) == machineID }
             let latest = inbox.latestReadingByMachine()[machineID]
-            let jobs = inbox.jobs.values.filter { $0.machineID == machineID && [.inProgress, .approved].contains($0.status) }
             let resets = inbox.resets.filter { $0.machineID == machineID }
             List {
                 Section {
@@ -198,15 +197,6 @@ struct MachineDetailView: View {
                     LabeledContent("Latest reading", value: latest.map { "\($0.reading) · \($0.at.listText)" } ?? "No readings yet")
                     LabeledContent("Meter precision", value: machine.meterDecimalPlaces == 0 ? "Whole hours"
                                    : "\(machine.meterDecimalPlaces) decimal place(s)")
-                }
-                if !jobs.isEmpty {
-                    Section("Active job") {
-                        ForEach(jobs, id: \.id) { job in
-                            NavigationLink(value: FieldRoute.job(job.id)) {
-                                LabeledContent(job.jobNumber, value: job.status == .inProgress ? "In progress" : "Approved")
-                            }
-                        }
-                    }
                 }
                 Section {
                     if model.access.dailyReport {
@@ -397,7 +387,7 @@ struct ResetRequestFormView: View {
             photo = nil // now owned by the queued request
             dismiss()
         } catch {
-            self.error = JobDetailView.describe(error)
+            self.error = FieldErrors.describe(error)
         }
     }
 }

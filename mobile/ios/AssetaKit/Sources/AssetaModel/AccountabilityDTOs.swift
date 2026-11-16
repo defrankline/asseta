@@ -16,9 +16,6 @@ extension SyncCapability {
     public static let meterCorrection = "OP_METER_CORRECTION"
     /// `CASH_RETENTION_REQUEST` (ask to keep cash, queued offline; decided by another person).
     public static let cashRetentionRequest = "OP_CASH_RETENTION_REQUEST"
-    /// `HOURS_PURCHASE` accepts `job` (``SaleJobPayload``): the sale books its prepaid job in the same transaction (needs
-    /// tenant.job.request; job id uuid5(op client id, "job")); the acked entity carries `job` {id, job_number, status, …}.
-    public static let hoursSaleBooking = "OP_HOURS_SALE_BOOKING"
 }
 
 // MARK: - Operation payloads
@@ -43,7 +40,8 @@ public struct WalkInCustomerPayload: Codable, Hashable, Sendable {
 public struct PurchasePaymentPayload: Codable, Hashable, Sendable {
     public let method: String
     public let amount: DecimalString?
-    public let receivedAt: Date
+    /// Nil for a CREDIT line (not money received: the customer pays the credit invoice later).
+    public let receivedAt: Date?
     public let reference: String?
     public let note: String?
     /// The custodian who holds the cash (nil = the recorder).
@@ -53,7 +51,7 @@ public struct PurchasePaymentPayload: Codable, Hashable, Sendable {
     /// waits for all of them). Nil (omitted) for a single `payment`, whose photos use the op-level list.
     public let evidenceUploadIDs: [UUID]?
 
-    public init(method: String, amount: Decimal?, receivedAt: Date, reference: String?, note: String?, staffMemberID: UUID?,
+    public init(method: String, amount: Decimal?, receivedAt: Date?, reference: String?, note: String?, staffMemberID: UUID?,
                 evidenceUploadIDs: [UUID]? = nil) {
         self.method = method
         self.amount = amount.map(DecimalString.init)
@@ -86,13 +84,9 @@ public struct HoursPurchasePayload: Codable, Hashable, Sendable {
     /// first "payment", so a replay stays exactly-once.
     public let payments: [PurchasePaymentPayload]?
     public let evidenceUploadIDs: [UUID]
-    /// Book the job with the sale (OP_HOURS_SALE_BOOKING); nil (key omitted) = no booking.
-    public let job: SaleJobPayload?
 
     public init(clientID: UUID, machineID: UUID, hours: Decimal, customerID: UUID?, walkIn: WalkInCustomerPayload?,
-                jobSiteID: UUID?, note: String?, payment: PurchasePaymentPayload?, payments: [PurchasePaymentPayload]? = nil,
-                job: SaleJobPayload? = nil) {
-        self.job = job
+                jobSiteID: UUID?, note: String?, payment: PurchasePaymentPayload?, payments: [PurchasePaymentPayload]? = nil) {
         self.clientID = clientID
         self.machineID = machineID
         self.hours = DecimalString(hours)
@@ -106,31 +100,8 @@ public struct HoursPurchasePayload: Codable, Hashable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case hours, note, payment, payments, job, clientID = "client_id", machineID = "machine_id", customerID = "customer_id", walkIn = "walk_in"
+        case hours, note, payment, payments, clientID = "client_id", machineID = "machine_id", customerID = "customer_id", walkIn = "walk_in"
         case jobSiteID = "job_site_id", evidenceUploadIDs = "evidence_upload_ids"
-    }
-}
-
-/// `SaleJobIn`: the job booked with an hours sale, for the sale's customer and machine, billed from these prepaid hours.
-/// `contractID` nil lets the server use the customer's only active contract (or a standard walk-in contract when the
-/// company allows it); `plannedEnd` nil = open-ended, else after `plannedStart`.
-public struct SaleJobPayload: Codable, Hashable, Sendable {
-    public let plannedStart: Date
-    public let plannedEnd: Date?
-    public let jobSiteID: UUID?
-    public let contractID: UUID?
-    public let note: String?
-
-    public init(plannedStart: Date, plannedEnd: Date?, jobSiteID: UUID?, contractID: UUID?, note: String?) {
-        self.plannedStart = plannedStart
-        self.plannedEnd = plannedEnd
-        self.jobSiteID = jobSiteID
-        self.contractID = contractID
-        self.note = note
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case note, plannedStart = "planned_start", plannedEnd = "planned_end", jobSiteID = "job_site_id", contractID = "contract_id"
     }
 }
 
@@ -444,6 +415,24 @@ public struct HoursPurchaseDTO: Codable, Hashable, Sendable, Identifiable {
     public let machines: [MachineHours]?
     /// DEC-032 Phase 2: the payments counted towards this purchase; nil from older servers.
     public let allocations: [PaymentAllocation]?
+    /// ADR-008: the order's CREDIT part and its invoice (nil without a CREDIT line).
+    public let creditAmount: DecimalString?
+    public let creditInvoice: CreditInvoiceSummaryDTO?
+    /// The order's payment lines (money received, by method).
+    public let payments: [SalePayment]?
+
+    /// `CustomerPaymentDto` (the fields the apps read).
+    public struct SalePayment: Codable, Hashable, Sendable, Identifiable {
+        public let id: UUID
+        public let amount: DecimalString
+        public let method: String
+        public let status: String?
+        public let receivedByStaffID: UUID?
+
+        enum CodingKeys: String, CodingKey {
+            case id, amount, method, status, receivedByStaffID = "received_by_staff_id"
+        }
+    }
 
     /// `PurchaseAllocationDto`: money of one payment counted towards the purchase.
     public struct PaymentAllocation: Codable, Hashable, Sendable, Identifiable {
@@ -536,6 +525,7 @@ public struct HoursPurchaseDTO: Codable, Hashable, Sendable, Identifiable {
         case customerID = "customer_id", customerName = "customer_name", machineID = "machine_id", createdAt = "created_at"
         case machineCode = "machine_code", machineName = "machine_name", jobSiteName = "job_site_name"
         case createdByName = "created_by_name", cancelledAt = "cancelled_at"
+        case creditAmount = "credit_amount", creditInvoice = "credit_invoice", payments
     }
 }
 
@@ -629,9 +619,17 @@ public struct CustomerHoursPolicyValues: Codable, Hashable, Sendable {
     /// When the cash parts of a sale count as verified (`cash_activation`; missing or unknown = `.verify`).
     public let cashActivation: HoursCashActivation
 
+    /// ADR-008 (off when absent): field staff may record a CREDIT line on a sale.
+    public let fieldCreditSales: Bool
+    /// ADR-008: a machine with no report for this many days is due (default 3; nil = reminders off).
+    public let machineReportReminderDays: Int?
+
     public init(enabled: Bool, walkInAllowed: Bool, transferRequiresApproval: Bool, reasonCodeRequired: Bool = false,
                 transferEvidenceRequired: Bool = false, fieldNoncashPayments: Bool = false,
-                cashActivation: HoursCashActivation = .verify) {
+                cashActivation: HoursCashActivation = .verify, fieldCreditSales: Bool = false,
+                machineReportReminderDays: Int? = 3) {
+        self.fieldCreditSales = fieldCreditSales
+        self.machineReportReminderDays = machineReportReminderDays
         self.enabled = enabled
         self.walkInAllowed = walkInAllowed
         self.transferRequiresApproval = transferRequiresApproval
@@ -651,12 +649,19 @@ public struct CustomerHoursPolicyValues: Codable, Hashable, Sendable {
         transferEvidenceRequired = try c.decodeIfPresent(Bool.self, forKey: .transferEvidenceRequired) ?? false
         fieldNoncashPayments = (try? c.decodeIfPresent(Bool.self, forKey: .fieldNoncashPayments)) ?? false
         cashActivation = HoursCashActivation(wire: (try? c.decodeIfPresent(String.self, forKey: .cashActivation)) ?? nil)
+        fieldCreditSales = (try? c.decodeIfPresent(Bool.self, forKey: .fieldCreditSales)) ?? false
+        if c.contains(.machineReportReminderDays) {
+            machineReportReminderDays = try? c.decodeIfPresent(Int.self, forKey: .machineReportReminderDays)
+        } else {
+            machineReportReminderDays = 3
+        }
     }
 
     enum CodingKeys: String, CodingKey {
         case enabled, walkInAllowed = "walk_in_allowed", transferRequiresApproval = "transfer_requires_approval"
         case reasonCodeRequired = "reason_code_required", transferEvidenceRequired = "transfer_evidence_required"
         case fieldNoncashPayments = "field_noncash_payments", cashActivation = "cash_activation"
+        case fieldCreditSales = "field_credit_sales", machineReportReminderDays = "machine_report_reminder_days"
     }
 }
 

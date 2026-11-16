@@ -17,10 +17,6 @@ struct MeterCaptureView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
 
-    init(model: FieldModel, job: FieldJob, kind: ReadingKind, snapshot: MeterPolicySnapshot) {
-        self.init(model: model, target: .job(job, kind), snapshot: snapshot)
-    }
-
     init(model: FieldModel, target: CaptureTarget, snapshot: MeterPolicySnapshot) {
         self.model = model
         _capture = State(initialValue: MeterCaptureModel(target: target, snapshot: snapshot))
@@ -80,14 +76,11 @@ struct MeterCaptureView: View {
     /// What a daily reading, baseline or correction is for (and the note / reason it needs).
     @ViewBuilder private var targetSection: some View {
         switch capture.target {
-        case .job: EmptyView()
         case .daily: Section { Text(FieldAccountabilityTexts.meterDailyFooter).font(.footnote) }
         case .baseline:
             Section {
                 TextField(FieldAccountabilityTexts.meterBaselineNote, text: $capture.extraText, axis: .vertical)
             } footer: { Text(FieldAccountabilityTexts.meterBaselineFooter) }
-        case let .changeover(job):
-            changeoverSection(job)
         case let .correction(original, _):
             Section {
                 LabeledContent(FieldAccountabilityTexts.meterCorrectionOf,
@@ -96,27 +89,6 @@ struct MeterCaptureView: View {
                     .lineLimit(2...5)
             } footer: { Text(FieldAccountabilityTexts.meterCorrectionFooter) }
         }
-    }
-
-    /// Next customer (required) and next job (required when the company bills the hours after a changeover to it).
-    private func changeoverSection(_ job: FieldJob) -> some View {
-        typealias T = DailyReportTexts
-        let required = model.engineHoursPolicy?.changeoverSplitsBilling == true
-        let jobs = model.changeoverJobs(job, customerID: capture.nextCustomerID)
-        return Section {
-            SearchablePickerField(label: T.changeoverNextCustomer, options: model.changeoverCustomers(job),
-                                  selection: Binding(get: { capture.nextCustomerID }, set: {
-                                      if $0 != capture.nextCustomerID { capture.nextJobID = nil }
-                                      capture.nextCustomerID = $0
-                                  }), noneTitle: T.changeoverChooseCustomer, identifier: "changeover.customer")
-            if capture.nextCustomerID != nil {
-                SearchablePickerField(label: required ? T.changeoverNextJobRequired : T.changeoverNextJob, options: jobs,
-                                      selection: $capture.nextJobID, noneTitle: required ? T.changeoverChooseJob : "None",
-                                      emptyMessage: T.changeoverNoJobs, identifier: "changeover.job")
-                if jobs.isEmpty { Text(T.changeoverNoJobs).font(.footnote).foregroundStyle(.secondary) }
-            }
-        } footer: { Text(T.changeoverFooter) }
-        .onAppear { capture.nextJobRequired = required }
     }
 
     @ViewBuilder private var photoSection: some View {

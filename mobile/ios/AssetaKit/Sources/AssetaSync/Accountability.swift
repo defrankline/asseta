@@ -49,9 +49,22 @@ public struct FieldAccess: Sendable, Equatable {
     public var cashActivation: HoursCashActivation { hours?.cashActivation ?? .verify }
     /// The payment methods (wire values) the sale form offers.
     public var saleMethods: [String] { noncashPayments ? ["CASH", "BANK", "MOBILE_MONEY"] : ["CASH"] }
-    /// "Book the job" on the sale: the server takes `job` on HOURS_PURCHASE (OP_HOURS_SALE_BOOKING) and the user may
-    /// request jobs (tenant.job.request).
-    public var bookSaleJob: Bool { sellHours && supports(SyncCapability.hoursSaleBooking) && can(Self.jobRequest) }
+    /// ADR-008: a CREDIT line may be recorded (the server takes it, OP_HOURS_SALE_CREDIT, and the company lets field staff
+    /// sell on credit, `field_credit_sales`, or the user may activate credit). Registered customers only.
+    public var creditSales: Bool {
+        sellHours && supports(SyncCapability.hoursSaleCredit)
+            && (hours?.fieldCreditSales == true || can(MachineReportPermission.creditActivate))
+    }
+    /// The methods offered for a sale to a registered customer (`walkIn` false) or a walk-in (never credit).
+    public func saleMethods(walkIn: Bool) -> [String] { saleMethods + (creditSales && !walkIn ? ["CREDIT"] : []) }
+    /// ADR-008 machine reports (OP_MACHINE_REPORT, `tenant.machine_report.submit`).
+    public var machineReport: Bool { supports(SyncCapability.machineReport) && can(MachineReportPermission.submit) }
+    /// Payments of credit invoices in the field (OP_CREDIT_INVOICE_PAYMENT, `tenant.hours.invoice_payment`).
+    public var invoicePayment: Bool {
+        supports(SyncCapability.creditInvoicePayment) && can(MachineReportPermission.invoicePayment) && customerHoursOn
+    }
+    /// Fuel is on for the company (`FUEL` not switched off in `/me`): off hides every fuel entry, never flashed.
+    public var fuelOn: Bool { !disabledCapabilities.contains(TenantCapability.fuel) }
     public var requestHoursTransfer: Bool {
         supports(SyncCapability.hoursTransferRequest) && can(Self.hoursTransfer) && customerHoursOn
     }
@@ -95,7 +108,6 @@ public struct FieldAccess: Sendable, Equatable {
     public var proposeCorrection: Bool { supports(SyncCapability.meterCorrection) && can(Self.meterCapture) && engineHoursOn }
 
     public static let hoursPurchase = "tenant.hours.purchase"
-    public static let jobRequest = "tenant.job.request"
     public static let hoursTransfer = "tenant.hours.transfer"
     public static let hoursRead = "tenant.hours.read"
     public static let collectionRecord = "tenant.collection.record"
@@ -145,8 +157,6 @@ public struct HoursSaleDraft: Sendable, Equatable {
     public var hoursText = ""
     public var payments: [PaymentLine] = []
     public var note = ""
-    /// "Book the job" as typed; nil = no booking.
-    public var job: SaleJobDraft?
 
     public init() {}
 
@@ -171,77 +181,6 @@ public struct HoursSaleValues: Sendable, Equatable {
     public let walkInName: String?
     public let walkInPhone: String?
     public let note: String?
-    public var job: SaleJobValues? = nil
-}
-
-/// The job booked with the sale as typed. `contractRequired`: the customer has more than one contract and the form
-/// offers the picker (online), so one must be chosen; otherwise `contractID` stays nil and the server picks it.
-public struct SaleJobDraft: Sendable, Equatable {
-    public var start: Date
-    public var end: Date?
-    public var siteID: UUID?
-    public var contractID: UUID?
-    public var note: String
-    public var contractRequired: Bool
-
-    public init(start: Date, end: Date? = nil, siteID: UUID? = nil, contractID: UUID? = nil, note: String = "",
-                contractRequired: Bool = false) {
-        self.start = start
-        self.end = end
-        self.siteID = siteID
-        self.contractID = contractID
-        self.note = note
-        self.contractRequired = contractRequired
-    }
-}
-
-/// A checked booking (`SaleJobIn`).
-public struct SaleJobValues: Sendable, Equatable {
-    public let start: Date
-    public let end: Date?
-    public let siteID: UUID?
-    public let contractID: UUID?
-    public let note: String?
-}
-
-/// Defaults of "Book the job" (same as Android `SaleBooking`).
-public enum SaleBooking {
-    /// The start the form opens with: tomorrow at 08:00, local time.
-    public static func defaultStart(now: Date = Date(), calendar: Calendar = .current) -> Date {
-        let today = calendar.startOfDay(for: now)
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) ?? today
-        return calendar.date(bySettingHour: 8, minute: 0, second: 0, of: tomorrow) ?? tomorrow
-    }
-
-    /// The end offered by default: the sale's hours after the start (whole minutes); nil while the hours are not valid.
-    public static func endAfterHours(start: Date, hoursText: String) -> Date? {
-        guard let hours = AccountabilityRules.saleHours(hoursText), hours > 0 else { return nil }
-        var minutes = hours * 60, rounded = Decimal()
-        NSDecimalRound(&rounded, &minutes, 0, .plain)
-        return start.addingTimeInterval(NSDecimalNumber(decimal: rounded).doubleValue * 60)
-    }
-
-    /// The end must come after the start (an end is optional).
-    public static func endValid(_ job: SaleJobDraft) -> Bool { job.end.map { $0 > job.start } ?? true }
-
-    /// The customer's contracts to choose from for the job: only those read from the server during this visit, and only
-    /// when the customer has more than one (offline, or with one contract, the server picks it). Android
-    /// `HoursSaleForm.contractChoices`.
-    public static func contractChoices(_ contracts: [FieldContractDTO], customerID: UUID?, walkIn: Bool) -> [FieldContractDTO] {
-        guard !walkIn, let customerID else { return [] }
-        let mine = contracts.filter { $0.customerID == customerID }
-        return mine.count > 1 ? mine : []
-    }
-
-    /// The booking to check and save (nil when "Book the job" is off or not offered); a contract that is not one of
-    /// `choices` (another customer's) is dropped. Android `HoursSaleForm.draft`.
-    public static func job(on: Bool, start: Date, end: Date?, siteID: UUID?, contractID: UUID?, note: String,
-                           choices: [FieldContractDTO]) -> SaleJobDraft? {
-        guard on else { return nil }
-        return SaleJobDraft(start: start, end: end, siteID: siteID,
-                            contractID: contractID.flatMap { id in choices.contains { $0.id == id } ? id : nil }, note: note,
-                            contractRequired: !choices.isEmpty)
-    }
 }
 
 /// Offline checks of the accountability forms (wording in ``FieldAccountabilityTexts``; the server re-validates).
@@ -280,8 +219,10 @@ public enum AccountabilityRules {
 
     /// `noncashAllowed`: the tenant lets field staff record bank and mobile-money parts (CUSTOMER_HOURS
     /// `field_noncash_payments`); `price`: the offline total, which the parts may not exceed.
+    /// `creditAllowed`: a CREDIT line may be recorded (``FieldAccess/creditSales``): registered customers only, at most one,
+    /// amount only (no reference).
     public static func hoursSale(_ d: HoursSaleDraft, walkInAllowed: Bool, noncashAllowed: Bool = false,
-                                 price: HoursSalePrice = .hidden) -> Check<HoursSaleValues> {
+                                 price: HoursSalePrice = .hidden, creditAllowed: Bool = false) -> Check<HoursSaleValues> {
         var m: [String] = []
         var name: String?, phone: String?
         if d.walkIn {
@@ -303,38 +244,39 @@ public enum AccountabilityRules {
             let amount = value(line.amountText, decimals: moneyDecimals)
             if amount == nil { add(FieldAccountabilityTexts.hoursErrAmount) }
             let reference = trimmed(line.reference, max: maxReference)
+            if line.method == "CREDIT" {
+                if !creditAllowed { add(MachineReportTexts.saleErrCreditOff) }
+                if d.walkIn { add(MachineReportTexts.saleErrCreditWalkIn) }
+                return amount.map { PaymentPart(method: line.method, amount: $0, reference: nil) }
+            }
             if line.method != "CASH" {
                 if !noncashAllowed { add(FieldAccountabilityTexts.hoursErrNoncashOff) }
                 if reference == nil { add(FieldAccountabilityTexts.hoursErrReference) }
             }
             return amount.map { PaymentPart(method: line.method, amount: $0, reference: line.method == "CASH" ? nil : reference) }
         }
+        if d.payments.filter({ $0.method == "CREDIT" }).count > 1 { add(MachineReportTexts.saleErrCreditTwice) }
         m += lineProblems
         if let quote = price.quote, parts.reduce(Decimal(0), { $0 + $1.amount }) > quote.amount {
             m.append(FieldAccountabilityTexts.hoursErrPaymentsExceed(
                 HoursPricing.money(quote.amount, currency: quote.currency, minorUnits: quote.minorUnits)))
         }
-        var job: SaleJobValues?
-        if let j = d.job {
-            if !SaleBooking.endValid(j) { m.append(FieldAccountabilityTexts.hoursErrJobEnd) }
-            if j.contractRequired && j.contractID == nil { m.append(FieldAccountabilityTexts.hoursErrJobContract) }
-            job = SaleJobValues(start: j.start, end: j.end, siteID: j.siteID, contractID: j.contractID, note: trimmed(j.note, max: maxNote))
-        }
         guard m.isEmpty, let hours else { return .failure(Problems(messages: m)) }
         return .success(HoursSaleValues(hours: hours, payments: parts, walkInName: name,
-                                        walkInPhone: phone, note: trimmed(d.note, max: maxNote), job: job))
+                                        walkInPhone: phone, note: trimmed(d.note, max: maxNote)))
     }
 
     /// True when a bank or mobile-money line has no reference yet (shown under that line's Reference field).
     public static func referenceMissing(_ line: PaymentLine) -> Bool {
-        line.method != "CASH" && line.reference.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        line.method != "CASH" && line.method != "CREDIT" && line.reference.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     /// Every rule of ``hoursSale(_:walkInAllowed:noncashAllowed:price:)`` that keeps Save off, as one plain line
     /// ("To save: enter the reference for payments 2 and 3."); nil when the sale can be saved (same as Android).
     public static func hoursSaleBlockers(_ d: HoursSaleDraft, walkInAllowed: Bool, noncashAllowed: Bool = false,
-                                         price: HoursSalePrice = .hidden) -> String? {
-        if case .success = hoursSale(d, walkInAllowed: walkInAllowed, noncashAllowed: noncashAllowed, price: price) { return nil }
+                                         price: HoursSalePrice = .hidden, creditAllowed: Bool = false) -> String? {
+        if case .success = hoursSale(d, walkInAllowed: walkInAllowed, noncashAllowed: noncashAllowed, price: price,
+                                     creditAllowed: creditAllowed) { return nil }
         typealias T = FieldAccountabilityTexts
         var todo: [String] = []
         if d.walkIn {
@@ -353,17 +295,16 @@ public enum AccountabilityRules {
         let noAmount = numbers { value($0.amountText, decimals: moneyDecimals) == nil }
         if !noAmount.isEmpty { todo.append(T.hoursTodoAmount(noAmount)) }
         if !noncashAllowed {
-            let noncash = numbers { $0.method != "CASH" }
+            let noncash = numbers { $0.method != "CASH" && $0.method != "CREDIT" }
             if !noncash.isEmpty { todo.append(T.hoursTodoCash(noncash)) }
         }
+        let credit = d.payments.filter { $0.method == "CREDIT" }.count
+        if credit > 0 && (!creditAllowed || d.walkIn) { todo.append(MachineReportTexts.saleTodoNoCredit) }
+        if credit > 1 { todo.append(MachineReportTexts.saleTodoOneCredit) }
         let noReference = numbers(referenceMissing)
         if !noReference.isEmpty { todo.append(T.hoursTodoReference(noReference)) }
         if let quote = price.quote, HoursPayments.paid(d.payments) > quote.amount {
             todo.append(T.hoursTodoLower(HoursPricing.money(quote.amount, currency: quote.currency, minorUnits: quote.minorUnits)))
-        }
-        if let j = d.job {
-            if !SaleBooking.endValid(j) { todo.append(T.hoursTodoJobEnd) }
-            if j.contractRequired && j.contractID == nil { todo.append(T.hoursTodoJobContract) }
         }
         return T.hoursToSave(todo)
     }
@@ -508,15 +449,17 @@ extension FieldRecorder {
     /// until someone else verifies them.
     @discardableResult
     public func recordHoursSale(_ draft: HoursSaleDraft, walkInAllowed: Bool, cashHolderID: UUID?, evidence: [[StoredEvidence]],
-                                receivedAt: Date, clientID: UUID = UUID(), noncashAllowed: Bool = false) throws -> ClientOperation {
+                                receivedAt: Date, clientID: UUID = UUID(), noncashAllowed: Bool = false,
+                                creditAllowed: Bool = false) throws -> ClientOperation {
         try requireCapability(SyncCapability.hoursPurchase)
-        // Booking the job needs a server that takes `job` on the sale (else it would be dropped without a word).
-        if draft.job != nil { try requireCapability(SyncCapability.hoursSaleBooking) }
+        // A CREDIT line needs a server that takes it (else it would be refused as an unknown method).
+        if draft.payments.contains(where: { $0.method == "CREDIT" }) { try requireCapability(SyncCapability.hoursSaleCredit) }
         let values: HoursSaleValues
         // The parts may not exceed the total this phone knows (the server checks again with its own price).
         let price = HoursPricing.price(HoursPricing.load(store: store, tenantID: tenantID), machineID: draft.machineID,
                                        customerID: draft.customerID, walkIn: draft.walkIn, hoursText: draft.hoursText)
-        switch AccountabilityRules.hoursSale(draft, walkInAllowed: walkInAllowed, noncashAllowed: noncashAllowed, price: price) {
+        switch AccountabilityRules.hoursSale(draft, walkInAllowed: walkInAllowed, noncashAllowed: noncashAllowed, price: price,
+                                             creditAllowed: creditAllowed) {
         case let .failure(problems): throw Self.invalid(problems)
         case let .success(checked): values = checked
         }
@@ -542,8 +485,10 @@ extension FieldRecorder {
             let split = values.payments.count > 1
             // Cash parts go to the holder's custody (the recorder's unless recording for another holder); a split part
             // names its photos by local id, swapped for each upload id when it completes (the op waits for all).
+            // CREDIT is not money received: amount only (no time, holder or photos).
             let parts = values.payments.enumerated().map { i, part in
-                PurchasePaymentPayload(method: part.method, amount: part.amount, receivedAt: receivedAt, reference: part.reference,
+                PurchasePaymentPayload(method: part.method, amount: part.amount,
+                                       receivedAt: part.method == "CREDIT" ? nil : receivedAt, reference: part.reference,
                                        note: nil, staffMemberID: part.method == "CASH" ? cashHolderID : nil,
                                        evidenceUploadIDs: split && !locals[i].isEmpty ? locals[i] : nil)
             }
@@ -552,12 +497,7 @@ extension FieldRecorder {
             let payment = parts.count == 1 ? parts[0] : nil
             let payload = HoursPurchasePayload(clientID: clientID, machineID: machineID, hours: values.hours,
                                                customerID: draft.walkIn ? nil : draft.customerID, walkIn: walkIn,
-                                               jobSiteID: nil, note: values.note, payment: payment, payments: split ? parts : nil,
-                                               // The server books the job with the sale (job id uuid5(client_id, "job")).
-                                               job: values.job.map {
-                                                   SaleJobPayload(plannedStart: $0.start, plannedEnd: $0.end, jobSiteID: $0.siteID,
-                                                                  contractID: $0.contractID, note: $0.note)
-                                               })
+                                               jobSiteID: nil, note: values.note, payment: payment, payments: split ? parts : nil)
             return try enqueue(.hoursPurchase, entityType: "hours_purchase", entityID: clientID, payload: payload,
                                dependsOn: [], attachments: locals.flatMap { $0 }.map { ($0, .evidenceUploads) }, createdAt: receivedAt)
         }

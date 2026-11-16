@@ -191,6 +191,7 @@ public actor SyncEngine {
             try saveOpenInvoices(response.data, capabilities: response.capabilities, revision: response.cursor)
             try savePettyCash(response.data, capabilities: response.capabilities, revision: response.cursor)
             try saveHoursPrices(response.data, capabilities: response.capabilities, revision: response.cursor)
+            try saveMachineReports(response.data, capabilities: response.capabilities, revision: response.cursor)
             try saveSnapshots(response.policySnapshots, receivedAt: response.serverTime)
             try setValue(String(response.cursor), SyncKey.cursor)
             try setDate(response.deviceSession.offlineGrantUntil, SyncKey.grantUntil)
@@ -215,7 +216,8 @@ public actor SyncEngine {
                 try saveCustody(page.data.cashCustody, asOf: page.serverTime)
                 try saveOpenInvoices(page.data, capabilities: page.capabilities, revision: page.cursor)
                 try savePettyCash(page.data, capabilities: page.capabilities, revision: page.cursor)
-                try saveHoursPrices(page.data, capabilities: page.capabilities, revision: page.cursor)
+                    try saveHoursPrices(page.data, capabilities: page.capabilities, revision: page.cursor)
+                try saveMachineReports(page.data, capabilities: page.capabilities, revision: page.cursor)
                 try saveSnapshots(page.policySnapshots, receivedAt: page.serverTime)
                 try setValue(String(max(page.cursor, cursor)), SyncKey.cursor)
             }
@@ -351,6 +353,27 @@ public actor SyncEngine {
         for (type, key, objects) in lists {
             let rows = on ? try objects.compactMap { object -> StoredEntity? in
                 guard let id = object[key]?.stringValue.flatMap(UUID.init(uuidString:)) else { return nil }
+                return StoredEntity(entityType: type, id: id, revision: revision, version: nil, json: try object.jsonString())
+            } : []
+            try store.syncState.replaceEntities(type: type, with: rows, tenantID: tenantID)
+        }
+    }
+
+    /// ADR-008 machine reports (OP_MACHINE_REPORT) and open credit invoices (OP_CREDIT_INVOICE_PAYMENT) arrive as full
+    /// snapshots on every pull: each list replaces the local set; without its capability the set is cleared.
+    private func saveMachineReports(_ data: SyncData, capabilities: [String]?, revision: Int64) throws {
+        let reports = capabilities?.contains(SyncCapability.machineReport) == true
+        let invoices = capabilities?.contains(SyncCapability.creditInvoicePayment) == true
+        let lists: [(String, Bool, [JSONValue])] = [
+            (MachineReports.reasonType, reports, data.machineReportReasons),
+            (MachineReports.stateType, reports, data.machineReportStates),
+            (MachineReports.hoursType, reports, data.machineReportHours),
+            (MachineReports.reportType, reports, data.myMachineReports),
+            (MachineReports.invoiceType, invoices, data.openCreditInvoices),
+        ]
+        for (type, on, objects) in lists {
+            let rows = on ? try objects.compactMap { object -> StoredEntity? in
+                guard let id = MachineReports.key(type: type, object) else { return nil }
                 return StoredEntity(entityType: type, id: id, revision: revision, version: nil, json: try object.jsonString())
             } : []
             try store.syncState.replaceEntities(type: type, with: rows, tenantID: tenantID)

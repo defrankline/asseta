@@ -137,7 +137,7 @@ final class ExpenseFormModel {
             }
             return true
         } catch {
-            errorMessage = JobDetailView.describe(error)
+            errorMessage = FieldErrors.describe(error)
             return false
         }
     }

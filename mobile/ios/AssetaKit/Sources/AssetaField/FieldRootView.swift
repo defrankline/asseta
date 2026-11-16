@@ -4,16 +4,18 @@ import AssetaModel
 import AssetaSync
 import SwiftUI
 
-/// In-app destinations pushed on a tab's navigation stack (same screens as the Android routes).
+private typealias T = MachineReportTexts
+
+/// In-app destinations pushed on the shell's navigation stack (same screens as the Android routes).
 enum FieldRoute: Hashable {
-    case job(UUID), reading(UUID), machine(UUID), resetDetail(UUID), fuel(UUID), expense(UUID)
+    // ADR-008 shell
+    case sellHours, report(UUID?), money, dashboard, inbox, moneyRecords, myReports, mySales, fuelList, settings
+    case reading(UUID), machine(UUID), resetDetail(UUID), fuel(UUID), expense(UUID)
     case cash(UUID, collection: Bool), notification(UUID), syncStatus
     /// A request to keep cash (client id or server id).
     case retention(UUID)
     /// An overdue-remittance flag of mine (read online).
     case remittanceOverdue(UUID)
-    /// My site check-in schedule and check-ins (DEC-031 Phase 5).
-    case siteCheckins
     /// My daily reports and one of them (DEC-032).
     case dailyReports, dailyReport(UUID)
     /// My petty cash funds and what waits for me (DEC-033).
@@ -25,15 +27,16 @@ enum FieldRoute: Hashable {
 /// Forms presented as sheets (Cancel / Save), as before.
 enum FieldSheet: Identifiable {
     case expense(ExpensePolicySnapshot), collection, handover, fuel, reset(machineID: UUID, oldReading: String?)
-    case jobRequest
     // Accountability (each gated by server capability, permission and tenant policy)
-    case hoursSale, hoursTransfer, cashTransfer, retention, cashAck(UUID, isFloat: Bool)
+    case hoursTransfer, cashTransfer, retention, cashAck(UUID, isFloat: Bool)
     case capture(CaptureTarget, MeterPolicySnapshot)
     /// A new daily report (machine preset when opened from a machine), or the correction of one sent back.
     case dailyReport(machineID: UUID, resubmitting: DailyReportDTO?)
     /// A petty cash form (DEC-033).
     case pettyCash(PettyCashSheet)
-    /// "Delete my account" (account menu).
+    /// A payment on an open credit invoice (ADR-008).
+    case invoicePayment(UUID)
+    /// "Delete my account" (Settings).
     case deleteAccount
 
     var id: String {
@@ -42,9 +45,7 @@ enum FieldSheet: Identifiable {
         case .collection: "collection"
         case .handover: "handover"
         case .fuel: "fuel"
-        case .jobRequest: "job-request"
         case let .reset(machine, _): "reset-\(machine)"
-        case .hoursSale: "hours-sale"
         case .hoursTransfer: "hours-transfer"
         case .cashTransfer: "cash-transfer"
         case .retention: "retention"
@@ -52,28 +53,31 @@ enum FieldSheet: Identifiable {
         case let .capture(target, _): "capture-\(target.title)-\(target.machineID?.uuidString ?? "")"
         case let .dailyReport(machine, report): "daily-report-\(machine)-\(report?.id.uuidString ?? "")"
         case let .pettyCash(form): form.id
+        case let .invoicePayment(id): "invoice-payment-\(id)"
         case .deleteAccount: "delete-account"
         }
     }
 }
 
-/// Supervisor app: bottom tabs Jobs · Readings · Fuel · Money · Inbox, each with its own navigation
-/// stack, the account menu and the sync badge in the header (same as Android `SupervisorHome`).
+/// Supervisor app (ADR-008): a sliding side menu over Home (summary, Sell hours, Machine report, Money, Dashboard tiles
+/// and Recent), one navigation stack for every screen, sync status in the header (same as Android `SupervisorHome`).
 public struct FieldRootView: View {
     @State private var model: FieldModel
     @Environment(\.scenePhase) private var scenePhase
     @State private var confirmSignOut = false
-    @State private var tab: SupervisorTab = .jobs
-    @State private var paths: [SupervisorTab: [FieldRoute]] = [:]
+    @State private var menuOpen = false
+    @State private var path: [FieldRoute] = []
     @State private var sheet: FieldSheet?
     @State private var blockedExpense: String?
     @State private var blockedCapture: String?
     private let push = SupervisorPush.shared
     private let showsSwitchCompany: Bool
+    private let userName: String
 
     public init(context: HomeContext) {
         _model = State(initialValue: FieldModel(session: context.session, tenant: context.tenant))
         showsSwitchCompany = context.me.tenants.count > 1
+        userName = context.me.displayName
     }
 
     /// Convenience for `AssetaAppScene(home:)`.
@@ -83,12 +87,12 @@ public struct FieldRootView: View {
         Group {
             switch model.phase {
             case .loading:
-                ProgressView("Opening your jobs…").frame(maxWidth: .infinity, maxHeight: .infinity)
+                ProgressView("Opening your work…").frame(maxWidth: .infinity, maxHeight: .infinity)
             case let .failed(message):
                 ContentUnavailableView("Can't open local data", systemImage: "externaldrive.badge.exclamationmark",
                                        description: Text(message))
             case .ready:
-                tabs
+                shell
             }
         }
         .task { await model.start() }
@@ -96,7 +100,7 @@ public struct FieldRootView: View {
             if phase == .active { Task { await model.sync(force: true); await push.refresh() } }
             if phase == .background { BackgroundSync.schedule() }
         }
-        .onChange(of: tab) { _, new in if new == .inbox { Task { await push.inboxShown() } } }
+        .onChange(of: path) { _, new in if new.last == .inbox { Task { await push.inboxShown() } } }
         .onChange(of: model.phase, initial: true) { openPushedNotification() }
         .onChange(of: push.pendingTap) { openPushedNotification() }
         .onChange(of: push.arrivals) { Task { await model.refreshNotifications() } }
@@ -112,15 +116,14 @@ public struct FieldRootView: View {
             case .handover: CashHandoverFormView(model: model)
             case .fuel: FuelFormView(model: model)
             case let .reset(machineID, oldReading): ResetRequestFormView(model: model, machineID: machineID, oldReading: oldReading)
-            case .jobRequest: JobRequestFormView(model: model)
-            case .hoursSale: HoursSaleFormView(model: model)
             case .hoursTransfer: HoursTransferFormView(model: model)
             case .cashTransfer: CashTransferFormView(model: model)
-            case .retention: RetentionFormView(model: model) { id in openOnMoney(.retention(id)) }
+            case .retention: RetentionFormView(model: model) { id in open(.retention(id), under: .money) }
             case let .cashAck(id, isFloat): CashAckFormView(model: model, targetID: id, isFloat: isFloat)
             case let .capture(target, snapshot): MeterCaptureView(model: model, target: target, snapshot: snapshot)
             case let .dailyReport(machine, report): DailyReportFormView(model: model, machineID: machine, resubmitting: report)
             case let .pettyCash(form): form.view(model)
+            case let .invoicePayment(id): InvoicePaymentFormView(model: model, invoiceID: id)
             case .deleteAccount:
                 NavigationStack {
                     AccountDeletionView(session: model.session, isOnline: model.isOnline)
@@ -140,52 +143,64 @@ public struct FieldRootView: View {
         } message: { Text(blockedExpense ?? "") }
     }
 
-    private var tabs: some View {
-        let badge = InboxTexts.inboxBadge(unread: model.unreadNotifications, attention: model.inbox.attention.count)
-        return TabView(selection: tabSelection) {
-            ForEach(SupervisorTab.allCases, id: \.self) { item in
-                NavigationStack(path: path(item)) {
-                    root(item)
-                        .toolbar { toolbar(item) }
-                        .navigationDestination(for: FieldRoute.self) { route in
-                            destination(route).navigationBarTitleDisplayMode(.inline)
-                        }
-                }
-                .tabItem { Label(item.label, systemImage: Self.icon(item)) }
-                .badge(item == .inbox && badge > 0 ? Text(badge > 99 ? "99+" : "\(badge)") : nil)
-                .tag(item)
+    private var shell: some View {
+        SideDrawer(isOpen: $menuOpen) {
+            NavigationStack(path: $path) {
+                SupervisorHomeView(model: model, userName: userName, openMenu: { menuOpen = true }, open: open)
+                    .navigationDestination(for: FieldRoute.self) { route in
+                        destination(route).navigationBarTitleDisplayMode(.inline)
+                    }
             }
+            .tint(Shell.accent)
+        } menu: {
+            SupervisorMenu(model: model, userName: userName, current: path.first, showsSwitchCompany: showsSwitchCompany,
+                           go: go, switchCompany: { model.stop(); model.session.clearTenantSelection() },
+                           signOut: { menuOpen = false; confirmSignOut = true })
         }
     }
 
-    /// Selecting the current tab again returns to its first screen (as on Android).
-    private var tabSelection: Binding<SupervisorTab> {
-        Binding(get: { tab }, set: { new in
-            if new == tab { paths[new] = [] }
-            tab = new
-        })
+    /// A side-menu entry: its screen on top of Home (nil = Home).
+    private func go(_ route: FieldRoute?) {
+        menuOpen = false
+        path = route.map { [$0] } ?? []
     }
 
-    private func path(_ item: SupervisorTab) -> Binding<[FieldRoute]> {
-        Binding(get: { paths[item] ?? [] }, set: { paths[item] = $0 })
-    }
+    /// Pushes a screen.
+    func open(_ route: FieldRoute) { path.append(route) }
 
-    /// Pushes a screen on the current tab's stack.
-    func open(_ route: FieldRoute) { paths[tab, default: []].append(route) }
+    /// Shows `route` with `parent` underneath (e.g. a cash record on Money).
+    private func open(_ route: FieldRoute, under parent: FieldRoute) { path = [parent, route] }
 
-    @ViewBuilder private func root(_ item: SupervisorTab) -> some View {
-        switch item {
-        case .jobs: JobsTabView(model: model, open: open).navigationTitle(model.tenant.name)
-        case .readings: ReadingsTabView(model: model, open: open).navigationTitle("Readings")
-        case .fuel: FuelTabView(model: model).navigationTitle("Fuel")
-        case .money: MoneyTabView(model: model, acknowledge: { sheet = .cashAck($0, isFloat: $1) }).navigationTitle("Money")
-        case .inbox: InboxTabView(model: model, open: openNotification, attention: openAttention).navigationTitle("Inbox")
-        }
-    }
+    private func pop() { if !path.isEmpty { path.removeLast() } }
 
     @ViewBuilder private func destination(_ route: FieldRoute) -> some View {
         switch route {
-        case let .job(id): JobDetailView(model: model, jobID: id)
+        case .sellHours: SellHoursView(model: model, close: pop)
+        case let .report(machineID):
+            if model.access.machineReport {
+                MachineReportFlow(model: model, machineID: machineID ?? defaultReportMachine, close: pop)
+            } else {
+                ContentUnavailableView(T.title, systemImage: "gauge", description: Text(FieldAccountabilityTexts.serverTooOld))
+            }
+        case .money:
+            MoneyView(model: model, back: pop, open: open, sheet: { sheet = $0 }, recordExpense: recordExpense)
+        case .dashboard: DashboardView(model: model, back: pop, open: open)
+        case .inbox:
+            InboxTabView(model: model, open: openNotification, attention: openAttention).navigationTitle(T.menuInbox)
+                .toolbar { syncToolbar }
+        case .moneyRecords:
+            MoneyTabView(model: model, acknowledge: { sheet = .cashAck($0, isFloat: $1) }).navigationTitle(T.moneyRecords.capitalized)
+                .toolbar { moneyToolbar }
+        case .myReports: MyReportsView(model: model)
+        case .mySales: MySalesView(model: model)
+        case .fuelList:
+            FuelTabView(model: model).navigationTitle(T.menuFuel)
+                .toolbar {
+                    if model.canRecordExpenses {
+                        Button("Record fuel event", systemImage: "plus") { sheet = .fuel }.accessibilityIdentifier("fuel.add")
+                    }
+                }
+        case .settings: SupervisorSettingsView(model: model, deleteAccount: { sheet = .deleteAccount })
         case let .reading(id): ReadingDetailView(model: model, id: id, requestReset: requestReset, capture: capture)
         case let .machine(id):
             MachineDetailView(model: model, machineID: id, requestReset: requestReset, capture: capture,
@@ -198,7 +213,6 @@ public struct FieldRootView: View {
         case .syncStatus: SyncStatusView(model: model)
         case let .retention(id): RetentionStatusView(model: model, id: id)
         case let .remittanceOverdue(id): RemittanceOverdueView(model: model, id: id)
-        case .siteCheckins: SiteCheckinView(model: model)
         case .dailyReports: DailyReportListView(model: model)
         case let .dailyReport(id):
             DailyReportDetailView(model: model, id: id) { sheet = .dailyReport(machineID: $0.machineID, resubmitting: $0) }
@@ -208,64 +222,39 @@ public struct FieldRootView: View {
         }
     }
 
-    @ToolbarContentBuilder private func toolbar(_ item: SupervisorTab) -> some ToolbarContent {
-        ToolbarItemGroup(placement: .topBarTrailing) {
-            switch item {
-            case .jobs:
-                if model.canRequestJobs {
-                    Button(JobRequestText.button, systemImage: "plus") { sheet = .jobRequest }
-                        .accessibilityIdentifier("jobs.request")
-                }
-            case .fuel:
-                if model.canRecordExpenses {
-                    Button("Record fuel event", systemImage: "plus") { sheet = .fuel }.accessibilityIdentifier("fuel.add")
-                }
-            case .money:
-                let a = model.access
-                let extra = a.sellHours || a.requestHoursTransfer || a.transferCash || a.askToKeepCash
-                if model.canRecordExpenses || model.canRecordCash || extra {
-                    Menu {
-                        if model.canRecordExpenses { Button("Record expense", systemImage: "doc.text.viewfinder") { recordExpense() } }
-                        if model.canRecordCash {
-                            Button("Record cash collection", systemImage: "banknote") { sheet = .collection }
-                            Button("Hand over cash", systemImage: "arrow.up.forward.circle") { sheet = .handover }
-                        }
-                        if a.transferCash {
-                            Button(FieldAccountabilityTexts.menuTransferCash, systemImage: "arrow.left.arrow.right") { sheet = .cashTransfer }
-                        }
-                        if a.askToKeepCash {
-                            Button(FieldAccountabilityTexts.menuAskToKeepCash, systemImage: "hand.raised") { sheet = .retention }
-                        }
-                        if a.sellHours {
-                            Button(FieldAccountabilityTexts.menuSellHours, systemImage: "clock.badge.checkmark") { sheet = .hoursSale }
-                        }
-                        if a.requestHoursTransfer {
-                            Button(FieldAccountabilityTexts.menuRequestHoursTransfer, systemImage: "arrow.triangle.swap") {
-                                sheet = .hoursTransfer
-                            }
-                        }
-                    } label: { Image(systemName: "plus") }
-                    .accessibilityLabel("Record").accessibilityIdentifier("money.add")
-                }
-            default: EmptyView()
-            }
-            NavigationLink(value: FieldRoute.syncStatus) { SyncBadge(model: model) }
-                .accessibilityIdentifier("sync.status")
+    /// The machine a report opens on: the first one that needs a report, else the only one.
+    private var defaultReportMachine: UUID? {
+        let rows = model.machineStandings
+        return rows.first { $0.standing.needsReport }?.state.machineID ?? (rows.count == 1 ? rows.first?.state.machineID : nil)
+    }
+
+    @ToolbarContentBuilder private var syncToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            NavigationLink(value: FieldRoute.syncStatus) { SyncBadge(model: model) }.accessibilityIdentifier("sync.status")
         }
-        ToolbarItem(placement: .topBarLeading) {
+    }
+
+    /// The record actions of the money lists (as the Money tab's + menu before).
+    @ToolbarContentBuilder private var moneyToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            let a = model.access
             Menu {
-                if showsSwitchCompany { Button("Switch company") { model.stop(); model.session.clearTenantSelection() } }
-                ChangePasswordButton(session: model.session, isOnline: model.isOnline, showsFooter: true)
-                if model.canReadNotifications {
-                    Section(PushStatus.title) {
-                        Text(push.status.text)
-                        if push.status.canTurnOn { Button(PushStatus.turnOn) { Task { await push.turnOn() } } }
-                    }
+                if model.canRecordExpenses { Button("Record expense", systemImage: "doc.text.viewfinder") { recordExpense() } }
+                if model.canRecordCash {
+                    Button(T.moneyCollect, systemImage: "banknote") { sheet = .collection }
+                    Button("Hand over cash", systemImage: "arrow.up.forward.circle") { sheet = .handover }
                 }
-                Button("Sign out", role: .destructive) { confirmSignOut = true }
-                Button(AccountDeletionText.action, role: .destructive) { sheet = .deleteAccount }
-                    .accessibilityIdentifier("account.delete")
-            } label: { Image(systemName: "person.crop.circle") }
+                if a.transferCash {
+                    Button(FieldAccountabilityTexts.menuTransferCash, systemImage: "arrow.left.arrow.right") { sheet = .cashTransfer }
+                }
+                if a.askToKeepCash {
+                    Button(FieldAccountabilityTexts.menuAskToKeepCash, systemImage: "hand.raised") { sheet = .retention }
+                }
+                if a.requestHoursTransfer {
+                    Button(FieldAccountabilityTexts.menuRequestHoursTransfer, systemImage: "arrow.triangle.swap") { sheet = .hoursTransfer }
+                }
+            } label: { Image(systemName: "plus") }
+            .accessibilityLabel("Record").accessibilityIdentifier("money.add")
         }
     }
 
@@ -303,28 +292,28 @@ public struct FieldRootView: View {
     private func follow(_ link: InboxLink, notificationID: UUID?) {
         func fallback() { if let notificationID { open(.notification(notificationID)) } }
         switch link {
-        case let .job(id): open(.job(id))
+        case .job: fallback() // jobs are gone (ADR-008)
         case let .expense(id): open(.expense(model.inbox.expenses.first { $0.serverID == id }?.id ?? id))
-        case .money: tab = .money
+        case .money: open(.money)
         case let .machine(id):
             if model.inbox.machines[id] != nil { open(.machine(id)) } else { fallback() }
         case let .cashToAcknowledge(id, isFloat):
-            // The answer screen while it still waits for me, else the Money tab.
-            tab = .money
+            // The answer screen while it still waits for me, else Money.
+            open(.money)
             let waiting = model.accountabilityData?.toAcknowledge(myStaffID: model.myStaffID)
             let pending = isFloat ? waiting?.floats.contains { $0.id == id } : waiting?.transfers.contains { $0.id == id }
             if pending == true && model.access.acknowledgeCash { sheet = .cashAck(id, isFloat: isFloat) }
-        // CASH_CUSTODY switched off: its records are hidden, so their taps open the Money tab (follow-up F1).
+        // CASH_CUSTODY switched off: its records are hidden, so their taps open Money (follow-up F1).
         case let .retention(id):
-            if model.access.cashCustodyOn { openOnMoney(.retention(id)) } else { tab = .money }
+            if model.access.cashCustodyOn { open(.retention(id), under: .money) } else { open(.money) }
         case let .handover(id):
-            // On the phone: its detail; not yet synced here: the Money tab.
-            if model.inbox.handovers.contains(where: { $0.id == id }) { openOnMoney(.cash(id, collection: false)) } else { tab = .money }
+            // On the phone: its detail; not yet synced here: Money.
+            if model.inbox.handovers.contains(where: { $0.id == id }) { open(.cash(id, collection: false), under: .money) } else { open(.money) }
         case let .remittanceOverdue(id):
-            // Read online first: a flag the server does not show me (404), offline or switched off opens the Money tab.
-            guard model.access.cashCustodyOn else { tab = .money; return }
+            // Read online first: a flag the server does not show me (404), offline or switched off opens Money.
+            guard model.access.cashCustodyOn else { open(.money); return }
             Task {
-                if await model.remittanceOverdue(id) != nil { openOnMoney(.remittanceOverdue(id)) } else { tab = .money }
+                if await model.remittanceOverdue(id) != nil { open(.remittanceOverdue(id), under: .money) } else { open(.money) }
             }
         case let .dailyReport(id):
             // Switched off: as any other notification.
@@ -332,30 +321,23 @@ public struct FieldRootView: View {
         // DEC-033: the form while the item still waits for me on this phone, else My petty cash.
         case let .pettyCashMovement(id):
             guard model.access.pettyCash else { fallback(); return }
-            openOnMoney(.pettyCash)
+            open(.pettyCash, under: .money)
             if model.pettyCash.waiting.contains(where: { $0.id == id }) { sheet = .pettyCash(.ack(id)) }
         case let .pettyCashHolderChange(id):
             guard model.access.pettyCash else { fallback(); return }
-            openOnMoney(.pettyCash)
+            open(.pettyCash, under: .money)
             if model.pettyCash.waiting.contains(where: { $0.id == id }) { sheet = .pettyCash(.holderChange(id)) }
         case .pettyCash:
-            if model.access.pettyCash { openOnMoney(.pettyCash) } else { fallback() }
+            if model.access.pettyCash { open(.pettyCash, under: .money) } else { fallback() }
         case .none: fallback()
         }
     }
 
-    /// Shows `route` on the Money tab (its first screen underneath).
-    private func openOnMoney(_ route: FieldRoute) {
-        tab = .money
-        paths[.money] = [route]
-    }
-
-    /// A tapped push: the Inbox tab, then that notification's detail when the Inbox has it.
+    /// A tapped push: the Inbox, then that notification's detail when the Inbox has it.
     private func openPushedNotification() {
         guard model.phase == .ready, let tap = push.pendingTap else { return }
         push.pendingTap = nil
-        tab = .inbox
-        paths[.inbox] = []
+        path = [.inbox]
         Task {
             await model.refreshNotifications()
             guard let id = tap.notificationID, let notification = model.notifications.first(where: { $0.id == id }) else {
@@ -373,20 +355,10 @@ public struct FieldRootView: View {
         case .reading: open(.reading(item.refID))
         case .reset: open(.resetDetail(item.refID))
         case .expense: open(.expense(item.refID))
-        case .fuel: open(.fuel(item.refID))
+        case .fuel: if model.access.fuelOn { open(.fuel(item.refID)) }
         case .collection: open(.cash(item.refID, collection: true))
         case .handover: open(.cash(item.refID, collection: false))
         case .operation, .upload: open(.syncStatus)
-        }
-    }
-
-    static func icon(_ tab: SupervisorTab) -> String {
-        switch tab {
-        case .jobs: "list.bullet.clipboard"
-        case .readings: "gauge.with.dots.needle.33percent"
-        case .fuel: "fuelpump"
-        case .money: "wallet.pass"
-        case .inbox: "tray"
         }
     }
 
@@ -397,189 +369,94 @@ public struct FieldRootView: View {
     }
 }
 
-/// Jobs tab: warnings, then my jobs by segment (in progress, ready to start, recently closed) from the
-/// offline cache, or my machines with their latest reading and active job.
-struct JobsTabView: View {
+/// The side menu (design SideNav): Home, Sell hours, Machine report, Money, Dashboard, Inbox, Customers (and Fuel while the
+/// company uses it); sync status, switch company, settings, sign out.
+struct SupervisorMenu: View {
     let model: FieldModel
-    let open: (FieldRoute) -> Void
-    @State private var segment: JobSegment = .inProgress
-    @State private var chosen = false // the user picked a segment: stop auto-selecting
-    /// My machines: List (the phone's synced data, works offline) by default; Map (online) with `tenant.fleet.read`.
-    @State private var showMap = false
+    let userName: String
+    let current: FieldRoute?
+    let showsSwitchCompany: Bool
+    let go: (FieldRoute?) -> Void
+    let switchCompany: () -> Void
+    let signOut: () -> Void
 
     var body: some View {
-        if segment == .machines && model.canSeeMachineMap && showMap {
-            mapLayout
-        } else {
-            list
-        }
-    }
-
-    /// The map takes the remaining height (not inside the scrolling list, so panning the map never scrolls it).
-    private var mapLayout: some View {
-        VStack(spacing: 8) {
-            if let reason = AccessBanner.text(model.tenant) {
-                AccessReasonBanner(text: reason).padding(.horizontal)
+        let a = model.access
+        let badge = InboxTexts.inboxBadge(unread: model.unreadNotifications, attention: model.inbox.attention.count)
+        VStack(alignment: .leading, spacing: 0) {
+            DrawerHeader(name: userName, detail: "\(T.roleSupervisor) · \(model.tenant.name)")
+            Divider().overlay(Shell.border)
+            ScrollView {
+                VStack(spacing: 4) {
+                    DrawerRow(T.menuHome, systemImage: "house", selected: current == nil) { go(nil) }
+                    if a.sellHours {
+                        DrawerRow(T.tileSellHours, systemImage: "clock", selected: current == .sellHours) { go(.sellHours) }
+                    }
+                    if a.machineReport {
+                        DrawerRow(T.tileReport, systemImage: "gauge.with.needle", selected: isReport,
+                                  badge: model.reportsDue > 0 ? "\(model.reportsDue)" : nil) { go(.report(nil)) }
+                    }
+                    DrawerRow(T.tileMoney, systemImage: "banknote", selected: current == .money) { go(.money) }
+                    DrawerRow(T.tileDashboard, systemImage: "chart.bar", selected: current == .dashboard) { go(.dashboard) }
+                    DrawerRow(T.menuInbox, systemImage: "envelope", selected: current == .inbox,
+                              badge: badge > 0 ? (badge > 99 ? "99+" : "\(badge)") : nil, redBadge: true) { go(.inbox) }
+                    DrawerRow(T.menuCustomers, systemImage: "person.badge.plus", selected: current == .customers) { go(.customers) }
+                    // FUEL switched off: no entry at all (never shown, then hidden).
+                    if a.fuelOn {
+                        DrawerRow(T.menuFuel, systemImage: "fuelpump", selected: current == .fuelList) { go(.fuelList) }
+                    }
+                }
+                .padding(.top, 14)
             }
-            VStack(alignment: .leading, spacing: 8) {
-                FieldBanners(model: model)
-                if model.access.siteCheckin { SiteCheckinEntryRow(model: model).foregroundStyle(.primary) }
+            Divider().overlay(Shell.border)
+            VStack(spacing: 4) {
+                DrawerRow(syncLine, systemImage: syncIcon, small: true, iconColor: syncWaiting ? Shell.warnText : Shell.check) {
+                    go(.syncStatus)
+                }
+                if showsSwitchCompany {
+                    DrawerRow(T.menuSwitchCompany, systemImage: "arrow.left.arrow.right.square", small: true, action: switchCompany)
+                }
+                DrawerRow(T.menuSettings, systemImage: "gearshape", small: true) { go(.settings) }
+                DrawerRow(T.menuSignOut, systemImage: "rectangle.portrait.and.arrow.right", small: true, action: signOut)
+                Text(T.menuFooter("Asseta Supervisor \(FieldServices.appVersion)"))
+                    .font(.system(size: 12)).foregroundStyle(Shell.faint).padding(.horizontal, 12).padding(.top, 6)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal)
-            segmentChips
-            MapListSwitch(showMap: $showMap).padding(.horizontal)
-            MachinesMapView(model: model)
+            .padding(.top, 12)
         }
-        .padding(.top, 8)
+        .padding(.horizontal, 16).padding(.top, 56).padding(.bottom, 24)
     }
 
-    private var segmentChips: some View {
-        FilterChips(options: JobSegment.allCases.map { ($0, $0.label) },
-                    selection: Binding(get: { segment }, set: { segment = $0; chosen = true }))
+    private var isReport: Bool { if case .report = current { true } else { false } }
+    private var unsynced: Int { model.overview?.unsyncedCount ?? 0 }
+    private var syncWaiting: Bool { unsynced > 0 }
+    private var syncIcon: String { syncWaiting ? "arrow.triangle.2.circlepath" : "checkmark" }
+    private var syncLine: String {
+        if syncWaiting { return T.menuSyncWaiting(unsynced) }
+        return T.menuSync(model.overview?.lastSuccessAt?.formatted(date: .omitted, time: .shortened) ?? "—")
     }
+}
 
-    private var list: some View {
+/// Settings: password, notifications on this phone, and "Delete my account".
+struct SupervisorSettingsView: View {
+    let model: FieldModel
+    let deleteAccount: () -> Void
+    private let push = SupervisorPush.shared
+
+    var body: some View {
         List {
-            if let reason = AccessBanner.text(model.tenant) {
-                AccessReasonBanner(text: reason)
-                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                    .listRowBackground(Color.clear)
-            }
-            FieldBanners(model: model)
-            if model.access.siteCheckin { SiteCheckinEntryRow(model: model) }
-            segmentChips
-            if segment == .machines {
-                if model.canSeeMachineMap {
-                    MapListSwitch(showMap: $showMap)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 8, trailing: 16))
-                        .listRowBackground(Color.clear)
-                }
-                let rows = machineRows
-                if rows.isEmpty { empty }
-                Section {
-                    ForEach(rows, id: \.machine.id) { row in
-                        NavigationLink(value: FieldRoute.machine(row.machine.id)) {
-                            InboxRow(InboxTexts.machine(row.machine.assetCode, row.machine.name), nil,
-                                     row.latest.map { "Latest reading \($0.reading) · \($0.at.listText)" } ?? "No readings yet",
-                                     row.activeJob.map { "Active job \($0.job.jobNumber)" })
-                        }
-                    }
-                }
-            } else {
-                let jobs = jobsInSegment
-                if jobs.isEmpty { empty }
-                Section {
-                    ForEach(jobs) { job in
-                        NavigationLink(value: FieldRoute.job(job.id)) { JobRow(job: job, progress: model.progress(job)) }
-                            .accessibilityIdentifier("job.\(job.job.jobNumber)")
-                    }
+            Section { ChangePasswordButton(session: model.session, isOnline: model.isOnline, showsFooter: true) }
+            if model.canReadNotifications {
+                Section(PushStatus.title) {
+                    Text(push.status.text)
+                    if push.status.canTurnOn { Button(PushStatus.turnOn) { Task { await push.turnOn() } } }
                 }
             }
-        }
-        .refreshable { await model.sync(force: true) }
-        .onChange(of: model.jobs.isEmpty, initial: true) {
-            if !chosen { segment = InboxTexts.defaultSegment(model.jobs.map { model.progress($0).displayStatus }) }
-        }
-    }
-
-    private var empty: some View {
-        let text = InboxTexts.jobsEmpty(segment)
-        return ContentUnavailableView(text.title, systemImage: "tray",
-                                      description: Text(model.isSyncing ? "Syncing…" : text.message))
-    }
-
-    private var jobsInSegment: [FieldJob] {
-        let jobs = model.jobs.filter { InboxTexts.segment(model.progress($0).displayStatus) == segment }
-        return segment == .closed ? jobs.sorted { $0.job.plannedStart > $1.job.plannedStart } : jobs
-    }
-
-    /// A machine of mine: its latest reading from my captures and its active job.
-    private var machineRows: [(machine: MachineDTO, latest: ReadingItem?, activeJob: FieldJob?)] {
-        let latest = model.inbox.latestReadingByMachine()
-        let active = model.jobs.filter { [.inProgress, .approved].contains(model.progress($0).displayStatus) }
-            .sorted { (model.progress($0).displayStatus == .inProgress ? 0 : 1) < (model.progress($1).displayStatus == .inProgress ? 0 : 1) }
-        return model.inbox.machines.values.sorted { $0.assetCode < $1.assetCode }.map { machine in
-            (machine, latest[machine.id], active.first { $0.job.machineID == machine.id })
-        }
-    }
-}
-
-struct JobRow: View {
-    let job: FieldJob
-    let progress: JobProgress
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(job.job.jobNumber).font(.headline)
-                Spacer()
-                if let request = job.request {
-                    RequestBadge(state: request)
-                } else {
-                    StatusBadge(status: progress.displayStatus, pendingSync: progress.displayStatus != job.job.status)
-                }
+            Section {
+                Button(AccountDeletionText.action, role: .destructive, action: deleteAccount).accessibilityIdentifier("account.delete")
             }
-            Text([job.machine.map { "\($0.assetCode) · \($0.name)" }, job.site?.name, job.customer?.name]
-                .compactMap { $0 }.joined(separator: "\n"))
-                .font(.subheadline).foregroundStyle(.secondary)
+            Section { LabeledContent("Version", value: FieldServices.appVersion) }
         }
-        .padding(.vertical, 2)
-    }
-}
-
-struct StatusBadge: View {
-    let status: JobStatus
-    var pendingSync = false
-
-    var body: some View {
-        Text(label + (pendingSync ? " · not synced" : ""))
-            .font(.caption.bold())
-            .padding(.horizontal, 8).padding(.vertical, 3)
-            .background(color.opacity(0.15), in: Capsule())
-            .foregroundStyle(color)
-    }
-
-    private var label: String {
-        switch status {
-        case .approved: "Approved"
-        case .inProgress: "In progress"
-        case .completed: "Completed"
-        case .cancelled: "Cancelled"
-        case .draft: "Draft"
-        case .pendingApproval: "Pending approval"
-        }
-    }
-
-    private var color: Color {
-        switch status {
-        case .inProgress: Palette.recent
-        case .approved: Palette.live
-        case .cancelled: Palette.offline
-        default: Palette.neutral
-        }
-    }
-}
-
-/// Chip of a job requested from the field: not yet sent, waiting for the owner, or declined.
-struct RequestBadge: View {
-    let state: JobRequestState
-
-    var body: some View {
-        Text(state.label)
-            .font(.caption.bold())
-            .padding(.horizontal, 8).padding(.vertical, 3)
-            .background(color.opacity(0.15), in: Capsule())
-            .foregroundStyle(color)
-            .accessibilityIdentifier("job.request.state")
-    }
-
-    private var color: Color {
-        switch state {
-        case .notSent: Palette.neutral
-        case .waiting: Palette.warning
-        case .declined, .problem: Palette.offline
-        }
+        .navigationTitle(T.menuSettings)
     }
 }
 
@@ -603,7 +480,7 @@ struct SyncBadge: View {
     }
 }
 
-/// Warnings shown above the job list: clock tamper, server skew, offline state.
+/// Warnings shown on Home: clock tamper, server skew, offline state.
 struct FieldBanners: View {
     let model: FieldModel
 

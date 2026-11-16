@@ -438,7 +438,7 @@ struct DailyReportFormView: View {
             photos = [] // now owned by the queued report
             dismiss()
         } catch {
-            self.error = JobDetailView.describe(error)
+            self.error = FieldErrors.describe(error)
         }
     }
 }
