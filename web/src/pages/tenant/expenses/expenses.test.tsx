@@ -136,7 +136,6 @@ describe('ExpensesPage', () => {
       attributed_cost: '128000.0000',
       currency: 'TZS',
       machine_id: null,
-      job_id: null,
       expense_id: null,
       meter_reading: null,
       supplier: null,

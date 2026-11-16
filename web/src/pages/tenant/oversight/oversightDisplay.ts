@@ -18,7 +18,6 @@ export const SCORECARD_ITEM_LABELS: Readonly<Record<ScorecardRecordItem, string>
   ALERT: 'Tracking alerts',
   CASH_HELD_TOO_LONG: 'Cash held too long',
   CASH_DIFFERENCE: 'Cash differences',
-  REVENUE_DIFFERENCE: 'Revenue differences',
   REFUSED_ATTEMPT: 'Refused attempts',
   PATTERN_SIGNAL: 'Repeated items raised for review',
 };
@@ -31,7 +30,6 @@ export const SCORECARD_RECORD_ORDER: readonly ScorecardRecordItem[] = [
   'ALERT',
   'CASH_HELD_TOO_LONG',
   'CASH_DIFFERENCE',
-  'REVENUE_DIFFERENCE',
   'REFUSED_ATTEMPT',
   'PATTERN_SIGNAL',
 ];
@@ -54,6 +52,7 @@ const caseIdOf = (r: ScorecardRecordDto): string | null => {
 function rawRecordLink(r: ScorecardRecordDto): RecordLink | null {
   const id = r.record_id;
   switch (r.record_type) {
+    case 'meter_exception':
     case 'job_exception':
       return { to: exceptionsPath(), label: 'Open exceptions' };
     case 'engine_interval':
@@ -68,10 +67,6 @@ function rawRecordLink(r: ScorecardRecordDto): RecordLink | null {
         : { to: recordPath('REMITTANCE_OVERDUE', id), label: 'Open the flag' };
     case 'cash_variance':
       return id === null ? null : { to: recordPath('CASH_VARIANCE', id), label: 'Open difference' };
-    case 'revenue_difference':
-      return id === null
-        ? null
-        : { to: recordPath('REVENUE_DIFFERENCE', id), label: 'Open difference' };
     case 'security_event':
       return { to: ROUTES.tenantSecurityEvents, label: 'Open security events' };
     case 'risk_signal': {

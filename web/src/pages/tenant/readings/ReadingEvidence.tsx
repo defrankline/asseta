@@ -94,7 +94,7 @@ export function CaptureEvidenceFields({
     [machineId, siteId],
   );
   const policy = useAsyncResource(loadPolicy, [], canReadPolicy && machineId !== null);
-  const view = policy.data === null ? null : readCapturePolicy(policy.data.values, kind);
+  const view = policy.data === null ? null : readCapturePolicy(policy.data.values);
   const kindLabel = humanize(kind).toLowerCase();
   return (
     <>

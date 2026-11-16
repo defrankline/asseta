@@ -171,8 +171,6 @@ export function makeOverride(
     machine_id: MACHINE_A,
     asset_code: 'EX-01',
     machine_name: 'Excavator 1',
-    job_id: JOB_ID,
-    job_number: 'JOB-2026-00042',
     kind: 'OPENING',
     capture_mode: 'OCR',
     manually_corrected: true,

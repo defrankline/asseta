@@ -24,7 +24,6 @@ import {
   nullableText,
   oneOf,
   record,
-  retiredNullable,
   text,
 } from './schemaKit';
 
@@ -41,7 +40,7 @@ export const GPS_STATUSES: readonly GpsStatus[] = [
   'PERMISSION_DENIED',
   'DISABLED',
 ];
-export const READING_KINDS: readonly ReadingKind[] = ['OPENING', 'CLOSING', 'DAILY'];
+export const READING_KINDS: readonly ReadingKind[] = ['DAILY'];
 export const EXCEPTION_STATUSES: readonly ExceptionStatus[] = ['OPEN', 'EXPLAINED', 'CONFIRMED'];
 export const EXCEPTION_TYPES: readonly ExceptionType[] = [
   'GPS_UNAVAILABLE',
@@ -81,7 +80,6 @@ export const photoUrlSchema: Schema<PhotoUrlDto> = object({
 
 const captureFields = {
   id: id(),
-  job_id: retiredNullable(),
   machine_id: id(),
   kind: oneOf(READING_KINDS),
   capture_mode: text(),
@@ -120,7 +118,6 @@ export const captureResultSchema: Schema<CaptureResultDto> = object({
 
 export const exceptionSchema: Schema<ExceptionDto> = object({
   id: id(),
-  job_id: retiredNullable(),
   machine_id: id(),
   meter_capture_id: nullableId(),
   exception_type: oneOf(EXCEPTION_TYPES),

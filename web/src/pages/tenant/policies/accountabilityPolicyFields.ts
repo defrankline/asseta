@@ -102,7 +102,6 @@ const DASHBOARD_TILES: readonly FieldOption[] = [
   { value: 'engine_hours', label: 'Engine hours' },
   { value: 'unexplained_hours', label: 'Unexplained engine hours' },
   { value: 'missing_daily_reports', label: 'Missing daily reports' },
-  { value: 'revenue_differences', label: 'Revenue differences' },
   { value: 'idle_machines', label: 'Idle machines' },
   { value: 'investigations', label: 'Investigations' },
   { value: 'cash', label: 'Cash' },
@@ -119,7 +118,6 @@ const SCORECARD_ITEMS: readonly FieldOption[] = [
   { value: 'ALERT', label: 'Tracking alerts' },
   { value: 'CASH_HELD_TOO_LONG', label: 'Cash held too long' },
   { value: 'CASH_DIFFERENCE', label: 'Cash differences' },
-  { value: 'REVENUE_DIFFERENCE', label: 'Revenue differences' },
   { value: 'REFUSED_ATTEMPT', label: 'Refused attempts' },
 ];
 
@@ -172,7 +170,7 @@ export const OVERSIGHT_FIELDS: readonly PolicyFieldDef[] = [
     key: 'investigations_enabled',
     label: 'Investigations',
     kind: 'bool',
-    help: 'Off: Investigations are hidden and no new cases are opened; cash differences and revenue differences are still recorded.',
+    help: 'Off: Investigations are hidden and no new cases are opened; cash differences are still recorded.',
   },
   {
     key: 'case_closure_requires_second_person',

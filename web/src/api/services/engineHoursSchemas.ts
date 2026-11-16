@@ -11,7 +11,6 @@ import type {
   EngineHourReasonKind,
   EngineHourTotalsDto,
   IntervalDto,
-  JobOverlapDto,
   LedgerPointDto,
   MachineEngineHoursDto,
   MachineEngineHoursSummaryDto,
@@ -33,9 +32,6 @@ import {
   nullableNum,
   nullableText,
   oneOf,
-  retiredId,
-  retiredIds,
-  retiredNullable,
   text,
 } from './schemaKit';
 
@@ -57,11 +53,7 @@ export const RECONCILIATION_STATUSES: readonly ReconciliationStatus[] = [
   'UNEXPLAINED',
 ];
 export const READING_REVIEWS: readonly ReadingReview[] = ['VERIFIED', 'PENDING_REVIEW'];
-export const SEGMENT_KINDS: readonly SegmentKind[] = [
-  'CUSTOMER_WORK',
-  'UNALLOCATED',
-  'NON_REVENUE',
-];
+export const SEGMENT_KINDS: readonly SegmentKind[] = ['REPORTED', 'UNALLOCATED'];
 export const SEGMENT_CLASSIFICATIONS: readonly SegmentClassification[] = [
   'NOT_APPLICABLE',
   'UNEXPLAINED',
@@ -127,7 +119,6 @@ const pointFields = {
   at: text(),
   reading: text(),
   source: text(),
-  job_id: retiredNullable(),
 };
 export const ledgerPointSchema: Schema<LedgerPointDto> = object(pointFields);
 
@@ -135,9 +126,8 @@ const segmentSchema: Schema<SegmentDto> = object({
   kind: oneOf(SEGMENT_KINDS),
   hours: text(),
   classification: oneOf(SEGMENT_CLASSIFICATIONS),
-  job_id: retiredNullable(),
-  job_number: retiredNullable(),
-  activity_type: optionalText(),
+  report_id: nullableText().default(null),
+  report_number: nullableText().default(null),
   approved: nullableRef(),
   proposal: nullableRef(),
 });
@@ -154,14 +144,12 @@ const intervalSchema: Schema<IntervalDto> = object({
   review: oneOf(READING_REVIEWS),
   opened_at: text(),
   age_days: int(),
-  overlapping_job_ids: retiredIds(),
   segments: array(segmentSchema).required(),
 });
 
 const totalsFields = {
   total_hours: text(),
-  customer_work_hours: text(),
-  non_revenue_hours: text(),
+  reported_hours: text(),
   unallocated_hours: text(),
   unexplained_hours: text(),
   proposed_hours: text(),
@@ -170,12 +158,6 @@ const totalsFields = {
   pending_review_hours: text(),
 };
 export const engineHourTotalsSchema: Schema<EngineHourTotalsDto> = object(totalsFields);
-
-const overlapSchema: Schema<JobOverlapDto> = object({
-  first_job_id: retiredId(),
-  second_job_id: retiredId(),
-  basis: text(),
-});
 
 export const machineEngineHoursSchema: Schema<MachineEngineHoursDto> = object({
   machine_id: id(),
@@ -186,8 +168,6 @@ export const machineEngineHoursSchema: Schema<MachineEngineHoursDto> = object({
   baseline_proposal: object(baselineFields).nullable().defined(),
   intervals: array(intervalSchema).required(),
   totals: object(totalsFields).required(),
-  /** Job overlaps, retired by ADR-008: parsed while sent, never shown. */
-  overlaps: array(overlapSchema).required().default([]),
   policy_version: text(),
 });
 
@@ -250,7 +230,6 @@ export const correctionSchema: Schema<CorrectionDto> = object({
   id: id(),
   machine_id: id(),
   machine_code: optionalText(),
-  job_id: retiredNullable(),
   superseded_capture_id: id(),
   replacement_capture_id: id(),
   old_reading: text(),

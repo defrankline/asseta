@@ -256,10 +256,7 @@ function LedgerView({ data, timeZone, onChanged }: LedgerViewProps) {
           columns={4}
           items={[
             { label: 'Engine hours', value: hoursText(t.total_hours) },
-            { label: 'Customer work', value: hoursText(t.customer_work_hours) },
-            ...(Number(t.non_revenue_hours) !== 0
-              ? [{ label: 'Non-revenue time', value: hoursText(t.non_revenue_hours) }]
-              : []),
+            { label: 'In machine reports', value: hoursText(t.reported_hours) },
             { label: 'Unallocated', value: hoursText(t.unallocated_hours) },
             { label: 'Not yet explained', value: hoursText(t.unexplained_hours) },
             { label: 'Explanation proposed', value: hoursText(t.proposed_hours) },

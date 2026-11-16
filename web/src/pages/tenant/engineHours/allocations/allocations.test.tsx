@@ -54,9 +54,6 @@ const entry = (o: Partial<WorkAllocationDto> = {}): WorkAllocationDto => ({
   kind: 'CUSTOMER_WORK',
   customer_id: 'dddddddd-0000-4000-8000-000000000001',
   customer_name: 'Acme Quarry',
-  job_id: 'dddddddd-0000-4000-8000-000000000002',
-  job_number: 'J-100',
-  activity_type: null,
   reason_id: null,
   reason_name: null,
   lots: [
@@ -69,7 +66,6 @@ const entry = (o: Partial<WorkAllocationDto> = {}): WorkAllocationDto => ({
   evidence_attachment_ids: [],
   source: 'DERIVED',
   reading_review: 'VERIFIED',
-  changeover_id: null,
   classification_id: null,
   status: 'ACTIVE',
   supersedes_id: null,
@@ -181,7 +177,7 @@ describe('AllocationCorrectionDialog', () => {
     const onProposed = vi.fn();
     renderWithProviders(
       <AllocationCorrectionDialog
-        allocation={entry({ kind: 'UNEXPLAINED', customer_id: null, job_id: null, lots: [] })}
+        allocation={entry({ kind: 'UNEXPLAINED', customer_id: null, lots: [] })}
         onClose={vi.fn()}
         onProposed={onProposed}
       />,

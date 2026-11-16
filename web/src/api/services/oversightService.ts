@@ -34,7 +34,6 @@ export const SCORECARD_ITEMS: readonly ScorecardItem[] = [
   'ALERT',
   'CASH_HELD_TOO_LONG',
   'CASH_DIFFERENCE',
-  'REVENUE_DIFFERENCE',
   'REFUSED_ATTEMPT',
 ];
 const RECORD_ITEMS: readonly ScorecardRecordItem[] = [...SCORECARD_ITEMS, 'PATTERN_SIGNAL'];
@@ -78,8 +77,6 @@ export const scorecardRowSchema: Schema<ScorecardRowDto> = object({
   cash_differences: int(),
   cash_difference_totals: array(amountByCurrency).required(),
   cash_differences_near_threshold: int(),
-  revenue_differences: int(),
-  revenue_difference_totals: array(amountByCurrency).required(),
   refused_attempts: int(),
   pattern_signals: int(),
   items_total: int(),
@@ -115,6 +112,8 @@ export const idleMachineSchema: Schema<IdleMachineDto> = object({
   idle_since: text(),
   idle_days: int(),
   last_engine_activity_at: nullableText(),
+  last_machine_report_id: nullableId(),
+  last_machine_report_number: optionalText(),
 });
 
 const scorecardPage = tenantPageSchema(scorecardRowSchema);

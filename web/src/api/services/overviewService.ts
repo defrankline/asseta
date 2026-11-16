@@ -42,8 +42,7 @@ const fleetSchema = object({
   .default(null);
 
 const workSchema = object({
-  /** Retired by ADR-008 (jobs removed): parsed while sent, never shown. */
-  jobs_by_status: mixed<Record<string, number>>(isCountMap).default({}),
+  machine_reports_by_status: countMap(),
   pending_approvals: nullableInt(),
   readings_needing_review: nullableInt(),
   open_exceptions: nullableInt(),

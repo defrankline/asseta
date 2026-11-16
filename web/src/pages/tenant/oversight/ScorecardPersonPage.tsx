@@ -95,12 +95,6 @@ function Figures({ row }: { row: ScorecardRowDto }) {
           label: 'Just under the case threshold',
           value: String(row.cash_differences_near_threshold),
         },
-        {
-          label: 'Revenue differences',
-          value: (
-            <AmountsCell count={row.revenue_differences} totals={row.revenue_difference_totals} />
-          ),
-        },
         { label: 'Refused attempts', value: String(row.refused_attempts) },
         { label: 'Repeats raised for review', value: String(row.pattern_signals) },
         { label: 'Items to look at', value: String(row.items_total) },

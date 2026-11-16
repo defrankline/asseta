@@ -1805,11 +1805,12 @@ export interface paths {
         put?: never;
         /**
          * Propose Adjustment
-         * @description Propose a correction, refund, reversal or invoice void; someone else decides it. HOURS_CORRECTION: `purchase_id`,
-         *     optional `machine_id` (the purchase's machine by default), signed `hours`, optional `job_id` / `consumed_entry_id`.
+         * @description Propose a correction, refund or reversal; someone else decides it. HOURS_CORRECTION: `purchase_id`,
+         *     optional `machine_id` (the purchase's machine by default), signed `hours`, optional `machine_report_id` /
+         *     `consumed_entry_id`.
          *     HOURS_REFUND: `purchase_id`, `machine_id`, positive `hours`, `settlement` (CREDIT | PAY_OUT, with `payout`).
          *     PAYMENT_REVERSAL / COLLECTION_REVERSAL: `payment_id`. PURCHASE_REVERSAL: `purchase_id`.
-         *     INVOICE_VOID: `invoice_id`.
+         *     INVOICE_VOID is refused (REQUEST_TYPE_RETIRED).
          */
         post: operations["proposeAdjustment"];
         delete?: never;
@@ -3344,88 +3345,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tenant/contracts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Contracts
-         * @description CLOSED contracts are hidden unless `include_inactive` or `status=CLOSED` is given.
-         */
-        get: operations["listContracts"];
-        put?: never;
-        /** Create Contract */
-        post: operations["createContract"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/contracts/{contract_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Contract */
-        get: operations["getContract"];
-        /**
-         * Update Contract
-         * @description Editable while DRAFT/ACTIVE; CLOSED contracts must be reopened first (CONTRACT_CLOSED).
-         */
-        put: operations["updateContract"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/contracts/{contract_id}/close": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Close Contract
-         * @description Status CLOSED; refused while the contract has open jobs (DRAFT..IN_PROGRESS).
-         */
-        post: operations["closeContract"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/contracts/{contract_id}/reopen": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Reopen Contract
-         * @description Back to ACTIVE; the customer must be active.
-         */
-        post: operations["reopenContract"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/tenant/credit-arrangements": {
         parameters: {
             query?: never;
@@ -3714,23 +3633,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tenant/customer-payments/{payment_id}/allocations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Allocate Payment */
-        post: operations["allocateCustomerPayment"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/tenant/customer-payments/{payment_id}/decision": {
         parameters: {
             query?: never;
@@ -3793,7 +3695,10 @@ export interface paths {
         /** Customers */
         get: operations["listCustomers"];
         put?: never;
-        /** Create Customer */
+        /**
+         * Create Customer
+         * @description `code` is optional: left blank, the server assigns the next free CUST-<nnnnn> of the company.
+         */
         post: operations["createCustomer"];
         delete?: never;
         options?: never;
@@ -3810,7 +3715,10 @@ export interface paths {
         };
         /** Get Customer */
         get: operations["getCustomer"];
-        /** Update Customer */
+        /**
+         * Update Customer
+         * @description A blank `code` keeps the customer's current code.
+         */
         put: operations["updateCustomer"];
         post?: never;
         delete?: never;
@@ -3864,7 +3772,7 @@ export interface paths {
         put?: never;
         /**
          * Deactivate Customer
-         * @description Refused while the customer has open jobs (DRAFT..IN_PROGRESS); history and balances are kept.
+         * @description History and balances are kept; a deactivated customer leaves the pickers.
          */
         post: operations["deactivateCustomer"];
         delete?: never;
@@ -3899,8 +3807,8 @@ export interface paths {
         };
         /**
          * Customer Statement
-         * @description Bought, activated, used per day and job, transferred, expired, cancelled and remaining hours of one customer
-         *     (optionally one machine) for a tenant-local period (default: this month to date).
+         * @description Bought, activated, used per day and machine report, transferred, expired, cancelled and remaining hours of one
+         *     customer (optionally one machine) for a tenant-local period (default: this month to date).
          */
         get: operations["getCustomerHoursStatement"];
         put?: never;
@@ -3971,68 +3879,6 @@ export interface paths {
         };
         /** Customer Statement */
         get: operations["getCustomerStatement"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/daily-machine-sheet": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Daily Sheet
-         * @description One row per machine per tenant-local day with activity (newest day first; `q`: machine code or name; at
-         *     most 93 days). Derived from the engine-hour ledger, jobs, fuel, flags and money on every call.
-         */
-        get: operations["listDailyMachineSheet"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/daily-machine-sheet/export.csv": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Export Daily Sheet
-         * @description The list's rows (same filters, no paging) as CSV, one money column group per currency (audited export).
-         */
-        get: operations["exportDailyMachineSheetCsv"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/daily-machine-sheet/{machine_id}/{day}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Daily Sheet Day
-         * @description One machine-day with the ids behind every figure: readings, ledger segments, jobs, money sources (invoice
-         *     lines / prepaid consumption) and flag records.
-         */
-        get: operations["getDailyMachineSheetDay"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4551,7 +4397,7 @@ export interface paths {
             cookie?: never;
         };
         /** Exceptions */
-        get: operations["listJobExceptions"];
+        get: operations["listMeterExceptions"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4571,7 +4417,7 @@ export interface paths {
          * Get Exception
          * @description One exception, under the same rule as the list for field users.
          */
-        get: operations["getJobException"];
+        get: operations["getMeterException"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4590,7 +4436,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Review */
-        post: operations["reviewJobException"];
+        post: operations["reviewMeterException"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4739,28 +4585,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tenant/field/contracts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Field Contracts
-         * @description Active contracts of active customers a job can be requested under (by contract number, reference or customer
-         *     name, at most 100), with the customer and default site names the field apps show. `customer_id` narrows the list
-         *     to one customer (booking a job with an hours sale).
-         */
-        get: operations["listFieldContracts"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/tenant/field/machines": {
         parameters: {
             query?: never;
@@ -4770,8 +4594,8 @@ export interface paths {
         };
         /**
          * Field Machines
-         * @description Machines the caller works on in the field: assigned to them or on a job they supervise (by asset code / name,
-         *     at most 100). Field users have no machine register access; this is what the field apps receive on sync.
+         * @description Machines currently assigned to the caller (by asset code / name, at most 100). Field users have no machine
+         *     register access; this is what the field apps and the machine pickers of such users receive.
          */
         get: operations["listMyFieldMachines"];
         put?: never;
@@ -4935,75 +4759,6 @@ export interface paths {
         put?: never;
         /** Reactivate Geofence */
         post: operations["reactivateGeofence"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/hire-invoices": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Invoices */
-        get: operations["listHireInvoices"];
-        put?: never;
-        /** Create Draft */
-        post: operations["createHireInvoiceDraft"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/hire-invoices/{invoice_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Invoice */
-        get: operations["getHireInvoice"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/hire-invoices/{invoice_id}/issue": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Issue Invoice */
-        post: operations["issueHireInvoice"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/hire-invoices/{invoice_id}/void": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Void Invoice */
-        post: operations["voidHireInvoice"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5384,7 +5139,7 @@ export interface paths {
         };
         /**
          * List Idle Machines
-         * @description Active machines with no running job and no engine hours for OVERSIGHT.idle_after_days (longest idle first;
+         * @description Active machines with no approved machine-report hours for OVERSIGHT.idle_after_days (longest idle first;
          *     `q`: asset code or name).
          */
         get: operations["listIdleMachines"];
@@ -5480,7 +5235,7 @@ export interface paths {
         put?: never;
         /**
          * Deactivate Site
-         * @description Refused while an open job (DRAFT..IN_PROGRESS) is at the site (SITE_IN_USE).
+         * @description Geofences, orders and history keep referencing the site; it leaves the pickers.
          */
         post: operations["deactivateJobSite"];
         delete?: never;
@@ -5500,143 +5255,6 @@ export interface paths {
         put?: never;
         /** Reactivate Site */
         post: operations["reactivateJobSite"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/jobs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Jobs */
-        get: operations["listJobs"];
-        put?: never;
-        /** Create Job */
-        post: operations["createJob"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/jobs/requests": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Request Job
-         * @description A supervisor requests a job from the field: the server assigns the job number and the rate-card price (or
-         *     PENDING_PRICE when no rate card applies), names the caller as supervisor and sends it straight to
-         *     PENDING_APPROVAL. `client_id` becomes the job id, so replays return the same job. 422 NO_STAFF_RECORD when the
-         *     login is not linked to an active staff record.
-         */
-        post: operations["requestJob"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/jobs/{job_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Job Summary */
-        get: operations["getJobSummary"];
-        /**
-         * Update Job
-         * @description Edit a DRAFT/PENDING_APPROVAL job (optimistic `version`); approved and later jobs are locked (JOB_LOCKED).
-         *     Cancel through the CANCEL transition.
-         */
-        put: operations["updateJob"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/jobs/{job_id}/acknowledgements": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Acknowledgements */
-        get: operations["listJobAcknowledgements"];
-        put?: never;
-        /** Acknowledge */
-        post: operations["acknowledgeJob"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/jobs/{job_id}/activities": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Activities */
-        get: operations["listJobActivities"];
-        put?: never;
-        /** Log Activity */
-        post: operations["logJobActivity"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/jobs/{job_id}/meter-captures": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Captures */
-        get: operations["listJobCaptures"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/jobs/{job_id}/transitions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Transition
-         * @description APPROVE may carry `hourly_rate` (rate_source becomes OWNER_APPROVED); a PENDING_PRICE job (field request
-         *     without a rate card) cannot be approved without it (422 PRICE_REQUIRED). Decline a request with CANCEL + reason.
-         */
-        post: operations["transitionJob"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6023,8 +5641,8 @@ export interface paths {
         put?: never;
         /**
          * Deactivate Machine
-         * @description Retire (status DISPOSED). Refused while the machine has open jobs, an assigned tracker or an active billing
-         *     enrollment; open staff assignments are ended.
+         * @description Retire (status DISPOSED). Refused while a machine report on it waits for a decision, it has an assigned tracker
+         *     or an active billing enrollment; open staff assignments are ended.
          */
         post: operations["deactivateMachine"];
         delete?: never;
@@ -6243,8 +5861,8 @@ export interface paths {
         };
         /**
          * List Captures
-         * @description Meter readings across jobs, latest captured first (`captured_to` exclusive). Field users see only their own
-         *     readings and those on jobs they supervise.
+         * @description Meter readings, latest captured first (`captured_to` exclusive). Field users see only their own readings and
+         *     those of the machines assigned to them.
          */
         get: operations["listMeterCaptures"];
         put?: never;
@@ -6265,7 +5883,7 @@ export interface paths {
         };
         /**
          * Get Capture
-         * @description One reading. Field users open only their own and those on jobs they supervise, as in the list.
+         * @description One reading. Field users open only their own and those of their machines, as in the list.
          */
         get: operations["getMeterCapture"];
         put?: never;
@@ -6421,86 +6039,6 @@ export interface paths {
         get: operations["getTenantMlStatus"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/non-revenue-activities": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Non Revenue Activities
-         * @description Non-billable work-log entries of the declared non-revenue types (e.g. movement), newest first, with their
-         *     approval status. Until APPROVED the time counts as revenue.
-         */
-        get: operations["listNonRevenueActivities"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/non-revenue-approvals": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Non Revenue Approvals */
-        get: operations["listNonRevenueApprovals"];
-        put?: never;
-        /**
-         * Propose Non Revenue
-         * @description Explain a work-log entry as non-revenue (tenant reason + note); a second person with `tenant.revenue.decide`
-         *     approves it.
-         */
-        post: operations["proposeNonRevenueApproval"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/non-revenue-approvals/{approval_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Non Revenue Approval */
-        get: operations["getNonRevenueApproval"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/non-revenue-approvals/{approval_id}/decision": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Decide Non Revenue
-         * @description APPROVE (the time stops counting as revenue; affected revenue differences are recomputed) or REJECT.
-         */
-        post: operations["decideNonRevenueApproval"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7742,7 +7280,7 @@ export interface paths {
         };
         /**
          * Expenses (CSV)
-         * @description Expenses with category, amount, how paid, custodian, machine/job and approval status. Same filters, sort and permission (tenant.expense.read) as `listExpenses`; at most 10,000 rows, then a truncation note. Every export is audited.
+         * @description Expenses with category, amount, how paid, custodian, machine and approval status. Same filters, sort and permission (tenant.expense.read) as `listExpenses`; at most 10,000 rows, then a truncation note. Every export is audited.
          */
         get: operations["exportTenantExpensesReportCsv"];
         put?: never;
@@ -7762,7 +7300,7 @@ export interface paths {
         };
         /**
          * Expenses (PDF)
-         * @description Expenses with category, amount, how paid, custodian, machine/job and approval status. Same filters, sort and permission (tenant.expense.read) as `listExpenses`; at most 2,000 rows, then a truncation note. Every export is audited.
+         * @description Expenses with category, amount, how paid, custodian, machine and approval status. Same filters, sort and permission (tenant.expense.read) as `listExpenses`; at most 2,000 rows, then a truncation note. Every export is audited.
          */
         get: operations["exportTenantExpensesReportPdf"];
         put?: never;
@@ -7805,46 +7343,6 @@ export interface paths {
          * @description Machines with tracker connectivity, last seen, reported work and observed state. Same filters, sort and permission (tenant.fleet.read) as `getFleetMap`; at most 2,000 rows, then a truncation note. Every export is audited.
          */
         get: operations["exportTenantFleetReportPdf"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/reports/jobs.csv": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Jobs (CSV)
-         * @description Jobs with status, machine, customer, schedule and agreed rate. Same filters, sort and permission (tenant.job.read) as `listJobs`; at most 10,000 rows, then a truncation note. Every export is audited.
-         */
-        get: operations["exportTenantJobsReportCsv"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/reports/jobs.pdf": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Jobs (PDF)
-         * @description Jobs with status, machine, customer, schedule and agreed rate. Same filters, sort and permission (tenant.job.read) as `listJobs`; at most 2,000 rows, then a truncation note. Every export is audited.
-         */
-        get: operations["exportTenantJobsReportPdf"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7902,7 +7400,7 @@ export interface paths {
         };
         /**
          * Petty cash expenses (CSV)
-         * @description Expenses paid from petty cash funds by fund, category, machine and job, with approval status. Same filters, sort and permission (tenant.pettycash.read) as `listExpenses`; at most 10,000 rows, then a truncation note. Every export is audited.
+         * @description Expenses paid from petty cash funds by fund, category and machine, with approval status. Same filters, sort and permission (tenant.pettycash.read) as `listExpenses`; at most 10,000 rows, then a truncation note. Every export is audited.
          */
         get: operations["exportTenantPettyCashExpensesReportCsv"];
         put?: never;
@@ -7922,7 +7420,7 @@ export interface paths {
         };
         /**
          * Petty cash expenses (PDF)
-         * @description Expenses paid from petty cash funds by fund, category, machine and job, with approval status. Same filters, sort and permission (tenant.pettycash.read) as `listExpenses`; at most 2,000 rows, then a truncation note. Every export is audited.
+         * @description Expenses paid from petty cash funds by fund, category and machine, with approval status. Same filters, sort and permission (tenant.pettycash.read) as `listExpenses`; at most 2,000 rows, then a truncation note. Every export is audited.
          */
         get: operations["exportTenantPettyCashExpensesReportPdf"];
         put?: never;
@@ -7982,7 +7480,7 @@ export interface paths {
         };
         /**
          * Meter readings (CSV)
-         * @description Opening/closing hour-meter readings with OCR, GPS evidence status and review state. Same filters, sort and permission (tenant.meter.read) as `listMeterCaptures`; at most 10,000 rows, then a truncation note. Every export is audited.
+         * @description Hour-meter readings with OCR, GPS evidence status and review state. Same filters, sort and permission (tenant.meter.read) as `listMeterCaptures`; at most 10,000 rows, then a truncation note. Every export is audited.
          */
         get: operations["exportTenantReadingsReportCsv"];
         put?: never;
@@ -8002,7 +7500,7 @@ export interface paths {
         };
         /**
          * Meter readings (PDF)
-         * @description Opening/closing hour-meter readings with OCR, GPS evidence status and review state. Same filters, sort and permission (tenant.meter.read) as `listMeterCaptures`; at most 2,000 rows, then a truncation note. Every export is audited.
+         * @description Hour-meter readings with OCR, GPS evidence status and review state. Same filters, sort and permission (tenant.meter.read) as `listMeterCaptures`; at most 2,000 rows, then a truncation note. Every export is audited.
          */
         get: operations["exportTenantReadingsReportPdf"];
         put?: never;
@@ -8127,159 +7625,6 @@ export interface paths {
         get: operations["exportTenantUtilisationReportPdf"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/revenue-differences": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Differences
-         * @description Revenue differences to explain, newest period first (`q`: machine code/name or period key).
-         */
-        get: operations["listRevenueDifferences"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/revenue-differences/{difference_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Difference */
-        get: operations["getRevenueDifference"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/revenue-differences/{difference_id}/decision": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Decide Difference
-         * @description APPROVE / REJECT the proposed explanation, or CONFIRM the difference as real. Never by the explainer.
-         */
-        post: operations["decideRevenueDifference"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/revenue-differences/{difference_id}/explanation": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Explain Difference
-         * @description Propose an explanation (tenant reason + note) for an OPEN difference; a second person decides.
-         */
-        post: operations["explainRevenueDifference"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/revenue-reasons": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Reasons
-         * @description Reasons that explain a revenue difference (tenant data; `q`: code or name).
-         */
-        get: operations["listRevenueReasons"];
-        put?: never;
-        /** Create Reason */
-        post: operations["createRevenueReason"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/revenue-reasons/{reason_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Reason */
-        get: operations["getRevenueReason"];
-        /** Update Reason */
-        put: operations["updateRevenueReason"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/revenue-reasons/{reason_id}/deactivate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Deactivate Reason
-         * @description Refused for new explanations afterwards; past explanations keep the entry.
-         */
-        post: operations["deactivateRevenueReason"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/revenue-reasons/{reason_id}/reactivate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Reactivate Reason */
-        post: operations["reactivateRevenueReason"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8474,68 +7819,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tenant/site-checkins": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Site Checkins
-         * @description Everyone's check-ins, newest first (`q`: person's name).
-         */
-        get: operations["listSiteCheckins"];
-        put?: never;
-        /**
-         * Record Site Checkin
-         * @description The caller checks in at the site (same as the sync op SITE_CHECKIN). Replaying a client_id returns the
-         *     stored check-in.
-         */
-        post: operations["recordSiteCheckin"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/site-checkins/mine": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * My Site Checkins
-         * @description The caller's schedule (MADE / MISSED / DUE / UPCOMING) and check-ins.
-         */
-        get: operations["getMySiteCheckins"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/site-checkins/{checkin_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Site Checkin */
-        get: operations["getSiteCheckin"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/tenant/staff": {
         parameters: {
             query?: never;
@@ -8587,7 +7870,7 @@ export interface paths {
         put?: never;
         /**
          * Deactivate Staff
-         * @description Refused while supervising an approved/running job or holding company cash; open machine assignments end.
+         * @description Refused while holding company cash; open machine assignments end.
          */
         post: operations["deactivateStaff"];
         delete?: never;
@@ -8796,27 +8079,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tenant/unbilled-work": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Unbilled Work
-         * @description Completed, billing-ready jobs not on an issued invoice after OVERSIGHT.unbilled_after_days (oldest first;
-         *     `q`: job number or customer).
-         */
-        get: operations["listUnbilledWork"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/tenant/walk-in-customers": {
         parameters: {
             query?: never;
@@ -8945,40 +8207,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tenant/work-execution-allocations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Allocations */
-        get: operations["listWorkExecutionAllocations"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/work-execution-allocations/{allocation_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Allocation */
-        get: operations["getWorkExecutionAllocation"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -9041,7 +8269,7 @@ export interface components {
             } | null;
             /**
              * Disabled Capabilities
-             * @description Tenant capabilities switched off by policy (CUSTOMER_HOURS, ENGINE_HOURS, CASH_CUSTODY, REVENUE_RECONCILIATION, SCORECARD, UNBILLED_WORK, IDLE_MACHINES, SITE_CHECKIN); their tiles are hidden and, for CASH_CUSTODY, the cash-control figures of the cash/discrepancy/approval tiles are empty
+             * @description Tenant capabilities switched off by policy (CUSTOMER_HOURS, ENGINE_HOURS, CASH_CUSTODY, SCORECARD, IDLE_MACHINES, ...); their tiles are hidden and, for CASH_CUSTODY, the cash-control figures of the cash/discrepancy/approval tiles are empty
              */
             disabled_capabilities?: string[];
             discrepancies?: components["schemas"]["DiscrepanciesTileDto"] | null;
@@ -9067,7 +8295,7 @@ export interface components {
             hours_section?: components["schemas"]["CustomerHoursSectionDto"] | null;
             /**
              * Idle Machines
-             * @description [DEC-031 M2] idle machines: count, after_days, longest_idle_days, items [{machine_id, machine_code, machine_name, idle_since, idle_days, planned_job_id, planned_job_number}] (oversight module)
+             * @description [DEC-031 M2] idle machines: count, after_days, longest_idle_days, items [{machine_id, machine_code, machine_name, idle_since, idle_days, last_machine_report_id, last_machine_report_number}] (oversight module)
              */
             idle_machines?: {
                 [key: string]: unknown;
@@ -9087,79 +8315,16 @@ export interface components {
             period?: components["schemas"]["PeriodDto"] | null;
             /** Policy Version */
             policy_version: string;
-            /**
-             * Revenue Differences
-             * @description [DEC-031 R3] revenue differences: open, awaiting_decision, amounts [{currency, count, amount}], value_at_risk [{currency, amount}] (DEC-032 A5, unexplained hours, never in the amounts), oldest_open_days, window_days, explained/confirmed/cleared_in_window, items [{id, machine_id, machine_code, period_key, local_from, local_to, currency, difference, status}] (revenue module)
-             */
-            revenue_differences?: {
-                [key: string]: unknown;
-            } | null;
             unauthorized_attempts?: components["schemas"]["AttemptsTileDto"] | null;
             /** Unavailable Tiles */
             unavailable_tiles: string[];
             /**
-             * Unbilled Work
-             * @description [DEC-031 M2] unbilled work: count, after_days, amounts [{currency, count, amount}], oldest_days, items [{job_id, job_number, machine_id, machine_code, machine_name, customer_id, customer_name, completed_at, days_unbilled, currency, total}] (oversight module)
-             */
-            unbilled_work?: {
-                [key: string]: unknown;
-            } | null;
-            /**
              * Unexplained Hours
-             * @description [3.6.4] unexplained engine hours: machines, hours, value_at_risk [{currency, amount}] (DEC-032 A5: separate from expected revenue; empty unless the tenant uses VALUE_AT_RISK), items (meter module)
+             * @description [3.6.4] unexplained engine hours: machines, hours, value_at_risk [{currency, amount}] (DEC-032 A5: the hours at the machine category's rate card), items (meter module)
              */
             unexplained_hours?: {
                 [key: string]: unknown;
             } | null;
-        };
-        /** AcknowledgementDto */
-        AcknowledgementDto: {
-            /** Acknowledged Hours */
-            acknowledged_hours: string | null;
-            /**
-             * Captured At
-             * Format: date-time
-             */
-            captured_at: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Method */
-            method: string;
-            /** Signature Attachment Id */
-            signature_attachment_id: string | null;
-            /** Signer Name */
-            signer_name: string;
-            /** Signer Phone */
-            signer_phone: string | null;
-        };
-        /** AcknowledgementIn */
-        AcknowledgementIn: {
-            /** Acknowledged Hours */
-            acknowledged_hours?: number | string | null;
-            /**
-             * Captured At
-             * Format: date-time
-             */
-            captured_at: string;
-            /**
-             * Client Id
-             * Format: uuid
-             */
-            client_id: string;
-            /**
-             * Method
-             * @enum {string}
-             */
-            method: "SIGNATURE" | "NAME_CONFIRMATION";
-            /** Signature Attachment Id */
-            signature_attachment_id?: string | null;
-            /** Signer Name */
-            signer_name: string;
-            /** Signer Phone */
-            signer_phone?: string | null;
         };
         /**
          * AcknowledgementMethod
@@ -9171,61 +8336,6 @@ export interface components {
          * @enum {string}
          */
         ActivationSource: "PAYMENT" | "CREDIT";
-        /** ActivityDto */
-        ActivityDto: {
-            activity_type: components["schemas"]["ActivityType"];
-            /** Billable */
-            billable: boolean;
-            /**
-             * Client Id
-             * Format: uuid
-             */
-            client_id: string;
-            /** Ended At */
-            ended_at: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Note */
-            note: string | null;
-            /**
-             * Started At
-             * Format: date-time
-             */
-            started_at: string;
-        };
-        /** ActivityIn */
-        ActivityIn: {
-            activity_type: components["schemas"]["ActivityType"];
-            /**
-             * Billable
-             * @description Defaults from type and job standby terms
-             */
-            billable?: boolean | null;
-            /**
-             * Client Id
-             * Format: uuid
-             */
-            client_id: string;
-            /** Device Id */
-            device_id?: string | null;
-            /** Ended At */
-            ended_at?: string | null;
-            /** Note */
-            note?: string | null;
-            /**
-             * Started At
-             * Format: date-time
-             */
-            started_at: string;
-        };
-        /**
-         * ActivityType
-         * @enum {string}
-         */
-        ActivityType: "WORK" | "STANDBY" | "DOWNTIME" | "MOBILIZATION" | "NOTE";
         /** AdHocInvoiceIn */
         AdHocInvoiceIn: {
             /**
@@ -9437,12 +8547,10 @@ export interface components {
             evidence_attachment_ids?: string[];
             /** Hours */
             hours?: number | string | null;
-            /** Invoice Id */
-            invoice_id?: string | null;
-            /** Job Id */
-            job_id?: string | null;
             /** Machine Id */
             machine_id?: string | null;
+            /** Machine Report Id */
+            machine_report_id?: string | null;
             /** Payment Id */
             payment_id?: string | null;
             payout?: components["schemas"]["PayoutIn"] | null;
@@ -9539,8 +8647,9 @@ export interface components {
         };
         /**
          * AdjustmentRequestIn
-         * @description Propose a correction, refund, reversal or invoice void. Which fields apply depends on `request_type`: see the
-         *     endpoint notes (hours/machine for corrections and refunds, a payment/purchase/invoice id for reversals).
+         * @description Propose a correction, refund or reversal. Which fields apply depends on `request_type`: see the endpoint notes
+         *     (hours/machine for corrections and refunds, a payment/purchase id for reversals). INVOICE_VOID is refused
+         *     (REQUEST_TYPE_RETIRED): hire invoices were removed.
          */
         AdjustmentRequestIn: {
             /** Client Created At */
@@ -9553,12 +8662,10 @@ export interface components {
             evidence_attachment_ids?: string[];
             /** Hours */
             hours?: number | string | null;
-            /** Invoice Id */
-            invoice_id?: string | null;
-            /** Job Id */
-            job_id?: string | null;
             /** Machine Id */
             machine_id?: string | null;
+            /** Machine Report Id */
+            machine_report_id?: string | null;
             /** Payment Id */
             payment_id?: string | null;
             payout?: components["schemas"]["PayoutIn"] | null;
@@ -9738,28 +8845,6 @@ export interface components {
          * @enum {string}
          */
         AllocationKind: "CUSTOMER_WORK" | "AUTHORIZED_ACTIVITY" | "UNEXPLAINED";
-        /** AllocationLineDto */
-        AllocationLineDto: {
-            /**
-             * Entry Id
-             * Format: uuid
-             */
-            entry_id: string;
-            /** Hours */
-            hours: string;
-            /**
-             * Occurred At
-             * Format: date-time
-             */
-            occurred_at: string;
-            /**
-             * Purchase Id
-             * Format: uuid
-             */
-            purchase_id: string;
-            /** Purchase Number */
-            purchase_number: string;
-        };
         /** AllocationLotDto */
         AllocationLotDto: {
             /** Hours */
@@ -9781,8 +8866,6 @@ export interface components {
             customer_id?: string | null;
             /** Hours */
             hours: number | string;
-            /** Job Id */
-            job_id?: string | null;
             kind: components["schemas"]["AllocationKind"];
             /**
              * Reason Id
@@ -9841,8 +8924,6 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** Job Id */
-            job_id: string | null;
             /**
              * Last Signal At
              * Format: date-time
@@ -9988,10 +9069,10 @@ export interface components {
              */
             hours_transfers: number;
             /**
-             * Jobs Awaiting Approval
+             * Machine Reports
              * @default 0
              */
-            jobs_awaiting_approval: number;
+            machine_reports: number;
             /**
              * Meter Baselines
              * @default 0
@@ -10007,11 +9088,6 @@ export interface components {
              * @default 0
              */
             meter_resets: number;
-            /**
-             * Non Revenue Approvals
-             * @default 0
-             */
-            non_revenue_approvals: number;
             /**
              * Partial Reasons
              * @default 0
@@ -10031,11 +9107,6 @@ export interface components {
             petty_cash_movements: number;
             /** Remittances To Verify */
             remittances_to_verify: number;
-            /**
-             * Revenue Decisions
-             * @default 0
-             */
-            revenue_decisions: number;
             /** Total */
             total: number;
             /**
@@ -10400,11 +9471,6 @@ export interface components {
          * @enum {string}
          */
         BaselineSource: "CAPTURE" | "READING";
-        /**
-         * BillingMode
-         * @enum {string}
-         */
-        BillingMode: "PREPAID_HOURS" | "INVOICE";
         /** BlobSessionDto */
         BlobSessionDto: {
             /** Attachment Id */
@@ -10434,7 +9500,7 @@ export interface components {
              * Purpose
              * @enum {string}
              */
-            purpose: "METER_PHOTO" | "SIGNATURE" | "RESET_EVIDENCE" | "EXPENSE_RECEIPT" | "PAYMENT_EVIDENCE" | "REMITTANCE_EVIDENCE" | "DAILY_REPORT_EVIDENCE" | "ADJUSTMENT_EVIDENCE" | "PETTY_CASH_EVIDENCE";
+            purpose: "METER_PHOTO" | "RESET_EVIDENCE" | "EXPENSE_RECEIPT" | "PAYMENT_EVIDENCE" | "REMITTANCE_EVIDENCE" | "DAILY_REPORT_EVIDENCE" | "ADJUSTMENT_EVIDENCE" | "PETTY_CASH_EVIDENCE";
             /** Sha256 */
             sha256: string;
             /** Size Bytes */
@@ -10750,8 +9816,6 @@ export interface components {
          * @description Cash a supervisor received from a customer (enters that supervisor's custody).
          */
         CashCollectionIn: {
-            /** Allocations */
-            allocations?: components["schemas"]["HireAllocationIn"][];
             /** Amount */
             amount: number | string;
             /** Client Id */
@@ -11575,10 +10639,6 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** Job Id */
-            job_id?: string | null;
-            /** Job Number */
-            job_number?: string | null;
             /**
              * Kind
              * @description SHORTFALL: less received than declared; SURPLUS: more ('Surplus to explain')
@@ -11694,53 +10754,6 @@ export interface components {
              */
             version: number;
         };
-        /** ChangeoverJobDto */
-        ChangeoverJobDto: {
-            /**
-             * Changed Over At
-             * Format: date-time
-             */
-            changed_over_at: string;
-            /**
-             * Customer Id
-             * Format: uuid
-             */
-            customer_id: string;
-            /** Customer Name */
-            customer_name?: string | null;
-            /** Days Waiting */
-            days_waiting: number;
-            /**
-             * Job Id
-             * Format: uuid
-             */
-            job_id: string;
-            /** Job Number */
-            job_number?: string | null;
-            /** Machine Code */
-            machine_code?: string | null;
-            /**
-             * Machine Id
-             * Format: uuid
-             */
-            machine_id: string;
-            /** Machine Name */
-            machine_name?: string | null;
-            /** Route */
-            route: string;
-        };
-        /**
-         * ChangeoverJobsDto
-         * @description Follow-on jobs still unapproved: hours after the changeover are unbilled until they are.
-         */
-        ChangeoverJobsDto: {
-            /** Count */
-            count: number;
-            /** Items */
-            items: components["schemas"]["ChangeoverJobDto"][];
-            /** Oldest Days */
-            oldest_days: number | null;
-        };
         /** ChangesDto */
         ChangesDto: {
             /** Capabilities */
@@ -11779,11 +10792,6 @@ export interface components {
          * @enum {string}
          */
         ChannelDeliveryStatus: "PENDING" | "SENT" | "FAILED" | "UNDELIVERABLE";
-        /**
-         * ChargeKind
-         * @enum {string}
-         */
-        ChargeKind: "HIRE" | "STANDBY" | "MOBILIZATION" | "DISCOUNT" | "TAX" | "HOURS_RECOVERY";
         /** ChargePreviewDto */
         ChargePreviewDto: {
             /** Amount */
@@ -11811,30 +10819,6 @@ export interface components {
              * @enum {string}
              */
             status: "ok" | "down";
-        };
-        /**
-         * CheckinSlotDto
-         * @description A scheduled check-in: MADE (checkin_id), MISSED, DUE (window open now) or UPCOMING.
-         */
-        CheckinSlotDto: {
-            /** Checkin Id */
-            checkin_id?: string | null;
-            /** Job Id */
-            job_id?: string | null;
-            /** Job Number */
-            job_number?: string | null;
-            /**
-             * Scheduled At
-             * Format: date-time
-             */
-            scheduled_at: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "MADE" | "MISSED" | "DUE" | "UPCOMING";
-            /** Window Minutes */
-            window_minutes: number;
         };
         /** ClassificationDto */
         ClassificationDto: {
@@ -12085,100 +11069,6 @@ export interface components {
          * @enum {string}
          */
         Connectivity: "LIVE" | "RECENT" | "STALE" | "OFFLINE" | "NEVER_REPORTED" | "NO_TRACKER";
-        /** ContractDto */
-        ContractDto: {
-            /** Close Reason */
-            close_reason?: string | null;
-            /** Closed At */
-            closed_at?: string | null;
-            /** Contract Number */
-            contract_number: string;
-            /** Currency */
-            currency: string;
-            /**
-             * Customer Id
-             * Format: uuid
-             */
-            customer_id: string;
-            /** Ends On */
-            ends_on: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Job Site Id */
-            job_site_id: string | null;
-            /** Notes */
-            notes?: string | null;
-            /** Reference */
-            reference: string | null;
-            /**
-             * Starts On
-             * Format: date-time
-             */
-            starts_on: string;
-            status: components["schemas"]["ContractStatus"];
-            /**
-             * Version
-             * @default 1
-             */
-            version: number;
-        };
-        /** ContractIn */
-        ContractIn: {
-            /** Contract Number */
-            contract_number: string;
-            /**
-             * Customer Id
-             * Format: uuid
-             */
-            customer_id: string;
-            /** Ends On */
-            ends_on?: string | null;
-            /** Job Site Id */
-            job_site_id?: string | null;
-            /** Notes */
-            notes?: string | null;
-            /** Reference */
-            reference?: string | null;
-            /**
-             * Starts On
-             * Format: date-time
-             */
-            starts_on: string;
-        };
-        /**
-         * ContractStatus
-         * @enum {string}
-         */
-        ContractStatus: "DRAFT" | "ACTIVE" | "CLOSED";
-        /**
-         * ContractUpdateIn
-         * @description Editable while the contract is not CLOSED (the customer is fixed: start a new contract instead).
-         */
-        ContractUpdateIn: {
-            /** Contract Number */
-            contract_number: string;
-            /** Ends On */
-            ends_on?: string | null;
-            /** Job Site Id */
-            job_site_id?: string | null;
-            /** Notes */
-            notes?: string | null;
-            /** Reference */
-            reference?: string | null;
-            /**
-             * Starts On
-             * Format: date-time
-             */
-            starts_on: string;
-            /**
-             * Version
-             * @description Optimistic concurrency token from the last read
-             */
-            version: number;
-        };
         /** CorrectionDto */
         CorrectionDto: {
             /** Decided At */
@@ -12194,10 +11084,6 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** Job Id */
-            job_id: string | null;
-            /** Job Number */
-            job_number?: string | null;
             /** Machine Code */
             machine_code?: string | null;
             /**
@@ -12240,7 +11126,7 @@ export interface components {
         CorrectionIn: {
             /** Reason */
             reason: string;
-            /** @description The corrected reading with its own evidence (same kind/job) */
+            /** @description The corrected reading with its own evidence (same machine) */
             replacement: components["schemas"]["MeterCaptureIn"];
             /**
              * Superseded Capture Id
@@ -12838,7 +11724,7 @@ export interface components {
         };
         /**
          * CustomerBalanceDto
-         * @description Positive balance = customer owes; negative = customer credit (deposits/advances/overpayment).
+         * @description What the customer owes on credit invoices (ADR-008 §1): invoiced minus verified payments of those invoices.
          */
         CustomerBalanceDto: {
             /** Balance */
@@ -12852,20 +11738,22 @@ export interface components {
              * Format: uuid
              */
             customer_id: string;
-            /** Invoiced */
+            /**
+             * Invoiced
+             * @description Credit invoices (orders not cancelled)
+             */
             invoiced: string;
             /** Open Invoices */
             open_invoices: number;
             /**
-             * Payment Reversals And Refunds
-             * @default 0.0000
+             * Unallocated Credit
+             * @description Verified money linked to no order (deposits, overpayment)
              */
-            payment_reversals_and_refunds: string;
-            /** Reversed */
-            reversed: string;
-            /** Unallocated Credit */
             unallocated_credit: string;
-            /** Verified Payments */
+            /**
+             * Verified Payments
+             * @description Verified, not reversed, payments of those invoices
+             */
             verified_payments: string;
         };
         /**
@@ -12934,7 +11822,7 @@ export interface components {
         /**
          * CustomerHoursSummaryDto
          * @description One customer's hours (ADR-008): bought (orders not cancelled), activated, used (approved machine reports and
-         *     any older job allocations), left to use, still awaiting payment or activation, and credit still owed.
+         *     any older consumption), left to use, still awaiting payment or activation, and credit still owed.
          */
         CustomerHoursSummaryDto: {
             /** Activated */
@@ -12962,8 +11850,11 @@ export interface components {
         };
         /** CustomerIn */
         CustomerIn: {
-            /** Code */
-            code: string;
+            /**
+             * Code
+             * @description Optional; unique per company. Left blank, the server assigns CUST-<nnnnn> (on edit: kept).
+             */
+            code?: string | null;
             /** Contact Email */
             contact_email?: string | null;
             /** Contact Name */
@@ -12987,11 +11878,6 @@ export interface components {
         CustomerKind: "REGISTERED" | "WALK_IN";
         /** CustomerPaymentDto */
         CustomerPaymentDto: {
-            /**
-             * Allocations
-             * @default []
-             */
-            allocations: components["schemas"]["HireAllocationDto"][];
             /** Amount */
             amount: string;
             /** Client Id */
@@ -13067,8 +11953,6 @@ export interface components {
         };
         /** CustomerPaymentIn */
         CustomerPaymentIn: {
-            /** Allocations */
-            allocations?: components["schemas"]["HireAllocationIn"][];
             /** Amount */
             amount: number | string;
             /**
@@ -13176,8 +12060,11 @@ export interface components {
         };
         /** CustomerUpdateIn */
         CustomerUpdateIn: {
-            /** Code */
-            code: string;
+            /**
+             * Code
+             * @description Optional; unique per company. Left blank, the server assigns CUST-<nnnnn> (on edit: kept).
+             */
+            code?: string | null;
             /** Contact Email */
             contact_email?: string | null;
             /** Contact Name */
@@ -13198,164 +12085,6 @@ export interface components {
              * @description Optimistic concurrency token from the last read
              */
             version: number;
-        };
-        /**
-         * DailyMachineSheetDetailDto
-         * @description The machine-day with the ids behind every figure (drill to readings, ledger, jobs, money and flags).
-         */
-        DailyMachineSheetDetailDto: {
-            /** Approved Non Customer Hours */
-            approved_non_customer_hours: string;
-            /**
-             * Customer Work Hours
-             * @description Inside job windows, after the revenue-hour basis (R1)
-             */
-            customer_work_hours: string;
-            /**
-             * Day
-             * Format: date
-             */
-            day: string;
-            /** Engine Hours */
-            engine_hours: string;
-            /** First Reading */
-            first_reading: string | null;
-            /** Flag Records */
-            flag_records: components["schemas"]["SheetFlagRefDto"][];
-            /** Flags */
-            flags: components["schemas"]["SheetFlag"][];
-            /** Fuel Events */
-            fuel_events: components["schemas"]["SheetFuelDto"][];
-            /** Fuel Litres */
-            fuel_litres: string;
-            /**
-             * Fuel Litres Per Engine Hour
-             * @description fuel_litres / engine_hours of the day (null when no engine hours)
-             */
-            fuel_litres_per_engine_hour?: string | null;
-            /** Identified Variance Hours */
-            identified_variance_hours: string;
-            /** Jobs */
-            jobs: components["schemas"]["SheetJobDto"][];
-            /** Last Reading */
-            last_reading: string | null;
-            /** Machine Code */
-            machine_code?: string | null;
-            /**
-             * Machine Id
-             * Format: uuid
-             */
-            machine_id: string;
-            /** Machine Name */
-            machine_name?: string | null;
-            /** Money */
-            money: components["schemas"]["SheetMoneyDto"][];
-            /** Money Sources */
-            money_sources: components["schemas"]["SheetMoneySourceDto"][];
-            /** Non Revenue By Type */
-            non_revenue_by_type: {
-                [key: string]: string;
-            };
-            /**
-             * Non Revenue Hours
-             * @description Declared non-revenue work-log time inside jobs (R1; 0 when off)
-             */
-            non_revenue_hours: string;
-            /**
-             * Non Revenue Pending Hours
-             * @description Declared non-revenue work-log time not yet explained and approved: still counted as revenue
-             * @default 0
-             */
-            non_revenue_pending_hours: string;
-            /** Pending Review Hours */
-            pending_review_hours: string;
-            /** Reading Count */
-            reading_count: number;
-            /** Readings */
-            readings: components["schemas"]["SheetReadingDto"][];
-            /**
-             * Revenue Hours
-             * @description Hours expected to be billed: customer work less non-billable time
-             */
-            revenue_hours: string;
-            /** Segments */
-            segments: components["schemas"]["SheetSegmentDto"][];
-            /** Unexplained Hours */
-            unexplained_hours: string;
-        };
-        /**
-         * DailyMachineSheetRowDto
-         * @description One machine on one tenant-local day, derived from the engine-hour ledger, jobs, fuel, flags and money.
-         */
-        DailyMachineSheetRowDto: {
-            /** Approved Non Customer Hours */
-            approved_non_customer_hours: string;
-            /**
-             * Customer Work Hours
-             * @description Inside job windows, after the revenue-hour basis (R1)
-             */
-            customer_work_hours: string;
-            /**
-             * Day
-             * Format: date
-             */
-            day: string;
-            /** Engine Hours */
-            engine_hours: string;
-            /** First Reading */
-            first_reading: string | null;
-            /** Flags */
-            flags: components["schemas"]["SheetFlag"][];
-            /** Fuel Litres */
-            fuel_litres: string;
-            /**
-             * Fuel Litres Per Engine Hour
-             * @description fuel_litres / engine_hours of the day (null when no engine hours)
-             */
-            fuel_litres_per_engine_hour?: string | null;
-            /** Identified Variance Hours */
-            identified_variance_hours: string;
-            /** Jobs */
-            jobs: components["schemas"]["SheetJobDto"][];
-            /** Last Reading */
-            last_reading: string | null;
-            /** Machine Code */
-            machine_code?: string | null;
-            /**
-             * Machine Id
-             * Format: uuid
-             */
-            machine_id: string;
-            /** Machine Name */
-            machine_name?: string | null;
-            /** Money */
-            money: components["schemas"]["SheetMoneyDto"][];
-            /** Non Revenue By Type */
-            non_revenue_by_type: {
-                [key: string]: string;
-            };
-            /**
-             * Non Revenue Hours
-             * @description Declared non-revenue work-log time inside jobs (R1; 0 when off)
-             */
-            non_revenue_hours: string;
-            /**
-             * Non Revenue Pending Hours
-             * @description Declared non-revenue work-log time not yet explained and approved: still counted as revenue
-             * @default 0
-             */
-            non_revenue_pending_hours: string;
-            /** Pending Review Hours */
-            pending_review_hours: string;
-            /** Reading Count */
-            reading_count: number;
-            /**
-             * Revenue Hours
-             * @description Hours expected to be billed: customer work less non-billable time
-             */
-            revenue_hours: string;
-            /** Unexplained Hours */
-            unexplained_hours: string;
         };
         /** DailyReportDto */
         DailyReportDto: {
@@ -14270,8 +12999,6 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** Job Id */
-            job_id: string | null;
             /**
              * Machine Id
              * Format: uuid
@@ -14301,7 +13028,6 @@ export interface components {
         ExceptionType: "GPS_UNAVAILABLE" | "GPS_INACCURATE" | "GPS_STALE" | "LOCATION_MISMATCH" | "MODE_POLICY_VIOLATION" | "PHOTO_MISSING" | "LOW_OCR_CONFIDENCE" | "MANUAL_CORRECTION" | "METER_DECREASE" | "IMPOSSIBLE_INCREMENT" | "CONTINUITY_GAP" | "DUPLICATE_IMAGE" | "TELEMETRY_MISMATCH" | "CLOCK_SKEW" | "POLICY_SNAPSHOT_UNVERIFIED" | "MISSING_DAILY_REPORT" | "UNEXPLAINED_HOURS" | "OVERLAPPING_ALLOCATION" | "HOURS_OVERRUN" | "DUPLICATE_DAILY_REPORT";
         /** ExceptionsSectionDto */
         ExceptionsSectionDto: {
-            changeover_jobs_awaiting_approval: components["schemas"]["ChangeoverJobsDto"];
             outstanding_approvals: components["schemas"]["OutstandingApprovalsDto"];
             overages: components["schemas"]["MoneyFigureDto"];
             overages_opened_in_period: components["schemas"]["MoneyFigureDto"];
@@ -14402,8 +13128,6 @@ export interface components {
              * Format: date-time
              */
             incurred_at: string;
-            /** Job Id */
-            job_id: string | null;
             /** Latitude */
             latitude: number | null;
             /** Longitude */
@@ -14477,11 +13201,6 @@ export interface components {
              * Format: date-time
              */
             incurred_at: string;
-            /**
-             * Job Id
-             * @description Attributes the cost to a job (and its machine)
-             */
-            job_id?: string | null;
             /** Machine Id */
             machine_id?: string | null;
             paid_from: components["schemas"]["ExpensePaidFrom"];
@@ -14520,41 +13239,6 @@ export interface components {
          * @enum {string}
          */
         ExportStatus: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "EXPIRED";
-        /**
-         * FieldContractDto
-         * @description An active contract a supervisor can request a job under (customer and site names included).
-         */
-        FieldContractDto: {
-            /** Contract Number */
-            contract_number: string;
-            /** Currency */
-            currency: string;
-            /**
-             * Customer Id
-             * Format: uuid
-             */
-            customer_id: string;
-            /** Customer Name */
-            customer_name: string;
-            /** Ends On */
-            ends_on: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Job Site Id */
-            job_site_id: string | null;
-            /** Job Site Name */
-            job_site_name: string | null;
-            /** Reference */
-            reference: string | null;
-            /**
-             * Starts On
-             * Format: date-time
-             */
-            starts_on: string;
-        };
         /** FindingDto */
         FindingDto: {
             /** Blocking */
@@ -14635,8 +13319,6 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** Job Id */
-            job_id: string | null;
             /** Litres */
             litres: string;
             /** Machine Id */
@@ -14671,8 +13353,6 @@ export interface components {
              * @description The expense that paid for this PURCHASE
              */
             expense_id?: string | null;
-            /** Job Id */
-            job_id?: string | null;
             /** Litres */
             litres: number | string;
             /** Machine Id */
@@ -14903,156 +13583,6 @@ export interface components {
          * @enum {string}
          */
         GpsStatus: "FIX" | "NO_FIX" | "TIMEOUT" | "PERMISSION_DENIED" | "DISABLED";
-        /** HireAllocateIn */
-        HireAllocateIn: {
-            /** Allocations */
-            allocations: components["schemas"]["HireAllocationIn"][];
-        };
-        /** HireAllocationDto */
-        HireAllocationDto: {
-            /** Amount */
-            amount: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Invoice Id
-             * Format: uuid
-             */
-            invoice_id: string;
-            /** Release Reason */
-            release_reason: string | null;
-            /** Released At */
-            released_at: string | null;
-        };
-        /** HireAllocationIn */
-        HireAllocationIn: {
-            /** Amount */
-            amount: number | string;
-            /**
-             * Invoice Id
-             * Format: uuid
-             */
-            invoice_id: string;
-        };
-        /** HireInvoiceDraftIn */
-        HireInvoiceDraftIn: {
-            /**
-             * Customer Id
-             * Format: uuid
-             */
-            customer_id: string;
-            /** Job Ids */
-            job_ids: string[];
-            /** Notes */
-            notes?: string | null;
-        };
-        /** HireInvoiceDto */
-        HireInvoiceDto: {
-            /** Amount Paid */
-            amount_paid: string;
-            /** Balance */
-            balance: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Currency */
-            currency: string;
-            /**
-             * Customer Id
-             * Format: uuid
-             */
-            customer_id: string;
-            /** Discount Total */
-            discount_total: string;
-            /** Due Date */
-            due_date: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Invoice Number */
-            invoice_number: string | null;
-            /** Issued At */
-            issued_at: string | null;
-            /** Job Ids */
-            job_ids: string[];
-            /** Lines */
-            lines: components["schemas"]["HireInvoiceLineDto"][];
-            /** Notes */
-            notes: string | null;
-            /** Payment State */
-            payment_state: ("UNPAID" | "PARTIALLY_PAID" | "PAID") | null;
-            /** Pending Void Request Id */
-            pending_void_request_id?: string | null;
-            status: components["schemas"]["HireInvoiceStatus"];
-            /** Subtotal */
-            subtotal: string;
-            /** Tax Total */
-            tax_total: string;
-            /** Total */
-            total: string;
-            /** Void Reason */
-            void_reason: string | null;
-            /** Voided At */
-            voided_at: string | null;
-        };
-        /** HireInvoiceIssueIn */
-        HireInvoiceIssueIn: {
-            /**
-             * Due Date
-             * @description Defaults to issue date + customer payment terms
-             */
-            due_date?: string | null;
-        };
-        /** HireInvoiceLineDto */
-        HireInvoiceLineDto: {
-            /** Amount */
-            amount: string;
-            /** Description */
-            description: string;
-            /**
-             * Job Id
-             * Format: uuid
-             */
-            job_id: string;
-            kind: components["schemas"]["ChargeKind"];
-            /** Line No */
-            line_no: number;
-            /**
-             * Machine Id
-             * Format: uuid
-             */
-            machine_id: string;
-            /** Quantity */
-            quantity: string;
-            /** Unit Price */
-            unit_price: string;
-        };
-        /**
-         * HireInvoiceStatus
-         * @enum {string}
-         */
-        HireInvoiceStatus: "DRAFT" | "ISSUED" | "VOIDED";
-        /** HireInvoiceVoidIn */
-        HireInvoiceVoidIn: {
-            /** Evidence Attachment Ids */
-            evidence_attachment_ids?: string[];
-            /** Reason */
-            reason: string;
-            /** Reason Code Id */
-            reason_code_id?: string | null;
-        };
         /**
          * HirePaymentMethod
          * @enum {string}
@@ -15117,12 +13647,6 @@ export interface components {
             machine_id: string;
             /** Machine Name */
             machine_name?: string | null;
-            /**
-             * Provisional
-             * @description Hours held provisionally by running jobs (daily drawdown; final at completion)
-             * @default 0
-             */
-            provisional: string;
             /** Purchases */
             purchases: number;
             /**
@@ -15417,10 +13941,6 @@ export interface components {
              * @description Signed: + adds to the balance, - takes from it
              */
             hours: string;
-            /** Job Id */
-            job_id: string | null;
-            /** Job Number */
-            job_number?: string | null;
             /** Machine Code */
             machine_code?: string | null;
             /**
@@ -15430,6 +13950,10 @@ export interface components {
             machine_id: string;
             /** Machine Name */
             machine_name?: string | null;
+            /** Machine Report Id */
+            machine_report_id?: string | null;
+            /** Machine Report Number */
+            machine_report_number?: string | null;
             /**
              * Occurred At
              * Format: date-time
@@ -15531,11 +14055,6 @@ export interface components {
             /** Opening Balance */
             opening_balance: string;
             /**
-             * Provisional At Close
-             * @description Of `used`: still provisional (jobs running at period end)
-             */
-            provisional_at_close: string;
-            /**
              * Refunded
              * @description Unused hours refunded
              * @default 0
@@ -15547,21 +14066,15 @@ export interface components {
             transferred_out: string;
             /**
              * Used
-             * @description Final allocations plus provisional daily drawdown of running jobs
+             * @description Hours used: consumed by approved machine reports
              */
             used: string;
         };
         /**
          * HoursStatementUsageDto
-         * @description Hours used on one day for one job. DAILY: drawn day by day while the job ran; FINAL: the final allocation's
-         *     difference to what was drawn daily (all of the job's hours for jobs allocated at completion).
+         * @description Hours used on one day (the day the machine report was approved) on one machine report.
          */
         HoursStatementUsageDto: {
-            /**
-             * Basis
-             * @enum {string}
-             */
-            basis: "DAILY" | "FINAL";
             /**
              * Day
              * Format: date
@@ -15569,12 +14082,6 @@ export interface components {
             day: string;
             /** Hours */
             hours: string;
-            /** Job Id */
-            job_id: string | null;
-            /** Job Number */
-            job_number?: string | null;
-            /** Job Running */
-            job_running: boolean;
             /** Machine Code */
             machine_code?: string | null;
             /**
@@ -15584,10 +14091,14 @@ export interface components {
             machine_id: string;
             /** Machine Name */
             machine_name?: string | null;
+            /** Machine Report Id */
+            machine_report_id: string | null;
+            /** Machine Report Number */
+            machine_report_number?: string | null;
         };
         /**
          * IdleMachineDto
-         * @description An active machine with no running job and no engine hours for at least OVERSIGHT.idle_after_days.
+         * @description An active machine with no approved machine-report hours for at least OVERSIGHT.idle_after_days.
          */
         IdleMachineDto: {
             /** Category Id */
@@ -15597,19 +14108,21 @@ export interface components {
             /**
              * Idle Since
              * Format: date-time
+             * @description End of its last approved report with hours (else when registered)
              */
             idle_since: string;
             /**
              * Last Engine Activity At
-             * @description Last meter increase or tracker engine-on
+             * @description Last tracker engine-on (shown, not counted)
              */
             last_engine_activity_at: string | null;
-            /** Last Job Completed At */
-            last_job_completed_at: string | null;
-            /** Last Job Id */
-            last_job_id: string | null;
-            /** Last Job Number */
-            last_job_number?: string | null;
+            /**
+             * Last Machine Report Id
+             * @description Its last approved report with hours
+             */
+            last_machine_report_id: string | null;
+            /** Last Machine Report Number */
+            last_machine_report_number?: string | null;
             /** Machine Code */
             machine_code?: string | null;
             /**
@@ -15619,13 +14132,6 @@ export interface components {
             machine_id: string;
             /** Machine Name */
             machine_name?: string | null;
-            /**
-             * Planned Job Id
-             * @description An approved job not started yet
-             */
-            planned_job_id: string | null;
-            /** Planned Job Number */
-            planned_job_number?: string | null;
         };
         /**
          * InferenceOutcome
@@ -15692,8 +14198,6 @@ export interface components {
              * Format: date-time
              */
             opened_at: string;
-            /** Overlapping Job Ids */
-            overlapping_job_ids: string[];
             /**
              * Possible Meter Reset
              * @description The reading went down with no approved reset: labelled a possible meter reset
@@ -15860,225 +14364,6 @@ export interface components {
          * @enum {string}
          */
         InvoiceStatus: "ISSUED" | "PARTIALLY_PAID" | "PAID" | "VOIDED";
-        /** JobChargeLineDto */
-        JobChargeLineDto: {
-            /** Amount */
-            amount: string;
-            /** Description */
-            description: string;
-            /** Kind */
-            kind: string;
-            /** Quantity */
-            quantity: string;
-            /** Unit Price */
-            unit_price: string;
-        };
-        /**
-         * JobChargesDto
-         * @description What the completed job is worth under its approved terms (the source hire invoices snapshot).
-         */
-        JobChargesDto: {
-            /** Currency */
-            currency: string;
-            /** Discount Total */
-            discount_total: string;
-            /** Lines */
-            lines: components["schemas"]["JobChargeLineDto"][];
-            /** Subtotal */
-            subtotal: string;
-            /** Tax Total */
-            tax_total: string;
-            /** Total */
-            total: string;
-        };
-        /** JobDto */
-        JobDto: {
-            /** Approved At */
-            approved_at: string | null;
-            /** @default INVOICE */
-            billing_mode: components["schemas"]["BillingMode"];
-            /** Cancellation Reason */
-            cancellation_reason?: string | null;
-            /** Completed At */
-            completed_at: string | null;
-            /**
-             * Contract Id
-             * Format: uuid
-             */
-            contract_id: string;
-            /** Currency */
-            currency: string;
-            /** Discount Percent */
-            discount_percent: string;
-            /** Hourly Rate */
-            hourly_rate: string;
-            /**
-             * Hours Purchase Id
-             * @description The hours sale this job was booked with (sell hours and book the job in one step)
-             */
-            hours_purchase_id?: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Job Number */
-            job_number: string;
-            /** Job Site Id */
-            job_site_id: string | null;
-            /**
-             * Machine Id
-             * Format: uuid
-             */
-            machine_id: string;
-            /** Minimum Hours */
-            minimum_hours: string;
-            /** Mobilization Fee */
-            mobilization_fee: string;
-            /** Planned End */
-            planned_end: string | null;
-            /**
-             * Planned Start
-             * Format: date-time
-             */
-            planned_start: string;
-            /**
-             * Rate Source
-             * @description RATE_CARD:<id> | NEGOTIATED | PENDING_PRICE (field request without a rate card: APPROVE needs hourly_rate) | OWNER_APPROVED (priced by the approver)
-             */
-            rate_source: string;
-            /** Request Note */
-            request_note?: string | null;
-            /** Requested By Name */
-            requested_by_name?: string | null;
-            /**
-             * Requested By Staff Id
-             * @description Staff record of the supervisor who requested the job from the field
-             */
-            requested_by_staff_id?: string | null;
-            /** Standby Rate */
-            standby_rate: string | null;
-            standby_treatment: components["schemas"]["StandbyTreatment"];
-            /** Started At */
-            started_at: string | null;
-            status: components["schemas"]["JobStatus"];
-            /** Supervisor Id */
-            supervisor_id: string | null;
-            /** Tax Rate Percent */
-            tax_rate_percent: string;
-            /** Version */
-            version: number;
-        };
-        /** JobIn */
-        JobIn: {
-            /** @description INVOICE or PREPAID_HOURS; omit for the tenant policy default (CUSTOMER_HOURS) */
-            billing_mode?: components["schemas"]["BillingMode"] | null;
-            /**
-             * Contract Id
-             * Format: uuid
-             */
-            contract_id: string;
-            /**
-             * Discount Percent
-             * @default 0
-             */
-            discount_percent: number | string;
-            /**
-             * Hourly Rate
-             * @description Omit to use the tenant rate card
-             */
-            hourly_rate?: number | string | null;
-            /** Job Number */
-            job_number: string;
-            /** Job Site Id */
-            job_site_id?: string | null;
-            /**
-             * Machine Id
-             * Format: uuid
-             */
-            machine_id: string;
-            /** Minimum Hours */
-            minimum_hours?: number | string | null;
-            /**
-             * Mobilization Fee
-             * @default 0
-             */
-            mobilization_fee: number | string;
-            /** Planned End */
-            planned_end?: string | null;
-            /**
-             * Planned Start
-             * Format: date-time
-             */
-            planned_start: string;
-            /** Standby Rate */
-            standby_rate?: number | string | null;
-            /** @default EXCLUDED */
-            standby_treatment: components["schemas"]["StandbyTreatment"];
-            /** Supervisor Id */
-            supervisor_id?: string | null;
-            /**
-             * Tax Rate Percent
-             * @default 0
-             */
-            tax_rate_percent: number | string;
-        };
-        /** JobOverlapDto */
-        JobOverlapDto: {
-            /** Basis */
-            basis: string;
-            /**
-             * First Job Id
-             * Format: uuid
-             */
-            first_job_id: string;
-            /**
-             * Second Job Id
-             * Format: uuid
-             */
-            second_job_id: string;
-        };
-        /**
-         * JobRequestIn
-         * @description A supervisor's job request from the field: the server numbers and prices it and sends it for approval.
-         */
-        JobRequestIn: {
-            /** @description Omit for the tenant policy default */
-            billing_mode?: components["schemas"]["BillingMode"] | null;
-            /**
-             * Client Id
-             * Format: uuid
-             * @description Device-generated id; becomes the job id (replays return the same job)
-             */
-            client_id: string;
-            /**
-             * Contract Id
-             * Format: uuid
-             */
-            contract_id: string;
-            /**
-             * Job Site Id
-             * @description Defaults to the contract's site
-             */
-            job_site_id?: string | null;
-            /**
-             * Machine Id
-             * Format: uuid
-             */
-            machine_id: string;
-            /**
-             * Note
-             * @description What the customer asked for
-             */
-            note?: string | null;
-            /** Planned End */
-            planned_end?: string | null;
-            /**
-             * Planned Start
-             * Format: date-time
-             */
-            planned_start: string;
-        };
         /** JobSiteDto */
         JobSiteDto: {
             /** Address */
@@ -16130,114 +14415,6 @@ export interface components {
              */
             version: number;
         };
-        /**
-         * JobStatus
-         * @enum {string}
-         */
-        JobStatus: "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
-        /** JobSummaryDto */
-        JobSummaryDto: {
-            /** Billable Hours */
-            billable_hours: string | null;
-            /** Billing Ready */
-            billing_ready: boolean;
-            /** Blocking Exceptions */
-            blocking_exceptions: number;
-            /**
-             * Changeover Carried Hours
-             * @default 0
-             */
-            changeover_carried_hours: string;
-            charges?: components["schemas"]["JobChargesDto"] | null;
-            /** Closing Reading */
-            closing_reading: string | null;
-            job: components["schemas"]["JobDto"];
-            /** Meter Hours */
-            meter_hours: string | null;
-            /** Nonbillable Hours */
-            nonbillable_hours: string;
-            /** Open Exceptions */
-            open_exceptions: number;
-            /** Opening Reading */
-            opening_reading: string | null;
-            /** Policy Version */
-            policy_version: string;
-            /**
-             * Standby Hours
-             * @default 0
-             */
-            standby_hours: string;
-        };
-        /** JobTransitionIn */
-        JobTransitionIn: {
-            /**
-             * Action
-             * @enum {string}
-             */
-            action: "SUBMIT" | "APPROVE" | "START" | "COMPLETE" | "CANCEL";
-            /**
-             * Hourly Rate
-             * @description APPROVE only: the approved hourly price (required when rate_source is PENDING_PRICE)
-             */
-            hourly_rate?: number | string | null;
-            /** Reason */
-            reason?: string | null;
-        };
-        /**
-         * JobUpdateIn
-         * @description Edit a DRAFT or PENDING_APPROVAL job (contract and job number are fixed); approved jobs are locked.
-         */
-        JobUpdateIn: {
-            /** @description INVOICE or PREPAID_HOURS; omit for the tenant policy default (CUSTOMER_HOURS) */
-            billing_mode?: components["schemas"]["BillingMode"] | null;
-            /**
-             * Discount Percent
-             * @default 0
-             */
-            discount_percent: number | string;
-            /**
-             * Hourly Rate
-             * @description Omit to use the tenant rate card
-             */
-            hourly_rate?: number | string | null;
-            /** Job Site Id */
-            job_site_id?: string | null;
-            /**
-             * Machine Id
-             * Format: uuid
-             */
-            machine_id: string;
-            /** Minimum Hours */
-            minimum_hours?: number | string | null;
-            /**
-             * Mobilization Fee
-             * @default 0
-             */
-            mobilization_fee: number | string;
-            /** Planned End */
-            planned_end?: string | null;
-            /**
-             * Planned Start
-             * Format: date-time
-             */
-            planned_start: string;
-            /** Standby Rate */
-            standby_rate?: number | string | null;
-            /** @default EXCLUDED */
-            standby_treatment: components["schemas"]["StandbyTreatment"];
-            /** Supervisor Id */
-            supervisor_id?: string | null;
-            /**
-             * Tax Rate Percent
-             * @default 0
-             */
-            tax_rate_percent: number | string;
-            /**
-             * Version
-             * @description Optimistic concurrency token from the last read
-             */
-            version: number;
-        };
         /** KindCountDto */
         KindCountDto: {
             /** Count */
@@ -16252,8 +14429,6 @@ export interface components {
         /** LedgerEntryDto */
         LedgerEntryDto: {
             activation_source: components["schemas"]["ActivationSource"] | null;
-            /** Allocation Id */
-            allocation_id: string | null;
             /** Cancellation Id */
             cancellation_id: string | null;
             /**
@@ -16280,10 +14455,6 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** Job Id */
-            job_id: string | null;
-            /** Job Number */
-            job_number?: string | null;
             /** Machine Code */
             machine_code?: string | null;
             /**
@@ -16293,6 +14464,13 @@ export interface components {
             machine_id: string;
             /** Machine Name */
             machine_name?: string | null;
+            /**
+             * Machine Report Id
+             * @description CONSUMED: the approved machine report
+             */
+            machine_report_id?: string | null;
+            /** Machine Report Number */
+            machine_report_number?: string | null;
             /**
              * Occurred At
              * Format: date-time
@@ -16318,17 +14496,12 @@ export interface components {
             signed_hours: string;
             /** Transfer Id */
             transfer_id: string | null;
-            /**
-             * Usage Day
-             * @description Daily drawdown entries: the tenant-local day of use
-             */
-            usage_day?: string | null;
         };
         /**
          * LedgerEntryType
          * @enum {string}
          */
-        LedgerEntryType: "ACTIVATED" | "CONSUMED" | "TRANSFER_OUT" | "TRANSFER_IN" | "EXPIRED" | "REVERSAL" | "PROVISIONAL" | "PROVISIONAL_REVERSED" | "CORRECTION_ADD" | "CORRECTION_DEDUCT" | "REFUNDED";
+        LedgerEntryType: "ACTIVATED" | "CONSUMED" | "TRANSFER_OUT" | "TRANSFER_IN" | "EXPIRED" | "REVERSAL" | "CORRECTION_ADD" | "CORRECTION_DEDUCT" | "REFUNDED";
         /** LedgerPointDto */
         LedgerPointDto: {
             /**
@@ -16336,8 +14509,6 @@ export interface components {
              * Format: date-time
              */
             at: string;
-            /** Job Id */
-            job_id: string | null;
             /** Reading */
             reading: string;
             /**
@@ -16347,7 +14518,7 @@ export interface components {
             ref: string;
             /**
              * Source
-             * @description BASELINE or the reading kind (OPENING / CLOSING / DAILY)
+             * @description BASELINE or the reading kind (DAILY)
              */
             source: string;
         };
@@ -16617,8 +14788,6 @@ export interface components {
             machine_id: string;
             /** Machine Name */
             machine_name: string;
-            /** Overlaps */
-            overlaps: components["schemas"]["JobOverlapDto"][];
             /** Policy Version */
             policy_version: string;
             status: components["schemas"]["ReconciliationStatus"];
@@ -16672,12 +14841,6 @@ export interface components {
             machine_id: string;
             /** Machine Name */
             machine_name?: string | null;
-            /**
-             * Provisional
-             * @description Hours held provisionally by running jobs (daily drawdown; final at completion)
-             * @default 0
-             */
-            provisional: string;
             /**
              * Refunded
              * @default 0
@@ -16802,6 +14965,12 @@ export interface components {
             /** Meter Epoch */
             meter_epoch: number;
             /**
+             * Opening Required
+             * @description The next report on this machine is an opening report
+             * @default false
+             */
+            opening_required: boolean;
+            /**
              * Pending Report Id
              * @description A SUBMITTED report holds the machine: the next waits
              */
@@ -16810,7 +14979,7 @@ export interface components {
             previous_at: string | null;
             /**
              * Previous Reading
-             * @description Null: no approved baseline yet (BASELINE_REQUIRED)
+             * @description Null: no starting reading yet: send an opening report (opening: true, no lines)
              */
             previous_reading: string | null;
             previous_source: components["schemas"]["StartSource"] | null;
@@ -16887,6 +15056,12 @@ export interface components {
             non_productive_hours: string;
             /** Note */
             note: string | null;
+            /**
+             * Opening
+             * @description An opening report (the machine's first reading, 0 hours)
+             * @default false
+             */
+            opening: boolean;
             /** Photo Attachment Id */
             photo_attachment_id?: string | null;
             /** Policy Version */
@@ -16927,6 +15102,10 @@ export interface components {
          *     reading of this machine: photo, OCR, GPS, time, exactly as POST /meter-captures) or as `capture_id` (a reading
          *     already recorded, e.g. the reading of a rejected report being corrected, then with `corrects_report_id`). The
          *     lines must add up to the difference between the machine's last approved reading and the new one exactly.
+         *
+         *     Opening report (`opening: true`, `lines: []`): when the machine has no starting reading yet (no approved report,
+         *     baseline or reset; `opening_required` in its status), the first report gives only the reading. It is approved like
+         *     any report and its reading then becomes where the next report starts.
          */
         MachineReportIn: {
             capture?: components["schemas"]["MeterCaptureIn"] | null;
@@ -16948,7 +15127,7 @@ export interface components {
              */
             id?: string | null;
             /** Lines */
-            lines: components["schemas"]["MachineReportLineIn"][];
+            lines?: components["schemas"]["MachineReportLineIn"][];
             /**
              * Machine Id
              * Format: uuid
@@ -16956,6 +15135,12 @@ export interface components {
             machine_id: string;
             /** Note */
             note?: string | null;
+            /**
+             * Opening
+             * @description An opening report: the machine's first reading, no lines (difference 0)
+             * @default false
+             */
+            opening: boolean;
         };
         /** MachineReportLineDto */
         MachineReportLineDto: {
@@ -17075,6 +15260,12 @@ export interface components {
              * @default 1
              */
             meter_decimal_places: number;
+            /**
+             * Opening Required
+             * @description No starting reading yet: the next report is an opening report (opening: true, lines: [])
+             * @default false
+             */
+            opening_required: boolean;
             /** Pending Report Id */
             pending_report_id: string | null;
             /** Pending Report Number */
@@ -17379,13 +15570,6 @@ export interface components {
             exception_id: string | null;
             /** Exception Status */
             exception_status: string | null;
-            /**
-             * Job Id
-             * Format: uuid
-             */
-            job_id: string;
-            /** Job Number */
-            job_number: string | null;
             /** Kind */
             kind: string;
             /**
@@ -17544,8 +15728,6 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** Job Id */
-            job_id: string | null;
             kind: components["schemas"]["ReadingKind"];
             /** Latitude */
             latitude: number | null;
@@ -17593,16 +15775,6 @@ export interface components {
              * Format: date-time
              */
             captured_at: string;
-            /**
-             * Changeover To Customer Id
-             * @description DEC-032 A3: a DAILY reading on the running job at which the machine moved to this customer
-             */
-            changeover_to_customer_id?: string | null;
-            /**
-             * Changeover To Job Id
-             * @description The job the machine moves on to, awaiting approval on this machine for that customer. Required while the tenant splits billing at changeovers (the hours after it bill to this job)
-             */
-            changeover_to_job_id?: string | null;
             /** Device Id */
             device_id: string;
             gps: components["schemas"]["GpsIn"];
@@ -17612,15 +15784,11 @@ export interface components {
              * @description Device-generated UUID (idempotency key for offline sync)
              */
             id: string;
-            /**
-             * Job Id
-             * @description Required for OPENING/CLOSING; optional for DAILY
-             */
-            job_id?: string | null;
+            /** @default DAILY */
             kind: components["schemas"]["ReadingKind"];
             /**
              * Machine Id
-             * @description DAILY reading outside a job: the machine read (must match the job's when both)
+             * @description The machine read (required; a machine report fills it from the report)
              */
             machine_id?: string | null;
             /** Ocr Confidence */
@@ -18189,39 +16357,6 @@ export interface components {
          * @enum {string}
          */
         MovementStatus: "PROPOSED" | "APPROVED" | "REJECTED" | "ISSUED" | "ACKNOWLEDGED" | "DISPUTED" | "CLAIMED" | "CONFIRMED";
-        /**
-         * MySiteCheckinsDto
-         * @description The caller's own check-ins and schedule (shown to the person in the app).
-         */
-        MySiteCheckinsDto: {
-            /** Checkins */
-            checkins: components["schemas"]["SiteCheckinDto"][];
-            /**
-             * Day From
-             * Format: date
-             */
-            day_from: string;
-            /**
-             * Day To
-             * Format: date
-             */
-            day_to: string;
-            /** Max Distance M */
-            max_distance_m: number | null;
-            /** Required */
-            required: boolean;
-            /** Slots */
-            slots: components["schemas"]["CheckinSlotDto"][];
-            /**
-             * Times
-             * @description Tenant-local HH:MM
-             */
-            times: string[];
-            /** Timezone */
-            timezone: string;
-            /** Window Minutes */
-            window_minutes: number;
-        };
         /** NewRateVersionIn */
         NewRateVersionIn: {
             cadence: components["schemas"]["Cadence"];
@@ -18256,168 +16391,6 @@ export interface components {
             tax_rate_percent: number | string;
             /** Unit Price */
             unit_price: number | string;
-        };
-        /**
-         * NonRevenueActivityDto
-         * @description A non-billable work-log entry of a declared non-revenue type, with its explanation/approval status. Until
-         *     APPROVED it counts as revenue.
-         */
-        NonRevenueActivityDto: {
-            /**
-             * Activity Id
-             * Format: uuid
-             */
-            activity_id: string;
-            /** Activity Type */
-            activity_type: string;
-            /** Approval Id */
-            approval_id: string | null;
-            /**
-             * Approval Status
-             * @enum {string}
-             */
-            approval_status: "NONE" | "PROPOSED" | "APPROVED" | "REJECTED";
-            /**
-             * Ended At
-             * Format: date-time
-             */
-            ended_at: string;
-            /** Hours */
-            hours: string;
-            /**
-             * Job Id
-             * Format: uuid
-             */
-            job_id: string;
-            /** Job Number */
-            job_number?: string | null;
-            /** Machine Code */
-            machine_code?: string | null;
-            /**
-             * Machine Id
-             * Format: uuid
-             */
-            machine_id: string;
-            /** Machine Name */
-            machine_name?: string | null;
-            /** Note */
-            note: string | null;
-            /**
-             * Started At
-             * Format: date-time
-             */
-            started_at: string;
-        };
-        /** NonRevenueApprovalDto */
-        NonRevenueApprovalDto: {
-            /**
-             * Activity Id
-             * Format: uuid
-             */
-            activity_id: string;
-            /** Activity Type */
-            activity_type: string;
-            /** Decided At */
-            decided_at: string | null;
-            /** Decided By */
-            decided_by: string | null;
-            /** Decided By Name */
-            decided_by_name?: string | null;
-            /** Decision Note */
-            decision_note: string | null;
-            /**
-             * Ended At
-             * Format: date-time
-             */
-            ended_at: string;
-            /** Evidence Attachment Ids */
-            evidence_attachment_ids?: string[] | null;
-            /** Hours */
-            hours: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Job Id
-             * Format: uuid
-             */
-            job_id: string;
-            /** Job Number */
-            job_number?: string | null;
-            /** Machine Code */
-            machine_code?: string | null;
-            /**
-             * Machine Id
-             * Format: uuid
-             */
-            machine_id: string;
-            /** Machine Name */
-            machine_name?: string | null;
-            /** Note */
-            note: string;
-            /** Policy Version */
-            policy_version: string;
-            /**
-             * Proposed At
-             * Format: date-time
-             */
-            proposed_at: string;
-            /** Proposed By */
-            proposed_by: string | null;
-            /** Proposed By Name */
-            proposed_by_name?: string | null;
-            /**
-             * Reason Id
-             * Format: uuid
-             */
-            reason_id: string;
-            /** Reason Name */
-            reason_name?: string | null;
-            /**
-             * Started At
-             * Format: date-time
-             */
-            started_at: string;
-            /**
-             * Status
-             * @description PROPOSED | APPROVED | REJECTED
-             */
-            status: string;
-        };
-        /** NonRevenueApprovalIn */
-        NonRevenueApprovalIn: {
-            /**
-             * Activity Id
-             * Format: uuid
-             */
-            activity_id: string;
-            /** Evidence Attachment Ids */
-            evidence_attachment_ids?: string[];
-            /** Note */
-            note: string;
-            /**
-             * Reason Id
-             * Format: uuid
-             * @description Active entry of the tenant's revenue reason list
-             */
-            reason_id: string;
-        };
-        /**
-         * NonRevenueApprovalStatus
-         * @enum {string}
-         */
-        NonRevenueApprovalStatus: "PROPOSED" | "APPROVED" | "REJECTED";
-        /** NonRevenueDecisionIn */
-        NonRevenueDecisionIn: {
-            /**
-             * Decision
-             * @enum {string}
-             */
-            decision: "APPROVE" | "REJECT";
-            /** Note */
-            note: string;
         };
         /** NotNeededDto */
         NotNeededDto: {
@@ -18730,7 +16703,7 @@ export interface components {
              * Op Type
              * @enum {string}
              */
-            op_type: "METER_CAPTURE" | "JOB_ACTIVITY" | "JOB_ACKNOWLEDGEMENT" | "JOB_TRANSITION" | "EXPENSE" | "CASH_COLLECTION" | "CASH_HANDOVER" | "CASH_TRANSFER" | "CASH_TRANSFER_ACKNOWLEDGEMENT" | "CASH_FLOAT_ACKNOWLEDGEMENT" | "FUEL_EVENT" | "METER_RESET_REQUEST" | "JOB_REQUEST" | "HOURS_PURCHASE" | "HOURS_TRANSFER_REQUEST" | "METER_BASELINE" | "METER_CORRECTION" | "CASH_RETENTION_REQUEST" | "SITE_CHECKIN" | "DAILY_REPORT" | "PETTY_CASH_ACKNOWLEDGEMENT" | "PETTY_CASH_TOP_UP_REQUEST" | "PETTY_CASH_RETURN" | "PETTY_CASH_COUNT" | "PETTY_CASH_ADVANCE_CLEARANCE" | "PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT" | "PETTY_CASH_ADVANCE" | "MACHINE_REPORT" | "CREDIT_INVOICE_PAYMENT";
+            op_type: "METER_CAPTURE" | "EXPENSE" | "CASH_COLLECTION" | "CASH_HANDOVER" | "CASH_TRANSFER" | "CASH_TRANSFER_ACKNOWLEDGEMENT" | "CASH_FLOAT_ACKNOWLEDGEMENT" | "FUEL_EVENT" | "METER_RESET_REQUEST" | "HOURS_PURCHASE" | "HOURS_TRANSFER_REQUEST" | "METER_BASELINE" | "METER_CORRECTION" | "CASH_RETENTION_REQUEST" | "DAILY_REPORT" | "PETTY_CASH_ACKNOWLEDGEMENT" | "PETTY_CASH_TOP_UP_REQUEST" | "PETTY_CASH_RETURN" | "PETTY_CASH_COUNT" | "PETTY_CASH_ADVANCE_CLEARANCE" | "PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT" | "PETTY_CASH_ADVANCE" | "MACHINE_REPORT" | "CREDIT_INVOICE_PAYMENT";
             /** Payload */
             payload: {
                 [key: string]: unknown;
@@ -18862,7 +16835,7 @@ export interface components {
             petty_cash_held: string;
             /**
              * Receivables Outstanding
-             * @description Unpaid balance of issued customer invoices
+             * @description Unpaid balance of credit invoices
              */
             receivables_outstanding: string;
             /**
@@ -18897,7 +16870,7 @@ export interface components {
             open_alerts: components["schemas"]["OverviewSeverityCountsDto"];
             /**
              * Reported Work State
-             * @description Machines by supervisor-reported state (ReportedWorkState values, zero-filled)
+             * @description Machines by the state of their latest machine report (ReportedWorkState values, zero-filled)
              */
             reported_work_state: {
                 [key: string]: number;
@@ -18945,15 +16918,15 @@ export interface components {
         };
         /** OverviewWorkSectionDto */
         OverviewWorkSectionDto: {
-            /**
-             * Jobs By Status
-             * @description JobStatus values, zero-filled
-             */
-            jobs_by_status: {
-                [key: string]: number;
-            };
             /** Latest Source At */
             latest_source_at: string | null;
+            /**
+             * Machine Reports By Status
+             * @description Machine reports by status (SUBMITTED, APPROVED, REJECTED; zero-filled)
+             */
+            machine_reports_by_status: {
+                [key: string]: number;
+            };
             /**
              * Open Exceptions
              * @description Open meter/GPS exceptions; null without tenant.meter.read
@@ -19163,17 +17136,6 @@ export interface components {
             /** Total */
             total: number;
         };
-        /** Page[ContractDto] */
-        Page_ContractDto_: {
-            /** Items */
-            items: components["schemas"]["ContractDto"][];
-            /** Page */
-            page: number;
-            /** Page Size */
-            page_size: number;
-            /** Total */
-            total: number;
-        };
         /** Page[CorrectionDto] */
         Page_CorrectionDto_: {
             /** Items */
@@ -19255,17 +17217,6 @@ export interface components {
         Page_CustomerPaymentDto_: {
             /** Items */
             items: components["schemas"]["CustomerPaymentDto"][];
-            /** Page */
-            page: number;
-            /** Page Size */
-            page_size: number;
-            /** Total */
-            total: number;
-        };
-        /** Page[DailyMachineSheetRowDto] */
-        Page_DailyMachineSheetRowDto_: {
-            /** Items */
-            items: components["schemas"]["DailyMachineSheetRowDto"][];
             /** Page */
             page: number;
             /** Page Size */
@@ -19361,17 +17312,6 @@ export interface components {
             /** Total */
             total: number;
         };
-        /** Page[HireInvoiceDto] */
-        Page_HireInvoiceDto_: {
-            /** Items */
-            items: components["schemas"]["HireInvoiceDto"][];
-            /** Page */
-            page: number;
-            /** Page Size */
-            page_size: number;
-            /** Total */
-            total: number;
-        };
         /** Page[HoursPurchaseDto] */
         Page_HoursPurchaseDto_: {
             /** Items */
@@ -19409,17 +17349,6 @@ export interface components {
         Page_InvoiceDto_: {
             /** Items */
             items: components["schemas"]["InvoiceDto"][];
-            /** Page */
-            page: number;
-            /** Page Size */
-            page_size: number;
-            /** Total */
-            total: number;
-        };
-        /** Page[JobDto] */
-        Page_JobDto_: {
-            /** Items */
-            items: components["schemas"]["JobDto"][];
             /** Page */
             page: number;
             /** Page Size */
@@ -19541,28 +17470,6 @@ export interface components {
         Page_MlReadinessDto_: {
             /** Items */
             items: components["schemas"]["MlReadinessDto"][];
-            /** Page */
-            page: number;
-            /** Page Size */
-            page_size: number;
-            /** Total */
-            total: number;
-        };
-        /** Page[NonRevenueActivityDto] */
-        Page_NonRevenueActivityDto_: {
-            /** Items */
-            items: components["schemas"]["NonRevenueActivityDto"][];
-            /** Page */
-            page: number;
-            /** Page Size */
-            page_size: number;
-            /** Total */
-            total: number;
-        };
-        /** Page[NonRevenueApprovalDto] */
-        Page_NonRevenueApprovalDto_: {
-            /** Items */
-            items: components["schemas"]["NonRevenueApprovalDto"][];
             /** Page */
             page: number;
             /** Page Size */
@@ -19724,28 +17631,6 @@ export interface components {
             /** Total */
             total: number;
         };
-        /** Page[RevenueDifferenceDto] */
-        Page_RevenueDifferenceDto_: {
-            /** Items */
-            items: components["schemas"]["RevenueDifferenceDto"][];
-            /** Page */
-            page: number;
-            /** Page Size */
-            page_size: number;
-            /** Total */
-            total: number;
-        };
-        /** Page[RevenueReasonDto] */
-        Page_RevenueReasonDto_: {
-            /** Items */
-            items: components["schemas"]["RevenueReasonDto"][];
-            /** Page */
-            page: number;
-            /** Page Size */
-            page_size: number;
-            /** Total */
-            total: number;
-        };
         /** Page[RiskSignalDto] */
         Page_RiskSignalDto_: {
             /** Items */
@@ -19772,17 +17657,6 @@ export interface components {
         Page_SecurityEventDto_: {
             /** Items */
             items: components["schemas"]["SecurityEventDto"][];
-            /** Page */
-            page: number;
-            /** Page Size */
-            page_size: number;
-            /** Total */
-            total: number;
-        };
-        /** Page[SiteCheckinDto] */
-        Page_SiteCheckinDto_: {
-            /** Items */
-            items: components["schemas"]["SiteCheckinDto"][];
             /** Page */
             page: number;
             /** Page Size */
@@ -19911,17 +17785,6 @@ export interface components {
             /** Total */
             total: number;
         };
-        /** Page[UnbilledJobDto] */
-        Page_UnbilledJobDto_: {
-            /** Items */
-            items: components["schemas"]["UnbilledJobDto"][];
-            /** Page */
-            page: number;
-            /** Page Size */
-            page_size: number;
-            /** Total */
-            total: number;
-        };
         /** Page[VerificationRunSummaryDto] */
         Page_VerificationRunSummaryDto_: {
             /** Items */
@@ -19937,17 +17800,6 @@ export interface components {
         Page_WorkAllocationDto_: {
             /** Items */
             items: components["schemas"]["WorkAllocationDto"][];
-            /** Page */
-            page: number;
-            /** Page Size */
-            page_size: number;
-            /** Total */
-            total: number;
-        };
-        /** Page[WorkExecutionAllocationDto] */
-        Page_WorkExecutionAllocationDto_: {
-            /** Items */
-            items: components["schemas"]["WorkExecutionAllocationDto"][];
             /** Page */
             page: number;
             /** Page Size */
@@ -21156,7 +19008,7 @@ export interface components {
          * PolicyType
          * @enum {string}
          */
-        PolicyType: "TRACKING" | "METER_CAPTURE" | "HIRE_BILLING" | "DEVICE_SYNC" | "EXPENSE_CAPTURE" | "FRAUD_CONTROLS" | "ENGINE_HOURS" | "CASH_CUSTODY" | "OVERSIGHT" | "CUSTOMER_HOURS" | "REVENUE_RECONCILIATION" | "DATA_PROTECTION" | "PETTY_CASH";
+        PolicyType: "TRACKING" | "METER_CAPTURE" | "DEVICE_SYNC" | "EXPENSE_CAPTURE" | "FRAUD_CONTROLS" | "ENGINE_HOURS" | "CASH_CUSTODY" | "OVERSIGHT" | "CUSTOMER_HOURS" | "DATA_PROTECTION" | "PETTY_CASH";
         /** PolicyVersionDto */
         PolicyVersionDto: {
             /**
@@ -21309,7 +19161,7 @@ export interface components {
              * Group By
              * @enum {string}
              */
-            group_by: "MACHINE" | "JOB" | "CUSTOMER";
+            group_by: "MACHINE" | "CUSTOMER";
             /**
              * Period From
              * Format: date
@@ -21349,8 +19201,6 @@ export interface components {
             net_revenue: string;
             /** Revenue */
             revenue: string;
-            /** Reversed Revenue */
-            reversed_revenue: string;
         };
         /**
          * ProposalStatus
@@ -21456,7 +19306,7 @@ export interface components {
          * PurchaseQueue
          * @enum {string}
          */
-        PurchaseQueue: "AWAITING_ACTIVATION" | "UNPAID" | "UNCONFIRMED";
+        PurchaseQueue: "AWAITING_ACTIVATION" | "UNPAID" | "UNCONFIRMED" | "CREDIT_TO_ACTIVATE";
         /** PurchaseQueueDto */
         PurchaseQueueDto: {
             /** Amounts */
@@ -21528,12 +19378,6 @@ export interface components {
             corrected: string;
             /** Expired */
             expired: string;
-            /**
-             * Provisional
-             * @description Hours held provisionally by running jobs (daily drawdown; final at completion)
-             * @default 0
-             */
-            provisional: string;
             /** Purchased */
             purchased: string;
             /**
@@ -21771,7 +19615,7 @@ export interface components {
          * ReadingKind
          * @enum {string}
          */
-        ReadingKind: "OPENING" | "CLOSING" | "DAILY";
+        ReadingKind: "DAILY";
         /**
          * ReadingReview
          * @enum {string}
@@ -21982,8 +19826,6 @@ export interface components {
         };
         /** ReportAllocationDto */
         ReportAllocationDto: {
-            /** Activity Type */
-            activity_type: string | null;
             /**
              * Allocation Id
              * Format: uuid
@@ -21997,10 +19839,6 @@ export interface components {
             end_reading: string;
             /** Hours */
             hours: string;
-            /** Job Id */
-            job_id: string | null;
-            /** Job Number */
-            job_number?: string | null;
             kind: components["schemas"]["AllocationKind"];
             /** Start Reading */
             start_reading: string;
@@ -22102,240 +19940,6 @@ export interface components {
             /** Reason */
             reason: string;
         };
-        /** RevenueAdjustmentDto */
-        RevenueAdjustmentDto: {
-            /** Amount */
-            amount: string;
-            /**
-             * Cause Id
-             * Format: uuid
-             */
-            cause_id: string;
-            /**
-             * Cause Type
-             * @description engine_hour_classification | non_revenue_approval
-             */
-            cause_type: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Created By */
-            created_by: string | null;
-            /** Created By Name */
-            created_by_name?: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** New Difference */
-            new_difference: string;
-            /** Previous Difference */
-            previous_difference: string;
-        };
-        /** RevenueDecisionIn */
-        RevenueDecisionIn: {
-            /**
-             * Decision
-             * @description APPROVE the proposed explanation (-> EXPLAINED), REJECT it (-> OPEN), or CONFIRM the difference as real (-> CONFIRMED)
-             * @enum {string}
-             */
-            decision: "APPROVE" | "REJECT" | "CONFIRM";
-            /** Note */
-            note: string;
-        };
-        /** RevenueDifferenceDto */
-        RevenueDifferenceDto: {
-            /**
-             * Adjusted Difference
-             * @description difference + the adjustments (null when there are none)
-             */
-            adjusted_difference?: string | null;
-            /**
-             * Adjustments
-             * @description Later changes recorded against a decided difference (never rewritten)
-             */
-            adjustments?: components["schemas"]["RevenueAdjustmentDto"][];
-            /** Attributed Amount */
-            attributed_amount: string;
-            /** Case Id */
-            case_id: string | null;
-            /** Case Number */
-            case_number?: string | null;
-            /**
-             * Computed At
-             * Format: date-time
-             */
-            computed_at: string;
-            /** Currency */
-            currency: string;
-            /** Customer Work Hours */
-            customer_work_hours: string;
-            /** Decided At */
-            decided_at: string | null;
-            /** Decided By */
-            decided_by: string | null;
-            /** Decided By Name */
-            decided_by_name?: string | null;
-            /** Decision Note */
-            decision_note: string | null;
-            /**
-             * Detail
-             * @description jobs [{job_id, job_number, expected, attributed}] and money sources
-             */
-            detail: {
-                [key: string]: unknown;
-            };
-            /** Difference */
-            difference: string;
-            /** Expected Amount */
-            expected_amount: string;
-            /** Explained At */
-            explained_at: string | null;
-            /** Explained By */
-            explained_by: string | null;
-            /** Explained By Name */
-            explained_by_name?: string | null;
-            /** Explanation Note */
-            explanation_note: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** In Progress Amount */
-            in_progress_amount: string;
-            /** Job Id */
-            job_id: string | null;
-            /** Job Number */
-            job_number?: string | null;
-            /**
-             * Local From
-             * Format: date
-             */
-            local_from: string;
-            /**
-             * Local To
-             * Format: date
-             */
-            local_to: string;
-            /** Machine Code */
-            machine_code?: string | null;
-            /**
-             * Machine Id
-             * Format: uuid
-             */
-            machine_id: string;
-            /** Machine Name */
-            machine_name?: string | null;
-            /** Non Revenue Hours */
-            non_revenue_hours: string;
-            /**
-             * Opened At
-             * Format: date-time
-             */
-            opened_at: string;
-            /**
-             * Period End
-             * Format: date-time
-             */
-            period_end: string;
-            /** Period Key */
-            period_key: string;
-            /** Period Kind */
-            period_kind: string;
-            /**
-             * Period Start
-             * Format: date-time
-             */
-            period_start: string;
-            /** Policy Version */
-            policy_version: string;
-            /** Reason Id */
-            reason_id: string | null;
-            /** Reason Name */
-            reason_name?: string | null;
-            status: components["schemas"]["RevenueDifferenceStatus"];
-            /**
-             * Unexplained Expected Amount
-             * @description Unexplained hours expected as revenue (in expected)
-             */
-            unexplained_expected_amount: string;
-            /**
-             * Unexplained Hours
-             * @description Engine hours outside jobs not approved as non-customer activity
-             */
-            unexplained_hours: string;
-            /**
-             * Value At Risk Amount
-             * @description Unexplained hours x rate, never in expected or the difference (DEC-032 A5)
-             * @default 0
-             */
-            value_at_risk_amount: string;
-        };
-        /**
-         * RevenueDifferenceStatus
-         * @enum {string}
-         */
-        RevenueDifferenceStatus: "OPEN" | "EXPLANATION_PROPOSED" | "EXPLAINED" | "CONFIRMED" | "CLEARED";
-        /** RevenueExplanationIn */
-        RevenueExplanationIn: {
-            /** Note */
-            note: string;
-            /**
-             * Reason Id
-             * Format: uuid
-             * @description Active entry of the tenant's revenue reason list
-             */
-            reason_id: string;
-        };
-        /** RevenueReasonDto */
-        RevenueReasonDto: {
-            /** Code */
-            code: string;
-            /** Deactivated At */
-            deactivated_at?: string | null;
-            /** Deactivation Reason */
-            deactivation_reason?: string | null;
-            /** Description */
-            description: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Is Active */
-            is_active: boolean;
-            /** Name */
-            name: string;
-            /** Version */
-            version: number;
-        };
-        /** RevenueReasonIn */
-        RevenueReasonIn: {
-            /** Code */
-            code: string;
-            /** Description */
-            description?: string | null;
-            /** Name */
-            name: string;
-        };
-        /** RevenueReasonUpdateIn */
-        RevenueReasonUpdateIn: {
-            /** Code */
-            code: string;
-            /** Description */
-            description?: string | null;
-            /** Name */
-            name: string;
-            /**
-             * Version
-             * @description Optimistic concurrency token from the last read
-             */
-            version: number;
-        };
         /** ReviewIn */
         ReviewIn: {
             /** Note */
@@ -22369,8 +19973,6 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** Job Id */
-            job_id: string | null;
             /** Machine Id */
             machine_id: string | null;
             /** Policy Version */
@@ -22427,14 +20029,13 @@ export interface components {
          * @description Kinds of item on the per-person scorecard (DEC-031 M1). Neutral: each is something to look at, not a verdict.
          * @enum {string}
          */
-        ScorecardItem: "MISSING_DAILY_REPORT" | "LATE_DAILY_REPORT" | "UNEXPLAINED_HOURS" | "ALERT" | "CASH_HELD_TOO_LONG" | "CASH_DIFFERENCE" | "REVENUE_DIFFERENCE" | "REFUSED_ATTEMPT" | "MISSED_CHECKIN";
+        ScorecardItem: "MISSING_DAILY_REPORT" | "LATE_DAILY_REPORT" | "UNEXPLAINED_HOURS" | "ALERT" | "CASH_HELD_TOO_LONG" | "CASH_DIFFERENCE" | "REFUSED_ATTEMPT";
         /**
          * ScorecardRecordDto
          * @description One item behind a scorecard figure, with the record to open (`record_type` + `record_id`):
-         *     job_exception -> /tenant/exceptions/{id}, engine_interval -> the machine's engine-hour ledger (no record id),
+         *     meter_exception -> /tenant/exceptions/{id}, engine_interval -> the machine's engine-hour ledger (no record id),
          *     tracking_alert -> /tenant/alerts/{id}, cash_remittance_overdue -> /tenant/finance/cash/remittance-overdue/{id},
-         *     cash_variance -> /tenant/finance/cash/variances/{id}, revenue_difference -> /tenant/revenue-differences/{id},
-         *     security_event -> /tenant/security-events (id), site_checkin_slot -> a scheduled check-in not made (no id),
+         *     cash_variance -> /tenant/finance/cash/variances/{id}, security_event -> /tenant/security-events (id),
          *     risk_signal -> the case of the signal (case_id in detail).
          */
         ScorecardRecordDto: {
@@ -22457,10 +20058,6 @@ export interface components {
             hours?: string | null;
             /** Item */
             item: components["schemas"]["ScorecardItem"] | "PATTERN_SIGNAL";
-            /** Job Id */
-            job_id?: string | null;
-            /** Job Number */
-            job_number?: string | null;
             /** Machine Code */
             machine_code?: string | null;
             /** Machine Id */
@@ -22517,13 +20114,6 @@ export interface components {
              * @description Remittance-overdue flags in the period (cut-off or allowance)
              */
             cash_held_too_long: number;
-            /** Checkins Made */
-            checkins_made: number;
-            /**
-             * Checkins Missed
-             * @description Null while site check-ins were never required in the period
-             */
-            checkins_missed: number | null;
             /**
              * Daily Reports Late
              * @description A reading came for the day, but after the daily-report cut-off
@@ -22564,10 +20154,6 @@ export interface components {
             pattern_signals: number;
             /** Refused Attempts */
             refused_attempts: number;
-            /** Revenue Difference Totals */
-            revenue_difference_totals: components["schemas"]["AmountByCurrencyDto"][];
-            /** Revenue Differences */
-            revenue_differences: number;
             /** Staff Kind */
             staff_kind: string;
             /**
@@ -22633,27 +20219,25 @@ export interface components {
         SegmentClassification: "NOT_APPLICABLE" | "UNEXPLAINED" | "APPROVED_NON_CUSTOMER" | "IDENTIFIED_VARIANCE";
         /** SegmentDto */
         SegmentDto: {
-            /**
-             * Activity Type
-             * @description NON_REVENUE segments: the work-log type (e.g. MOBILIZATION) — DEC-031 R1
-             */
-            activity_type?: string | null;
             approved: components["schemas"]["ClassificationRefDto"] | null;
             classification: components["schemas"]["SegmentClassification"];
             /** Hours */
             hours: string;
-            /** Job Id */
-            job_id: string | null;
-            /** Job Number */
-            job_number: string | null;
             kind: components["schemas"]["SegmentKind"];
             proposal: components["schemas"]["ClassificationRefDto"] | null;
+            /**
+             * Report Id
+             * @description REPORTED: the machine report accounting for it
+             */
+            report_id?: string | null;
+            /** Report Number */
+            report_number?: string | null;
         };
         /**
          * SegmentKind
          * @enum {string}
          */
-        SegmentKind: "CUSTOMER_WORK" | "UNALLOCATED" | "NON_REVENUE";
+        SegmentKind: "REPORTED" | "UNALLOCATED";
         /** SettlementDecisionIn */
         SettlementDecisionIn: {
             /** Note */
@@ -22779,213 +20363,6 @@ export interface components {
          */
         Severity: "INFO" | "WARNING" | "CRITICAL";
         /**
-         * SheetFlag
-         * @enum {string}
-         */
-        SheetFlag: "MISSING_DAILY_REPORT" | "UNEXPLAINED_HOURS" | "ENGINE_ON_WITHOUT_JOB" | "FUEL_ABOVE_NORM" | "REVENUE_DIFFERENCE";
-        /** SheetFlagRefDto */
-        SheetFlagRefDto: {
-            flag: components["schemas"]["SheetFlag"];
-            /**
-             * Record Id
-             * Format: uuid
-             */
-            record_id: string;
-            /**
-             * Record Type
-             * @description job_exception | risk_signal | revenue_difference | anomaly_case
-             */
-            record_type: string;
-        };
-        /** SheetFuelDto */
-        SheetFuelDto: {
-            /** Event Type */
-            event_type: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Job Id */
-            job_id: string | null;
-            /** Litres */
-            litres: string;
-            /**
-             * Occurred At
-             * Format: date-time
-             */
-            occurred_at: string;
-        };
-        /** SheetJobDto */
-        SheetJobDto: {
-            /** Billing Mode */
-            billing_mode: string;
-            /** Customer Id */
-            customer_id?: string | null;
-            /** Customer Name */
-            customer_name?: string | null;
-            /** Customer Work Hours */
-            customer_work_hours: string;
-            /**
-             * Job Id
-             * Format: uuid
-             */
-            job_id: string;
-            /** Job Number */
-            job_number?: string | null;
-            /** Job Site Id */
-            job_site_id?: string | null;
-            /** Job Site Name */
-            job_site_name?: string | null;
-            /** Revenue Hours */
-            revenue_hours: string;
-            /** Status */
-            status: string;
-        };
-        /** SheetMoneyDto */
-        SheetMoneyDto: {
-            /**
-             * Attributed
-             * @description Invoice lines and prepaid consumption attributed to the day's work
-             */
-            attributed: string;
-            /** Currency */
-            currency: string;
-            /**
-             * Difference
-             * @description expected - in_progress - attributed (negative: more money than expected)
-             */
-            difference: string;
-            /**
-             * Expected
-             * @description Expected revenue from the day's work (hours x locked rate, + standby/fee)
-             */
-            expected: string;
-            /**
-             * In Progress
-             * @description Part of `expected` from jobs still running (not yet billable)
-             */
-            in_progress: string;
-            /**
-             * Unexplained Expected
-             * @description Unexplained hours expected as revenue (part of `expected`; only under EXPECT_REVENUE)
-             * @default 0
-             */
-            unexplained_expected: string;
-            /**
-             * Unexplained Hours
-             * @description Engine hours outside jobs not approved as non-customer activity
-             * @default 0
-             */
-            unexplained_hours: string;
-            /**
-             * Value At Risk
-             * @description Unexplained hours x rate, shown separately: never in `expected` or `difference` (DEC-032 D1)
-             * @default 0
-             */
-            value_at_risk: string;
-        };
-        /** SheetMoneySourceDto */
-        SheetMoneySourceDto: {
-            /**
-             * Amount
-             * @description Whole amount of the source (attributed to days pro rata)
-             */
-            amount: string;
-            /** Currency */
-            currency: string;
-            /** Hours */
-            hours: string | null;
-            /**
-             * Job Id
-             * Format: uuid
-             */
-            job_id: string;
-            /** Job Number */
-            job_number?: string | null;
-            /**
-             * Parent Id
-             * Format: uuid
-             * @description Invoice id or customer-hours purchase id
-             */
-            parent_id: string;
-            /**
-             * Ref Id
-             * Format: uuid
-             * @description Invoice line id or customer-hours ledger entry id
-             */
-            ref_id: string;
-            /**
-             * Source
-             * @enum {string}
-             */
-            source: "INVOICE_LINE" | "PREPAID_CONSUMPTION";
-        };
-        /** SheetReadingDto */
-        SheetReadingDto: {
-            /**
-             * Captured At
-             * Format: date-time
-             */
-            captured_at: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Job Id */
-            job_id: string | null;
-            /** Job Number */
-            job_number?: string | null;
-            /** Kind */
-            kind: string;
-            /** Reading */
-            reading: string;
-            /** State */
-            state: string;
-        };
-        /** SheetSegmentDto */
-        SheetSegmentDto: {
-            /** Classification */
-            classification: string;
-            /** Customer Work Hours In Day */
-            customer_work_hours_in_day: string;
-            /**
-             * End At
-             * Format: date-time
-             */
-            end_at: string;
-            /**
-             * End Ref
-             * Format: uuid
-             */
-            end_ref: string;
-            /** Hours In Day */
-            hours_in_day: string;
-            /** Job Id */
-            job_id: string | null;
-            /** Job Number */
-            job_number?: string | null;
-            /** Kind */
-            kind: string;
-            /** Non Revenue By Type */
-            non_revenue_by_type: {
-                [key: string]: string;
-            };
-            /** Review */
-            review: string;
-            /**
-             * Start At
-             * Format: date-time
-             */
-            start_at: string;
-            /**
-             * Start Ref
-             * Format: uuid
-             */
-            start_ref: string;
-        };
-        /**
          * SignalSeverity
          * @enum {string}
          */
@@ -22995,90 +20372,6 @@ export interface components {
          * @enum {string}
          */
         SignalStatus: "OPEN" | "LINKED" | "DISMISSED";
-        /** SiteCheckinDto */
-        SiteCheckinDto: {
-            /** Accuracy M */
-            accuracy_m: number | null;
-            /**
-             * Captured At
-             * Format: date-time
-             */
-            captured_at: string;
-            /**
-             * Client Id
-             * Format: uuid
-             */
-            client_id: string;
-            /**
-             * Distance M
-             * @description From the site centre (GPS fix and a site only)
-             */
-            distance_m: number | null;
-            gps_status: components["schemas"]["GpsStatus"];
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Job Id */
-            job_id: string | null;
-            /** Job Number */
-            job_number?: string | null;
-            /** Job Site Id */
-            job_site_id: string | null;
-            /** Job Site Name */
-            job_site_name?: string | null;
-            /** Latitude */
-            latitude: number | null;
-            /** Longitude */
-            longitude: number | null;
-            /**
-             * Received At
-             * Format: date-time
-             */
-            received_at: string;
-            /**
-             * Recorded By
-             * Format: uuid
-             */
-            recorded_by: string;
-            /** Recorded By Name */
-            recorded_by_name?: string | null;
-            /** Source */
-            source: string;
-            /**
-             * Staff Member Id
-             * Format: uuid
-             */
-            staff_member_id: string;
-            /** Staff Member Name */
-            staff_member_name?: string | null;
-            /**
-             * Within Distance
-             * @description Against OVERSIGHT.site_checkin_max_distance_m; null when not judged
-             */
-            within_distance?: boolean | null;
-        };
-        /**
-         * SiteCheckinIn
-         * @description A GPS check-in at the site (also the sync op SITE_CHECKIN payload). Never fabricate coordinates: a failed
-         *     GPS attempt is sent with its status and no coordinates.
-         */
-        SiteCheckinIn: {
-            /**
-             * Captured At
-             * Format: date-time
-             */
-            captured_at: string;
-            /**
-             * Client Id
-             * Format: uuid
-             */
-            client_id: string;
-            gps: components["schemas"]["GpsIn"];
-            /** Job Site Id */
-            job_site_id?: string | null;
-        };
         /** SiteVisitDto */
         SiteVisitDto: {
             /** Duration Seconds */
@@ -23248,16 +20541,11 @@ export interface components {
             version: number;
         };
         /**
-         * StandbyTreatment
-         * @enum {string}
-         */
-        StandbyTreatment: "EXCLUDED" | "INCLUDED" | "STANDBY_RATE";
-        /**
          * StartSource
          * @description Where the report's previous reading comes from.
          * @enum {string}
          */
-        StartSource: "REPORT" | "BASELINE" | "RESET";
+        StartSource: "REPORT" | "BASELINE" | "RESET" | "OPENING";
         /** StatementLineDto */
         StatementLineDto: {
             /**
@@ -23275,7 +20563,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "INVOICE" | "REVERSAL" | "PAYMENT" | "ADJUSTMENT";
+            kind: "INVOICE" | "PAYMENT";
             /** Reference */
             reference: string;
             /** Running Balance */
@@ -23285,7 +20573,7 @@ export interface components {
          * StepKey
          * @enum {string}
          */
-        StepKey: "COMPANY_SETTINGS" | "PEOPLE" | "MACHINE_TYPES_AND_RATES" | "MACHINES" | "TRACKERS" | "SITES" | "CUSTOMERS_AND_CONTRACTS" | "CONTROLS_CHOSEN" | "REASON_LISTS" | "DEPOSIT_ACCOUNTS" | "METER_BASELINES" | "FIELD_APP_SIGNED_IN" | "FIRST_JOB";
+        StepKey: "COMPANY_SETTINGS" | "PEOPLE" | "MACHINE_TYPES_AND_RATES" | "MACHINES" | "TRACKERS" | "SITES" | "CUSTOMERS" | "CONTROLS_CHOSEN" | "REASON_LISTS" | "DEPOSIT_ACCOUNTS" | "METER_BASELINES" | "FIELD_APP_SIGNED_IN" | "FIRST_MACHINE_REPORT";
         /**
          * StepStatus
          * @enum {string}
@@ -23314,7 +20602,7 @@ export interface components {
          * SubjectType
          * @enum {string}
          */
-        SubjectType: "MACHINE" | "JOB" | "STAFF" | "EXPENSE" | "USER" | "CUSTOMER";
+        SubjectType: "MACHINE" | "STAFF" | "EXPENSE" | "USER" | "CUSTOMER";
         /** SubscriptionDto */
         SubscriptionDto: {
             /**
@@ -23389,55 +20677,8 @@ export interface components {
          * @enum {string}
          */
         SubscriptionStatus: "DRAFT" | "PENDING_ACTIVATION" | "ACTIVE" | "PAST_DUE" | "SUSPENDED" | "CANCELLED" | "EXPIRED";
-        /** SyncAcknowledgementDto */
-        SyncAcknowledgementDto: {
-            /** Acknowledged Hours */
-            acknowledged_hours: string | null;
-            /**
-             * Captured At
-             * Format: date-time
-             */
-            captured_at: string;
-            /**
-             * Client Id
-             * Format: uuid
-             */
-            client_id: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Job Id
-             * Format: uuid
-             */
-            job_id: string;
-            /** Method */
-            method: string;
-            /**
-             * Received At
-             * Format: date-time
-             */
-            received_at: string;
-            /** Recorded By */
-            recorded_by: string | null;
-            /** Signature Attachment Id */
-            signature_attachment_id: string | null;
-            /** Signer Name */
-            signer_name: string;
-            /** Signer Phone */
-            signer_phone: string | null;
-            /** Sync Revision */
-            sync_revision: number;
-        };
         /** SyncCashCollectionDto */
         SyncCashCollectionDto: {
-            /**
-             * Allocations
-             * @default []
-             */
-            allocations: components["schemas"]["HireAllocationDto"][];
             /** Amount */
             amount: string;
             /** Client Id */
@@ -23600,36 +20841,6 @@ export interface components {
             verified_by_name?: string | null;
         };
         /**
-         * SyncChangeoverJobDto
-         * @description A job a changeover can move on to (DEC-032 A3). A delta may carry a job in another status: drop it from the
-         *     picker unless it is PENDING_APPROVAL or APPROVED. Only PENDING_APPROVAL can be named while another job runs.
-         */
-        SyncChangeoverJobDto: {
-            /**
-             * Customer Id
-             * Format: uuid
-             */
-            customer_id: string;
-            /** Customer Name */
-            customer_name: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Job Number */
-            job_number: string;
-            /**
-             * Machine Id
-             * Format: uuid
-             */
-            machine_id: string;
-            /** Status */
-            status: string;
-            /** Sync Revision */
-            sync_revision: number;
-        };
-        /**
          * SyncConflictDto
          * @description A field operation the server did not apply (CONFLICT or REJECTED), with what the device sent (evidence), why
          *     it was not applied, the server state at the time and the office's outcome once resolved.
@@ -23692,16 +20903,6 @@ export interface components {
              */
             cash_custody: components["schemas"]["CashCustodyBalanceDto"][];
             /**
-             * Changeover Jobs
-             * @default []
-             */
-            changeover_jobs: components["schemas"]["SyncChangeoverJobDto"][];
-            /**
-             * Contracts
-             * @default []
-             */
-            contracts: components["schemas"]["ContractDto"][];
-            /**
              * Customer Discounts
              * @default []
              */
@@ -23727,11 +20928,6 @@ export interface components {
              */
             hours_prices: components["schemas"]["HoursPriceDto"][];
             /**
-             * Jobs
-             * @default []
-             */
-            jobs: components["schemas"]["JobDto"][];
-            /**
              * Machine Report Hours
              * @default []
              */
@@ -23751,11 +20947,6 @@ export interface components {
              * @default []
              */
             machines: components["schemas"]["MachineDto"][];
-            /**
-             * My Acknowledgements
-             * @default []
-             */
-            my_acknowledgements: components["schemas"]["SyncAcknowledgementDto"][];
             /**
              * My Cash Collections
              * @default []
@@ -23777,11 +20968,6 @@ export interface components {
              */
             my_fuel_events: components["schemas"]["SyncFuelEventDto"][];
             /**
-             * My Job Activities
-             * @default []
-             */
-            my_job_activities: components["schemas"]["SyncJobActivityDto"][];
-            /**
              * My Machine Reports
              * @default []
              */
@@ -23801,11 +20987,6 @@ export interface components {
              * @default []
              */
             open_credit_invoices: components["schemas"]["CreditInvoiceDto"][];
-            /**
-             * Open Invoices
-             * @default []
-             */
-            open_invoices: components["schemas"]["SyncOpenInvoiceDto"][];
             /**
              * Petty Cash Advances
              * @default []
@@ -23938,8 +21119,6 @@ export interface components {
              * Format: date-time
              */
             incurred_at: string;
-            /** Job Id */
-            job_id: string | null;
             /** Latitude */
             latitude: number | null;
             /** Longitude */
@@ -23991,8 +21170,6 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** Job Id */
-            job_id: string | null;
             /** Litres */
             litres: string;
             /** Machine Id */
@@ -24017,50 +21194,6 @@ export interface components {
             /** Unit Price */
             unit_price: string | null;
         };
-        /** SyncJobActivityDto */
-        SyncJobActivityDto: {
-            activity_type: components["schemas"]["ActivityType"];
-            /** Billable */
-            billable: boolean;
-            /**
-             * Client Id
-             * Format: uuid
-             */
-            client_id: string;
-            /**
-             * Duration Minutes
-             * @description ended_at - started_at; null while open
-             */
-            duration_minutes?: number | null;
-            /** Ended At */
-            ended_at: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Job Id
-             * Format: uuid
-             */
-            job_id: string;
-            /** Note */
-            note: string | null;
-            /**
-             * Received At
-             * Format: date-time
-             */
-            received_at: string;
-            /** Recorded By */
-            recorded_by: string | null;
-            /**
-             * Started At
-             * Format: date-time
-             */
-            started_at: string;
-            /** Sync Revision */
-            sync_revision: number;
-        };
         /**
          * SyncMeterCaptureDto
          * @description The caller's reading with the server's findings and their review state. `sync_revision` is the highest
@@ -24084,8 +21217,6 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** Job Id */
-            job_id: string | null;
             kind: components["schemas"]["ReadingKind"];
             /** Latitude */
             latitude: number | null;
@@ -24173,41 +21304,6 @@ export interface components {
             status: string;
             /** Sync Revision */
             sync_revision: number;
-        };
-        /**
-         * SyncOpenInvoiceDto
-         * @description An issued invoice with money still owed, so a collection can be linked to it (DEC-032).
-         */
-        SyncOpenInvoiceDto: {
-            /** Balance */
-            balance: string;
-            /** Currency */
-            currency: string;
-            /**
-             * Customer Id
-             * Format: uuid
-             */
-            customer_id: string;
-            /** Customer Name */
-            customer_name: string;
-            /** Due Date */
-            due_date: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Invoice Number */
-            invoice_number: string;
-            /**
-             * Issued At
-             * Format: date-time
-             */
-            issued_at: string;
-            /** Paid */
-            paid: string;
-            /** Total */
-            total: string;
         };
         /** SyncResolutionDto */
         SyncResolutionDto: {
@@ -24538,7 +21634,7 @@ export interface components {
              * @description Tenant timezone for rendering dates and the month boundary
              */
             timezone: string;
-            /** @description Present with tenant.job.read */
+            /** @description Present with tenant.machine_report.read */
             work: components["schemas"]["OverviewWorkSectionDto"] | null;
         };
         /**
@@ -24651,8 +21747,6 @@ export interface components {
              * Format: date-time
              */
             incurred_at: string;
-            /** Job Id */
-            job_id: string | null;
             /** Machine Id */
             machine_id: string | null;
         };
@@ -24709,20 +21803,17 @@ export interface components {
         TotalsDto: {
             /** Approved Non Customer Hours */
             approved_non_customer_hours: string;
-            /** Customer Work Hours */
-            customer_work_hours: string;
             /** Identified Variance Hours */
             identified_variance_hours: string;
-            /**
-             * Non Revenue Hours
-             * @description Non-revenue work-log time inside job windows (revenue-hour basis on; else 0) — DEC-031 R1
-             * @default 0
-             */
-            non_revenue_hours: string;
             /** Pending Review Hours */
             pending_review_hours: string;
             /** Proposed Hours */
             proposed_hours: string;
+            /**
+             * Reported Hours
+             * @description Inside submitted or approved machine reports
+             */
+            reported_hours: string;
             /** Total Hours */
             total_hours: string;
             /** Unallocated Hours */
@@ -25148,64 +22239,6 @@ export interface components {
              */
             reason_id: string;
         };
-        /**
-         * UnbilledJobDto
-         * @description A completed, billing-ready job not on an issued invoice for more than OVERSIGHT.unbilled_after_days.
-         */
-        UnbilledJobDto: {
-            /** Billable Hours */
-            billable_hours: string | null;
-            /**
-             * Completed At
-             * Format: date-time
-             */
-            completed_at: string;
-            /** Currency */
-            currency: string;
-            /**
-             * Customer Id
-             * Format: uuid
-             */
-            customer_id: string;
-            /** Customer Name */
-            customer_name?: string | null;
-            /** Days Unbilled */
-            days_unbilled: number;
-            /**
-             * Draft Invoice Id
-             * @description A draft invoice already holds the job (not issued yet)
-             */
-            draft_invoice_id: string | null;
-            /**
-             * Job Id
-             * Format: uuid
-             */
-            job_id: string;
-            /** Job Number */
-            job_number?: string | null;
-            /** Job Site Id */
-            job_site_id: string | null;
-            /** Job Site Name */
-            job_site_name?: string | null;
-            /** Machine Code */
-            machine_code?: string | null;
-            /**
-             * Machine Id
-             * Format: uuid
-             */
-            machine_id: string;
-            /** Machine Name */
-            machine_name?: string | null;
-            /** Supervisor Staff Id */
-            supervisor_staff_id: string | null;
-            /** Supervisor Staff Name */
-            supervisor_staff_name?: string | null;
-            /**
-             * Total
-             * @description What the job is worth under its terms (the invoice would snapshot it)
-             */
-            total: string | null;
-        };
         /** UnresolvedVariancesDto */
         UnresolvedVariancesDto: {
             /** By Source */
@@ -25540,17 +22573,13 @@ export interface components {
         };
         /** WorkAllocationDto */
         WorkAllocationDto: {
-            /** Activity Type */
-            activity_type: string | null;
             /** Approval Ref Ids */
             approval_ref_ids?: string[];
             /**
              * Approval Ref Type
-             * @description engine_hour_classification, non_revenue_approval or work_allocation_correction
+             * @description machine_report, engine_hour_classification or work_allocation_correction
              */
             approval_ref_type?: string | null;
-            /** Changeover Id */
-            changeover_id: string | null;
             /** Classification Id */
             classification_id: string | null;
             /** Correction Group Id */
@@ -25595,10 +22624,6 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** Job Id */
-            job_id: string | null;
-            /** Job Number */
-            job_number?: string | null;
             kind: components["schemas"]["AllocationKind"];
             /** Lots */
             lots: components["schemas"]["AllocationLotDto"][];
@@ -25650,56 +22675,6 @@ export interface components {
              * Format: date
              */
             work_date: string;
-        };
-        /** WorkExecutionAllocationDto */
-        WorkExecutionAllocationDto: {
-            /** Billable Hours */
-            billable_hours: string;
-            /** Consumed Hours */
-            consumed_hours: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Customer Id
-             * Format: uuid
-             */
-            customer_id: string;
-            /** Customer Name */
-            customer_name?: string | null;
-            /** Exception Id */
-            exception_id: string | null;
-            /** Exception Status */
-            exception_status: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Job Id
-             * Format: uuid
-             */
-            job_id: string;
-            /** Job Number */
-            job_number?: string | null;
-            /** Lines */
-            lines: components["schemas"]["AllocationLineDto"][];
-            /** Machine Code */
-            machine_code?: string | null;
-            /**
-             * Machine Id
-             * Format: uuid
-             */
-            machine_id: string;
-            /** Machine Name */
-            machine_name?: string | null;
-            /** Overrun Hours */
-            overrun_hours: string;
-            /** Policy Version */
-            policy_version: string;
         };
         /** WriteOffProposalIn */
         WriteOffProposalIn: {
@@ -44659,555 +41634,6 @@ export interface operations {
             };
         };
     };
-    listContracts: {
-        parameters: {
-            query?: {
-                customer_id?: string | null;
-                status?: components["schemas"]["ContractStatus"] | null;
-                /** @description Also return deactivated/retired/closed records (hidden by default) */
-                include_inactive?: boolean;
-                page?: number;
-                page_size?: number;
-                q?: string | null;
-                sort?: string | null;
-            };
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_ContractDto_"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    createContract: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ContractIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ContractDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    getContract: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                contract_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ContractDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    updateContract: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                contract_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ContractUpdateIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ContractDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    closeContract: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                contract_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LifecycleChangeIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ContractDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    reopenContract: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                contract_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LifecycleChangeIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ContractDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
     listCreditArrangements: {
         parameters: {
             query?: {
@@ -47128,99 +43554,6 @@ export interface operations {
             };
         };
     };
-    allocateCustomerPayment: {
-        parameters: {
-            query?: never;
-            header?: {
-                "idempotency-key"?: string | null;
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                payment_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["HireAllocateIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CustomerPaymentDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
     decideCustomerPayment: {
         parameters: {
             query?: never;
@@ -48697,286 +45030,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CustomerStatementDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    listDailyMachineSheet: {
-        parameters: {
-            query?: {
-                machine_id?: string | null;
-                site_id?: string | null;
-                /** @description First tenant-local day (default: 6 days before day_to) */
-                day_from?: string | null;
-                /** @description Last tenant-local day, inclusive (default: today) */
-                day_to?: string | null;
-                page?: number;
-                page_size?: number;
-                q?: string | null;
-                sort?: string | null;
-            };
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_DailyMachineSheetRowDto_"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    exportDailyMachineSheetCsv: {
-        parameters: {
-            query?: {
-                q?: string | null;
-                machine_id?: string | null;
-                site_id?: string | null;
-                /** @description First tenant-local day (default: 6 days before day_to) */
-                day_from?: string | null;
-                /** @description Last tenant-local day, inclusive (default: today) */
-                day_to?: string | null;
-            };
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/csv": unknown;
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    getDailyMachineSheetDay: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                machine_id: string;
-                day: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DailyMachineSheetDetailDto"];
                 };
             };
             /** @description Bad Request */
@@ -52045,14 +48098,13 @@ export interface operations {
             };
         };
     };
-    listJobExceptions: {
+    listMeterExceptions: {
         parameters: {
             query?: {
                 status?: components["schemas"]["ExceptionStatus"] | null;
                 exception_type?: components["schemas"]["ExceptionType"] | null;
-                job_id?: string | null;
                 meter_capture_id?: string | null;
-                /** @description Only the caller's own records (or their jobs/machines). Always applied for callers without meter review/approval or job management permission. */
+                /** @description Only the caller's own records (or their machines). Always applied for callers without meter review/approval or machine-report approval permission. */
                 mine?: boolean;
                 page?: number;
                 page_size?: number;
@@ -52142,7 +48194,7 @@ export interface operations {
             };
         };
     };
-    getJobException: {
+    getMeterException: {
         parameters: {
             query?: never;
             header?: {
@@ -52230,7 +48282,7 @@ export interface operations {
             };
         };
     };
-    reviewJobException: {
+    reviewMeterException: {
         parameters: {
             query?: never;
             header?: {
@@ -52961,7 +49013,6 @@ export interface operations {
             query?: {
                 status?: components["schemas"]["ExpenseStatus"] | null;
                 machine_id?: string | null;
-                job_id?: string | null;
                 custodian_staff_id?: string | null;
                 paid_from?: components["schemas"]["ExpensePaidFrom"] | null;
                 petty_cash_fund_id?: string | null;
@@ -53325,95 +49376,6 @@ export interface operations {
             };
         };
     };
-    listFieldContracts: {
-        parameters: {
-            query?: {
-                q?: string | null;
-                customer_id?: string | null;
-            };
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FieldContractDto"][];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
     listMyFieldMachines: {
         parameters: {
             query?: {
@@ -53505,7 +49467,7 @@ export interface operations {
     getProfitability: {
         parameters: {
             query: {
-                group_by: "MACHINE" | "JOB" | "CUSTOMER";
+                group_by: "MACHINE" | "CUSTOMER";
                 from: string;
                 to: string;
             };
@@ -53866,7 +49828,6 @@ export interface operations {
             query?: {
                 event_type?: components["schemas"]["FuelEventType"] | null;
                 machine_id?: string | null;
-                job_id?: string | null;
                 /** @description Only the caller's own records. Always applied for callers without approval or finance oversight permission (field supervisors). */
                 mine?: boolean;
                 page?: number;
@@ -54591,464 +50552,6 @@ export interface operations {
             };
         };
     };
-    listHireInvoices: {
-        parameters: {
-            query?: {
-                status?: components["schemas"]["HireInvoiceStatus"] | null;
-                customer_id?: string | null;
-                /** @description Only issued invoices past due with a balance left */
-                overdue?: boolean;
-                page?: number;
-                page_size?: number;
-                q?: string | null;
-                sort?: string | null;
-            };
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_HireInvoiceDto_"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    createHireInvoiceDraft: {
-        parameters: {
-            query?: never;
-            header?: {
-                "idempotency-key"?: string | null;
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["HireInvoiceDraftIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HireInvoiceDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    getHireInvoice: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                invoice_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HireInvoiceDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    issueHireInvoice: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                invoice_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["HireInvoiceIssueIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HireInvoiceDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    voidHireInvoice: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                invoice_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["HireInvoiceVoidIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HireInvoiceDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
     listHoursCancellations: {
         parameters: {
             query?: {
@@ -55420,7 +50923,7 @@ export interface operations {
                 purchase_id?: string | null;
                 customer_id?: string | null;
                 machine_id?: string | null;
-                job_id?: string | null;
+                machine_report_id?: string | null;
                 entry_type?: components["schemas"]["LedgerEntryType"] | null;
                 date_from?: string | null;
                 date_to?: string | null;
@@ -58093,1006 +53596,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobSiteDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    listJobs: {
-        parameters: {
-            query?: {
-                status?: components["schemas"]["JobStatus"] | null;
-                machine_id?: string | null;
-                /** @description Only jobs the caller supervises: named supervisor, or on a machine assigned to them */
-                mine?: boolean;
-                page?: number;
-                page_size?: number;
-                q?: string | null;
-                sort?: string | null;
-            };
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_JobDto_"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    createJob: {
-        parameters: {
-            query?: never;
-            header?: {
-                "idempotency-key"?: string | null;
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["JobIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JobDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    requestJob: {
-        parameters: {
-            query?: never;
-            header?: {
-                "idempotency-key"?: string | null;
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["JobRequestIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JobDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    getJobSummary: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JobSummaryDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    updateJob: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["JobUpdateIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JobDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    listJobAcknowledgements: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AcknowledgementDto"][];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    acknowledgeJob: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AcknowledgementIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AcknowledgementDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    listJobActivities: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ActivityDto"][];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    logJobActivity: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ActivityIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ActivityDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    listJobCaptures: {
-        parameters: {
-            query?: {
-                /** @description Only the caller's own records (or their jobs/machines). Always applied for callers without meter review/approval or job management permission. */
-                mine?: boolean;
-            };
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MeterCaptureDto"][];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    transitionJob: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["JobTransitionIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JobDto"];
                 };
             };
             /** @description Bad Request */
@@ -62784,13 +57287,12 @@ export interface operations {
     listMeterCaptures: {
         parameters: {
             query?: {
-                job_id?: string | null;
                 machine_id?: string | null;
                 kind?: components["schemas"]["ReadingKind"] | null;
                 state?: components["schemas"]["CaptureState"] | null;
                 captured_from?: string | null;
                 captured_to?: string | null;
-                /** @description Only the caller's own records (or their jobs/machines). Always applied for callers without meter review/approval or job management permission. */
+                /** @description Only the caller's own records (or their machines). Always applied for callers without meter review/approval or machine-report approval permission. */
                 mine?: boolean;
                 page?: number;
                 page_size?: number;
@@ -63426,7 +57928,7 @@ export interface operations {
             query?: {
                 machine_id?: string | null;
                 status?: string | null;
-                /** @description Only the caller's own records (or their jobs/machines). Always applied for callers without meter review/approval or job management permission. */
+                /** @description Only the caller's own records (or their machines). Always applied for callers without meter review/approval or machine-report approval permission. */
                 mine?: boolean;
             };
             header?: {
@@ -63893,465 +58395,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TenantMlStatusDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    listNonRevenueActivities: {
-        parameters: {
-            query?: {
-                machine_id?: string | null;
-                job_id?: string | null;
-                /** @description NONE: not explained yet */
-                status?: string | null;
-                page?: number;
-                page_size?: number;
-                q?: string | null;
-                sort?: string | null;
-            };
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_NonRevenueActivityDto_"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    listNonRevenueApprovals: {
-        parameters: {
-            query?: {
-                status?: components["schemas"]["NonRevenueApprovalStatus"] | null;
-                machine_id?: string | null;
-                job_id?: string | null;
-                page?: number;
-                page_size?: number;
-                q?: string | null;
-                sort?: string | null;
-            };
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_NonRevenueApprovalDto_"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    proposeNonRevenueApproval: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["NonRevenueApprovalIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NonRevenueApprovalDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    getNonRevenueApproval: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                approval_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NonRevenueApprovalDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    decideNonRevenueApproval: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                approval_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["NonRevenueDecisionIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NonRevenueApprovalDto"];
                 };
             };
             /** @description Bad Request */
@@ -71308,7 +65351,6 @@ export interface operations {
             query?: {
                 status?: components["schemas"]["ExpenseStatus"] | null;
                 machine_id?: string | null;
-                job_id?: string | null;
                 custodian_staff_id?: string | null;
                 paid_from?: components["schemas"]["ExpensePaidFrom"] | null;
                 petty_cash_fund_id?: string | null;
@@ -71402,7 +65444,6 @@ export interface operations {
             query?: {
                 status?: components["schemas"]["ExpenseStatus"] | null;
                 machine_id?: string | null;
-                job_id?: string | null;
                 custodian_staff_id?: string | null;
                 paid_from?: components["schemas"]["ExpensePaidFrom"] | null;
                 petty_cash_fund_id?: string | null;
@@ -71589,188 +65630,6 @@ export interface operations {
                 q?: string | null;
                 connectivity?: components["schemas"]["Connectivity"] | null;
                 machine_status?: components["schemas"]["MachineStatus"] | null;
-            };
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description PDF file */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/pdf": unknown;
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    exportTenantJobsReportCsv: {
-        parameters: {
-            query?: {
-                /** @description Job number contains */
-                q?: string | null;
-                status?: components["schemas"]["JobStatus"] | null;
-                machine_id?: string | null;
-            };
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description CSV file */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/csv": unknown;
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    exportTenantJobsReportPdf: {
-        parameters: {
-            query?: {
-                /** @description Job number contains */
-                q?: string | null;
-                status?: components["schemas"]["JobStatus"] | null;
-                machine_id?: string | null;
             };
             header?: {
                 "x-tenant-id"?: string | null;
@@ -72045,7 +65904,6 @@ export interface operations {
                 petty_cash_fund_id?: string | null;
                 status?: components["schemas"]["ExpenseStatus"] | null;
                 machine_id?: string | null;
-                job_id?: string | null;
                 control_flag?: components["schemas"]["ExpenseFlag"] | null;
             };
             header?: {
@@ -72137,7 +65995,6 @@ export interface operations {
                 petty_cash_fund_id?: string | null;
                 status?: components["schemas"]["ExpenseStatus"] | null;
                 machine_id?: string | null;
-                job_id?: string | null;
                 control_flag?: components["schemas"]["ExpenseFlag"] | null;
             };
             header?: {
@@ -72410,7 +66267,6 @@ export interface operations {
     exportTenantReadingsReportCsv: {
         parameters: {
             query?: {
-                job_id?: string | null;
                 machine_id?: string | null;
                 kind?: components["schemas"]["ReadingKind"] | null;
                 state?: components["schemas"]["CaptureState"] | null;
@@ -72504,7 +66360,6 @@ export interface operations {
     exportTenantReadingsReportPdf: {
         parameters: {
             query?: {
-                job_id?: string | null;
                 machine_id?: string | null;
                 kind?: components["schemas"]["ReadingKind"] | null;
                 state?: components["schemas"]["CaptureState"] | null;
@@ -73054,922 +66909,6 @@ export interface operations {
                 };
                 content: {
                     "application/pdf": unknown;
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    listRevenueDifferences: {
-        parameters: {
-            query?: {
-                status?: components["schemas"]["RevenueDifferenceStatus"] | null;
-                machine_id?: string | null;
-                /** @description First tenant-local day (default: 6 days before day_to) */
-                day_from?: string | null;
-                /** @description Last tenant-local day, inclusive (default: today) */
-                day_to?: string | null;
-                page?: number;
-                page_size?: number;
-                q?: string | null;
-                sort?: string | null;
-            };
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_RevenueDifferenceDto_"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    getRevenueDifference: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                difference_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RevenueDifferenceDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    decideRevenueDifference: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                difference_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RevenueDecisionIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RevenueDifferenceDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    explainRevenueDifference: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                difference_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RevenueExplanationIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RevenueDifferenceDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    listRevenueReasons: {
-        parameters: {
-            query?: {
-                /** @description Also return deactivated/retired/closed records (hidden by default) */
-                include_inactive?: boolean;
-                page?: number;
-                page_size?: number;
-                q?: string | null;
-                sort?: string | null;
-            };
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_RevenueReasonDto_"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    createRevenueReason: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RevenueReasonIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RevenueReasonDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    getRevenueReason: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                reason_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RevenueReasonDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    updateRevenueReason: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                reason_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RevenueReasonUpdateIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RevenueReasonDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    deactivateRevenueReason: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                reason_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LifecycleChangeIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RevenueReasonDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    reactivateRevenueReason: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                reason_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LifecycleChangeIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RevenueReasonDto"];
                 };
             };
             /** @description Bad Request */
@@ -74971,370 +67910,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SetupChecklistDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    listSiteCheckins: {
-        parameters: {
-            query?: {
-                staff_id?: string | null;
-                job_site_id?: string | null;
-                day_from?: string | null;
-                day_to?: string | null;
-                page?: number;
-                page_size?: number;
-                q?: string | null;
-                sort?: string | null;
-            };
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_SiteCheckinDto_"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    recordSiteCheckin: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SiteCheckinIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SiteCheckinDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    getMySiteCheckins: {
-        parameters: {
-            query?: {
-                /** @description Default: 6 days before day_to */
-                day_from?: string | null;
-                /** @description Last tenant-local day, inclusive (default: today) */
-                day_to?: string | null;
-            };
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MySiteCheckinsDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    getSiteCheckin: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                checkin_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SiteCheckinDto"];
                 };
             };
             /** @description Bad Request */
@@ -77046,100 +69621,6 @@ export interface operations {
             };
         };
     };
-    listUnbilledWork: {
-        parameters: {
-            query?: {
-                customer_id?: string | null;
-                machine_id?: string | null;
-                site_id?: string | null;
-                page?: number;
-                page_size?: number;
-                q?: string | null;
-                sort?: string | null;
-            };
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_UnbilledJobDto_"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
     createWalkInCustomer: {
         parameters: {
             query?: never;
@@ -77241,7 +69722,6 @@ export interface operations {
                 kind?: components["schemas"]["AllocationKind"] | null;
                 /** @description Default: ACTIVE */
                 status?: components["schemas"]["AllocationStatus"] | null;
-                job_id?: string | null;
                 page?: number;
                 page_size?: number;
                 q?: string | null;
@@ -77713,188 +70193,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AllocationCorrectionDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    listWorkExecutionAllocations: {
-        parameters: {
-            query?: {
-                job_id?: string | null;
-                customer_id?: string | null;
-                machine_id?: string | null;
-                page?: number;
-                page_size?: number;
-                q?: string | null;
-                sort?: string | null;
-            };
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_WorkExecutionAllocationDto_"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    getWorkExecutionAllocation: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path: {
-                allocation_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkExecutionAllocationDto"];
                 };
             };
             /** @description Bad Request */

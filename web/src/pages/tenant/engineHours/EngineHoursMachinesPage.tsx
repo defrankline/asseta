@@ -72,10 +72,10 @@ export function EngineHoursMachinesPage() {
       render: (m) => <span className="font-mono">{m.totals.total_hours}</span>,
     },
     {
-      id: 'customer',
-      header: 'Customer work',
+      id: 'reported',
+      header: 'In machine reports',
       align: 'right',
-      render: (m) => <span className="font-mono">{m.totals.customer_work_hours}</span>,
+      render: (m) => <span className="font-mono">{m.totals.reported_hours}</span>,
     },
     {
       id: 'unexplained',

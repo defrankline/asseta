@@ -98,7 +98,6 @@ const STATEMENT: HoursStatementDto = {
     refunded: '0',
     corrected: '0',
     closing_balance: '17.5',
-    provisional_at_close: '3',
     awaiting_activation: '0',
   },
   purchases: [
@@ -124,14 +123,12 @@ const STATEMENT: HoursStatementDto = {
   usage: [
     {
       day: '2026-10-25',
-      job_id: 'j1',
-      job_number: 'JOB-0042',
       machine_id: 'm1',
       machine_code: 'EX-01',
       machine_name: 'Excavator',
       hours: '3',
-      basis: 'DAILY',
-      job_running: true,
+      machine_report_id: 'mr1',
+      machine_report_number: 'MR-2026-00042',
     },
   ],
   lines: [
@@ -139,7 +136,7 @@ const STATEMENT: HoursStatementDto = {
       entry_id: 'e1',
       occurred_at: '2026-10-25T20:00:00Z',
       day: '2026-10-25',
-      entry_type: 'PROVISIONAL',
+      entry_type: 'CONSUMED',
       hours: '-3',
       balance_after: '17.5',
       purchase_id: 'p1',
@@ -147,8 +144,8 @@ const STATEMENT: HoursStatementDto = {
       machine_id: 'm1',
       machine_code: 'EX-01',
       machine_name: 'Excavator',
-      job_id: 'j1',
-      job_number: 'JOB-0042',
+      machine_report_id: 'mr1',
+      machine_report_number: 'MR-2026-00042',
       reason: null,
     },
   ],
@@ -205,17 +202,19 @@ describe('HoursStatementPanel', () => {
     const totals = await screen.findByRole('table', { name: 'Hours statement totals' });
     expect(within(totals).getByText('Closing balance')).toBeInTheDocument();
     expect(within(totals).getByText('17.5 h')).toBeInTheDocument();
-    expect(screen.getByText(/3 h are provisional/)).toBeInTheDocument();
     expect(mocks.statement).toHaveBeenCalledWith(
       'c1',
       expect.objectContaining({ machine_id: undefined, date_to: expect.any(String) as unknown }),
       expect.any(AbortSignal),
     );
     const usage = screen.getByRole('table', { name: 'Statement usage' });
-    expect(within(usage).queryByRole('link', { name: 'JOB-0042' })).not.toBeInTheDocument();
-    expect(within(usage).getByText('Drawn that day')).toBeInTheDocument();
+    expect(within(usage).getByRole('link', { name: 'MR-2026-00042' })).toHaveAttribute(
+      'href',
+      '/tenant/machine-reports/mr1',
+    );
     const lines = screen.getByRole('table', { name: 'Statement movements' });
-    expect(within(lines).getByText('Used that day (provisional)')).toBeInTheDocument();
+    expect(within(lines).getByText('Used')).toBeInTheDocument();
+    expect(within(lines).getByRole('link', { name: 'MR-2026-00042' })).toBeInTheDocument();
     expect(
       within(screen.getByRole('table', { name: 'Statement purchases' })).getByRole('link', {
         name: 'HP-2026-00007',
@@ -338,13 +337,12 @@ const PURCHASE = {
       machine_code: 'EX-01',
       machine_name: 'Excavator',
       activated: '20',
-      consumed: '0',
+      consumed: '3',
       expired: '0',
       remaining: '17',
       reversed: '0',
       transferred_in: '0',
       transferred_out: '0',
-      provisional: '3',
       refunded: '0',
       corrected: '0',
     },
@@ -355,12 +353,11 @@ const PURCHASE = {
     activated_from_payments: '20',
     activated_on_credit: '0',
     awaiting_activation: '0',
-    consumed: '0',
+    consumed: '3',
     expired: '0',
     remaining: '17',
     reversed: '0',
     transferred: '0',
-    provisional: '3',
     refunded: '0',
     corrected: '0',
     amount_claimed_unverified: '0',
@@ -369,8 +366,8 @@ const PURCHASE = {
   },
 } as HoursPurchaseDto;
 
-describe('HoursPurchaseDetailPage (daily drawdown)', () => {
-  it('shows provisional hours and links its low-balance warnings', async () => {
+describe('HoursPurchaseDetailPage', () => {
+  it('shows the hours used per machine and links its low-balance warnings', async () => {
     mocks.getPurchase.mockResolvedValue(PURCHASE);
     const empty = { items: [], total: 0, page: 1, page_size: 100 };
     mocks.listTransfers.mockResolvedValue(empty);
@@ -382,9 +379,8 @@ describe('HoursPurchaseDetailPage (daily drawdown)', () => {
       { tenantPermissions: ['tenant.hours.read'], route: '/tenant/hours/purchases/p1' },
     );
     const perMachine = await screen.findByRole('table', { name: 'Hours per machine' });
-    expect(within(perMachine).getByText('Provisional')).toBeInTheDocument();
+    expect(within(perMachine).getByText('Used')).toBeInTheDocument();
     expect(within(perMachine).getByText('3 h')).toBeInTheDocument();
-    expect(screen.getAllByText('Provisional').length).toBe(2);
     expect(screen.getByRole('link', { name: 'Low-balance warnings' })).toHaveAttribute(
       'href',
       '/tenant/hours/low-balance-alerts?purchase_id=p1',

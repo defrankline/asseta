@@ -14,17 +14,7 @@ import type {
   UnbillableLineDto,
   WorkAllocationDto,
 } from '../allocationTypes';
-import {
-  bool,
-  id,
-  idList,
-  int,
-  nullableId,
-  nullableText,
-  oneOf,
-  retiredNullable,
-  text,
-} from './schemaKit';
+import { bool, id, idList, int, nullableId, nullableText, oneOf, text } from './schemaKit';
 
 export const ALLOCATION_KINDS: readonly AllocationKind[] = [
   'CUSTOMER_WORK',
@@ -74,16 +64,12 @@ export const workAllocationSchema: Schema<WorkAllocationDto> = object({
   kind: oneOf(ALLOCATION_KINDS),
   customer_id: nullableId(),
   customer_name: optionalText(),
-  job_id: retiredNullable(),
-  job_number: optionalText(),
-  activity_type: nullableText(),
   reason_id: nullableId(),
   reason_name: optionalText(),
   lots: array(lotSchema).required(),
   evidence_attachment_ids: idList(),
   source: oneOf(ALLOCATION_SOURCES),
   reading_review: text(),
-  changeover_id: retiredNullable(),
   classification_id: nullableId(),
   status: oneOf(ALLOCATION_STATUSES),
   supersedes_id: nullableId(),
@@ -133,9 +119,6 @@ const reportAllocationSchema: Schema<ReportAllocationDto> = object({
   kind: oneOf(ALLOCATION_KINDS),
   customer_id: nullableId(),
   customer_name: optionalText(),
-  job_id: retiredNullable(),
-  job_number: optionalText(),
-  activity_type: nullableText(),
   start_reading: text(),
   end_reading: text(),
   hours: text(),

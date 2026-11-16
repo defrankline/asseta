@@ -65,7 +65,6 @@ export function makePayment(overrides: Partial<CustomerPaymentDto> = {}): Custom
     verified_by: null,
     verified_at: null,
     decision_note: null,
-    allocations: [],
     verifies_on_handover: false,
     ...overrides,
   };
@@ -133,7 +132,6 @@ export function makeExpense(overrides: Partial<ExpenseDto> = {}): ExpenseDto {
     currency: 'TZS',
     incurred_at: '2026-10-21T07:00:00Z',
     machine_id: null,
-    job_id: null,
     paid_from: 'CASH_CUSTODY',
     custodian_staff_id: STAFF_ID,
     status: 'PENDING_APPROVAL',

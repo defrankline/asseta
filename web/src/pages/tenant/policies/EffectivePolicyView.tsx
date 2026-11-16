@@ -3,7 +3,6 @@ import type { EffectivePolicyDto } from '../../../api/types';
 import type { DataColumn } from '../../../components/data/ServerDataTable';
 import { StaticTable } from '../../../components/data/StaticTable';
 import { formatPolicyValue, POLICY_FIELDS, type PolicyFieldDef } from './policyFields';
-import { RETIRED_POLICY_KEYS } from './retiredPolicyKeys';
 
 interface Row {
   key: string;
@@ -30,7 +29,7 @@ export function EffectivePolicyView({ policy }: { policy: EffectivePolicyDto }) 
     value: policy.values[def.key],
   }));
   const extra: Row[] = Object.keys(policy.values)
-    .filter((k) => !RETIRED_POLICY_KEYS.has(k) && !fields.some((d) => d.key === k))
+    .filter((k) => !fields.some((d) => d.key === k))
     .map((key) => ({ key, def: undefined, value: policy.values[key] }));
   return (
     <Stack spacing={1}>

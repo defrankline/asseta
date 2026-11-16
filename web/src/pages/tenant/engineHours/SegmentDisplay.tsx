@@ -1,7 +1,6 @@
 import { Box, Chip } from '@mui/material';
 import type { IntervalDto, SegmentDto } from '../../../api/types';
 import { StatusChip } from '../../../components/display/StatusChip';
-import { activityTypeLabel } from '../revenue/revenueDisplay';
 import {
   CLASSIFICATION_LABELS,
   CLASSIFICATION_TONES,
@@ -9,16 +8,16 @@ import {
   OUTCOME_LABELS,
 } from './engineHoursDisplay';
 
-/** One segment of an engine-hour interval: customer work, non-revenue time, or unallocated. */
+/** One segment of an engine-hour interval: inside a machine report, or not yet accounted for. */
 export function SegmentChip({ segment }: { segment: SegmentDto }) {
-  if (segment.kind === 'NON_REVENUE') {
-    const type =
-      segment.activity_type == null ? 'Non-revenue' : activityTypeLabel(segment.activity_type);
-    return <Chip size="small" color="secondary" label={`${type} · ${hoursText(segment.hours)}`} />;
-  }
-  if (segment.kind === 'CUSTOMER_WORK') {
+  if (segment.kind === 'REPORTED') {
+    const report = segment.report_number == null ? '' : ` (${segment.report_number})`;
     return (
-      <Chip size="small" color="success" label={`Customer work · ${hoursText(segment.hours)}`} />
+      <Chip
+        size="small"
+        color="success"
+        label={`Machine report${report} · ${hoursText(segment.hours)}`}
+      />
     );
   }
   const pending =
@@ -33,12 +32,11 @@ export function SegmentChip({ segment }: { segment: SegmentDto }) {
 }
 
 const SEGMENT_KIND_TEXT: Readonly<Record<SegmentDto['kind'], string>> = {
-  CUSTOMER_WORK: 'customer work',
+  REPORTED: 'in a machine report',
   UNALLOCATED: 'unallocated',
-  NON_REVENUE: 'non-revenue',
 };
 
-/** Proportional bar of an interval's segments (customer work vs unallocated), labelled for screen readers. */
+/** Proportional bar of an interval's segments (reported vs unallocated), labelled for screen readers. */
 export function SegmentBar({ interval }: { interval: IntervalDto }) {
   const total = interval.segments.reduce((sum, s) => sum + Math.max(Number(s.hours), 0), 0);
   if (total <= 0) return null;
@@ -63,13 +61,11 @@ export function SegmentBar({ interval }: { interval: IntervalDto }) {
           sx={{
             flexGrow: Math.max(Number(s.hours), 0),
             bgcolor:
-              s.kind === 'CUSTOMER_WORK'
+              s.kind === 'REPORTED'
                 ? 'success.main'
-                : s.kind === 'NON_REVENUE'
-                  ? 'secondary.main'
-                  : s.classification === 'UNEXPLAINED'
-                    ? 'warning.main'
-                    : 'info.main',
+                : s.classification === 'UNEXPLAINED'
+                  ? 'warning.main'
+                  : 'info.main',
           }}
         />
       ))}

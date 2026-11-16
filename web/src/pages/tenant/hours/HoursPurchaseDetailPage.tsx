@@ -29,12 +29,7 @@ import { machineText, nameOr } from '../shared/names';
 import { recordedOnPhone } from '../shared/recordedOnPhone';
 import { CreditInvoiceSummaryGrid } from './creditInvoices/CreditInvoiceParts';
 import { HoursOffNotice, ReasonDialog } from './HoursDialogs';
-import {
-  hoursText,
-  PROVISIONAL_LABEL,
-  PURCHASE_STATUS_LABELS,
-  PURCHASE_STATUS_TONES,
-} from './hoursDisplay';
+import { hoursText, PURCHASE_STATUS_LABELS, PURCHASE_STATUS_TONES } from './hoursDisplay';
 import { requestsOfRecordPath } from '../finance/adjustments/adjustmentDisplay';
 import { usePurchaseAdjustments } from '../finance/adjustments/usePurchaseAdjustments';
 import { PaymentEvidenceDialog } from './PaymentEvidenceDialog';
@@ -286,7 +281,6 @@ export function HoursPurchaseDetailPage() {
                   { label: 'On credit', value: hoursText(d.totals.activated_on_credit) },
                   { label: 'Awaiting activation', value: hoursText(d.totals.awaiting_activation) },
                   { label: 'Used', value: hoursText(d.totals.consumed) },
-                  { label: PROVISIONAL_LABEL, value: hoursText(d.totals.provisional) },
                   { label: 'Transferred', value: hoursText(d.totals.transferred) },
                   { label: 'Expired', value: hoursText(d.totals.expired) },
                   { label: 'Reversed', value: hoursText(d.totals.reversed) },
@@ -328,12 +322,6 @@ export function HoursPurchaseDetailPage() {
                     header: 'Used',
                     align: 'right',
                     render: (m) => hoursText(m.consumed),
-                  },
-                  {
-                    id: 'prov',
-                    header: PROVISIONAL_LABEL,
-                    align: 'right',
-                    render: (m) => hoursText(m.provisional),
                   },
                   {
                     id: 'rem',

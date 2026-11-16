@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { renderWithProviders } from '../../../test/renderWithProviders';
-import { EffectivePolicyView } from './EffectivePolicyView';
+import { PolicyVersionsTable } from './PolicyVersionsTable';
 import { findField, formatPolicyValue, inputError } from './policyFields';
 
 describe('ADR-008 policy fields', () => {
@@ -34,17 +34,42 @@ describe('ADR-008 policy fields', () => {
     }
   });
 
-  it('hides retired keys an older stored version still carries', () => {
+  it('no longer offers the retired reading, risk, engine-hour and reversal settings', () => {
+    expect(findField('METER_CAPTURE', 'opening_mode')).toBeUndefined();
+    expect(findField('METER_CAPTURE', 'closing_mode')).toBeUndefined();
+    expect(findField('METER_CAPTURE', 'capture_mode')?.kind).toBe('enum');
+    expect(findField('FRAUD_CONTROLS', 'engine_activity_min_minutes')).toBeUndefined();
+    expect(findField('FRAUD_CONTROLS', 'engine_without_work_case_min_minutes')).toBeUndefined();
+    expect(findField('ENGINE_HOURS', 'baseline_required_before_start')).toBeUndefined();
+    expect(findField('ENGINE_HOURS', 'prevent_overlapping_activity')).toBeUndefined();
+    expect(findField('CUSTOMER_HOURS', 'reversal_used_hours_treatment')).toBeUndefined();
+  });
+
+  it('shows an older stored version in today’s names, without its retired keys', () => {
+    const stored = (policy_type: 'CUSTOMER_HOURS' | 'METER_CAPTURE', values: object) => ({
+      id: policy_type,
+      policy_type,
+      scope: 'TENANT' as const,
+      scope_ref_id: null,
+      version: 3,
+      effective_from: '2026-10-01T00:00:00Z',
+      values: values as Record<string, unknown>,
+      reason: 'Older settings',
+      created_at: '2026-10-01T00:00:00Z',
+    });
     renderWithProviders(
-      <EffectivePolicyView
-        policy={{
-          policy_type: 'CUSTOMER_HOURS',
-          values: { enabled: true, walk_in_standard_contract: true, some_new_key: 1 },
-          version_stamp: 'v7',
-        }}
+      <PolicyVersionsTable
+        versions={[
+          stored('CUSTOMER_HOURS', { walk_in_standard_contract: true, some_new_key: 1 }),
+          stored('METER_CAPTURE', { opening_mode: 'AUTOMATIC', closing_mode: 'MANUAL' }),
+        ]}
+        timeZone="UTC"
+        refLabel={(id) => id}
       />,
     );
-    expect(screen.queryByText('walk_in_standard_contract')).not.toBeInTheDocument();
-    expect(screen.getAllByText('some_new_key')).not.toHaveLength(0);
+    expect(screen.queryByText(/walk_in_standard_contract/)).not.toBeInTheDocument();
+    expect(screen.getByText(/some_new_key/)).toBeInTheDocument();
+    expect(screen.queryByText(/opening_mode|Opening/)).not.toBeInTheDocument();
+    expect(screen.getByText('Reading mode: Manual (numeric entry)')).toBeInTheDocument();
   });
 });

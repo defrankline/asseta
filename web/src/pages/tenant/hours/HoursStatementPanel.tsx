@@ -41,12 +41,11 @@ import { machineText, nameOr } from '../shared/names';
 import {
   hoursText,
   LEDGER_TYPE_LABELS,
-  PROVISIONAL_LABEL,
   PURCHASE_STATUS_LABELS,
   PURCHASE_STATUS_TONES,
   STATEMENT_ERROR_HINTS,
-  USAGE_BASIS_LABELS,
 } from './hoursDisplay';
+import { MachineReportRef } from './MachineReportRef';
 
 /** The API accepts at most 366 tenant-local days. */
 const MAX_DAYS = 366;
@@ -98,12 +97,6 @@ function Totals({ s }: { s: HoursStatementDto }) {
           ))}
         </TableBody>
       </Table>
-      {!isZeroDecimal(t.provisional_at_close) && (
-        <Typography variant="body2" color="text.secondary">
-          Of the hours used, {hoursText(t.provisional_at_close)} are{' '}
-          {PROVISIONAL_LABEL.toLowerCase()} at the end of the period.
-        </Typography>
-      )}
       {!isZeroDecimal(t.awaiting_activation) && (
         <Typography variant="body2" color="text.secondary">
           {hoursText(t.awaiting_activation)} bought but not yet activated (awaiting payment or
@@ -165,9 +158,9 @@ function StatementBody({ s, timeZone }: { s: HoursStatementDto; timeZone: string
     { id: 'machine', header: 'Machine', render: machineOf },
     { id: 'hours', header: 'Hours', align: 'right', render: (u) => hoursText(u.hours) },
     {
-      id: 'basis',
-      header: 'Basis',
-      render: (u) => USAGE_BASIS_LABELS[u.basis],
+      id: 'report',
+      header: 'Machine report',
+      render: (u) => <MachineReportRef id={u.machine_report_id} number={u.machine_report_number} />,
     },
   ];
   const lineColumns: DataColumn<HoursStatementLineDto>[] = [
@@ -183,6 +176,11 @@ function StatementBody({ s, timeZone }: { s: HoursStatementDto; timeZone: string
       ),
     },
     { id: 'machine', header: 'Machine', render: machineOf },
+    {
+      id: 'report',
+      header: 'Machine report',
+      render: (l) => <MachineReportRef id={l.machine_report_id} number={l.machine_report_number} />,
+    },
     { id: 'hours', header: 'Hours', align: 'right', render: (l) => hoursText(l.hours) },
     {
       id: 'balance',
@@ -224,7 +222,7 @@ function StatementBody({ s, timeZone }: { s: HoursStatementDto; timeZone: string
             ariaLabel="Statement usage"
             columns={usageColumns}
             rows={s.usage}
-            getRowId={(u) => `${u.day}:${u.machine_id}:${u.basis}`}
+            getRowId={(u) => `${u.day}:${u.machine_id}:${u.machine_report_id ?? ''}`}
           />
         )}
       </SubSection>

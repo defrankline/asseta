@@ -8,7 +8,6 @@ import { CUSTOMER_HOURS_FIELDS } from './customerHoursPolicyFields';
 import { ENGINE_HOURS_FIELDS } from './engineHoursPolicyFields';
 import { DATA_PROTECTION_FIELDS } from './dataProtectionPolicyFields';
 import { PETTY_CASH_FIELDS } from './pettyCashPolicyFields';
-import { REVENUE_RECONCILIATION_FIELDS } from './revenuePolicyFields';
 import { FRAUD_CONTROLS_FIELDS } from './riskPolicyFields';
 
 /** `decimal` values stay strings end to end (never parsed to float). */
@@ -100,18 +99,11 @@ const CAPTURE_MODES: readonly FieldOption[] = [
 
 export const METER_CAPTURE_FIELDS: readonly PolicyFieldDef[] = [
   {
-    key: 'opening_mode',
-    label: 'Opening reading mode',
+    key: 'capture_mode',
+    label: 'Reading mode',
     kind: 'enum',
     options: CAPTURE_MODES,
-    help: 'Set independently of the closing mode.',
-  },
-  {
-    key: 'closing_mode',
-    label: 'Closing reading mode',
-    kind: 'enum',
-    options: CAPTURE_MODES,
-    help: 'Set independently of the opening mode.',
+    help: 'How the meter reading of a machine report (and any other reading) is taken.',
   },
   { key: 'manual_photo_required', label: 'Photo required for manual readings', kind: 'bool' },
   {
@@ -164,31 +156,6 @@ export const METER_CAPTURE_FIELDS: readonly PolicyFieldDef[] = [
   },
 ];
 
-export const HIRE_BILLING_FIELDS: readonly PolicyFieldDef[] = [
-  {
-    key: 'invoice_void_requires_approval',
-    label: 'Voiding an issued invoice needs a second person',
-    kind: 'bool',
-  },
-  {
-    key: 'billable_hours_increment',
-    label: 'Billable hours increment',
-    kind: 'decimal',
-    unit: 'h',
-    help: 'Billable hours are rounded to multiples of this (e.g. 0.1).',
-  },
-  {
-    key: 'rounding',
-    label: 'Rounding',
-    kind: 'enum',
-    options: [
-      { value: 'UP', label: 'Up' },
-      { value: 'HALF_UP', label: 'Half up' },
-      { value: 'DOWN', label: 'Down' },
-    ],
-  },
-];
-
 export const DEVICE_SYNC_FIELDS: readonly PolicyFieldDef[] = [
   {
     key: 'offline_grant_hours',
@@ -234,7 +201,6 @@ export const EXPENSE_CAPTURE_FIELDS: readonly PolicyFieldDef[] = [
 export const POLICY_FIELDS: Readonly<Record<PolicyType, readonly PolicyFieldDef[]>> = {
   TRACKING: TRACKING_FIELDS,
   METER_CAPTURE: METER_CAPTURE_FIELDS,
-  HIRE_BILLING: HIRE_BILLING_FIELDS,
   DEVICE_SYNC: DEVICE_SYNC_FIELDS,
   EXPENSE_CAPTURE: EXPENSE_CAPTURE_FIELDS,
   FRAUD_CONTROLS: FRAUD_CONTROLS_FIELDS,
@@ -242,7 +208,6 @@ export const POLICY_FIELDS: Readonly<Record<PolicyType, readonly PolicyFieldDef[
   OVERSIGHT: OVERSIGHT_FIELDS,
   CUSTOMER_HOURS: CUSTOMER_HOURS_FIELDS,
   ENGINE_HOURS: ENGINE_HOURS_FIELDS,
-  REVENUE_RECONCILIATION: REVENUE_RECONCILIATION_FIELDS,
   DATA_PROTECTION: DATA_PROTECTION_FIELDS,
   PETTY_CASH: PETTY_CASH_FIELDS,
 };
@@ -250,7 +215,6 @@ export const POLICY_FIELDS: Readonly<Record<PolicyType, readonly PolicyFieldDef[
 export const POLICY_TYPE_LABELS: Readonly<Record<PolicyType, string>> = {
   TRACKING: 'Tracking',
   METER_CAPTURE: 'Meter capture',
-  HIRE_BILLING: 'Hire billing',
   DEVICE_SYNC: 'Device sync',
   EXPENSE_CAPTURE: 'Expense capture',
   FRAUD_CONTROLS: 'Risk signals',
@@ -258,7 +222,6 @@ export const POLICY_TYPE_LABELS: Readonly<Record<PolicyType, string>> = {
   OVERSIGHT: 'Oversight',
   CUSTOMER_HOURS: 'Customer hours',
   ENGINE_HOURS: 'Engine hours',
-  REVENUE_RECONCILIATION: 'Revenue checks',
   DATA_PROTECTION: 'Data protection',
   PETTY_CASH: 'Petty cash',
 };
@@ -296,8 +259,7 @@ const SCOPE_FIELDS: Readonly<Record<PolicyType, LowerScopeFields | null>> = {
   },
   METER_CAPTURE: {
     MACHINE: new Set([
-      'opening_mode',
-      'closing_mode',
+      'capture_mode',
       'manual_photo_required',
       'min_ocr_confidence',
       'max_hours_per_elapsed_hour',
@@ -305,8 +267,6 @@ const SCOPE_FIELDS: Readonly<Record<PolicyType, LowerScopeFields | null>> = {
     ]),
     SITE: new Set(['gps_max_accuracy_m', 'tracker_distance_tolerance_m']),
   },
-  // Hire billing is tenant-wide only.
-  HIRE_BILLING: null,
   DEVICE_SYNC: null,
   EXPENSE_CAPTURE: null,
   // Only the cash holding allowance varies by site or person (DEC-031 D3).
@@ -317,15 +277,12 @@ const SCOPE_FIELDS: Readonly<Record<PolicyType, LowerScopeFields | null>> = {
   },
   OVERSIGHT: null,
   CUSTOMER_HOURS: null,
-  REVENUE_RECONCILIATION: null,
   DATA_PROTECTION: null,
   PETTY_CASH: null,
   FRAUD_CONTROLS: {
     MACHINE: new Set([
-      'engine_activity_min_minutes',
       'fuel_max_litres_per_meter_hour',
       'expense_threshold_per_machine_per_week',
-      'engine_without_work_case_min_minutes',
       'fuel_litres_per_hour_max',
     ]),
     SITE: new Set<string>(),
@@ -333,7 +290,7 @@ const SCOPE_FIELDS: Readonly<Record<PolicyType, LowerScopeFields | null>> = {
     MACHINE_CATEGORY: new Set(['fuel_litres_per_hour_max']),
   },
   ENGINE_HOURS: {
-    MACHINE: new Set(['baseline_required_before_start', 'daily_report_required']),
+    MACHINE: new Set(['daily_report_required']),
     SITE: new Set<string>(),
   },
 };

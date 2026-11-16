@@ -29,7 +29,6 @@ import type {
   TransferIn,
   WalkInCustomerDto,
   WalkInCustomerIn,
-  WorkExecutionAllocationDto,
 } from '../hoursTypes';
 import type { AttachmentDto, CustomerDto, LifecycleChangeIn, Page, PhotoUrlDto } from '../types';
 import {
@@ -45,7 +44,6 @@ import {
   reasonCodeSchema,
   transferSchema,
   walkInCustomerSchema,
-  workExecutionAllocationSchema,
 } from './hoursSchemas';
 import { customerSchema } from './customerSchemas';
 import { attachmentSchema, photoUrlSchema } from './meterSchemas';
@@ -63,7 +61,6 @@ import {
 const T = '/tenant';
 const purchasePage = tenantPageSchema(hoursPurchaseSchema);
 const ledgerPage = tenantPageSchema(ledgerEntrySchema);
-const allocationPage = tenantPageSchema(workExecutionAllocationSchema);
 const transferPage = tenantPageSchema(transferSchema);
 const cancellationPage = tenantPageSchema(cancellationSchema);
 const reasonPage = tenantPageSchema(reasonCodeSchema);
@@ -210,19 +207,6 @@ export const hoursService = {
       'credit exposure',
       signal,
       { currency },
-    );
-  },
-  /** GET /tenant/work-execution-allocations (listWorkExecutionAllocations). */
-  listAllocations(
-    query: TenantListQuery,
-    signal?: AbortSignal,
-  ): Promise<Page<WorkExecutionAllocationDto>> {
-    return tenantPage(
-      `${T}/work-execution-allocations`,
-      allocationPage,
-      query,
-      'work allocations',
-      signal,
     );
   },
   /** POST /tenant/payment-evidence (uploadPaymentEvidence), multipart `file`. */

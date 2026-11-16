@@ -34,6 +34,7 @@ describe('FieldCollectionDialog', () => {
   it('records into the caller’s own custody', async () => {
     const user = userEvent.setup();
     mocks.listCustomers.mockResolvedValue(page([CUSTOMER]));
+    mocks.getCustomer.mockResolvedValue(CUSTOMER);
     mocks.recordCollection.mockResolvedValue(makePayment());
     const onRecorded = vi.fn();
     renderWithProviders(

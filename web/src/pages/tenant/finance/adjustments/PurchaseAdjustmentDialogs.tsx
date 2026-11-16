@@ -35,10 +35,9 @@ const DIRECTIONS = [
 ];
 
 const entryLabel = (e: LedgerEntryDto): string =>
-  [
-    e.usage_day == null ? formatDate(e.occurred_at) : formatDate(e.usage_day),
-    hoursText(e.hours),
-  ].join(' · ');
+  [formatDate(e.occurred_at), e.machine_report_number, hoursText(e.hours)]
+    .filter((part) => part != null)
+    .join(' · ');
 
 type CorrectionValues = {
   direction: Direction;

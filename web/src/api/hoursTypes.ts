@@ -28,8 +28,6 @@ export type HoursBalanceDto = Schemas['HoursBalanceDto'];
 export type LedgerEntryDto = Schemas['LedgerEntryDto'];
 export type LedgerEntryType = Schemas['LedgerEntryType'];
 export type ActivationSource = Schemas['ActivationSource'];
-export type WorkExecutionAllocationDto = Schemas['WorkExecutionAllocationDto'];
-export type AllocationLineDto = Schemas['AllocationLineDto'];
 export type TransferDto = Schemas['TransferDto'];
 export type TransferIn = Schemas['TransferIn'];
 export type CancellationDto = Schemas['CancellationDto'];
@@ -55,7 +53,6 @@ export type CustomerRegistrationIn = Schemas['CustomerRegistrationIn'];
 export type CustomerKind = Schemas['CustomerKind'];
 export type PaymentEvidenceDto = Schemas['PaymentEvidenceDto'];
 export type EvidenceLinkIn = Schemas['EvidenceLinkIn'];
-export type BillingMode = Schemas['BillingMode'];
 
 // DEC-031 P2 / P3: low-balance warnings and the customer hours statement.
 export type LowBalanceAlertDto = Schemas['LowBalanceAlertDto'];

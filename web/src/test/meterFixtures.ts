@@ -27,9 +27,8 @@ export const MACHINE: MachineDto = {
 export function makeCapture(overrides: Partial<MeterCaptureDto> = {}): MeterCaptureDto {
   return {
     id: 'ffffffff-0000-4000-8000-000000000001',
-    job_id: null,
     machine_id: MACHINE_ID,
-    kind: 'OPENING',
+    kind: 'DAILY',
     capture_mode: 'AUTOMATIC',
     reading: '1200.4',
     ocr_value: '1200.4',
@@ -64,7 +63,6 @@ export function makeCapture(overrides: Partial<MeterCaptureDto> = {}): MeterCapt
 export function makeException(overrides: Partial<ExceptionDto> = {}): ExceptionDto {
   return {
     id: '99999999-0000-4000-8000-000000000001',
-    job_id: null,
     machine_id: MACHINE_ID,
     meter_capture_id: 'ffffffff-0000-4000-8000-000000000001',
     exception_type: 'LOCATION_MISMATCH',

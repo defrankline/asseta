@@ -27,8 +27,8 @@ beforeEach(() => {
       version_stamp: `${ptype}:P1`,
       values:
         ptype === 'METER_CAPTURE'
-          ? { opening_mode: 'AUTOMATIC', closing_mode: 'MANUAL' }
-          : { billable_hours_increment: '0.1', rounding: 'HALF_UP' },
+          ? { capture_mode: 'MANUAL' }
+          : { offline_grant_hours: 72, snapshot_validity_hours: 24 },
     }),
   );
   mocks.versions.mockResolvedValue([]);
@@ -36,7 +36,7 @@ beforeEach(() => {
 });
 
 describe('PoliciesPage policy types', () => {
-  it('switches between policy types and limits HIRE_BILLING to the tenant scope', async () => {
+  it('switches between policy types and limits DEVICE_SYNC to the tenant scope', async () => {
     const user = userEvent.setup();
     renderWithProviders(<PoliciesPage />, {
       tenantPermissions: ['tenant.policy.read', 'tenant.geofence.read'],
@@ -51,7 +51,7 @@ describe('PoliciesPage policy types', () => {
       );
     });
     const table = await screen.findByRole('table', { name: 'Effective policy values' });
-    expect(within(table).getByText('Opening reading mode')).toBeInTheDocument();
+    expect(within(table).getByText('Reading mode')).toBeInTheDocument();
     expect(within(table).getByText('Manual (numeric entry)')).toBeInTheDocument();
     const scopes = screen.getByRole('group', { name: 'Policy scope' });
     expect(
@@ -61,9 +61,9 @@ describe('PoliciesPage policy types', () => {
     ).toEqual(['Tenant', 'Machine', 'Site']);
 
     await user.click(screen.getByRole('combobox', { name: 'Policy type' }));
-    await user.click(await screen.findByRole('option', { name: 'Hire billing' }));
+    await user.click(await screen.findByRole('option', { name: 'Device sync' }));
     await waitFor(() => {
-      expect(mocks.versions).toHaveBeenLastCalledWith('HIRE_BILLING', expect.anything());
+      expect(mocks.versions).toHaveBeenLastCalledWith('DEVICE_SYNC', expect.anything());
     });
     expect(
       within(screen.getByRole('group', { name: 'Policy scope' }))

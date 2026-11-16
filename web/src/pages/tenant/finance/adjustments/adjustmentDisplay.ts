@@ -186,8 +186,6 @@ export function adjustedRecordPath(type: string, id: string): string | null {
       return recordPath('METER_CORRECTION', id);
     case 'engine_hour_classification':
       return recordPath('ENGINE_HOURS_CLASSIFICATION', id);
-    case 'non_revenue_approval':
-      return recordPath('NON_REVENUE_APPROVAL', id);
     default:
       return null;
   }

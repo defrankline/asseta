@@ -1,7 +1,5 @@
 /** Plain-English labels, tones, filter options and error hints for customer hours screens. */
 import type {
-  BillingMode,
-  HoursStatementUsageDto,
   LowBalanceSmsStatus,
   HoursPurchaseDto,
   ReasonCodeDto,
@@ -53,8 +51,6 @@ export const LEDGER_TYPE_LABELS: Readonly<Record<LedgerEntryType, string>> = {
   TRANSFER_IN: 'Transferred in',
   EXPIRED: 'Expired',
   REVERSAL: 'Reversed',
-  PROVISIONAL: 'Used that day (provisional)',
-  PROVISIONAL_REVERSED: 'Provisional use given back',
   CORRECTION_ADD: 'Correction (added)',
   CORRECTION_DEDUCT: 'Correction (taken off)',
   REFUNDED: 'Refunded',
@@ -110,11 +106,6 @@ export const REASON_KIND_OPTIONS: readonly Option<ReasonKind>[] = REASON_KINDS.m
   value: k,
   label: REASON_KIND_LABELS[k],
 }));
-
-export const BILLING_MODE_LABELS: Readonly<Record<BillingMode, string>> = {
-  INVOICE: 'Invoice after the work',
-  PREPAID_HOURS: 'Prepaid customer hours',
-};
 
 export const CANCELLED_OPTIONS: readonly Option[] = [
   { value: 'false', label: 'Not cancelled' },
@@ -172,9 +163,6 @@ export const purchaseLabel = (p: HoursPurchaseDto): string =>
 export const paymentLabel = (p: CustomerPaymentDto): string =>
   `${formatMoney(p.amount, p.currency)} · ${p.reference ?? p.method} · ${SETTLEMENT_LABELS[p.status]}`;
 
-/** Hours held provisionally until their final allocation. */
-export const PROVISIONAL_LABEL = 'Provisional';
-
 /** Low-balance warnings (DEC-031 P2): `armed` = the balance is still at or below the threshold. */
 export const LOW_BALANCE_STATE_OPTIONS: readonly Option[] = [
   { value: 'true', label: 'Still low' },
@@ -187,11 +175,6 @@ export const LOW_BALANCE_SMS_LABELS: Readonly<Record<LowBalanceSmsStatus, string
   NO_PHONE: 'Not sent: the customer has no phone number',
 };
 
-/** Customer hours statement (DEC-031 P3). */
-export const USAGE_BASIS_LABELS: Readonly<Record<HoursStatementUsageDto['basis'], string>> = {
-  DAILY: 'Drawn that day',
-  FINAL: 'Final allocation',
-};
 export const STATEMENT_ERROR_HINTS: Readonly<Record<string, string>> = {
   INVALID_PERIOD: 'Choose a valid period: the start must not be after the end.',
   PERIOD_TOO_LONG: 'Choose a period of at most 366 days.',

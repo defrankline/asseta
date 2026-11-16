@@ -10,7 +10,6 @@ import type {
   CashHandoverDto,
   CashReconciliationDto,
   CashSupervisorSummaryDto,
-  ChargeKind,
   CustodyEntryType,
   CustomerBalanceDto,
   CustomerPaymentDto,
@@ -25,22 +24,9 @@ import type { RemittanceEvidenceStatus } from '../custodyTypes';
 import type { RemittanceMethod } from '../custodyTypes';
 import { bool, id, int, nullableId, nullableOneOf, nullableText, oneOf, text } from './schemaKit';
 
-export const CHARGE_KINDS: readonly ChargeKind[] = [
-  'HIRE',
-  'STANDBY',
-  'MOBILIZATION',
-  'DISCOUNT',
-  'TAX',
-  'HOURS_RECOVERY',
-];
 export const PAYMENT_METHODS: readonly HirePaymentMethod[] = ['CASH', 'BANK', 'MOBILE_MONEY'];
 export const SETTLEMENT_STATUSES: readonly SettlementStatus[] = ['CLAIMED', 'VERIFIED', 'REJECTED'];
-export const STATEMENT_KINDS: readonly StatementLineKind[] = [
-  'INVOICE',
-  'REVERSAL',
-  'PAYMENT',
-  'ADJUSTMENT',
-];
+export const STATEMENT_KINDS: readonly StatementLineKind[] = ['INVOICE', 'PAYMENT'];
 export const FLOAT_ACK_STATUSES: readonly CashCustodyEntryDto['ack_status'][] = [
   'NOT_REQUIRED',
   'PENDING',
@@ -56,16 +42,6 @@ export const REMITTANCE_METHODS: readonly RemittanceMethod[] = [
 ];
 /** By machine and by customer (ADR-008 dropped the per-job grouping). */
 export const GROUP_BYS: readonly ProfitabilityGroupBy[] = ['MACHINE', 'CUSTOMER'];
-
-/** Hire invoice allocations (retired by ADR-008): still parsed while the server sends them, never shown. */
-const allocationSchema = object({
-  id: id(),
-  invoice_id: id(),
-  amount: text(),
-  created_at: text(),
-  released_at: nullableText(),
-  release_reason: nullableText(),
-});
 
 export const customerPaymentSchema: Schema<CustomerPaymentDto> = object({
   id: id(),
@@ -87,7 +63,6 @@ export const customerPaymentSchema: Schema<CustomerPaymentDto> = object({
   decision_note: nullableText(),
   reversed_at: string().nullable().default(null),
   reversal_id: string().nullable().default(null),
-  allocations: array(allocationSchema).default([]),
   collection_number: nullableText().default(null),
   purchase_links: array(
     object({ purchase_id: id(), purchase_number: text(), amount: text() }),
@@ -102,9 +77,7 @@ export const customerBalanceSchema: Schema<CustomerBalanceDto> = object({
   customer_id: id(),
   currency: text(),
   invoiced: text(),
-  reversed: text(),
   verified_payments: text(),
-  payment_reversals_and_refunds: text().default('0'),
   balance: text(),
   unallocated_credit: text(),
   claimed_unverified: text(),
@@ -284,7 +257,6 @@ export const profitabilitySchema: Schema<ProfitabilityDto> = object({
       label: text(),
       currency: text(),
       revenue: text(),
-      reversed_revenue: text(),
       net_revenue: text(),
       expense_cost: text(),
       fuel_cost: text(),

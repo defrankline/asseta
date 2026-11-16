@@ -91,7 +91,6 @@ export const POLICY_SCOPES: readonly PolicyScope[] = [
 const POLICY_TYPE_SET: Readonly<Record<PolicyType, true>> = {
   TRACKING: true,
   METER_CAPTURE: true,
-  HIRE_BILLING: true,
   DEVICE_SYNC: true,
   EXPENSE_CAPTURE: true,
   FRAUD_CONTROLS: true,
@@ -100,7 +99,6 @@ const POLICY_TYPE_SET: Readonly<Record<PolicyType, true>> = {
   OVERSIGHT: true,
   CUSTOMER_HOURS: true,
   ENGINE_HOURS: true,
-  REVENUE_RECONCILIATION: true,
   DATA_PROTECTION: true,
 };
 export const POLICY_TYPES = Object.keys(POLICY_TYPE_SET) as readonly PolicyType[];

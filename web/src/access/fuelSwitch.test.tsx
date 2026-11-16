@@ -47,7 +47,6 @@ beforeEach(() => {
         label: 'EX-01',
         currency: 'TZS',
         revenue: '100',
-        reversed_revenue: '0',
         net_revenue: '100',
         expense_cost: '10',
         fuel_cost: '0',

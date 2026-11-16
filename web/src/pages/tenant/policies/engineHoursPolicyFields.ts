@@ -9,12 +9,6 @@ export const ENGINE_HOURS_FIELDS: readonly PolicyFieldDef[] = [
     help: 'Off: engine-hour pages, baselines, corrections, daily readings and flags are hidden; machine reports keep working.',
   },
   {
-    key: 'baseline_required_before_start',
-    label: 'Approved meter baseline before the first machine report',
-    kind: 'bool',
-    help: 'Off: a machine’s first report takes its reading as the start (reconciliation still begins at the baseline).',
-  },
-  {
     key: 'daily_report_required',
     label: 'Daily report required',
     kind: 'bool',
@@ -76,11 +70,6 @@ export const ENGINE_HOURS_FIELDS: readonly PolicyFieldDef[] = [
   {
     key: 'ledger_includes_unreviewed_readings',
     label: 'Count readings still under review',
-    kind: 'bool',
-  },
-  {
-    key: 'prevent_overlapping_activity',
-    label: 'Refuse overlapping work-log entries',
     kind: 'bool',
   },
 ];

@@ -69,8 +69,6 @@ vi.mock('../../../api/services/customerService', () => ({
 const POLICY = {
   enabled: true,
   walk_in_allowed: true,
-  billing_modes: ['PREPAID_HOURS', 'INVOICE'],
-  default_billing_mode: 'INVOICE',
   activation_basis: ['VERIFIED_PAYMENT', 'CREDIT'],
   credit_allowed: true,
   reason_code_required: false,
@@ -117,7 +115,6 @@ const PURCHASE: HoursPurchaseDto = {
     remaining: '0',
     reversed: '0',
     transferred: '0',
-    provisional: '0',
     refunded: '0',
     corrected: '0',
     amount_claimed_unverified: '0',
@@ -178,10 +175,8 @@ describe('parseHoursPolicy', () => {
   it('reads the effective values and treats missing switches as off', () => {
     const p = parseHoursPolicy(POLICY);
     expect(p.enabled).toBe(true);
-    expect(p.billingModes).toEqual(['PREPAID_HOURS', 'INVOICE']);
     expect(p.activationBasis).toContain('CREDIT');
     expect(parseHoursPolicy({}).enabled).toBe(false);
-    expect(parseHoursPolicy({ billing_modes: ['BOGUS'] }).billingModes).toEqual([]);
   });
 });
 
@@ -434,9 +429,6 @@ const ledgerEntry = (over: Partial<LedgerEntryDto>): LedgerEntryDto => ({
   activation_source: null,
   expires_at: null,
   payment_id: null,
-  job_id: 'bbbbbbbb-0000-4000-8000-000000000002',
-  job_number: 'P-1',
-  allocation_id: null,
   transfer_id: null,
   cancellation_id: null,
   reason: null,
@@ -449,7 +441,7 @@ const ledgerEntry = (over: Partial<LedgerEntryDto>): LedgerEntryDto => ({
 describe('HoursLedgerPage', () => {
   it('links each entry to its purchase by number, short id when unnamed', async () => {
     mocks.listLedger.mockResolvedValue(
-      page([ledgerEntry({}), ledgerEntry({ id: 'e2', purchase_number: null, job_number: null })]),
+      page([ledgerEntry({}), ledgerEntry({ id: 'e2', purchase_number: null })]),
     );
     renderWithProviders(<HoursLedgerPage />, { tenantPermissions: ['tenant.hours.read'] });
     const purchase = await screen.findByRole('link', { name: 'HP-2026-00001' });

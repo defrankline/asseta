@@ -3,13 +3,6 @@ import type { PolicyFieldDef } from './policyFields';
 
 export const FRAUD_CONTROLS_FIELDS: readonly PolicyFieldDef[] = [
   {
-    key: 'engine_activity_min_minutes',
-    label: 'Engine activity not accounted for',
-    kind: 'int',
-    unit: 'min',
-    help: 'Verified ignition / engine-hour activity at least this long that no machine report accounts for needs review.',
-  },
-  {
     key: 'fuel_max_litres_per_meter_hour',
     label: 'Fuel allowance',
     kind: 'nullableDecimal',
@@ -48,16 +41,6 @@ export const FRAUD_CONTROLS_FIELDS: readonly PolicyFieldDef[] = [
     kind: 'int',
     unit: 'h',
     help: 'How far back each periodic check re-examines records.',
-  },
-  {
-    key: 'engine_without_work_case_min_minutes',
-    label: 'Engine running without work (one case per machine and day)',
-    kind: 'nullableNumber',
-    unit: 'min',
-    help:
-      'Tracker engine-on time and meter hours no machine report accounts for, and after-hours movement of ' +
-      'one machine on one day are reviewed as one case; a day with at least this much adds a day summary. ' +
-      'Empty = off.',
   },
   {
     key: 'fuel_check_period',

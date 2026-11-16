@@ -9,7 +9,6 @@ import type {
 import type { StatusTone } from '../../../../components/display/StatusChip';
 import { humanize } from '../../../../utils/text';
 import type { Option } from '../../shared/display';
-import { activityTypeLabel } from '../../shared/meterDisplay';
 
 export const KIND_LABELS: Readonly<Record<AllocationKind, string>> = {
   CUSTOMER_WORK: 'Customer work',
@@ -80,20 +79,14 @@ export const fromHundredths = (units: number): string => (units / 100).toFixed(2
 
 export const isNonZero = (hours: string): boolean => Number(hours) !== 0;
 
-type WhatFor = Pick<
-  WorkAllocationDto | ReportAllocationDto,
-  'kind' | 'customer_name' | 'activity_type'
-> & { reason_name?: string | null };
+type WhatFor = Pick<WorkAllocationDto | ReportAllocationDto, 'kind' | 'customer_name'> & {
+  reason_name?: string | null;
+};
 
-/** What the hours were for: the customer, the activity, or nothing yet. */
+/** What the hours were for: the customer, the reason, or nothing yet. */
 export function allocationTarget(a: WhatFor): string {
   if (a.kind === 'CUSTOMER_WORK') return a.customer_name ?? 'Customer';
-  if (a.kind === 'AUTHORIZED_ACTIVITY') {
-    const activity = a.activity_type === null ? null : activityTypeLabel(a.activity_type);
-    return (
-      [activity, a.reason_name].filter((s): s is string => s != null).join(' · ') || 'Authorized'
-    );
-  }
+  if (a.kind === 'AUTHORIZED_ACTIVITY') return a.reason_name ?? 'Authorized';
   return 'Not explained';
 }
 

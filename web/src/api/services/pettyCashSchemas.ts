@@ -33,7 +33,6 @@ import {
   nullableOneOf,
   nullableText,
   oneOf,
-  retiredNullable,
   text,
 } from './schemaKit';
 
@@ -180,7 +179,6 @@ export const topUpExpenseSchema: Schema<TopUpExpenseDto> = object({
   decided_at: nullableText(),
   category_id: id(),
   machine_id: nullableId(),
-  job_id: retiredNullable(),
 });
 
 export const suggestionSchema: Schema<TopUpSuggestionDto> = object({

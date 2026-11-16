@@ -72,15 +72,6 @@ export const CUSTOMER_HOURS_FIELDS: readonly PolicyFieldDef[] = [
     kind: 'bool',
   },
   {
-    key: 'reversal_used_hours_treatment',
-    label: 'When a reversal takes back hours already used',
-    kind: 'enum',
-    options: [
-      { value: 'RECEIVABLE', label: 'Bill the customer' },
-      { value: 'CASE', label: 'Open an investigation case' },
-    ],
-  },
-  {
     key: 'adjustment_evidence_required',
     label: 'Corrections, refunds and reversals need evidence',
     kind: 'bool',

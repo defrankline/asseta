@@ -23,7 +23,6 @@ export function SubjectLabel({
       return <>{machineName(subjectId)}</>;
     case 'STAFF':
       return <>{staffName(subjectId)}</>;
-    case 'JOB':
     case 'EXPENSE':
       return <>{`${kind} ${shortId(subjectId)}`}</>;
     case 'USER':

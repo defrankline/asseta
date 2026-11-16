@@ -139,7 +139,6 @@ function summary(): AccountabilitySummaryDto {
         total: 0,
       },
       unresolved_variances: { total: 0, by_source: [] },
-      changeover_jobs_awaiting_approval: { count: 0, oldest_days: null, items: [] },
     },
   };
 }

@@ -99,14 +99,6 @@ const columns: DataColumn<ScorecardRowDto>[] = [
       </Box>
     ),
   },
-  {
-    id: 'revenue_diff',
-    header: 'Revenue differences',
-    align: 'right',
-    render: (r) => (
-      <AmountsCell count={r.revenue_differences} totals={r.revenue_difference_totals} />
-    ),
-  },
   { id: 'refused', header: 'Refused attempts', align: 'right', render: (r) => r.refused_attempts },
   {
     id: 'patterns',

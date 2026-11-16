@@ -176,6 +176,13 @@ export function WorkSection({ data, nowMs, timeZone }: SectionProps<OverviewWork
       latest={data.latest_source_at}
       {...{ nowMs, timeZone }}
     >
+      <KpiCard
+        title="Machine reports waiting"
+        value={data.machine_reports_by_status.SUBMITTED ?? 0}
+        valueText={String(data.machine_reports_by_status.SUBMITTED ?? 0)}
+        to={L.machineReportsPending()}
+        description="Machine reports waiting for an approver's decision"
+      />
       {data.pending_approvals !== null && (
         <KpiCard
           title="Pending approvals"

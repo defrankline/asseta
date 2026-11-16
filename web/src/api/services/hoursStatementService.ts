@@ -17,17 +17,7 @@ import { requestContext } from '../requestContext';
 import type { Page } from '../types';
 import { LEDGER_ENTRY_TYPES, PURCHASE_STATUSES } from './hoursSchemas';
 import { exportError, filenameFromDisposition } from './reportService';
-import {
-  bool,
-  id,
-  int,
-  nullableId,
-  nullableText,
-  oneOf,
-  retiredBool,
-  retiredNullable,
-  text,
-} from './schemaKit';
+import { bool, id, int, nullableId, nullableText, oneOf, text } from './schemaKit';
 import {
   seg,
   tenantGet,
@@ -84,7 +74,6 @@ const totalsSchema: Schema<HoursStatementTotalsDto> = object({
   refunded: text().default('0'),
   corrected: text().default('0'),
   closing_balance: text(),
-  provisional_at_close: text(),
   awaiting_activation: text(),
 });
 
@@ -107,12 +96,10 @@ const statementPurchaseSchema: Schema<HoursStatementPurchaseDto> = object({
 
 const usageSchema: Schema<HoursStatementUsageDto> = object({
   day: text(),
-  job_id: retiredNullable(),
-  job_number: optionalText(),
   ...machineRef(),
   hours: text(),
-  basis: oneOf(['DAILY', 'FINAL'] as const),
-  job_running: retiredBool(),
+  machine_report_id: nullableId(),
+  machine_report_number: optionalText(),
 });
 
 const lineSchema: Schema<HoursStatementLineDto> = object({
@@ -125,8 +112,8 @@ const lineSchema: Schema<HoursStatementLineDto> = object({
   purchase_id: id(),
   purchase_number: optionalText(),
   ...machineRef(),
-  job_id: retiredNullable(),
-  job_number: optionalText(),
+  machine_report_id: optionalText(),
+  machine_report_number: optionalText(),
   reason: nullableText(),
 });
 

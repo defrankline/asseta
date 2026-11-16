@@ -46,8 +46,7 @@ beforeEach(() => {
     policy_type: 'METER_CAPTURE',
     version_stamp: 'MC:P1+T2',
     values: {
-      opening_mode: 'AUTOMATIC',
-      closing_mode: 'MANUAL',
+      capture_mode: 'MANUAL',
       manual_photo_required: false,
       gps_enforcement: 'SOFT',
       gps_max_accuracy_m: 50,

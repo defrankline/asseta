@@ -20,8 +20,6 @@ const correction = (over: Partial<CorrectionDto> = {}): CorrectionDto => ({
   machine_id: MACHINE_ID,
   machine_code: 'EX-01',
   machine_name: 'Excavator',
-  job_id: 'dddddddd-0000-4000-8000-000000000001',
-  job_number: 'J-100',
   old_reading: '1000.0',
   new_reading: '1001.0',
   reason: 'Typed the wrong digit',

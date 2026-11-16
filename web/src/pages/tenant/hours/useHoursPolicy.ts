@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import { CAPABILITY, useCapabilityEnabled } from '../../../access/capabilities';
 import { PERMISSIONS } from '../../../access/permissionCodes';
-import type { BillingMode } from '../../../api/hoursTypes';
 import { policyService } from '../../../api/services/policyService';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useSession } from '../../../session/useSession';
@@ -10,8 +9,6 @@ import { useSession } from '../../../session/useSession';
 export interface HoursPolicy {
   enabled: boolean;
   walkInAllowed: boolean;
-  billingModes: readonly BillingMode[];
-  defaultBillingMode: BillingMode;
   /** VERIFIED_PAYMENT and/or CREDIT. */
   activationBasis: readonly string[];
   creditAllowed: boolean;
@@ -32,22 +29,15 @@ export interface HoursPolicy {
   machineReportReminderDays: number | null;
 }
 
-const MODES: readonly BillingMode[] = ['INVOICE', 'PREPAID_HOURS'];
-const isMode = (v: unknown): v is BillingMode => MODES.includes(v as BillingMode);
-
 const flag = (v: unknown, fallback: boolean): boolean => (typeof v === 'boolean' ? v : fallback);
 const list = (v: unknown): string[] =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
 
 /** Policy `values` (free-form JSON) → typed view; missing keys fall back to "off". */
 export function parseHoursPolicy(values: Record<string, unknown>): HoursPolicy {
-  const modes = list(values.billing_modes).filter(isMode);
-  const def = values.default_billing_mode;
   return {
     enabled: flag(values.enabled, false),
     walkInAllowed: flag(values.walk_in_allowed, false),
-    billingModes: modes,
-    defaultBillingMode: isMode(def) ? def : 'INVOICE',
     activationBasis: list(values.activation_basis),
     creditAllowed: flag(values.credit_allowed, false),
     discountRequiresApproval: flag(values.discount_requires_approval, true),

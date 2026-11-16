@@ -84,6 +84,7 @@ export const DASHBOARD_LINKS = {
   fleet: (connectivity?: string) => withQuery(ROUTES.tenantFleet, { connectivity }),
   openAlerts: (severity?: string) => withQuery(ROUTES.tenantAlerts, { status: 'OPEN', severity }),
   approvals: () => ROUTES.tenantApprovals,
+  machineReportsPending: () => withQuery(ROUTES.tenantMachineReports, { queue: 'PENDING' }),
   openExceptions: () => withQuery(ROUTES.tenantExceptions, { status: 'OPEN' }),
   receivables: () => creditInvoicesPath(),
   overdue: () => creditInvoicesPath({ overdue: 'true' }),

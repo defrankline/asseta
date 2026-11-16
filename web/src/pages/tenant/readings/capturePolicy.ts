@@ -1,4 +1,4 @@
-import type { CaptureMode, CaptureResultDto, ReadingKind } from '../../../api/types';
+import type { CaptureMode, CaptureResultDto } from '../../../api/types';
 import { humanize } from '../../../utils/text';
 
 /** The METER_CAPTURE values the console needs, read defensively from the free-form policy values. */
@@ -12,14 +12,11 @@ export interface CapturePolicyView {
 
 const mode = (v: unknown): CaptureMode | null => (v === 'AUTOMATIC' || v === 'MANUAL' ? v : null);
 
-export function readCapturePolicy(
-  values: Record<string, unknown>,
-  kind: ReadingKind,
-): CapturePolicyView {
+export function readCapturePolicy(values: Record<string, unknown>): CapturePolicyView {
   const bool = (v: unknown) => (typeof v === 'boolean' ? v : null);
   const num = (v: unknown) => (typeof v === 'number' ? v : null);
   return {
-    requiredMode: mode(kind === 'OPENING' ? values.opening_mode : values.closing_mode),
+    requiredMode: mode(values.capture_mode),
     manualPhotoRequired: bool(values.manual_photo_required),
     gpsEnforcement: typeof values.gps_enforcement === 'string' ? values.gps_enforcement : null,
     gpsMaxAccuracyM: num(values.gps_max_accuracy_m),

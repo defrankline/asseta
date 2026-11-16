@@ -70,7 +70,6 @@ const point = (ref: string, reading: string, at: string, source = 'DAILY'): Ledg
   reading,
   at,
   source,
-  job_id: null,
 });
 
 const START = point(
@@ -94,23 +93,20 @@ function makeInterval(overrides: Partial<IntervalDto> = {}): IntervalDto {
     review: 'VERIFIED',
     opened_at: '2026-10-21T18:00:00Z',
     age_days: 2,
-    overlapping_job_ids: [],
     segments: [
       {
-        kind: 'CUSTOMER_WORK',
+        kind: 'REPORTED',
         hours: '10.0',
         classification: 'NOT_APPLICABLE',
-        job_id: 'dddddddd-0000-4000-8000-000000000001',
-        job_number: 'J-100',
         approved: null,
         proposal: null,
+        report_id: 'mr1',
+        report_number: 'MR-2026-00001',
       },
       {
         kind: 'UNALLOCATED',
         hours: '2.5',
         classification: 'UNEXPLAINED',
-        job_id: null,
-        job_number: null,
         approved: null,
         proposal: null,
       },
@@ -121,8 +117,7 @@ function makeInterval(overrides: Partial<IntervalDto> = {}): IntervalDto {
 
 const TOTALS = {
   total_hours: '12.5',
-  customer_work_hours: '10.0',
-  non_revenue_hours: '0',
+  reported_hours: '10.0',
   unallocated_hours: '2.5',
   unexplained_hours: '2.5',
   proposed_hours: '0',
@@ -145,7 +140,6 @@ function makeLedger(overrides: Partial<MachineEngineHoursDto> = {}): MachineEngi
     baseline_proposal: null,
     intervals: [makeInterval()],
     totals: TOTALS,
-    overlaps: [],
     policy_version: 'EH:P1',
     ...overrides,
   };
@@ -300,7 +294,7 @@ describe('MachineEngineHoursPanel', () => {
       tenantPermissions: ['tenant.meter.read', 'tenant.meter.review'],
     });
     const table = await screen.findByRole('table', { name: 'Engine-hour intervals' });
-    expect(within(table).getByText('Customer work · 10.0 h')).toBeInTheDocument();
+    expect(within(table).getByText('Machine report (MR-2026-00001) · 10.0 h')).toBeInTheDocument();
     expect(within(table).getByText('Not yet explained · 2.5 h')).toBeInTheDocument();
     expect(screen.getByText('Hours to explain')).toBeInTheDocument();
     await user.click(within(table).getByRole('button', { name: 'Explain' }));

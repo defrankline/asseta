@@ -68,8 +68,6 @@ const HOURS_VARIANCE = {
   assignee_user_name: 'Asha Auditor',
   purchase_id: 'pppppppp-0000-4000-8000-000000000001',
   purchase_number: 'HP-2026-00007',
-  job_id: 'jjjjjjjj-0000-4000-8000-000000000001',
-  job_number: 'JOB-41',
   evidence_attachment_ids: [],
 } as CashVarianceDto;
 

@@ -24,12 +24,10 @@ const SITE: JobSiteDto = {
   version: 1,
 };
 const CURRENT = {
-  opening_mode: 'AUTOMATIC',
-  closing_mode: 'AUTOMATIC',
+  capture_mode: 'AUTOMATIC',
   manual_photo_required: true,
   max_hours_per_elapsed_hour: '1.05',
-  billable_hours_increment: '0.1',
-  rounding: 'HALF_UP',
+  offline_grant_hours: 72,
 };
 
 function open(policyType: PolicyType, scope: OverrideScope) {
@@ -71,19 +69,15 @@ const version: PolicyVersionDto = {
   created_at: '2026-10-21T00:00:00Z',
 };
 
-describe('PolicyOverrideDialog · METER_CAPTURE / HIRE_BILLING', () => {
-  it('sets opening and closing modes independently', async () => {
+describe('PolicyOverrideDialog · METER_CAPTURE / DEVICE_SYNC', () => {
+  it('sets the one reading mode', async () => {
     const user = userEvent.setup();
     mocks.create.mockResolvedValue(version);
     open('METER_CAPTURE', 'TENANT');
     await toValues(user);
-    expect(screen.getAllByRole('switch')).toHaveLength(14);
-    await user.click(await screen.findByLabelText('Override Opening reading mode'));
-    await user.click(screen.getByLabelText('Override Closing reading mode'));
-    await choose(user, 'Opening reading mode', 'Manual (numeric entry)');
-    expect(screen.getByRole('combobox', { name: 'Closing reading mode' })).toHaveTextContent(
-      'Automatic',
-    );
+    expect(screen.getAllByRole('switch')).toHaveLength(13);
+    await user.click(await screen.findByLabelText('Override Reading mode'));
+    await choose(user, 'Reading mode', 'Manual (numeric entry)');
     await user.click(screen.getByLabelText('Override Max meter hours per elapsed hour'));
     await user.click(screen.getByRole('button', { name: 'Next' }));
     await user.click(await screen.findByRole('button', { name: 'Create version' }));
@@ -93,8 +87,7 @@ describe('PolicyOverrideDialog · METER_CAPTURE / HIRE_BILLING', () => {
         expect.objectContaining({
           scope: 'TENANT',
           values: {
-            opening_mode: 'MANUAL',
-            closing_mode: 'AUTOMATIC',
+            capture_mode: 'MANUAL',
             max_hours_per_elapsed_hour: '1.05',
           },
         }),
@@ -103,15 +96,14 @@ describe('PolicyOverrideDialog · METER_CAPTURE / HIRE_BILLING', () => {
     });
   });
 
-  it('limits machine overrides to the six machine fields', async () => {
+  it('limits machine overrides to the five machine fields', async () => {
     const user = userEvent.setup();
     open('METER_CAPTURE', 'MACHINE');
     await toValues(user);
-    await screen.findByLabelText('Override Opening reading mode');
+    await screen.findByLabelText('Override Reading mode');
     const labels = screen.getAllByRole('switch').map((s) => s.getAttribute('aria-label'));
     expect(labels).toEqual([
-      'Override Opening reading mode',
-      'Override Closing reading mode',
+      'Override Reading mode',
       'Override Photo required for manual readings',
       'Override Minimum OCR confidence',
       'Override Max meter hours per elapsed hour',
@@ -128,10 +120,10 @@ describe('PolicyOverrideDialog · METER_CAPTURE / HIRE_BILLING', () => {
     expect(labels).toEqual(['Override GPS max accuracy', 'Override Tracker distance tolerance']);
   });
 
-  it('offers HIRE_BILLING at tenant scope only, with increment and rounding', async () => {
+  it('offers DEVICE_SYNC at tenant scope only', async () => {
     const user = userEvent.setup();
-    mocks.create.mockResolvedValue({ ...version, policy_type: 'HIRE_BILLING' });
-    open('HIRE_BILLING', 'MACHINE');
+    mocks.create.mockResolvedValue({ ...version, policy_type: 'DEVICE_SYNC' });
+    open('DEVICE_SYNC', 'MACHINE');
     await user.click(screen.getByRole('combobox', { name: 'Scope' }));
     const listbox = await screen.findByRole('listbox');
     expect(
@@ -141,18 +133,17 @@ describe('PolicyOverrideDialog · METER_CAPTURE / HIRE_BILLING', () => {
     ).toEqual(['Tenant default (all fields)']);
     await user.keyboard('{Escape}');
     await toValues(user);
-    expect(screen.getAllByRole('switch')).toHaveLength(3);
-    await user.click(screen.getByLabelText('Override Rounding'));
-    await choose(user, 'Rounding', 'Up');
+    expect(screen.getAllByRole('switch')).toHaveLength(4);
+    await user.click(screen.getByLabelText('Override Offline grant'));
     await user.click(screen.getByRole('button', { name: 'Next' }));
     await user.click(await screen.findByRole('button', { name: 'Create version' }));
     await waitFor(() => {
       expect(mocks.create).toHaveBeenCalledWith(
-        'HIRE_BILLING',
+        'DEVICE_SYNC',
         expect.objectContaining({
           scope: 'TENANT',
           scope_ref_id: null,
-          values: { rounding: 'UP' },
+          values: { offline_grant_hours: 72 },
         }),
         expect.any(String),
       );

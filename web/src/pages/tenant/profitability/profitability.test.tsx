@@ -15,7 +15,6 @@ const row = (o: Partial<ProfitabilityRowDto>): ProfitabilityRowDto => ({
   label: 'EX-01 · Excavator',
   currency: 'TZS',
   revenue: '1200000.0000',
-  reversed_revenue: '0.0000',
   net_revenue: '1200000.0000',
   expense_cost: '45000.0000',
   fuel_cost: '128000.0000',

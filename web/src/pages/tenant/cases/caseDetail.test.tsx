@@ -9,7 +9,6 @@ import type { peopleService } from '../../../api/services/peopleService';
 import type { CaseSignalDto, RuleCode } from '../../../api/types';
 import {
   CASE_ID,
-  JOB_ID,
   makeCase,
   makeCaseSignal,
   makeDetail,
@@ -112,7 +111,7 @@ describe('CaseDetailPage', () => {
         evidence: { action: 'approve', entity_type: 'expense' },
       }),
     ];
-    mocks.get.mockResolvedValue(makeDetail({ case: makeCase({ job_id: JOB_ID }), signals }));
+    mocks.get.mockResolvedValue(makeDetail({ case: makeCase(), signals }));
     renderDetail(READ);
     await loaded();
     const evidence = within(screen.getByRole('list', { name: 'Linked evidence' }));

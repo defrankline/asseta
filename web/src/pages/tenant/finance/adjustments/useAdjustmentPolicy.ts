@@ -9,15 +9,12 @@ export interface AdjustmentPolicy {
   known: boolean;
   evidenceRequired: boolean;
   reasonCodeRequired: boolean;
-  /** RECEIVABLE or CASE; null while unknown. */
-  usedHoursTreatment: string | null;
 }
 
 const UNKNOWN: AdjustmentPolicy = {
   known: false,
   evidenceRequired: false,
   reasonCodeRequired: false,
-  usedHoursTreatment: null,
 };
 
 /** The tenant's CUSTOMER_HOURS rules for corrections, refunds and reversals (read when a form opens). */
@@ -39,7 +36,5 @@ export function useAdjustmentPolicy(): AdjustmentPolicy {
     known: true,
     evidenceRequired: v.adjustment_evidence_required !== false,
     reasonCodeRequired: v.reason_code_required === true,
-    usedHoursTreatment:
-      typeof v.reversal_used_hours_treatment === 'string' ? v.reversal_used_hours_treatment : null,
   };
 }

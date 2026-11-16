@@ -10,6 +10,7 @@ import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useSession } from '../../../session/useSession';
 import { formatInstantIn } from '../../../utils/time';
 import { findField, formatPolicyValue } from './policyFields';
+import { RENAMED_POLICY_KEYS, RETIRED_POLICY_KEYS } from './retiredPolicyKeys';
 
 interface PolicyVersionsTableProps {
   versions: readonly PolicyVersionDto[];
@@ -18,9 +19,12 @@ interface PolicyVersionsTableProps {
   refLabel: (id: string) => string;
 }
 
+/** A stored version's values in today's names; settings retired since it was written are left out. */
 function summary(v: PolicyVersionDto): string {
   return Object.entries(v.values)
-    .map(([k, value]) => {
+    .filter(([k]) => !RETIRED_POLICY_KEYS.has(k))
+    .map(([stored, value]) => {
+      const k = RENAMED_POLICY_KEYS[stored] ?? stored;
       const def = findField(v.policy_type, k);
       return `${def?.label ?? k}: ${formatPolicyValue(def, value)}`;
     })

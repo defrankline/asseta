@@ -1,12 +1,11 @@
 /**
  * Runtime (Yup) response schemas for customer hours (accountability design A): purchases, ledger,
- * balances, work-execution allocations, transfers, cancellations, discounts, credit arrangements,
+ * balances, transfers, cancellations, discounts, credit arrangements,
  * reason lists, walk-in customers and payment evidence. Hours and money stay decimal strings.
  */
 import { array, mixed, object, string, type ObjectSchema, type Schema } from 'yup';
 import type {
   ActivationSource,
-  AllocationLineDto,
   CancellationDto,
   CreditArrangementDto,
   CreditInvoiceSummaryDto,
@@ -28,23 +27,11 @@ import type {
   RequestStatus,
   TransferDto,
   WalkInCustomerDto,
-  WorkExecutionAllocationDto,
 } from '../hoursTypes';
 import type { CustomerPaymentDto } from '../types';
 import { customerPaymentSchema } from './financeSchemas';
 import { CUSTOMER_KINDS } from './customerSchemas';
-import {
-  bool,
-  id,
-  int,
-  nullableId,
-  nullableOneOf,
-  nullableText,
-  oneOf,
-  retiredId,
-  retiredNullable,
-  text,
-} from './schemaKit';
+import { bool, id, int, nullableId, nullableOneOf, nullableText, oneOf, text } from './schemaKit';
 
 export const PURCHASE_STATUSES: readonly HoursPurchaseStatus[] = [
   'AWAITING_PAYMENT',
@@ -61,8 +48,6 @@ export const LEDGER_ENTRY_TYPES: readonly LedgerEntryType[] = [
   'TRANSFER_IN',
   'EXPIRED',
   'REVERSAL',
-  'PROVISIONAL',
-  'PROVISIONAL_REVERSED',
   'CORRECTION_ADD',
   'CORRECTION_DEDUCT',
   'REFUNDED',
@@ -113,7 +98,6 @@ export const machineHoursSchema: Schema<MachineHoursDto> = object({
   reversed: text(),
   transferred_in: text(),
   transferred_out: text(),
-  provisional: text().default('0'),
   refunded: text().default('0'),
   corrected: text().default('0'),
 });
@@ -129,7 +113,6 @@ export const purchaseTotalsSchema: ObjectSchema<PurchaseTotalsDto> = object({
   remaining: text(),
   reversed: text(),
   transferred: text(),
-  provisional: text().default('0'),
   refunded: text().default('0'),
   corrected: text().default('0'),
   amount_claimed_unverified: text(),
@@ -218,7 +201,6 @@ export const hoursBalanceSchema: Schema<HoursBalanceDto> = object({
   reversed: text(),
   transferred_in: text(),
   transferred_out: text(),
-  provisional: text().default('0'),
   refunded: text().default('0'),
   corrected: text().default('0'),
 });
@@ -236,39 +218,14 @@ export const ledgerEntrySchema: Schema<LedgerEntryDto> = object({
   created_at: text(),
   created_by: nullableId(),
   activation_source: nullableOneOf(ACTIVATION_SOURCES),
-  allocation_id: nullableId(),
   cancellation_id: nullableId(),
   transfer_id: nullableId(),
   payment_id: nullableId(),
-  job_id: retiredNullable(),
-  job_number: optionalText(),
+  machine_report_id: optionalText(),
+  machine_report_number: optionalText(),
   expires_at: nullableText(),
   policy_version: nullableText(),
   reason: nullableText(),
-  usage_day: string().nullable().default(null),
-});
-
-export const allocationLineSchema: Schema<AllocationLineDto> = object({
-  entry_id: id(),
-  purchase_id: id(),
-  purchase_number: text(),
-  hours: text(),
-  occurred_at: text(),
-});
-
-export const workExecutionAllocationSchema: Schema<WorkExecutionAllocationDto> = object({
-  id: id(),
-  job_id: retiredId(),
-  customer_id: id(),
-  machine_id: id(),
-  billable_hours: text(),
-  consumed_hours: text(),
-  overrun_hours: text(),
-  exception_id: nullableId(),
-  exception_status: nullableText(),
-  policy_version: text(),
-  created_at: text(),
-  lines: array(allocationLineSchema).required(),
 });
 
 const decisionFields = () => ({

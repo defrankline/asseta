@@ -52,13 +52,3 @@ export const lifecycleFields = () => ({
   deactivation_reason: nullableText(),
   version: int(),
 });
-
-/**
- * Fields retired by ADR-008 (jobs, contracts, check-ins): still parsed while the server sends them,
- * never required and never shown. Once the server drops them they fall back to these empty values.
- */
-export const retiredId = () => string().defined().default('');
-export const retiredNullable = () => string().nullable().defined().default(null);
-export const retiredIds = () => array(string().required()).required().default([]);
-export const retiredInt = () => number().integer().required().default(0);
-export const retiredBool = () => boolean().required().default(false);

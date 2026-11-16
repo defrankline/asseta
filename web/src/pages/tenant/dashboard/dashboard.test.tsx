@@ -28,7 +28,7 @@ function overview(overrides: Partial<TenantOverviewDto> = {}): TenantOverviewDto
       latest_source_at: minutesAgo(5),
     },
     work: {
-      jobs_by_status: { IN_PROGRESS: 2, COMPLETED: 7 },
+      machine_reports_by_status: { SUBMITTED: 2, APPROVED: 7, REJECTED: 0 },
       pending_approvals: 3,
       readings_needing_review: 1,
       open_exceptions: 2,

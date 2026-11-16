@@ -22,7 +22,6 @@ export function makeCase(overrides: Partial<AnomalyCaseDto> = {}): AnomalyCaseDt
     subject_type: 'MACHINE',
     subject_id: MACHINE_ID,
     machine_id: MACHINE_ID,
-    job_id: null,
     staff_member_id: null,
     severity: 'WARNING',
     status: 'OPEN',
@@ -74,7 +73,6 @@ export const RULE_EVIDENCE = {
     lookback_days: 30,
   },
   FUEL_ALLOWANCE_EXCEEDED: {
-    job_number: 'J-1002',
     opening_reading: '1200.0',
     closing_reading: '1210.0',
     meter_hours: '10.0',
@@ -104,7 +102,6 @@ export const RULE_EVIDENCE = {
   WORK_WITHOUT_AUTHORIZATION: {
     record_type: 'METER_CAPTURE',
     record_id: 'ffffffff-0000-4000-8000-000000000009',
-    job_number: 'J-1003',
     occurred_at: '2026-10-20T04:00:00Z',
     received_at: '2026-10-20T09:00:00Z',
     job_status_now: 'IN_PROGRESS',
@@ -188,7 +185,6 @@ export function makeRiskSignal(overrides: Partial<RiskSignalDto> = {}): RiskSign
     subject_type: 'MACHINE',
     subject_id: MACHINE_ID,
     machine_id: MACHINE_ID,
-    job_id: null,
     staff_member_id: null,
     window_start: '2026-10-20T05:00:00Z',
     window_end: '2026-10-20T06:30:00Z',

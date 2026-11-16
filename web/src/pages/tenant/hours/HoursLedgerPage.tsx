@@ -11,12 +11,12 @@ import { StaticSelectFilter } from '../../../components/forms/StaticSelectFilter
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { hoursPurchasePath } from '../../../navigation/hoursRoutes';
 import { initialFilter } from '../../../navigation/urlFilters';
-import { formatDate } from '../../../utils/dates';
 import { formatInstantIn } from '../../../utils/time';
 import { CustomerFilter, MachineFilter } from '../shared/financePickers';
 import { PersonName } from '../shared/PersonName';
 import { machineText, nameOr } from '../shared/names';
 import { hoursText, LEDGER_TYPE_LABELS, LEDGER_TYPE_OPTIONS } from './hoursDisplay';
+import { MachineReportRef } from './MachineReportRef';
 import { urlPeriod } from '../shared/urlPeriod';
 import { UrlPeriodChip } from '../shared/UrlPeriodChip';
 
@@ -49,9 +49,9 @@ export function HoursLedgerPage() {
     },
     { id: 'type', header: 'Entry', render: (e) => LEDGER_TYPE_LABELS[e.entry_type] },
     {
-      id: 'day',
-      header: 'Day of use',
-      render: (e) => (e.usage_day == null ? '—' : formatDate(e.usage_day)),
+      id: 'report',
+      header: 'Machine report',
+      render: (e) => <MachineReportRef id={e.machine_report_id} number={e.machine_report_number} />,
     },
     {
       id: 'hours',

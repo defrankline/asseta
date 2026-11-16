@@ -127,12 +127,10 @@ export function ConsoleCaptureDialog({
                 and will be listed for review.
               </Alert>
             )}
-            {kind === 'DAILY' && (
-              <Alert severity="info">
-                A daily reading records the machine&apos;s engine hours so every hour is accounted
-                for.
-              </Alert>
-            )}
+            <Alert severity="info">
+              A daily reading records the machine&apos;s engine hours so every hour is accounted
+              for.
+            </Alert>
             {needsMachine && (
               <FormikFieldMachineIdPicker name="machine_id" label="Machine" required />
             )}

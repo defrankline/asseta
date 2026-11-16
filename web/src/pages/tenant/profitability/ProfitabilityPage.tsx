@@ -32,15 +32,7 @@ const GROUP_LABELS: Readonly<Record<string, string>> = {
 };
 const groupLabel = (g: string): string => GROUP_LABELS[g] ?? g;
 
-const COLUMNS = [
-  'Revenue',
-  'Reversed',
-  'Net revenue',
-  'Expenses',
-  'Fuel',
-  'Direct cost',
-  'Margin',
-] as const;
+const COLUMNS = ['Revenue', 'Expenses', 'Fuel', 'Direct cost', 'Margin'] as const;
 /** Fuel switched off for the company: no fuel column (the server sends no fuel line). */
 const COLUMNS_NO_FUEL = COLUMNS.filter((c) => c !== 'Fuel');
 
@@ -99,8 +91,6 @@ function CurrencyTable({
                     )}
                   </TableCell>
                   <TableCell align="right">{m(r.revenue)}</TableCell>
-                  <TableCell align="right">{m(r.reversed_revenue)}</TableCell>
-                  <TableCell align="right">{m(r.net_revenue)}</TableCell>
                   <TableCell align="right">{m(r.expense_cost)}</TableCell>
                   {fuelOn && <TableCell align="right">{m(r.fuel_cost)}</TableCell>}
                   <TableCell align="right">{m(r.direct_cost)}</TableCell>
@@ -145,7 +135,7 @@ export function ProfitabilityPage() {
     <>
       <PageHeader
         title="Profitability"
-        subtitle="Recognized hire revenue (excluding tax; reversals deducted) against approved, categorized direct costs"
+        subtitle="Customer hours used in approved machine reports at their order's price, against approved, categorized direct costs"
       />
       <Box className="flex flex-col gap-3">
         <Box className="flex flex-wrap items-center gap-3">

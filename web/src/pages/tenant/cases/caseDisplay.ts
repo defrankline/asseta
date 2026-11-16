@@ -78,7 +78,6 @@ export const RULE_OPTIONS: readonly Option<RuleCode>[] = (
 
 export const SUBJECT_TYPE_LABELS: Readonly<Record<SubjectType, string>> = {
   MACHINE: 'Machine',
-  JOB: 'Job',
   STAFF: 'Staff member',
   EXPENSE: 'Expense',
   USER: 'User',
@@ -140,7 +139,6 @@ export function subjectPath(c: Pick<AnomalyCaseDto, 'subject_type' | 'subject_id
       return staffDetailPath(c.subject_id);
     case 'CUSTOMER':
       return customerDetailPath(c.subject_id);
-    case 'JOB':
     case 'EXPENSE':
     case 'USER':
       return null;
@@ -200,13 +198,8 @@ export function sourceLinks(s: CaseSignalDto): SourceLink[] {
     case 'CASH_VARIANCE':
       return [{ kind: 'route', label: 'Open cash custody', to: financeTabPath('custody') }];
     case 'REVENUE_DIFFERENCE':
-      return [
-        {
-          kind: 'route',
-          label: 'Open revenue difference',
-          to: `/tenant/revenue-differences/${s.source_id}`,
-        },
-      ];
+      // Revenue differences were retired with jobs (ADR-008): older cases keep the evidence, no page.
+      return [];
     case 'ADJUSTMENT':
       return [
         {

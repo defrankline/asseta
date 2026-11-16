@@ -59,8 +59,6 @@ const ROW: ScorecardRowDto = {
   cash_differences: 2,
   cash_difference_totals: [{ currency: 'TZS', count: 2, amount: '40000' }],
   cash_differences_near_threshold: 1,
-  revenue_differences: 1,
-  revenue_difference_totals: [{ currency: 'TZS', count: 1, amount: '90000' }],
   refused_attempts: 0,
   pattern_signals: 1,
   items_total: 12,
@@ -114,6 +112,8 @@ const IDLE: IdleMachineDto = {
   idle_since: '2026-10-01T00:00:00Z',
   idle_days: 25,
   last_engine_activity_at: null,
+  last_machine_report_id: null,
+  last_machine_report_number: null,
 };
 
 const SCORECARD_PERMS = ['tenant.oversight.scorecard.read'];

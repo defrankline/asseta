@@ -26,7 +26,7 @@ import { customerDetailPath } from '../../../navigation/routes';
 import { CustomerFilter, MachineFilter } from '../shared/financePickers';
 import { machineText, nameOr } from '../shared/names';
 import { CustomerHoursTable } from './creditInvoices/CustomerHoursTable';
-import { hoursText, PROVISIONAL_LABEL } from './hoursDisplay';
+import { hoursText } from './hoursDisplay';
 
 type View = 'all' | 'customer' | 'machine';
 
@@ -69,12 +69,6 @@ function BalanceTable({ rows, by }: { rows: HoursBalanceDto[]; by: 'customer' | 
           render: (b) => hoursText(b.transferred_out),
         },
         { id: 'used', header: 'Used', align: 'right', render: (b) => hoursText(b.consumed) },
-        {
-          id: 'prov',
-          header: PROVISIONAL_LABEL,
-          align: 'right',
-          render: (b) => hoursText(b.provisional),
-        },
         { id: 'exp', header: 'Expired', align: 'right', render: (b) => hoursText(b.expired) },
         { id: 'rev', header: 'Reversed', align: 'right', render: (b) => hoursText(b.reversed) },
         {
