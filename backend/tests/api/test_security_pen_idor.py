@@ -9,6 +9,7 @@ tenant A's OWNER — the most privileged tenant role — addresses B's real ids 
 
 import uuid
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -33,6 +34,8 @@ from tests.support.finance import (
 )
 from tests.support.intelligence import cases, expense, feed_events, receipt
 from tests.support.jobs import capture, photo, unique_jpeg
+from tests.support.machine_reports import baseline, cust, idle, report_body
+from tests.support.machine_reports import submit as submit_report
 from tests.support.notify import drain, sql
 from tests.support.routes import Kind, RouteSpec, concrete, inventory, params
 
@@ -171,6 +174,11 @@ def _meter_records_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
     }
 
 
+def cust_idle(f: FinCtx, hours: str) -> dict[str, Any]:
+    reasons = f.owner.get(f"{T}/machine-report-reasons").json()
+    return idle(next(r["id"] for r in reasons if r["code"] == "TRANSIT"), hours)
+
+
 def _customer_hours_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
     """B's customer hours records: a reason code, discount and credit proposals, a verified purchase with a pending
     transfer, a pending cancellation, payment evidence and a work execution allocation."""
@@ -255,7 +263,22 @@ def _customer_hours_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
     )
     assert decided.status_code == 200, decided.text
     entry = o.get(f"{T}/adjustments").json()["items"][0]["id"]
+    # ADR-008: an order with a CREDIT line (its credit invoice) and a machine report.
+    on_credit = f.accountant.post(
+        f"{T}/hours-purchases",
+        {"customer_id": f.customer_id, "machine_id": f.c.t.machine_id, "hours": "1", "payment": {"method": "CREDIT"}},
+    )
+    assert on_credit.status_code == 201, on_credit.text
+    start = o.get(f"{T}/machine-reports/context/{f.c.t.machine_id}").json()["previous_reading"]
+    if start is None:
+        baseline(api, f, f.c.t.machine_id, "200")
+        start = "200"
+    lines = [cust(f.customer_id, "0.5"), cust_idle(f, "1.5")]
+    report = submit_report(o, report_body(f.c.t.machine_id, str(Decimal(start) + 2), api.clock.now, lines))
     return {
+        ("/credit-invoices/", "invoice_id"): on_credit.json()["credit_invoice"]["id"],
+        ("/machine-reports/", "report_id"): report["id"],
+        ("/machine-reports/context/", "machine_id"): f.c.t.machine_id,
         ("/adjustment-requests/", "request_id"): correction.json()["id"],
         ("/adjustments/", "entry_id"): entry,
         ("/hours-low-balance-alerts/", "alert_id"): alert,

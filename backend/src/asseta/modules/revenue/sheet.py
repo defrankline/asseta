@@ -43,6 +43,7 @@ from asseta.modules.meter.ledger import (
 )
 from asseta.modules.meter.models import ExceptionStatus, ExceptionType, JobException, MeterCapture
 from asseta.modules.platform_billing.models_commercial import Currency
+from asseta.modules.policy.capabilities import FUEL, capability_on
 from asseta.modules.policy.revenue import UnexplainedHoursRateSource, UnexplainedHoursTreatment
 from asseta.modules.policy.schemas import BillingMode
 from asseta.modules.policy.service import PolicyService
@@ -340,6 +341,7 @@ class DailySheet:
     def __init__(self, s: Session, tenant_id: uuid.UUID, now: datetime):
         self._s, self._tid, self._now = s, tenant_id, now
         self.tz = tenant_zone(s, tenant_id)
+        self.fuel_on = capability_on(s, tenant_id, FUEL, now)  # ADR-008 §3: no fuel while it is switched off
 
     def rows(
         self, machines: list[Machine], day_from: date, day_to: date, site_id: uuid.UUID | None = None
@@ -348,7 +350,7 @@ class DailySheet:
         days = [day_from + timedelta(days=n) for n in range((day_to - day_from).days + 1)]
         for m in machines:
             model = load_machine_model(self._s, self._tid, m, self._now)
-            facts = _DayFacts(self._s, m.id, *self._range(day_from, day_to))
+            facts = _DayFacts(self._s, m.id, *self._range(day_from, day_to), fuel=self.fuel_on)
             for day in days:
                 row = self._row(model, facts, day)
                 if row is None:
@@ -360,7 +362,7 @@ class DailySheet:
 
     def detail(self, machine: Machine, day: date) -> DailyMachineSheetDetailDto:
         model = load_machine_model(self._s, self._tid, machine, self._now)
-        facts = _DayFacts(self._s, machine.id, *self._range(day, day))
+        facts = _DayFacts(self._s, machine.id, *self._range(day, day), fuel=self.fuel_on)
         row = self._row(model, facts, day, always=True)
         assert row is not None
         d0, d1 = day_window(day, self.tz)
@@ -517,7 +519,9 @@ class DailySheet:
 class _DayFacts:
     """Readings, fuel and flag records of one machine over a day range, bucketed by tenant-local day."""
 
-    def __init__(self, s: Session, machine_id: uuid.UUID, start: datetime, end: datetime, tz: ZoneInfo):
+    def __init__(
+        self, s: Session, machine_id: uuid.UUID, start: datetime, end: datetime, tz: ZoneInfo, fuel: bool = True
+    ):
         self.readings: dict[date, list[MeterCapture]] = defaultdict(list)
         self.fuel: dict[date, list[FuelEvent]] = defaultdict(list)
         self.flag_refs: dict[date, list[SheetFlagRefDto]] = defaultdict(list)
@@ -532,15 +536,16 @@ class _DayFacts:
             .order_by(MeterCapture.captured_at, MeterCapture.reading)
         ).scalars():
             self.readings[c.captured_at.astimezone(tz).date()].append(c)
-        for f in s.execute(
-            select(FuelEvent).where(
-                FuelEvent.machine_id == machine_id,
-                FuelEvent.event_type.in_(FUEL_INTO_MACHINE),
-                FuelEvent.occurred_at >= start,
-                FuelEvent.occurred_at < end,
-            )
-        ).scalars():
-            self.fuel[f.occurred_at.astimezone(tz).date()].append(f)
+        if fuel:
+            for f in s.execute(
+                select(FuelEvent).where(
+                    FuelEvent.machine_id == machine_id,
+                    FuelEvent.event_type.in_(FUEL_INTO_MACHINE),
+                    FuelEvent.occurred_at >= start,
+                    FuelEvent.occurred_at < end,
+                )
+            ).scalars():
+                self.fuel[f.occurred_at.astimezone(tz).date()].append(f)
         first, last = start.astimezone(tz).date(), (end - timedelta(microseconds=1)).astimezone(tz).date()
         for e in s.execute(
             select(JobException).where(

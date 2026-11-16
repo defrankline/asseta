@@ -33,6 +33,7 @@ from asseta.modules.intelligence.insights_dto import (
     WeeklyHoursDto,
 )
 from asseta.modules.intelligence.ml_models import SOURCE_OBSERVED, FeatureSnapshotRecord
+from asseta.modules.policy.capabilities import FUEL, capability_on
 from asseta.modules.tenancy.models import TenantSettings
 
 HISTORY_WEEKS = 12
@@ -191,8 +192,10 @@ def machine_insights(
 ) -> tuple[list[FuelEfficiencyInsightDto], list[UtilisationInsightDto]]:
     weekly = _weekly(session, tenant_id, now)
     machines = _machines(session)
+    fuel_on = capability_on(session, tenant_id, FUEL, now)
     return (
-        [fuel_item(m, weekly.get(m.id, []), now) for m in machines],
+        # ADR-008 §3: no fuel efficiency while the company has fuel switched off
+        [fuel_item(m, weekly.get(m.id, []), now) for m in machines] if fuel_on else [],
         [utilisation_item(m, weekly.get(m.id, [])) for m in machines],
     )
 

@@ -27,12 +27,15 @@ from asseta.modules.finance.custody_dto import CashAcknowledgementIn, CashRetent
 from asseta.modules.finance.custody_service import CashCustodyControls
 from asseta.modules.finance.dto import CashCollectionIn, CashHandoverIn
 from asseta.modules.hours.approvals import HoursApprovals
-from asseta.modules.hours.dto import HoursPurchaseIn, PurchasePaymentIn, TransferIn
+from asseta.modules.hours.credit_invoices import CreditInvoiceService
+from asseta.modules.hours.dto import CreditInvoicePaymentIn, HoursPurchaseIn, PurchasePaymentIn, TransferIn
 from asseta.modules.hours.service import HoursService
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.dto import AcknowledgementIn, ActivityIn, JobRequestIn
 from asseta.modules.jobs.models import Job
 from asseta.modules.jobs.service import JobService
+from asseta.modules.machine_reports.dto import MachineReportIn
+from asseta.modules.machine_reports.service import MachineReportService
 from asseta.modules.meter.allocation_dto import DailyReportIn
 from asseta.modules.meter.daily_report import DailyReportService
 from asseta.modules.meter.dto import MeterCaptureIn, ResetIn
@@ -51,7 +54,14 @@ from asseta.modules.pettycash.dto import (
     TopUpRequestIn,
 )
 from asseta.modules.pettycash.service import PettyCashService
-from asseta.modules.policy.capabilities import CASH_CUSTODY, ENGINE_HOURS, PETTY_CASH, SITE_CHECKIN, require_capability
+from asseta.modules.policy.capabilities import (
+    CASH_CUSTODY,
+    ENGINE_HOURS,
+    FUEL,
+    PETTY_CASH,
+    SITE_CHECKIN,
+    require_capability,
+)
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.sync.conflicts import is_conflict
 from asseta.modules.sync.dto import OperationIn, OperationResultDto, PushIn, PushResultDto
@@ -76,6 +86,7 @@ OP_CAPABILITY = {
     "PETTY_CASH_ADVANCE_CLEARANCE": PETTY_CASH,
     "PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT": PETTY_CASH,
     "PETTY_CASH_ADVANCE": PETTY_CASH,
+    "FUEL_EVENT": FUEL,
 }
 REQUIRED_PERMISSION = {
     "METER_CAPTURE": "tenant.meter.capture",
@@ -105,6 +116,8 @@ REQUIRED_PERMISSION = {
     "PETTY_CASH_ADVANCE_CLEARANCE": "tenant.pettycash.read",
     "PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT": "tenant.pettycash.read",
     "PETTY_CASH_ADVANCE": "tenant.pettycash.read",
+    "MACHINE_REPORT": "tenant.machine_report.submit",
+    "CREDIT_INVOICE_PAYMENT": "tenant.hours.invoice_payment",
 }
 # Ops whose payload names resumable blob uploads: the op is DEFERRED (not rejected) until they complete.
 UPLOAD_FIELDS = {
@@ -116,6 +129,8 @@ UPLOAD_FIELDS = {
     "HOURS_TRANSFER_REQUEST": "evidence_upload_ids",
     "PETTY_CASH_RETURN": "evidence_upload_ids",
     "PETTY_CASH_COUNT": "evidence_upload_ids",
+    "MACHINE_REPORT": "photo_upload_id",
+    "CREDIT_INVOICE_PAYMENT": "evidence_upload_ids",
 }
 
 
@@ -216,6 +231,21 @@ class PettyCashHolderChangeOp(PettyCashHolderChangeDecisionIn):
 
 class FuelEventOp(FuelEventIn):
     client_id: uuid.UUID
+
+
+class MachineReportOp(MachineReportIn):
+    """Offline machine report (ADR-008 §2): the operation id is the report id. The reading's photo may reference a
+    resumable blob upload (purpose METER_PHOTO; the op waits until it completes) instead of an attachment id."""
+
+    photo_upload_id: uuid.UUID | None = None
+
+
+class CreditInvoicePaymentOp(CreditInvoicePaymentIn):
+    """Offline credit-invoice payment: the operation id is the payment's client id; evidence by resumable blob uploads
+    (purpose PAYMENT_EVIDENCE; the op waits until they complete) or attachment ids uploaded online."""
+
+    invoice_id: uuid.UUID
+    evidence_upload_ids: list[uuid.UUID] = Field(default_factory=list, max_length=10)
 
 
 class MeterResetOp(ResetIn):
@@ -434,6 +464,13 @@ class PushService:
             "PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT": lambda: self._petty_holder(
                 PettyCashHolderChangeOp.model_validate(op.payload)
             ),
+            "MACHINE_REPORT": lambda: self._machine_report(
+                MachineReportOp.model_validate({**op.payload, "id": op.id, "client_created_at": op.created_at_device}),
+                device,
+            ),
+            "CREDIT_INVOICE_PAYMENT": lambda: self._invoice_payment(
+                CreditInvoicePaymentOp.model_validate({**op.payload, "client_id": op.id})
+            ),
             "PETTY_CASH_ADVANCE": lambda: self._petty().issue_advance(
                 PettyCashAdvanceIn.model_validate(
                     {"client_id": op.id, **op.payload, "client_created_at": op.created_at_device}
@@ -510,6 +547,22 @@ class PushService:
                 raise ValueError("evidence_upload_ids need a payment")
             target.evidence_attachment_ids = [*target.evidence_attachment_ids, *evidence]
         return HoursService(self._s, self._ctx, self._now).create_purchase(purchase, "SYNC")
+
+    def _machine_report(self, body: MachineReportOp, device: DeviceSession) -> BaseModel:
+        report = MachineReportIn.model_validate(body.model_dump(exclude={"photo_upload_id"}))
+        if body.photo_upload_id is not None:
+            if report.capture is None:
+                raise ValueError("photo_upload_id belongs to a new reading (capture)")
+            [photo] = self._uploaded([body.photo_upload_id])
+            report.capture = report.capture.model_copy(update={"photo_attachment_id": photo})
+        return MachineReportService(self._s, self._ctx, self._now).submit(report, "SYNC", device_session_id=device.id)
+
+    def _invoice_payment(self, body: CreditInvoicePaymentOp) -> BaseModel:
+        evidence = [*body.evidence_attachment_ids, *self._uploaded(body.evidence_upload_ids)]
+        payment = CreditInvoicePaymentIn.model_validate(
+            {**body.model_dump(exclude={"evidence_upload_ids", "invoice_id"}), "evidence_attachment_ids": evidence}
+        )
+        return CreditInvoiceService(self._s, self._ctx, self._now).record_payment(body.invoice_id, payment, "SYNC")
 
     def _hours_transfer(self, body: HoursTransferOp) -> BaseModel:
         evidence = list(body.evidence_attachment_ids)

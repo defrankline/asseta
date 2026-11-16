@@ -9,7 +9,7 @@ ON_RECORDING: a cash payment recorded on an hours sale counts as verified when r
 
 Only cash payments linked to hours purchases (and not to invoices) qualify; bank and mobile money always keep the
 manual verification. A system verification runs the same consequences as a person's: hours activate (in part, under
-partial activation) and a job booked with the sale may be approved by policy. Each is audited and recorded in
+partial activation). Each is audited and recorded in
 `payment_auto_verification`. Custody figures do not move: a collection counts in custody whatever its status."""
 
 import uuid

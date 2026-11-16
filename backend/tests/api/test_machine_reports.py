@@ -1,0 +1,413 @@
+"""ADR-008 §2: machine reports. A supervisor accounts for every engine hour of a machine assigned to them, from the
+last approved reading to a new one, split across customers (from the hours they bought) and non-productive reasons;
+someone else approves. Every rule the server enforces, online and offline."""
+
+import uuid
+from datetime import timedelta
+from decimal import Decimal
+from typing import Any
+
+from asseta.modules.machine_reports.reasons import DEFAULT_REASONS
+from tests.support.api import Api
+from tests.support.finance import role, tenant_sql
+from tests.support.machine_reports import (
+    ReportCtx,
+    T,
+    bought,
+    code,
+    cust,
+    customer,
+    idle,
+    later,
+    ok,
+    reading,
+    report_body,
+    second_machine,
+    setup_reports,
+    submit,
+)
+from tests.support.notify import drain, member, sql
+
+DEVICE = "android-machine-report-01"
+
+
+def _available(ctx: ReportCtx, customer_id: str, machine_id: str | None = None) -> Decimal:
+    rows = ok(
+        ctx.f.supervisor.get(
+            f"{T}/machine-reports/available-hours", machine_id=machine_id or ctx.machine_id, customer_id=customer_id
+        )
+    )
+    return Decimal(rows[0]["available"]) if rows else Decimal(0)
+
+
+# --- the split ---------------------------------------------------------------------------------------------------
+def test_lines_must_add_up_to_the_meter_difference(api: Api) -> None:
+    ctx = setup_reports(api)
+    f, m = ctx.f, ctx.machine_id
+    bought(api, f, 10)
+    at = later(api, 6)
+    r = f.supervisor.post(
+        f"{T}/machine-reports", report_body(m, "1005.0", at, [cust(f.customer_id, 3), idle(ctx.reasons["TRANSIT"], 1)])
+    )
+    assert r.status_code == 422 and code(r) == "REPORT_SUM_MISMATCH", r.text
+    assert "4.0" in r.json()["error"]["message"] or "4" in r.json()["error"]["message"]
+    r = f.supervisor.post(
+        f"{T}/machine-reports",
+        report_body(m, "1005.0", at, [cust(f.customer_id, "4.25"), idle(ctx.reasons["TRANSIT"], "0.75")]),
+    )
+    assert r.status_code == 422 and code(r) == "HOURS_PRECISION", r.text
+    # Nothing was kept from the refused reports (not even the reading).
+    assert tenant_sql(f.tid, "SELECT count(*) FROM meter_capture WHERE kind = 'DAILY'")[0][0] == 0
+
+    rep = submit(f.supervisor, report_body(m, "1005.0", at, [cust(f.customer_id, 4), idle(ctx.reasons["TRANSIT"], 1)]))
+    assert rep["status"] == "SUBMITTED" and rep["report_number"].startswith("MR-2026-")
+    assert Decimal(rep["start_reading"]) == 1000 and Decimal(rep["end_reading"]) == 1005
+    assert Decimal(rep["hours"]) == 5 and Decimal(rep["customer_hours"]) == 4
+    assert Decimal(rep["non_productive_hours"]) == 1 and rep["start_source"] == "BASELINE"
+    assert rep["lines"][1]["reason_name"] == "Transit between sites"
+    assert rep["machine_name"] and rep["submitted_by_name"] is not None
+
+
+def test_a_reading_not_above_the_last_approved_one_is_refused(api: Api) -> None:
+    ctx = setup_reports(api)
+    f, m = ctx.f, ctx.machine_id
+    at = later(api, 1)
+    r = f.supervisor.post(f"{T}/machine-reports", report_body(m, "1000.0", at, [idle(ctx.reasons["IDLE_ON_SITE"], 1)]))
+    assert code(r) == "NOTHING_TO_REPORT", r.text
+    r = f.supervisor.post(f"{T}/machine-reports", report_body(m, "999.0", at, [idle(ctx.reasons["IDLE_ON_SITE"], 1)]))
+    assert code(r) == "READING_NOT_HIGHER", r.text
+    note_missing = idle(ctx.reasons["IDLE_ON_SITE"], 1)
+    note_missing.pop("note")
+    r = f.supervisor.post(f"{T}/machine-reports", report_body(m, "1001.0", at, [note_missing]))
+    assert r.status_code == 422 and code(r) == "VALIDATION_FAILED", r.text
+
+
+def test_a_machine_without_an_approved_baseline_cannot_be_reported(api: Api) -> None:
+    ctx = setup_reports(api)
+    f = ctx.f
+    [bare] = api.add_machines(f.owner, 1, prefix="BARE")
+    ok(
+        f.owner.post(
+            f"{T}/machines/{bare}/assignments",
+            {"staff_member_id": f.sup_staff_id, "role": "SUPERVISOR", "effective_from": api.clock.now.isoformat()},
+        ),
+        201,
+    )
+    context = ok(f.supervisor.get(f"{T}/machine-reports/context/{bare}"))
+    assert context["previous_reading"] is None
+    r = f.supervisor.post(
+        f"{T}/machine-reports", report_body(bare, "10", later(api, 1), [idle(ctx.reasons["TRANSIT"], 10)])
+    )
+    assert code(r) == "BASELINE_REQUIRED", r.text
+
+
+# --- available hours, reservations ------------------------------------------------------------------------------
+def test_a_customer_cannot_be_given_more_than_their_available_hours(api: Api) -> None:
+    ctx = setup_reports(api)
+    f, m = ctx.f, ctx.machine_id
+    bought(api, f, 3)
+    at = later(api, 5)
+    r = f.supervisor.post(f"{T}/machine-reports", report_body(m, "1005", at, [cust(f.customer_id, 5)]))
+    assert r.status_code == 422 and code(r) == "HOURS_NOT_AVAILABLE", r.text
+    assert "3" in r.json()["error"]["message"]
+    other = customer(f, "C9", "No Hours Ltd")
+    r = f.supervisor.post(
+        f"{T}/machine-reports",
+        report_body(m, "1005", at, [cust(other, 1), cust(f.customer_id, 3), idle(ctx.reasons["WEATHER"], 1)]),
+    )
+    assert code(r) == "HOURS_NOT_AVAILABLE", r.text
+    rep = submit(f.supervisor, report_body(m, "1005", at, [cust(f.customer_id, 3), idle(ctx.reasons["WEATHER"], 2)]))
+    assert rep["lines"][0]["available_hours"] is not None
+
+
+def test_reservations_hold_hours_across_pending_reports_on_different_machines(api: Api) -> None:
+    ctx = setup_reports(api)
+    f = ctx.f
+    m2 = second_machine(api, ctx)
+    bought(api, f, 10)
+    at = later(api, 6)
+    submit(f.supervisor, report_body(ctx.machine_id, "1006", at, [cust(f.customer_id, 6)]))
+    assert _available(ctx, f.customer_id) == 4
+    ctx_rows = ok(f.supervisor.get(f"{T}/machine-reports/context/{m2}"))["customers"]
+    assert [Decimal(c["reserved"]) for c in ctx_rows] == [6]
+    r = f.supervisor.post(f"{T}/machine-reports", report_body(m2, "1005", at, [cust(f.customer_id, 5)]))
+    assert code(r) == "HOURS_NOT_AVAILABLE", r.text
+    submit(f.supervisor, report_body(m2, "1005", at, [cust(f.customer_id, 4), idle(ctx.reasons["SERVICING"], 1)]))
+    assert _available(ctx, f.customer_id) == 0
+
+
+def test_machine_scope_counts_only_the_hours_on_the_reported_machine(api: Api) -> None:
+    from tests.support.hours import hours_policy
+
+    ctx = setup_reports(api)
+    f = ctx.f
+    m2 = second_machine(api, ctx)
+    bought(api, f, 10)  # the order names the first machine
+    hours_policy(f, report_hours_scope="MACHINE")
+    at = later(api, 2)
+    r = f.supervisor.post(f"{T}/machine-reports", report_body(m2, "1002", at, [cust(f.customer_id, 2)]))
+    assert code(r) == "HOURS_NOT_AVAILABLE", r.text
+    submit(f.supervisor, report_body(ctx.machine_id, "1002", at, [cust(f.customer_id, 2)]))
+
+
+def test_one_report_per_machine_waits_for_its_decision(api: Api) -> None:
+    ctx = setup_reports(api)
+    f, m = ctx.f, ctx.machine_id
+    first = submit(f.supervisor, report_body(m, "1003", later(api, 3), [idle(ctx.reasons["IDLE_ON_SITE"], 3)]))
+    r = f.supervisor.post(
+        f"{T}/machine-reports", report_body(m, "1005", later(api, 2), [idle(ctx.reasons["IDLE_ON_SITE"], 5)])
+    )
+    assert code(r) == "REPORT_PENDING" and first["report_number"] in r.json()["error"]["message"], r.text
+    status = ok(f.supervisor.get(f"{T}/machine-reports/status"))
+    assert [s["pending_report_id"] for s in status] == [first["id"]]
+    ok(f.manager.post(f"{T}/machine-reports/{first['id']}/approve", {}))
+    nxt = submit(f.supervisor, report_body(m, "1005", api.clock.now, [idle(ctx.reasons["IDLE_ON_SITE"], 2)]))
+    assert Decimal(nxt["start_reading"]) == 1003 and nxt["start_source"] == "REPORT"
+
+
+def test_a_supervisor_reports_only_on_machines_assigned_to_them(api: Api) -> None:
+    ctx = setup_reports(api)
+    f = ctx.f
+    other_staff = ok(f.owner.post(f"{T}/staff", {"full_name": "Other Supervisor", "kind": "SUPERVISOR"}), 201)["id"]
+    m2 = second_machine(api, ctx, assign_to=other_staff)
+    body = report_body(m2, "1002", later(api, 2), [idle(ctx.reasons["TRANSIT"], 2)])
+    r = f.supervisor.post(f"{T}/machine-reports", body)
+    assert r.status_code == 422 and code(r) == "MACHINE_NOT_ASSIGNED", r.text
+    r = f.supervisor.get(f"{T}/machine-reports/context/{m2}")
+    assert code(r) == "MACHINE_NOT_ASSIGNED"
+    # The owner may report on any machine (web); someone else decides it.
+    rep = submit(f.owner, body)
+    assert rep["status"] == "SUBMITTED"
+    # The supervisor sees neither the report nor the machine's status.
+    assert ok(f.supervisor.get(f"{T}/machine-reports"))["total"] == 0
+    assert f.supervisor.get(f"{T}/machine-reports/{rep['id']}").status_code == 404
+    assert {s["machine_id"] for s in ok(f.supervisor.get(f"{T}/machine-reports/status"))} == {ctx.machine_id}
+
+
+# --- decisions ---------------------------------------------------------------------------------------------------
+def test_the_person_who_submitted_a_report_never_decides_it(api: Api) -> None:
+    ctx = setup_reports(api)
+    f, m = ctx.f, ctx.machine_id
+    rep = submit(f.owner, report_body(m, "1002", later(api, 2), [idle(ctx.reasons["TRANSIT"], 2)]))
+    r = f.owner.post(f"{T}/machine-reports/{rep['id']}/approve", {})
+    assert r.status_code == 422 and code(r) == "SEGREGATION_OF_DUTIES", r.text
+    r = f.owner.post(f"{T}/machine-reports/{rep['id']}/reject", {"reason": "Wrong split of hours"})
+    assert code(r) == "SEGREGATION_OF_DUTIES", r.text
+    assert f.supervisor.post(f"{T}/machine-reports/{rep['id']}/approve", {}).status_code == 403
+    done = ok(f.manager.post(f"{T}/machine-reports/{rep['id']}/approve", {"note": "Matches the tracker"}))
+    assert done["status"] == "APPROVED" and done["decided_by_name"] is not None
+    r = f.manager.post(f"{T}/machine-reports/{rep['id']}/reject", {"reason": "Changed my mind"})
+    assert code(r) == "REPORT_NOT_PENDING", r.text
+
+
+def test_rejection_releases_the_reservation_and_the_same_reading_is_reported_again(api: Api) -> None:
+    ctx = setup_reports(api)
+    f, m = ctx.f, ctx.machine_id
+    bought(api, f, 5)
+    at = later(api, 4)
+    first = submit(f.supervisor, report_body(m, "1004", at, [cust(f.customer_id, 4)]))
+    assert _available(ctx, f.customer_id) == 1
+    rejected = ok(f.manager.post(f"{T}/machine-reports/{first['id']}/reject", {"reason": "One hour was transit"}))
+    assert rejected["status"] == "REJECTED" and rejected["decision_note"] == "One hour was transit"
+    assert _available(ctx, f.customer_id) == 5
+    status = ok(f.supervisor.get(f"{T}/machine-reports/status"))[0]
+    assert status["rejected_report_id"] == first["id"] and status["pending_report_id"] is None
+
+    # The same reading again, corrected; a new reading for the same hours is not needed.
+    lines = [cust(f.customer_id, 3), idle(ctx.reasons["TRANSIT"], 1, "Moved to the second site")]
+    again = report_body(m, None, None, lines, capture_id=first["capture_id"], corrects_report_id=first["id"])
+    fixed = submit(f.supervisor, again)
+    assert fixed["capture_id"] == first["capture_id"] and fixed["corrects_id"] == first["id"]
+    assert Decimal(fixed["start_reading"]) == 1000 and Decimal(fixed["hours"]) == 4
+    assert ok(f.supervisor.get(f"{T}/machine-reports/{first['id']}"))["corrected_by_id"] == fixed["id"]
+    # One live report per reading: the waiting one first, then the approved one.
+    dup = report_body(m, None, None, lines, capture_id=first["capture_id"])
+    r = f.owner.post(f"{T}/machine-reports", dup)
+    assert code(r) == "REPORT_PENDING", r.text
+    bad = report_body(m, None, None, lines, capture_id=first["capture_id"], corrects_report_id=fixed["id"])
+    assert code(f.supervisor.post(f"{T}/machine-reports", bad)) == "REPORT_PENDING"
+    ok(f.manager.post(f"{T}/machine-reports/{fixed['id']}/approve", {}))
+    assert code(f.manager.post(f"{T}/machine-reports", dup)) == "CAPTURE_ALREADY_REPORTED"
+
+
+def test_approval_consumes_the_oldest_orders_first_and_writes_both_ledgers(api: Api) -> None:
+    ctx = setup_reports(api)
+    f, m = ctx.f, ctx.machine_id
+    old = bought(api, f, 2)
+    later(api, 1)
+    new = bought(api, f, 5)
+    at = later(api, 5)
+    rep = submit(
+        f.supervisor,
+        report_body(m, "1005", at, [cust(f.customer_id, 4), idle(ctx.reasons["BREAKDOWN"], 1, "Hydraulic hose")]),
+    )
+    approver = role(api, f.tid, "manager", "mgr-approver-2")
+    done = ok(approver.post(f"{T}/machine-reports/{rep['id']}/approve", {}))
+    lots = done["lines"][0]["lots"]
+    assert [(lot["purchase_id"], Decimal(lot["hours"])) for lot in lots] == [
+        (old["id"], Decimal(2)),
+        (new["id"], Decimal(2)),
+    ]
+    assert lots[0]["purchase_number"] == old["purchase_number"]
+    # Hours ledger: CONSUMED entries linked to the report; the customer has 3 hours left.
+    consumed = tenant_sql(
+        f.tid,
+        "SELECT purchase_id, hours FROM hours_ledger_entry WHERE machine_report_id = :r AND entry_type = 'CONSUMED' "
+        "ORDER BY created_at",
+        r=rep["id"],
+    )
+    assert {str(p): Decimal(h) for p, h in consumed} == {old["id"]: 2, new["id"]: 2}
+    assert _available(ctx, f.customer_id) == 3
+    # Allocation ledger: the split laid over the meter range, customer work with its lots, the reason's hours.
+    rows = tenant_sql(
+        f.tid,
+        "SELECT kind, start_reading, end_reading, customer_id, reason_id, lots, source, approval_ref_ids "
+        "FROM work_allocation WHERE status = 'ACTIVE' AND machine_id = :m ORDER BY start_reading",
+        m=m,
+    )
+    assert [(r[0], Decimal(r[1]), Decimal(r[2])) for r in rows] == [
+        ("CUSTOMER_WORK", Decimal(1000), Decimal(1004)),
+        ("AUTHORIZED_ACTIVITY", Decimal(1004), Decimal(1005)),
+    ]
+    assert str(rows[0][3]) == f.customer_id and str(rows[1][4]) == ctx.reasons["BREAKDOWN"]
+    assert {lot["purchase_id"] for lot in rows[0][5]} == {old["id"], new["id"]}
+    assert rows[0][6] == "MACHINE_REPORT" and [str(x) for x in rows[0][7]] == [rep["id"]]
+    # The purchases show the hours used.
+    used = ok(f.owner.get(f"{T}/hours-purchases/{old['id']}"))
+    assert Decimal(used["totals"]["consumed"]) == 2 and used["status"] == "CONSUMED"
+    # The reading is now the machine's last approved one.
+    assert Decimal(ok(f.supervisor.get(f"{T}/machine-reports/context/{m}"))["previous_reading"]) == 1005
+
+
+def test_detail_carries_the_tracker_cross_check(api: Api) -> None:
+    ctx = setup_reports(api)
+    f, m = ctx.f, ctx.machine_id
+    first = submit(f.supervisor, report_body(m, "1003", later(api, 3), [idle(ctx.reasons["TRANSIT"], 3)]))
+    detail = ok(f.manager.get(f"{T}/machine-reports/{first['id']}"))
+    assert detail["tracker"]["available"] is False and Decimal(detail["tracker"]["meter_hours"]) == 3
+    ok(f.manager.post(f"{T}/machine-reports/{first['id']}/approve", {}))
+
+    # The tracker counted 2.5 engine hours between the two readings: the approver sees the difference.
+    start = api.clock.now
+    for at, hours in ((start - timedelta(minutes=5), "500.0"), (start + timedelta(hours=3), "502.5")):
+        sql(
+            "INSERT INTO machine_position_event (id, event_time, received_at, tenant_id, machine_id, tracker_id, "
+            "ingestion_event_id, location, engine_hours, quality, is_late, clock_offset_seconds, policy_version) "
+            "VALUES (gen_random_uuid(), :t, :t, :tid, :m, :tr, gen_random_uuid(), "
+            "ST_SetSRID(ST_MakePoint(39.28, -6.8), 4326), :h, 'GOOD', false, 0, 'test')",
+            t=at,
+            tid=f.tid,
+            m=m,
+            tr=f.c.t.tracker_id,
+            h=Decimal(hours),
+        )
+    rep = submit(f.supervisor, report_body(m, "1006", later(api, 3), [idle(ctx.reasons["TRANSIT"], 3)]))
+    detail = ok(f.manager.get(f"{T}/machine-reports/{rep['id']}"))
+    tracker = detail["tracker"]
+    assert tracker["available"] is True
+    assert Decimal(tracker["tracker_hours"]) == Decimal("2.5") and Decimal(tracker["difference"]) == Decimal("0.5")
+    assert detail["capture_state"] in {"ACCEPTED", "PROVISIONAL"}
+    pending = ok(f.manager.get(f"{T}/machine-reports", queue="PENDING"))
+    assert [p["id"] for p in pending["items"]] == [rep["id"]]
+
+
+# --- reasons ------------------------------------------------------------------------------------------------------
+def test_every_new_company_starts_with_the_default_reasons_and_may_edit_them(api: Api) -> None:
+    ctx = setup_reports(api)
+    f = ctx.f
+    rows = ok(f.supervisor.get(f"{T}/machine-report-reasons"))
+    assert {r["code"] for r in rows} == {c for c, _ in DEFAULT_REASONS}
+    admin = role(api, f.tid, "administrator", "admin-reasons")
+    created = ok(admin.post(f"{T}/machine-report-reasons", {"code": "FUEL_WAIT", "name": "Waiting for fuel"}), 201)
+    weather = next(r for r in rows if r["code"] == "WEATHER")
+    ok(admin.post(f"{T}/machine-report-reasons/{weather['id']}/deactivate", {"reason": "Not used", "version": 1}))
+    codes = {r["code"] for r in ok(f.supervisor.get(f"{T}/machine-report-reasons"))}
+    assert "FUEL_WAIT" in codes and "WEATHER" not in codes
+    assert created["is_active"] is True
+    r = f.supervisor.post(
+        f"{T}/machine-reports", report_body(ctx.machine_id, "1001", later(api, 1), [idle(weather["id"], 1)])
+    )
+    assert code(r) == "REASON_INVALID", r.text
+    assert f.supervisor.post(f"{T}/machine-report-reasons", {"code": "X", "name": "Nope"}).status_code == 403
+
+
+def test_the_one_off_script_adds_missing_defaults_once(api: Api, monkeypatch: Any) -> None:
+    import importlib.util
+    import sys
+    from pathlib import Path
+
+    ctx = setup_reports(api)
+    f = ctx.f
+    sql("DELETE FROM engine_hour_reason WHERE kind = 'NON_PRODUCTIVE' AND code IN ('WEATHER', 'TRANSIT')")
+    script = Path(__file__).resolve().parents[2] / "scripts" / "seed_machine_report_reasons.py"
+    spec = importlib.util.spec_from_file_location("seed_machine_report_reasons", script)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["seed_machine_report_reasons"] = module
+    spec.loader.exec_module(module)
+    count = "SELECT count(*) FROM engine_hour_reason WHERE kind = 'NON_PRODUCTIVE'"
+    assert tenant_sql(f.tid, count)[0][0] == len(DEFAULT_REASONS) - 2
+    assert module.main(["--tenant-id", f.tid]) == 0  # a dry run changes nothing
+    assert tenant_sql(f.tid, count)[0][0] == len(DEFAULT_REASONS) - 2
+    assert module.main(["--yes"]) == 0  # every company: the two missing come back
+    assert tenant_sql(f.tid, count)[0][0] == len(DEFAULT_REASONS)
+    assert module.main(["--yes"]) == 0  # a second run adds nothing
+    assert tenant_sql(f.tid, count)[0][0] == len(DEFAULT_REASONS)
+    audited = sql(
+        "SELECT count(*) FROM audit_event WHERE tenant_id = :t AND action = 'meter.reason.created' "
+        "AND reason LIKE 'Starting machine-report reasons%'",
+        t=f.tid,
+    )[0][0]
+    assert audited == 2
+
+
+# --- notifications -------------------------------------------------------------------------------------------------
+def test_approvers_and_the_submitter_are_told(api: Api) -> None:
+    ctx = setup_reports(api)
+    f, m = ctx.f, ctx.machine_id
+    approver = member(api, f.tid, "manager", "mr-notify-manager")
+    sup = member(api, f.tid, "supervisor", "mr-notify-sup")
+    ok(
+        f.owner.post(
+            f"{T}/staff", {"full_name": "Notified Supervisor", "kind": "SUPERVISOR", "keycloak_subject": sup.subject}
+        ),
+        201,
+    )
+    staff_id = next(s["id"] for s in ok(f.owner.get(f"{T}/staff", q="Notified"))["items"])
+    m2 = second_machine(api, ctx, assign_to=staff_id, prefix="NTF")
+    drain(api)
+    rep = submit(sup, report_body(m2, "1002", later(api, 2), [idle(ctx.reasons["TRANSIT"], 2)]))
+    drain(api)
+    inbox = ok(approver.get(f"{T}/notifications"))["items"]
+    note = next(n for n in inbox if n["type"] == "MACHINE_REPORT_SUBMITTED")
+    assert rep["report_number"] in note["title"] and note["target"]["path"] == f"/tenant/machine-reports/{rep['id']}"
+    assert "fraud" not in (note["title"] + note["body"]).lower()
+    ok(approver.post(f"{T}/machine-reports/{rep['id']}/reject", {"reason": "Split the transit hours"}))
+    drain(api)
+    mine = ok(sup.get(f"{T}/notifications"))["items"]
+    told = next(n for n in mine if n["type"] == "MACHINE_REPORT_REJECTED")
+    assert "Split the transit hours" in told["body"]
+    assert m  # the first machine is not involved
+
+
+def test_machines_that_moved_without_a_report_are_flagged(api: Api) -> None:
+    from asseta.core.db import DbScope, apply_scope, get_sessionmaker
+    from asseta.modules.machine_reports.missing import machines_without_reports
+
+    ctx = setup_reports(api)
+    f, m = ctx.f, ctx.machine_id
+    # A reading above the baseline with no report about it.
+    ok(f.supervisor.post(f"{T}/meter-captures", reading(m, "1004", later(api, 4))), 201)
+    later(api, 24 * 4)
+
+    def missing() -> list[Any]:
+        with get_sessionmaker().begin() as s:
+            apply_scope(s, DbScope.TENANT, uuid.UUID(f.tid), None)
+            return machines_without_reports(s, uuid.UUID(f.tid), api.clock.now)
+
+    [miss] = missing()
+    assert str(miss.machine_id) == m and miss.basis == "meter reading"
+    from tests.support.hours import hours_policy
+
+    hours_policy(f, machine_report_reminder_days=None)
+    assert missing() == []

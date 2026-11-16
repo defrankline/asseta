@@ -24,6 +24,11 @@ TRANSFER_REQUEST = requires("tenant.hours.transfer", S.TENANT, "Request an hours
 TRANSFER_APPROVE = requires("tenant.hours.transfer_approve", S.TENANT, "Approve or reject hours transfers")
 CANCEL_REQUEST = requires("tenant.hours.cancel", S.TENANT, "Request cancellation of an hours purchase")
 CANCEL_APPROVE = requires("tenant.hours.cancel_approve", S.TENANT, "Approve or reject hours purchase cancellations")
+INVOICE_PAYMENT = requires(
+    "tenant.hours.invoice_payment",
+    S.TENANT,
+    "Record payments (cash, bank, mobile money) against customers' credit invoices",
+)
 REASONS_MANAGE = requires(
     "tenant.hours.reasons", S.TENANT, "Maintain the tenant's discount/credit/transfer/cancellation reason lists"
 )
@@ -32,14 +37,15 @@ REASONS_MANAGE = requires(
 for _key, _label, _path, _order, _perm in (
     ("tenant.hours.purchases", "Hours purchases", "/tenant/hours/purchases", 71, "tenant.hours.read"),
     ("tenant.hours.balances", "Balances", "/tenant/hours/balances", 72, "tenant.hours.read"),
-    ("tenant.hours.ledger", "Hours ledger", "/tenant/hours/ledger", 73, "tenant.hours.read"),
-    ("tenant.hours.allocations", "Prepaid hours used", "/tenant/hours/allocations", 74, "tenant.hours.read"),
-    ("tenant.hours.transfers", "Transfers", "/tenant/hours/transfers", 75, "tenant.hours.read"),
-    ("tenant.hours.cancellations", "Cancellations", "/tenant/hours/cancellations", 76, "tenant.hours.read"),
-    ("tenant.hours.discounts", "Customer discounts", "/tenant/hours/discounts", 77, "tenant.hours.read"),
-    ("tenant.hours.credit", "Credit arrangements", "/tenant/hours/credit", 78, "tenant.hours.read"),
-    ("tenant.hours.walk_ins", "Walk-in customers", "/tenant/hours/walk-ins", 79, "tenant.hours.read"),
-    ("tenant.hours.reasons", "Reason lists", "/tenant/hours/reasons", 80, "tenant.hours.read"),
+    ("tenant.hours.credit_invoices", "Credit invoices", "/tenant/hours/credit-invoices", 73, "tenant.hours.read"),
+    ("tenant.hours.ledger", "Hours ledger", "/tenant/hours/ledger", 74, "tenant.hours.read"),
+    ("tenant.hours.allocations", "Prepaid hours used", "/tenant/hours/allocations", 75, "tenant.hours.read"),
+    ("tenant.hours.transfers", "Transfers", "/tenant/hours/transfers", 76, "tenant.hours.read"),
+    ("tenant.hours.cancellations", "Cancellations", "/tenant/hours/cancellations", 77, "tenant.hours.read"),
+    ("tenant.hours.discounts", "Customer discounts", "/tenant/hours/discounts", 78, "tenant.hours.read"),
+    ("tenant.hours.credit", "Credit arrangements", "/tenant/hours/credit", 79, "tenant.hours.read"),
+    ("tenant.hours.walk_ins", "Walk-in customers", "/tenant/hours/walk-ins", 80, "tenant.hours.read"),
+    ("tenant.hours.reasons", "Reason lists", "/tenant/hours/reasons", 81, "tenant.hours.read"),
 ):
     CATALOG.register_menu(MenuDef(_key, S.TENANT, _label, _path, _order, _perm, group="tenant.hours"))
 CATALOG.register_menu(

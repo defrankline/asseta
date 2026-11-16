@@ -77,6 +77,8 @@ RECORDS: dict[str, tuple[str, str]] = {
     "cash_handover": ("CASH_REMITTANCE", f"{CASH}/remittances"),
     "cash_remittance_overdue": ("REMITTANCE_OVERDUE", f"{CASH}/remittance-overdue"),
     "hours_purchase": ("HOURS_PURCHASE", "/tenant/hours/purchases"),
+    "credit_invoice": ("CREDIT_INVOICE", "/tenant/hours/credit-invoices"),
+    "machine_report": ("MACHINE_REPORT", "/tenant/machine-reports"),
     "customer_discount": ("HOURS_DISCOUNT", "/tenant/hours/discounts"),
     "credit_arrangement": ("HOURS_CREDIT", "/tenant/hours/credit"),
     "hours_transfer": ("HOURS_TRANSFER", "/tenant/hours/transfers"),
@@ -693,6 +695,86 @@ def _hours_decided(_: Session, e: DomainEvent) -> list[Intent]:
             record_link(entity, p["entity_id"], "/tenant/hours"),
             entity,
             p["entity_id"],
+        )
+    ]
+
+
+@rule("HoursCreditSaleRecorded")
+def _hours_credit_sale(session: Session, e: DomainEvent) -> list[Intent]:
+    """ADR-008 §1: an order with a CREDIT line. Its credit invoice is issued; the hours of that part wait until someone
+    allowed to activates them on credit, within the customer's credit limit."""
+    p = e.payload
+    customer = session.execute(select(Customer.name).where(Customer.id == uuid.UUID(p["customer_id"]))).scalar()
+    return [
+        Intent(
+            "HOURS_CREDIT_TO_ACTIVATE",
+            (perm("tenant.hours.credit_activate"),),
+            f"Credit to activate — {p['purchase_number']}",
+            f"{customer or 'A customer'} bought {p['hours']} hours on {_machine_label(session, p.get('machine_id'))} "
+            f"with {p['currency']} {p['credit_amount']} on credit (invoice {p['invoice_number']}, due "
+            f"{p['due_date']}). The hours for that part wait until someone activates them on credit, within the "
+            "customer's credit limit.",
+            _key(e),
+            record_link("hours_purchase", p["purchase_id"], "/tenant/hours/purchases"),
+            "hours_purchase",
+            p["purchase_id"],
+            data={
+                **record_data("hours_purchase", p["purchase_id"]),
+                "invoice_id": p["invoice_id"],
+                "credit_amount": p["credit_amount"],
+                "currency": p["currency"],
+            },
+        )
+    ]
+
+
+@rule("MachineReportSubmitted")
+def _machine_report_submitted(session: Session, e: DomainEvent) -> list[Intent]:
+    """ADR-008 §2: a report waits for a decision by someone allowed to approve (never the person who submitted it)."""
+    p = e.payload
+    return [
+        Intent(
+            "MACHINE_REPORT_SUBMITTED",
+            (perm("tenant.machine_report.approve"),),
+            f"Machine report to approve — {p['report_number']}",
+            f"{_machine_label(session, p.get('machine_id'))}: {p['hours']} hours accounted for. Check the split and "
+            "the tracker cross-check, then approve or reject it.",
+            _key(e),
+            record_link("machine_report", p["report_id"], "/tenant/machine-reports"),
+            "machine_report",
+            p["report_id"],
+            data=record_data("machine_report", p["report_id"]),
+        )
+    ]
+
+
+@rule("MachineReportApproved", "MachineReportRejected")
+def _machine_report_decided(session: Session, e: DomainEvent) -> list[Intent]:
+    """ADR-008 §2: the submitter learns the decision; a rejection asks for a corrected split on the same reading."""
+    p = e.payload
+    if not p.get("submitted_by"):
+        return []
+    machine = _machine_label(session, p.get("machine_id"))
+    if e.event_type == "MachineReportApproved":
+        kind, title = "MACHINE_REPORT_APPROVED", f"Machine report approved — {p['report_number']}"
+        body = f"{machine}: your report of {p['hours']} hours was approved."
+    else:
+        kind, title = "MACHINE_REPORT_REJECTED", f"Machine report rejected — {p['report_number']}"
+        body = (
+            f"{machine}: your report was rejected ({p.get('decision_note') or 'no reason given'}). Correct the split "
+            "and send it again on the same reading."
+        )
+    return [
+        Intent(
+            kind,
+            (user(p["submitted_by"]),),
+            title,
+            body,
+            _key(e),
+            record_link("machine_report", p["report_id"], "/tenant/machine-reports"),
+            "machine_report",
+            p["report_id"],
+            data=record_data("machine_report", p["report_id"]),
         )
     ]
 

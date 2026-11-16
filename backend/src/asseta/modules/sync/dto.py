@@ -11,8 +11,14 @@ from asseta.modules.finance.deposit_accounts import SyncDepositAccountDto
 from asseta.modules.finance.dto import CashCustodyBalanceDto, CashHandoverDto, CustomerPaymentDto
 from asseta.modules.fleet.dto import MachineDto, StaffDto
 from asseta.modules.geospatial.dto import JobSiteDto
-from asseta.modules.hours.dto import CustomerDiscountRateDto, HoursPriceDto
+from asseta.modules.hours.dto import CreditInvoiceDto, CustomerDiscountRateDto, HoursPriceDto
 from asseta.modules.jobs.dto import AcknowledgementDto, ActivityDto, ContractDto, CustomerDto, JobDto
+from asseta.modules.machine_reports.dto import (
+    AvailableHoursDto,
+    MachineReportDto,
+    MachineReportReasonDto,
+    MachineReportStatusDto,
+)
 from asseta.modules.meter.dto import ExceptionDto, MeterCaptureDto, ResetDto
 from asseta.modules.pettycash.dto import (
     PettyCashAdvanceDto,
@@ -73,12 +79,18 @@ CAPABILITIES = [
     # PETTY_CASH_ADVANCE: the holder hands out an advance offline (tenant policy advances_enabled); above what the fund
     # has available it is still recorded at sync when the tenant allows overspending offline (the fund shows it).
     "OP_PETTY_CASH_ADVANCE",
-    # HOURS_PURCHASE accepts job {planned_start, planned_end?, job_site_id?, contract_id?, note?}: the sale books its
-    # prepaid job in the same transaction (needs tenant.job.request; job id = uuid5(op id, "job")); the acked entity
-    # carries job {id, job_number, status, ...}. Contract: the one given, else the customer's only active contract (for
-    # the site), else a standard walk-in contract when the tenant allows it; else CONFLICT CONTRACT_REQUIRED /
-    # CONTRACT_CHOICE_REQUIRED (kept for review: the money changed hands).
-    "OP_HOURS_SALE_BOOKING",
+    # ADR-008 §1: HOURS_PURCHASE accepts a payment line with method CREDIT (amount only; registered customers; at most
+    # one): the sale creates its credit invoice (acked entity: credit_amount + credit_invoice). Field staff need the
+    # tenant's CUSTOMER_HOURS field_credit_sales (else CONFLICT CREDIT_SALES_NOT_ALLOWED, kept: money changed hands).
+    "OP_HOURS_SALE_CREDIT",
+    # ADR-008 §1: CREDIT_INVOICE_PAYMENT {invoice_id, amount, method CASH|BANK|MOBILE_MONEY, reference?, received_at,
+    # staff_member_id?, note?, evidence_attachment_ids?, evidence_upload_ids? (purpose PAYMENT_EVIDENCE)}; op id =
+    # client id. Cash goes into the recorder's custody. SyncData.open_credit_invoices: the picker (full snapshot).
+    "OP_CREDIT_INVOICE_PAYMENT",
+    # ADR-008 §2: MACHINE_REPORT (payload MachineReportIn; op id = report id) and SyncData.machine_report_* (reasons,
+    # per-machine state, customers' available hours, the caller's own reports; full snapshots). See
+    # docs/api-machine-reports.md.
+    "OP_MACHINE_REPORT",
 ]
 # Protocol capabilities that belong to a tenant capability (`asseta.modules.policy.capabilities`): not announced
 # while the tenant has it switched off, and their operations are then refused (CONFLICT, the capability's code).
@@ -99,7 +111,8 @@ TENANT_CAPABILITY_OF = {
     "OP_PETTY_CASH_ADVANCE": "PETTY_CASH",
     "SYNC_PETTY_CASH_WITNESSES": "PETTY_CASH",
     "SYNC_HOURS_PRICES": "CUSTOMER_HOURS",
-    "OP_HOURS_SALE_BOOKING": "CUSTOMER_HOURS",
+    "OP_HOURS_SALE_CREDIT": "CUSTOMER_HOURS",
+    "OP_CREDIT_INVOICE_PAYMENT": "CUSTOMER_HOURS",
 }
 
 
@@ -280,6 +293,17 @@ class SyncData(BaseModel):
     # SYNC_HOURS_PRICES (full snapshots; replace the local sets): sent to people who sell customer hours.
     hours_prices: list[HoursPriceDto] = []
     customer_discounts: list[CustomerDiscountRateDto] = []
+    # OP_MACHINE_REPORT (full snapshots on every bootstrap and delta; replace the local sets), for people who submit
+    # machine reports: the reason list, the state of their machines (where a new report starts, a pending report),
+    # customers' available hours (activated - used - reserved; per machine when the tenant's scope is MACHINE) and
+    # their own reports of the last 30 days plus any still waiting for a decision.
+    machine_report_reasons: list[MachineReportReasonDto] = []
+    machine_report_states: list[MachineReportStatusDto] = []
+    machine_report_hours: list[AvailableHoursDto] = []
+    my_machine_reports: list[MachineReportDto] = []
+    # OP_CREDIT_INVOICE_PAYMENT (full snapshot): open credit invoices (UNPAID / PART_PAID) for people who record
+    # credit-invoice payments.
+    open_credit_invoices: list[CreditInvoiceDto] = []
 
 
 class BootstrapDto(BaseModel):
@@ -332,6 +356,8 @@ OpType = Literal[
     "PETTY_CASH_ADVANCE_CLEARANCE",  # {advance_id, change_returned, note?}
     "PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT",  # {holder_change_id, accept, note?}
     "PETTY_CASH_ADVANCE",  # PettyCashAdvanceIn {fund_id, recipient_staff_id, amount, purpose} (op id = client id)
+    "MACHINE_REPORT",  # MachineReportIn (op id = report id) + photo_upload_id (ADR-008 §2)
+    "CREDIT_INVOICE_PAYMENT",  # CreditInvoicePaymentIn + invoice_id (op id = client id) + evidence_upload_ids
 ]
 
 

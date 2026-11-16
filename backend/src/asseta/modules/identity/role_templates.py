@@ -61,6 +61,8 @@ TENANT_TEMPLATES = (
             # Customer hours (DEC-030 / 3.1): managers record purchases and walk-ins for the field, propose and
             # approve discounts/credit/transfers/cancellations (never their own: segregation of duties).
             "tenant.hours.",
+            # ADR-008 §2: managers report on any machine and approve or reject machine reports (never their own).
+            "tenant.machine_report.",
             # Revenue reconciliation (DEC-031): see the daily machine sheet, explain revenue differences and decide
             # on someone else's explanation (never their own: segregation of duties).
             "tenant.revenue.",
@@ -98,6 +100,10 @@ TENANT_TEMPLATES = (
             "tenant.hours.read",  # customer hours: see balances, record walk-in purchases, request transfers
             "tenant.hours.purchase",
             "tenant.hours.transfer",
+            # ADR-008: machine reports on the machines assigned to them, and payments of customers' credit invoices
+            "tenant.machine_report.submit",
+            "tenant.machine_report.read",
+            "tenant.hours.invoice_payment",
             "tenant.sync.read",
             "tenant.sync.push",
             "tenant.fleet.read",
@@ -134,6 +140,8 @@ TENANT_TEMPLATES = (
             "tenant.hours.read",  # customer hours: link payments to purchases, activate on approved credit
             "tenant.hours.purchase",
             "tenant.hours.credit_activate",
+            "tenant.hours.invoice_payment",  # ADR-008: record payments of credit invoices
+            "tenant.machine_report.read",  # ADR-008: machine reports behind the hours used (read only)
             "tenant.revenue.read",  # revenue reconciliation (DEC-031): daily sheet, explain differences
             "tenant.revenue.explain",
             "tenant.oversight.read",  # unbilled work and idle machines (DEC-031 M2); not the people scorecard
@@ -218,6 +226,7 @@ DECISION_PERMISSIONS = frozenset(
         "tenant.hours.discount_approve",
         "tenant.hours.transfer_approve",
         "tenant.job.approve",
+        "tenant.machine_report.approve",
         "tenant.meter.approve",
         "tenant.meter.classify",
         "tenant.pettycash.approve",

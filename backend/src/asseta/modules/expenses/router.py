@@ -50,18 +50,22 @@ from asseta.modules.expenses.service import (
 from asseta.modules.fleet.photos import PhotoUrlDto, get_object_store
 from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
-from asseta.modules.identity.dependencies import requires
+from asseta.modules.identity.dependencies import gated, requires
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.scope import EXPENSE_OVERSIGHT, own_staff, restricted_to_own
 from asseta.modules.meter.dto import AttachmentDto
 from asseta.modules.meter.models import CaptureAttachment
 from asseta.modules.meter.router import save_attachment
+from asseta.modules.policy.capabilities import FUEL
 
 EXPENSE_READ = requires("tenant.expense.read", S.TENANT, "View expenses, receipts, categories and fuel events")
 EXPENSE_WRITE = requires("tenant.expense.write", S.TENANT, "Record expenses (with receipts/GPS) and fuel events")
 CATEGORY_MANAGE = requires("tenant.finance.expense_category", S.TENANT, "Manage expense categories")
 APPROVAL_READ = requires("tenant.approval.read", S.TENANT, "View approval requests")
 APPROVE_EXPENSE = requires("tenant.approval.expense", S.TENANT, "Approve or reject expenses above policy limits")
+# ADR-008 §3: fuel is refused while the company switched it off (FUEL_DISABLED); recorded fuel stays, hidden.
+FUEL_READ = gated(EXPENSE_READ, FUEL)
+FUEL_WRITE = gated(EXPENSE_WRITE, FUEL)
 for menu in (
     MenuDef(
         "tenant.expenses",
@@ -71,6 +75,7 @@ for menu in (
         68,
         "tenant.expense.read",
         group="tenant.finance",
+        label_when_off=(FUEL, "Expenses"),
     ),
     MenuDef(
         "tenant.approvals",
@@ -82,7 +87,14 @@ for menu in (
         group="tenant.finance",
     ),
     MenuDef(
-        "tenant.field.fuel", S.TENANT, "Fuel", "/tenant/field/fuel", 13, "tenant.expense.write", group="tenant.field"
+        "tenant.field.fuel",
+        S.TENANT,
+        "Fuel",
+        "/tenant/field/fuel",
+        13,
+        "tenant.expense.write",
+        group="tenant.field",
+        capability=FUEL,
     ),
     MenuDef(
         "tenant.field.expenses",
@@ -248,7 +260,7 @@ def record_fuel(
     body: FuelEventIn,
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(EXPENSE_WRITE)],
+    ctx: Annotated[RequestContext, Depends(FUEL_WRITE)],
     idempotency_key: IdemKey = None,
 ) -> FuelEventDto:
     guard = IdempotencyGuard(session, str(ctx.tenant_id), "recordFuelEvent", idempotency_key, request_hash(body))
@@ -262,7 +274,7 @@ def record_fuel(
 @router.get("/fuel-events", response_model=Page[FuelEventDto], operation_id="listFuelEvents")
 def list_fuel(
     session: DbSession,
-    ctx: Annotated[RequestContext, Depends(EXPENSE_READ)],
+    ctx: Annotated[RequestContext, Depends(FUEL_READ)],
     paging: Annotated[PageParams, Depends(page_params)],
     event_type: FuelEventType | None = None,
     machine_id: uuid.UUID | None = None,

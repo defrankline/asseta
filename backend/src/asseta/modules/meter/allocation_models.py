@@ -39,6 +39,7 @@ class AllocationSource(StrEnum):
     DERIVED = "DERIVED"  # written from the machine's readings
     BACKFILL = "BACKFILL"  # written by the migration from existing history
     CORRECTION = "CORRECTION"  # a person's correction
+    MACHINE_REPORT = "MACHINE_REPORT"  # an approved machine report (ADR-008 §2): the supervisor's split of the hours
 
 
 class DailyReportStatus(StrEnum):

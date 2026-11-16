@@ -31,6 +31,7 @@ TRACKING = "TRACKING"
 DEPOSIT_ACCOUNTS = "DEPOSIT_ACCOUNTS"
 MANAGED_SERVICE = "MANAGED_SERVICE"
 PETTY_CASH = "PETTY_CASH"
+FUEL = "FUEL"
 
 CAPABILITIES: dict[str, Check] = {
     # Customer prepaid hours (CUSTOMER_HOURS.enabled): purchases, balances, approvals, reason lists.
@@ -71,6 +72,9 @@ CAPABILITIES: dict[str, Check] = {
     # DEC-033 petty cash funds (PETTY_CASH.enabled; platform default OFF): funds, fundings and top-ups, returns,
     # counts, holder changes, fund adjustments, advances, fund expenses and their variances, menus and sweeps.
     PETTY_CASH: lambda svc, tid, at: svc.petty_cash(tid, at=at).policy.enabled,
+    # ADR-008 §3: fuel (EXPENSE_CAPTURE.fuel_enabled; platform default ON): fuel events, fuel checks, fuel insights and
+    # the fuel line of profitability. Off: fuel is refused and hidden; fuel already recorded is kept, hidden.
+    FUEL: lambda svc, tid, at: svc.expense_capture(tid, at=at).policy.fuel_enabled,
 }
 
 # Capabilities whose safe platform default is OFF (a tenant opts in): an unconfigured policy counts as off for them.
@@ -96,6 +100,7 @@ REFUSALS: dict[str, tuple[str, str]] = {
     DEPOSIT_ACCOUNTS: ("DEPOSIT_ACCOUNTS_DISABLED", "Deposit accounts are switched off for this tenant"),
     MANAGED_SERVICE: ("MANAGED_SERVICE_DISABLED", "The managed service page is switched off for this tenant"),
     PETTY_CASH: ("PETTY_CASH_DISABLED", "Petty cash funds are switched off for this tenant"),
+    FUEL: ("FUEL_DISABLED", "Fuel is switched off for this company"),
 }
 
 

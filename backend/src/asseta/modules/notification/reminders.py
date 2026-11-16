@@ -74,8 +74,62 @@ class TenantReminders:
             self._jobs,
             self._daily_reports,
             self._unbilled_work,
+            self._credit_invoices_overdue,
+            self._machine_reports_missing,
         ):
             out += fn()
+        return out
+
+    def _credit_invoices_overdue(self) -> list[Intent]:
+        """ADR-008 §1: once per credit invoice, the day after its due date passes with a balance (the office)."""
+        from asseta.modules.hours.credit_invoices import invoice_dtos, invoice_query  # hours build on many modules
+
+        rows = list(self._s.execute(invoice_query(self.day, overdue=True).limit(500)).scalars())
+        out = []
+        for inv in invoice_dtos(self._s, self._tid, self._now, rows, with_payments=False):
+            customer = self._s.execute(select(Customer.name).where(Customer.id == inv.customer_id)).scalar()
+            out.append(
+                Intent(
+                    "CREDIT_INVOICE_OVERDUE",
+                    (perm("tenant.finance.payment"), perm("tenant.hours.credit_activate")),
+                    f"Credit invoice overdue — {inv.invoice_number}",
+                    f"{customer or 'A customer'} still owes {inv.currency} {inv.balance.normalize():f} of "
+                    f"{inv.currency} {inv.amount.normalize():f}; it was due {inv.due_date}.",
+                    f"credit-invoice-overdue:{inv.id}",
+                    f"/tenant/hours/credit-invoices/{inv.id}",
+                    "credit_invoice",
+                    str(inv.id),
+                    data={
+                        "kind": "CREDIT_INVOICE",
+                        "record_id": str(inv.id),
+                        "balance": str(inv.balance),
+                        "currency": inv.currency,
+                        "due_date": inv.due_date.isoformat(),
+                    },
+                )
+            )
+        return out
+
+    def _machine_reports_missing(self) -> list[Intent]:
+        """ADR-008 §2: machines that moved (a meter reading higher than the last approved one, or tracker engine or
+        motion activity) with no machine report for CUSTOMER_HOURS.machine_report_reminder_days (owner, once a day)."""
+        from asseta.modules.machine_reports.missing import machines_without_reports  # builds on many modules
+
+        out = []
+        for miss in machines_without_reports(self._s, self._tid, self._now):
+            out.append(
+                Intent(
+                    "MACHINE_REPORT_MISSING",
+                    (perm("tenant.machine_report.approve"),),
+                    f"No machine report: {miss.machine_code}",
+                    f"{miss.machine_name} moved ({miss.basis}) but has had no machine report for {miss.days} days.",
+                    self._k("machine-report-missing", miss.machine_id),
+                    "/tenant/machine-reports",
+                    "machine",
+                    str(miss.machine_id),
+                    data={"days": miss.days, "basis": miss.basis},
+                )
+            )
         return out
 
     def _platform_invoices(self) -> list[Intent]:

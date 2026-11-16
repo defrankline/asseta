@@ -23,12 +23,13 @@ from asseta.core.lifecycle import IncludeInactive, LifecycleChangeIn
 from asseta.core.paging import Page, PageParams, page_params, paginate
 from asseta.core.search import ilike_any
 from asseta.core.storage import ObjectStore
-from asseta.modules.accountability.names import named
+from asseta.modules.accountability.names import fill_names, named
 from asseta.modules.finance import permissions as _finance_permissions  # noqa: F401  (declares finance codes)
 from asseta.modules.finance.common import period_conditions, tenant_settings
 from asseta.modules.fleet.models import Machine
 from asseta.modules.fleet.photos import PhotoUrlDto, get_object_store
 from asseta.modules.hours.approvals import HoursApprovals, proposal_query, reason_code_query, request_query
+from asseta.modules.hours.credit_invoices import CreditInvoiceService, invoice_dtos, invoice_query, local_today
 from asseta.modules.hours.dto import (
     CancellationDto,
     CancellationIn,
@@ -37,6 +38,10 @@ from asseta.modules.hours.dto import (
     CreditArrangementIn,
     CreditArrangementUpdateIn,
     CreditExposureDto,
+    CreditInvoiceDto,
+    CreditInvoicePaymentIn,
+    CreditInvoiceStatus,
+    CustomerHoursSummaryDto,
     CustomerRegistrationIn,
     DecisionIn,
     DiscountDto,
@@ -65,6 +70,7 @@ from asseta.modules.hours.dto import (
 from asseta.modules.hours.ledger import PurchaseQueue
 from asseta.modules.hours.models import (
     CreditArrangement,
+    CreditInvoice,
     CustomerDiscount,
     HoursCancellation,
     HoursLedgerEntry,
@@ -88,6 +94,7 @@ from asseta.modules.hours.permissions import (
     DISCOUNT_PROPOSE,
     HOURS_PURCHASE,
     HOURS_READ,
+    INVOICE_PAYMENT,
     REASONS_MANAGE,
     TRANSFER_APPROVE,
     TRANSFER_REQUEST,
@@ -101,6 +108,7 @@ from asseta.modules.hours.service import (
     purchase_query,
 )
 from asseta.modules.hours.statement import StatementQuery, build_statement, default_period, statement_pdf
+from asseta.modules.hours.summary import customer_hours
 from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.dependencies import requires, requires_any
 from asseta.modules.identity.models import AppUser
@@ -451,6 +459,7 @@ def credit_exposure(
 @named
 def list_purchases(
     session: DbSession,
+    now: Now,
     ctx: Read,
     paging: Paging,
     customer_id: uuid.UUID | None = None,
@@ -463,9 +472,8 @@ def list_purchases(
     assert ctx.tenant_id is not None
     period = period_conditions(session, ctx.tenant_id, HoursPurchase.created_at, date_from, date_to)
     rows, total = paginate(session, purchase_query(paging.q, customer_id, machine_id, cancelled, queue, period), paging)
-    return Page(
-        items=[purchase_dto(session, p) for p in rows], total=total, page=paging.page, page_size=paging.page_size
-    )
+    items = [purchase_dto(session, p, now=now) for p in rows]
+    return Page(items=items, total=total, page=paging.page, page_size=paging.page_size)
 
 
 @router.get("/hours-purchases/quote", response_model=HoursQuoteDto, operation_id="quoteHoursPurchase")
@@ -502,7 +510,7 @@ def record_purchase(
 @router.get("/hours-purchases/{purchase_id}", response_model=HoursPurchaseDto, operation_id="getHoursPurchase")
 @named
 def get_purchase(purchase_id: uuid.UUID, session: DbSession, now: Now, ctx: Read) -> HoursPurchaseDto:
-    return purchase_dto(session, HoursService(session, ctx, now).purchase(purchase_id))
+    return purchase_dto(session, HoursService(session, ctx, now).purchase(purchase_id), now=now)
 
 
 @router.post(
@@ -999,3 +1007,75 @@ def customer_statement_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"},
     )
+
+
+# --- credit invoices (ADR-008 §1) -------------------------------------------------------------------------------
+@router.get("/credit-invoices", response_model=Page[CreditInvoiceDto], operation_id="listCreditInvoices")
+@named
+def list_credit_invoices(
+    session: DbSession,
+    now: Now,
+    ctx: Read,
+    paging: Paging,
+    customer_id: uuid.UUID | None = None,
+    purchase_id: uuid.UUID | None = None,
+    status: CreditInvoiceStatus | None = None,
+    overdue: bool | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> Page[CreditInvoiceDto]:
+    """Credit invoices of orders, newest first (`q`: invoice or order number, customer). `status` UNPAID, PART_PAID,
+    PAID or CANCELLED; `overdue=true`: past the due date with a balance; dates filter the issue date."""
+    assert ctx.tenant_id is not None
+    period = period_conditions(session, ctx.tenant_id, CreditInvoice.issued_at, date_from, date_to)
+    today = local_today(session, ctx.tenant_id, now)
+    stmt = invoice_query(today, paging.q, customer_id, status, overdue, purchase_id, period)
+    rows, total = paginate(session, stmt, paging)
+    items = invoice_dtos(session, ctx.tenant_id, now, list(rows), with_payments=False)
+    return Page(items=items, total=total, page=paging.page, page_size=paging.page_size)
+
+
+@router.get("/credit-invoices/{invoice_id}", response_model=CreditInvoiceDto, operation_id="getCreditInvoice")
+@named
+def get_credit_invoice(invoice_id: uuid.UUID, session: DbSession, now: Now, ctx: Read) -> CreditInvoiceDto:
+    svc = CreditInvoiceService(session, ctx, now)
+    return svc.dto(svc.invoice(invoice_id))
+
+
+@router.post(
+    "/credit-invoices/{invoice_id}/payments",
+    response_model=CreditInvoiceDto,
+    status_code=201,
+    operation_id="recordCreditInvoicePayment",
+)
+@named
+def record_credit_invoice_payment(
+    invoice_id: uuid.UUID,
+    body: CreditInvoicePaymentIn,
+    session: DbSession,
+    now: Now,
+    ctx: Annotated[RequestContext, Depends(INVOICE_PAYMENT)],
+    idempotency_key: IdemKey = None,
+) -> CreditInvoiceDto:
+    """A payment of the invoice in full or in part (cash into the recorder's custody; bank / mobile money with their
+    reference). Refused above the balance (INVOICE_OVERPAYMENT), when paid (INVOICE_PAID) or cancelled."""
+    guard = IdempotencyGuard(
+        session, str(ctx.tenant_id), f"recordCreditInvoicePayment:{invoice_id}", idempotency_key, request_hash(body)
+    )
+    if (replay := guard.begin()) is not None:
+        return CreditInvoiceDto.model_validate(replay)
+    dto = CreditInvoiceService(session, ctx, now).record_payment(invoice_id, body)
+    guard.complete(dto, 201)
+    return dto
+
+
+@router.get("/customer-hours", response_model=list[CustomerHoursSummaryDto], operation_id="listCustomerHours")
+@named
+def list_customer_hours(
+    session: DbSession, now: Now, ctx: Read, customer_id: uuid.UUID | None = None
+) -> list[CustomerHoursSummaryDto]:
+    """Per customer: hours bought, activated, used, left, awaiting activation and credit still owed (ADR-008)."""
+    assert ctx.tenant_id is not None
+    rows = customer_hours(session, ctx.tenant_id, now, customer_id)
+    fill_names(session, rows)
+    return sorted(rows, key=lambda r: (r.customer_name or "").casefold())

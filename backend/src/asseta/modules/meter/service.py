@@ -212,6 +212,7 @@ class MeterService:
         *,
         correction_of: MeterCapture | None = None,
         recorded_by: uuid.UUID | None = None,
+        for_machine_report: bool = False,
     ) -> CaptureResultDto:
         """Record a reading (online API and offline sync). `correction_of` (with `recorded_by`, the proposer) is
         used only when an approved correction is applied: the old reading becomes SUPERSEDED and this replaces it."""
@@ -220,7 +221,7 @@ class MeterService:
             if existing.reading != body.reading or existing.job_id != body.job_id or existing.kind != body.kind:
                 raise Conflict("Capture id reused with different content", code="CAPTURE_ID_CONFLICT")
             return self._result(existing)
-        if body.kind is ReadingKind.DAILY and correction_of is None:
+        if body.kind is ReadingKind.DAILY and correction_of is None and not for_machine_report:
             # Daily operational readings belong to the engine-hour controls (refused while ENGINE_HOURS is off).
             require_capability(self._s, self._tid, ENGINE_HOURS, self._now)
         job, machine_id, site_id = self._target(body, correction_of is not None)

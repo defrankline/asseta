@@ -249,6 +249,7 @@ class LedgerWriter:
         reason: str | None = None,
         policy_version: str | None = None,
         usage_day: date | None = None,
+        machine_report_id: uuid.UUID | None = None,
     ) -> HoursLedgerEntry:
         entry = HoursLedgerEntry(
             id=uuid.uuid4(),
@@ -270,6 +271,7 @@ class LedgerWriter:
             reason=reason,
             policy_version=policy_version,
             usage_day=usage_day,
+            machine_report_id=machine_report_id,
             created_by=self._actor,
             created_at=self._now,
         )

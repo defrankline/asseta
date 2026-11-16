@@ -37,6 +37,7 @@ from asseta.modules.intelligence.sources import (
     tracking_alert_item,
 )
 from asseta.modules.meter.models import JobException
+from asseta.modules.policy.capabilities import FUEL, capability_on
 from asseta.modules.policy.service import PolicyService
 
 
@@ -62,10 +63,11 @@ def _result(added: int, linker: CaseLinker) -> IntelligenceSweepResult:
 def sweep_tenant(s: Session, tenant_id: uuid.UUID, now: datetime) -> IntelligenceSweepResult:
     eff = PolicyService(s).fraud_controls(tenant_id, at=now)
     since = now - timedelta(hours=eff.policy.detection_lookback_hours)
+    fuel = capability_on(s, tenant_id, FUEL, now)
     findings = [
         *detect_engine_activity(s, tenant_id, now, since),
         *detect_duplicate_receipts(s, eff, since),
-        *detect_fuel_allowance(s, tenant_id, since),
+        *(detect_fuel_allowance(s, tenant_id, since) if fuel else []),
         *detect_expense_threshold(s, tenant_id, now, since),
         *detect_cash_not_handed_over(s, tenant_id, now, eff),
         *detect_work_without_authorization(s, eff, since),
@@ -73,7 +75,8 @@ def sweep_tenant(s: Session, tenant_id: uuid.UUID, now: datetime) -> Intelligenc
     refresh_engine_hour_flags(s, tenant_id, now)
     findings += detect_aged_unexplained_hours(s, tenant_id, now)
     findings += detect_engine_without_work(s, tenant_id, now, since)
-    findings += detect_machine_fuel(s, tenant_id, now, since)
+    if fuel:  # ADR-008 §3: no fuel checks while the company has fuel switched off
+        findings += detect_machine_fuel(s, tenant_id, now, since)
     findings += _person_patterns(s, tenant_id, now)
     linker = CaseLinker(s, tenant_id, now, eff.policy.case_grouping_window_hours)
     added = _finish(s, tenant_id, findings, linker, now)

@@ -63,6 +63,7 @@ CONFLICT_CODES = {
     # was available (with overspend offline not allowed), the office decided first, or evidence became required
     # after the device queued the operation (kept for review, never applied)
     "PETTY_CASH_DISABLED",
+    "FUEL_DISABLED",  # ADR-008 §3: the company switched fuel off after the device queued the fuel event
     "PETTY_CASH_INSUFFICIENT",
     "PETTY_CASH_FUND_INACTIVE",
     "PETTY_CASH_CURRENCY_MISMATCH",
@@ -76,10 +77,10 @@ CONFLICT_CODES = {
     "NOT_FUND_HOLDER",
 }
 
-# Money already changed hands in the field when these three were queued, so a refusal caused by anything that changed
+# Money already changed hands in the field when these were queued, so a refusal caused by anything that changed
 # since (a person, customer, machine, account, reason or switch), or by a slip in the device's own figures, must not
 # lose the record. Scoped to these operations: elsewhere the same codes keep their meaning.
-MONEY_OPERATIONS = frozenset({"CASH_COLLECTION", "CASH_HANDOVER", "HOURS_PURCHASE"})
+MONEY_OPERATIONS = frozenset({"CASH_COLLECTION", "CASH_HANDOVER", "HOURS_PURCHASE", "CREDIT_INVOICE_PAYMENT"})
 MONEY_CONFLICT_CODES = frozenset(
     {
         # who holds the cash
@@ -107,18 +108,49 @@ MONEY_CONFLICT_CODES = frozenset(
         "NO_RATE",
         "DISCOUNT_ABOVE_MAXIMUM",
         "NOTHING_TO_PAY",
-        # the job booked with the sale (OP_HOURS_SALE_BOOKING)
-        "CONTRACT_REQUIRED",
-        "CONTRACT_CHOICE_REQUIRED",
-        "CONTRACT_NOT_ACTIVE",
-        "CONTRACT_CUSTOMER_MISMATCH",
-        "JOB_REQUEST_NOT_PERMITTED",
-        "NO_STAFF_RECORD",
-        "BILLING_MODE_NOT_ALLOWED",
-        "DUPLICATE_JOB",
+        # the CREDIT line of the sale (OP_HOURS_SALE_CREDIT): the setting or the customer changed since
+        "CREDIT_SALES_NOT_ALLOWED",
+        "CREDIT_NOT_ALLOWED",
+        "WALK_IN_NO_CREDIT",
+        "PAYMENTS_EXCEED_TOTAL",
+        # a credit-invoice payment (OP_CREDIT_INVOICE_PAYMENT): paid or cancelled by someone else meanwhile
+        "INVOICE_NOT_FOUND",
+        "INVOICE_PAID",
+        "INVOICE_OVERPAYMENT",
+        "INVOICE_CANCELLED",
+    }
+)
+
+
+# A machine report (ADR-008 §2) carries a reading taken in the field: refusals caused by what the server learned while
+# the phone was offline (another report decided first, an assignment or a reason changed, hours used elsewhere) are
+# kept for review with the payload, never lost. Malformed reports (precision, duplicate lines) stay REJECTED.
+REPORT_OPERATIONS = frozenset({"MACHINE_REPORT"})
+REPORT_CONFLICT_CODES = frozenset(
+    {
+        "MACHINE_NOT_ASSIGNED",
+        "MACHINE_NOT_FOUND",
+        "REPORT_PENDING",
+        "REPORT_ID_CONFLICT",
+        "BASELINE_REQUIRED",
+        "READING_NOT_HIGHER",
+        "NOTHING_TO_REPORT",
+        "REPORT_SUM_MISMATCH",
+        "HOURS_NOT_AVAILABLE",
+        "HOURS_DISABLED",
+        "REASON_INVALID",
+        "REASON_NOT_FOUND",
+        "CUSTOMER_NOT_FOUND",
+        "CAPTURE_REJECTED",
+        "CAPTURE_ALREADY_REPORTED",
+        "CORRECTS_INVALID",
     }
 )
 
 
 def is_conflict(op_type: str, code: str) -> bool:
-    return code in CONFLICT_CODES or (op_type in MONEY_OPERATIONS and code in MONEY_CONFLICT_CODES)
+    return (
+        code in CONFLICT_CODES
+        or (op_type in MONEY_OPERATIONS and code in MONEY_CONFLICT_CODES)
+        or (op_type in REPORT_OPERATIONS and code in REPORT_CONFLICT_CODES)
+    )

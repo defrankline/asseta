@@ -389,6 +389,55 @@ class HoursLedgerEntry(UuidPk, Base):
     reason: Mapped[str | None] = mapped_column(Text)
     policy_version: Mapped[str | None] = mapped_column(String(80))
     usage_day: Mapped[date | None] = mapped_column(Date)  # PROVISIONAL / PROVISIONAL_REVERSED: the tenant-local day
+    # ADR-008 §2: CONSUMED by an approved machine report (the machine the work was on is the report's)
+    machine_report_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("machine_report.id"), index=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class CreditInvoice(UuidPk, Base):
+    """CI-<yyyy>-<nnnnn> (ADR-008 §1): the CREDIT line of an order, invoiced automatically when the order is recorded
+    (one per order). Immutable (guard trigger): what was paid and its status are derived from the linked payments."""
+
+    __tablename__ = "credit_invoice"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "invoice_number", name="uq_credit_invoice_number"),
+        UniqueConstraint("purchase_id", name="uq_credit_invoice_purchase"),
+        CheckConstraint("amount > 0 AND unit_price >= 0 AND hours >= 0", name="ck_credit_invoice_amounts"),
+        Index("ix_credit_invoice_customer", "tenant_id", "customer_id"),
+        Index("ix_credit_invoice_due", "tenant_id", "due_date"),
+    )
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False)
+    invoice_number: Mapped[str] = mapped_column(String(32), nullable=False)
+    purchase_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("hours_purchase.id"), nullable=False)
+    customer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("customer.id"), nullable=False)
+    machine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("machine.id"), nullable=False)
+    currency: Mapped[str] = mapped_column(ForeignKey("currency.code"), nullable=False)
+    hours: Mapped[Decimal] = mapped_column(HOURS, nullable=False)
+    unit_price: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
+    amount: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
+    payment_terms_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    due_date: Mapped[date] = mapped_column(Date, nullable=False)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class CreditInvoicePayment(UuidPk, Base):
+    """A customer payment recorded against a credit invoice (append-only). The payment's own status decides whether
+    it still counts: a rejected or reversed payment no longer pays the invoice."""
+
+    __tablename__ = "credit_invoice_payment"
+    __table_args__ = (
+        UniqueConstraint("payment_id", name="uq_credit_invoice_payment_payment"),
+        CheckConstraint("amount > 0", name="ck_credit_invoice_payment_amount"),
+    )
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
+    invoice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("credit_invoice.id"), nullable=False, index=True)
+    payment_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("customer_payment.id"), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 

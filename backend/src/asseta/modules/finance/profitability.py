@@ -15,6 +15,7 @@ from typing import Any, Literal
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session, aliased
 
+from asseta.core.db import utcnow
 from asseta.modules.expenses.models import Expense, ExpenseCategory, ExpenseStatus, FuelEvent, FuelEventType
 from asseta.modules.finance.common import ZERO, local_bounds, tenant_settings
 from asseta.modules.finance.dto import ProfitabilityDto, ProfitabilityRowDto
@@ -22,6 +23,7 @@ from asseta.modules.finance.models import HireInvoiceLine, TenantHireInvoice
 from asseta.modules.fleet.models import Machine
 from asseta.modules.jobs.charges import ChargeKind
 from asseta.modules.jobs.models import Customer, Job, RentalContract
+from asseta.modules.policy.capabilities import FUEL, capability_on
 
 GroupBy = Literal["MACHINE", "JOB", "CUSTOMER"]
 Key = tuple[uuid.UUID | None, str]  # (group key, currency)
@@ -89,6 +91,8 @@ class ProfitabilityService:
         ).tuples()
         for k, currency, code, amount in expenses:
             out[(k, currency)][code] += amount
+        if not capability_on(self._s, self._tid, FUEL, utcnow()):
+            return out  # ADR-008 §3: no fuel line while the company has fuel switched off
         paying = aliased(Expense)
         fuel = self._s.execute(
             select(

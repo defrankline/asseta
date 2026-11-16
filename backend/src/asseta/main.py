@@ -43,6 +43,7 @@ from asseta.modules.intelligence import ml_monitoring_router as intelligence_ml_
 from asseta.modules.intelligence import ml_router as intelligence_ml_router
 from asseta.modules.intelligence import router as intelligence_router
 from asseta.modules.jobs import router as jobs_router
+from asseta.modules.machine_reports import router as machine_reports_router
 from asseta.modules.managed_service import router as managed_service_router
 from asseta.modules.meter import allocation_router as meter_allocation_router
 from asseta.modules.meter import engine_router as meter_engine_router
@@ -174,6 +175,7 @@ def create_app(
         finance_deposit_accounts.router,
         accountability_router.router,
         hours_router.router,
+        machine_reports_router.router,
         expenses_router.router,
         intelligence_router.router,
         intelligence_ml_router.platform_router,

@@ -71,7 +71,7 @@ class Inbox:
 
 class InboxReader:
     def __init__(self, session: Session, ctx: RequestContext, now: datetime, staff: StaffMember | None, page: int):
-        self._s, self._ctx, self._staff, self._page = session, ctx, staff, page
+        self._s, self._ctx, self._staff, self._page, self._now = session, ctx, staff, page, now
         self._since = now - WINDOW
 
     def read(self, min_revision: int | None) -> Inbox:
@@ -86,10 +86,17 @@ class InboxReader:
             job_activities=self._activities(min_revision) if field_log else Stream(),
             acknowledgements=self._acknowledgements(min_revision) if field_log else Stream(),
             expenses=self._expenses(min_revision) if spend else Stream(),
-            fuel_events=self._fuel(min_revision) if spend else Stream(),
+            fuel_events=self._fuel(min_revision) if spend and self._fuel_on() else Stream(),
             cash_collections=self._collections(min_revision) if cash else Stream(),
             cash_handovers=self._handovers(min_revision) if cash else Stream(),
         )
+
+    def _fuel_on(self) -> bool:
+        """ADR-008 §3: no fuel reaches a phone while the company has fuel switched off (kept, hidden)."""
+        from asseta.modules.policy.capabilities import FUEL, capability_on
+
+        assert self._ctx.tenant_id is not None
+        return capability_on(self._s, self._ctx.tenant_id, FUEL, self._now)
 
     # --- paging -------------------------------------------------------------------------------------------------
     def _paged(

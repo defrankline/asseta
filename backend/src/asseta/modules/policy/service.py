@@ -28,6 +28,7 @@ from asseta.modules.policy.revenue import RevenueReconciliationPolicy
 from asseta.modules.policy.schemas import (
     OVERRIDABLE,
     PLATFORM_ONLY_FIELDS,
+    RETIRED_FIELDS,
     SCHEMAS,
     CashCustodyPolicy,
     CustomerHoursPolicy,
@@ -62,6 +63,12 @@ LAYER_ORDER = (
 )
 # Scopes whose overrides exist only where the policy type lists fields for them (others take none).
 OPT_IN_SCOPES = (PolicyScope.STAFF, PolicyScope.MACHINE_CATEGORY)
+
+
+def _drop_retired(ptype: PolicyType, values: dict[str, Any]) -> None:
+    """Settings the schema no longer has, kept in versions written before they were retired, are ignored."""
+    for key in RETIRED_FIELDS.get(ptype, frozenset()):
+        values.pop(key, None)
 
 
 @dataclass(frozen=True)
@@ -148,6 +155,7 @@ class PolicyService:
         merged: dict[str, Any] = {}
         for row in rows:
             merged.update(row.values)
+        _drop_retired(ptype, merged)
         stamp = ".".join(f"{_ABBR[r.scope]}{r.version}" for r in rows)
         schema = SCHEMAS[ptype]
         self._validate(schema, merged)
@@ -266,6 +274,7 @@ class PolicyService:
         merged: dict[str, Any] = {}
         for row in sorted(rows.values(), key=lambda r: LAYER_ORDER.index(r.scope)):
             merged.update(row.values)
+        _drop_retired(ptype, merged)
         return merged
 
     def create_version(

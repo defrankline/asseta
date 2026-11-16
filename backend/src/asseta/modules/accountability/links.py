@@ -14,6 +14,8 @@ RECORD_ROUTES: dict[str, str] = {
     "hours_cancellation": "/tenant/hours/cancellations",
     "customer_discount": "/tenant/hours/discounts",
     "credit_arrangement": "/tenant/hours/credit",
+    "credit_invoice": "/tenant/hours/credit-invoices",
+    "machine_report": "/tenant/machine-reports",
     "hire_invoice": "/tenant/finance/invoices",
     "customer_payment": "/tenant/customer-payments",
     "cash_handover": f"{CASH}/remittances",

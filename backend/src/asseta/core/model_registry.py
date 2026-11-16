@@ -17,6 +17,7 @@ from asseta.modules.intelligence import ml_models as intelligence_ml_models  # n
 from asseta.modules.intelligence import ml_monitoring_models as intelligence_ml_monitoring  # noqa: F401
 from asseta.modules.intelligence import models as intelligence_models  # noqa: F401
 from asseta.modules.jobs import models as jobs_models  # noqa: F401
+from asseta.modules.machine_reports import models as machine_reports_models  # noqa: F401
 from asseta.modules.managed_service import models as managed_service_models  # noqa: F401
 from asseta.modules.meter import allocation_models as meter_allocation_models  # noqa: F401
 from asseta.modules.meter import engine_models as meter_engine_models  # noqa: F401

@@ -156,6 +156,9 @@ class ExpenseCapturePolicy(BaseModel):
     gps_required: bool
     gps_max_accuracy_m: float = Field(gt=0, le=5000)
     auto_approve_limit: Decimal = Field(ge=0)  # amount <= limit => APPROVED automatically; 0 => all need approval
+    # ADR-008 §3: the company records fuel (fuel events, fuel checks, fuel insights and the fuel line of
+    # profitability). Off: fuel is refused everywhere and hidden (capability FUEL); records already kept stay, hidden.
+    fuel_enabled: bool = True
 
 
 class FuelCheckPeriod(StrEnum):
@@ -222,6 +225,13 @@ class CashActivation(StrEnum):
     ON_RECORDING = "ON_RECORDING"  # verified when recorded; the custodian stays accountable through cash custody
 
 
+class ReportHoursScope(StrEnum):
+    """Which of a customer's activated hours a machine report draws on (ADR-008 §2)."""
+
+    CUSTOMER = "CUSTOMER"  # any of the customer's hours, whichever machine the order named
+    MACHINE = "MACHINE"  # only the customer's hours on the reported machine
+
+
 class CustomerHoursPolicy(BaseModel):
     """Customer prepaid hours (accountability 3.1). Every rule a tenant may want differently is here; the platform
     default is only a starting point. Segregation of duties on approvals is always enforced (never relaxable)."""
@@ -273,14 +283,18 @@ class CustomerHoursPolicy(BaseModel):
     # below the tolerance (hours) are not reported. Off: no customer-hour variances are opened.
     variance_sweep_enabled: bool = True
     variance_tolerance_hours: Decimal = Field(default=Decimal("0.01"), ge=0, le=Decimal(1000))
-    # Sell hours and book the job in one step. A WALK_IN customer without an active contract gets a standard contract
-    # (rate card prices, starting today) when the sale books a job. Off: the office creates the contract first.
-    walk_in_standard_contract: bool = False
-    # A job booked with an hours sale is approved automatically (system decision, audited) once every hour of that
-    # sale is active. Off: a person with tenant.job.approve approves it (as before).
-    prepaid_job_auto_approval: bool = False
     # When the cash part of an hours sale counts as verified (VERIFY = a person verifies it, as before).
     cash_activation: CashActivation = CashActivation.VERIFY
+    # ADR-008 §1: a CREDIT payment line on an order (the customer pays later, on the automatic credit invoice). Off:
+    # only people who may activate hours on credit (tenant.hours.credit_activate) record one. On: field staff too.
+    # Registered customers only; credit never makes hours usable by itself (credit activation stays a decision).
+    field_credit_sales: bool = False
+    # ADR-008 §2: which of a customer's activated hours a machine report draws on. CUSTOMER: any of the customer's
+    # hours, whichever machine the order named; MACHINE: only the customer's hours on the reported machine.
+    report_hours_scope: ReportHoursScope = ReportHoursScope.CUSTOMER
+    # ADR-008 §2: tell the report approvers when a machine moved (meter or tracker) and has had no machine report for
+    # this many days. Null = no reminder.
+    machine_report_reminder_days: int | None = Field(default=3, ge=1, le=90)
 
     @model_validator(mode="after")
     def _consistent(self) -> "CustomerHoursPolicy":
@@ -518,6 +532,12 @@ OVERRIDABLE: dict[PolicyType, dict[PolicyScope, frozenset[str]]] = {
     PolicyType.PETTY_CASH: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
 }
 
+# Settings a policy type no longer has (ADR-008 removed "Book the job"). Versions written before keep them in their
+# stored values; readers drop them before validating, and new versions may not set them (unknown field).
+RETIRED_FIELDS: dict[PolicyType, frozenset[str]] = {
+    PolicyType.CUSTOMER_HOURS: frozenset({"walk_in_standard_contract", "prepaid_job_auto_approval"}),
+}
+
 # Platform-wide settings kept in a policy type: only a PLATFORM version may set them; tenant and lower layers never
 # override them (create_version refuses, and readers resolve them at platform scope).
 PLATFORM_ONLY_FIELDS: dict[PolicyType, frozenset[str]] = {
@@ -578,6 +598,7 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "gps_required": True,
         "gps_max_accuracy_m": 100.0,
         "auto_approve_limit": "0",
+        "fuel_enabled": True,
     },
     PolicyType.FRAUD_CONTROLS: {
         "engine_activity_min_minutes": 30,
@@ -665,8 +686,9 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "zero_amount_requires_approval": True,
         "variance_sweep_enabled": True,
         "variance_tolerance_hours": "0.01",
-        "walk_in_standard_contract": False,
-        "prepaid_job_auto_approval": False,
         "cash_activation": "VERIFY",
+        "field_credit_sales": False,
+        "report_hours_scope": "CUSTOMER",
+        "machine_report_reminder_days": 3,
     },
 }

@@ -26,6 +26,9 @@ def test_every_gated_menu_names_a_known_capability() -> None:
     assert CATALOG.menu_capabilities("tenant.hours.purchases") == {"CUSTOMER_HOURS"}
     assert CATALOG.menu_capabilities("tenant.field.hours") == {"CUSTOMER_HOURS"}
     assert CATALOG.menu_capabilities("tenant.cash_custody") == frozenset()
+    assert CATALOG.menu_capabilities("tenant.field.fuel") == {"FUEL"}  # ADR-008 §3
+    assert CATALOG.menu_capabilities("tenant.hours.credit_invoices") == {"CUSTOMER_HOURS"}
+    assert CATALOG.menu_capabilities("tenant.approvals.machine_reports") == frozenset()
 
 
 def test_accountability_records_have_exact_links_and_kinds() -> None:

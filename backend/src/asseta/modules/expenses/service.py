@@ -46,6 +46,7 @@ from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.models import Job
 from asseta.modules.meter.models import CaptureAttachment, GpsStatus
 from asseta.modules.platform_billing.models_commercial import Currency
+from asseta.modules.policy.capabilities import FUEL, require_capability
 from asseta.modules.policy.service import PolicyService
 
 TOPIC = "asseta.expenses"
@@ -461,6 +462,7 @@ class ExpenseService:
             ).scalar_one_or_none()
             if existing is not None:
                 return FuelEventDto.model_validate(existing)
+        require_capability(self._s, self._tid, FUEL, self._now)  # ADR-008 §3: refused while fuel is off
         currency = currency_or_default(self._s, self._tid, body.currency)
         machine_id = self._attribution(body.machine_id, body.job_id)
         if body.expense_id is not None:

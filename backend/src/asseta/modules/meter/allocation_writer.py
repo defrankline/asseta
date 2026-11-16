@@ -187,10 +187,21 @@ class AllocationWriter:
                 .order_by(WorkAllocation.work_date, WorkAllocation.start_reading)
             ).scalars()
         )
+        # ADR-008: an approved machine report is the account of its meter range. Its entries are never derived again
+        # and nothing is derived over that range.
+        reported = [r for r in active if r.source is AllocationSource.MACHINE_REPORT]
+        active = [r for r in active if r.source is not AllocationSource.MACHINE_REPORT]
         by_key: dict[str, list[WorkAllocation]] = defaultdict(list)
         for row in active:
             by_key[row.origin_key].append(row)
-        wanted = {e.key: e for e in plan.entries}
+        wanted = {
+            e.key: e
+            for e in plan.entries
+            if not any(
+                r.meter_epoch == e.meter_epoch and r.start_reading < e.end_reading and e.start_reading < r.end_reading
+                for r in reported
+            )
+        }
         to_write: list[tuple[PlannedEntry, WorkAllocation | None]] = []
         stale: list[WorkAllocation] = []
         for key, rows in by_key.items():

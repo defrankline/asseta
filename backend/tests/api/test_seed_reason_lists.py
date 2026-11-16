@@ -46,13 +46,18 @@ def _scalar(owner_engine: Engine, sql: str, tid: str) -> int:
 
 
 def _counts(owner_engine: Engine, tid: str) -> tuple[int, ...]:
-    return tuple(_scalar(owner_engine, f"SELECT count(*) FROM {t} WHERE tenant_id = :t", tid) for t in TABLES)  # noqa: S608
+    sql = "SELECT count(*) FROM {} WHERE tenant_id = :t"
+    # Every company starts with the machine-report reasons (ADR-008, onboarding): not part of what a file seeds.
+    started = " AND kind <> 'NON_PRODUCTIVE'"
+    return tuple(
+        _scalar(owner_engine, sql.format(t) + (started if t == "engine_hour_reason" else ""), tid) for t in TABLES
+    )
 
 
 def _audits(owner_engine: Engine, tid: str) -> int:
     sql = (
         "SELECT count(*) FROM audit_event WHERE tenant_id = :t AND action IN ('hours.reason_code.created', "
-        "'meter.reason.created', 'finance.cash_reason.created', 'revenue.reason.created')"
+        "'meter.reason.created', 'finance.cash_reason.created', 'revenue.reason.created') AND reason LIKE 'Seeded%'"
     )
     return _scalar(owner_engine, sql, tid)
 
@@ -89,7 +94,8 @@ def test_the_seeded_reasons_are_the_companys_usable_lists(api: Api, tool: Module
     ]
     engine = owner.get("/api/v1/tenant/engine-hour-reasons")
     assert engine.status_code == 200, engine.text
-    assert [r["code"] for r in engine.json()["items"]] == ["MAINTENANCE"]
+    seeded = [r["code"] for r in engine.json()["items"] if r["kind"] != "NON_PRODUCTIVE"]  # ADR-008 defaults aside
+    assert seeded == ["MAINTENANCE"]
 
 
 def test_existing_entries_are_skipped_in_any_capitals(

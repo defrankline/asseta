@@ -40,6 +40,7 @@ def test_groups_follow_the_daily_workflow_and_start_on_the_landing_page() -> Non
     assert labels(PermissionScope.TENANT) == [
         "Overview",
         "Field work",
+        "Approvals",
         "Operations",
         "Fleet",
         "Customer hours",
@@ -105,6 +106,7 @@ def test_supervisor_template_gets_the_field_work_group_after_overview() -> None:
     menus, groups = menus_for(_rows(), "TENANT", frozenset(template_permissions(supervisor)))
     assert [g.key for g in groups][:2] == ["tenant.overview", "tenant.field"]
     assert [(m.label, m.path) for m in menus if m.group == "tenant.field"] == [
+        ("Machine report", "/tenant/field/machine-report"),
         ("My jobs", "/tenant/field/jobs"),
         ("Readings", "/tenant/field/readings"),
         ("Fuel", "/tenant/field/fuel"),

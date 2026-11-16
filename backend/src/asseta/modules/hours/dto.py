@@ -3,6 +3,7 @@
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from enum import StrEnum
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
@@ -231,14 +232,26 @@ class CreditExposureDto(BaseModel):
 
 
 # --- purchases --------------------------------------------------------------------------------------------------
+class SalePaymentMethod(StrEnum):
+    """A payment line of an order (ADR-008 §1). CREDIT is not money received: the customer pays it later on the
+    credit invoice the sale creates."""
+
+    CASH = "CASH"
+    BANK = "BANK"
+    MOBILE_MONEY = "MOBILE_MONEY"
+    CREDIT = "CREDIT"
+
+
 class PurchasePaymentIn(BaseModel):
-    """Money taken together with the purchase. It is recorded as a CLAIMED customer payment (cash enters the
-    custodian's custody) and linked to the purchase; hours activate only when someone else verifies it."""
+    """One payment line of the order. CASH / BANK / MOBILE_MONEY: money taken with the sale, recorded as a CLAIMED
+    customer payment (cash enters the custodian's custody) and linked to the purchase; hours activate once it is
+    verified (or per the tenant's cash activation). CREDIT: amount only (registered customers, at most one line); it
+    creates the order's credit invoice and activates nothing by itself."""
 
     amount: PositiveAmount | None = Field(default=None, description="Defaults to the purchase amount")
-    method: HirePaymentMethod
+    method: SalePaymentMethod
     reference: Ref | None = Field(default=None, description="Required for BANK and MOBILE_MONEY")
-    received_at: datetime
+    received_at: datetime | None = Field(default=None, description="Required for every method except CREDIT")
     staff_member_id: uuid.UUID | None = Field(
         default=None, description="Cash custodian (defaults to the caller's staff record for CASH)"
     )
@@ -247,46 +260,19 @@ class PurchasePaymentIn(BaseModel):
 
     @model_validator(mode="after")
     def _reference(self) -> "PurchasePaymentIn":
-        if self.method is not HirePaymentMethod.CASH and not self.reference:
+        if self.method in (SalePaymentMethod.BANK, SalePaymentMethod.MOBILE_MONEY) and not self.reference:
             raise ValueError("reference is required for BANK and MOBILE_MONEY payments")
+        if self.method is not SalePaymentMethod.CREDIT and self.received_at is None:
+            raise ValueError("received_at is required for money received")
         return self
 
+    @property
+    def is_credit(self) -> bool:
+        return self.method is SalePaymentMethod.CREDIT
 
-class SaleJobIn(BaseModel):
-    """Book the job together with the hours sale (one step): a field job request for the sale's customer and machine,
-    billed from these prepaid hours, waiting for approval like any field request (or approved automatically once the
-    sale is fully paid and verified, when the tenant's CUSTOMER_HOURS policy prepaid_job_auto_approval is on)."""
-
-    planned_start: datetime
-    planned_end: datetime | None = Field(default=None, description="Omit for an open-ended booking")
-    job_site_id: uuid.UUID | None = Field(
-        default=None, description="Defaults to the sale's site, then to the contract's site"
-    )
-    contract_id: uuid.UUID | None = Field(
-        default=None,
-        description="Omit to use the customer's only active contract (for that site when one is given); a walk-in "
-        "without a contract gets a standard one when the tenant allows it (walk_in_standard_contract)",
-    )
-    note: Note | None = Field(default=None, description="What the customer asked for")
-
-    @model_validator(mode="after")
-    def _dates(self) -> "SaleJobIn":
-        if self.planned_end is not None and self.planned_end <= self.planned_start:
-            raise ValueError("planned_end must be after planned_start")
-        return self
-
-
-class BookedJobDto(BaseModel):
-    """The job booked together with an hours sale."""
-
-    id: uuid.UUID
-    job_number: str
-    status: str
-    contract_id: uuid.UUID
-    contract_number: str | None = None
-    planned_start: datetime
-    planned_end: datetime | None
-    approved_at: datetime | None
+    @property
+    def money_method(self) -> HirePaymentMethod:
+        return HirePaymentMethod(self.method.value)
 
 
 class HoursPurchaseIn(BaseModel):
@@ -302,13 +288,9 @@ class HoursPurchaseIn(BaseModel):
     payments: list[PurchasePaymentIn] = Field(
         default_factory=list,
         max_length=10,
-        description="The bill split across methods (e.g. cash + bank + mobile money); each part needs its amount. "
-        "Give payment or payments, not both. Together they may not exceed the purchase amount.",
-    )
-    job: SaleJobIn | None = Field(
-        default=None,
-        description="Book the job with the sale (needs tenant.job.request too). The job id is derived from client_id "
-        "(uuid5(client_id, 'job')), so offline retries create it exactly once.",
+        description="The bill split across methods (cash + bank + mobile money + credit); each part needs its amount. "
+        "Give payment or payments, not both. Together they may not exceed the purchase amount. At most one CREDIT "
+        "line (registered customers only): it creates the order's credit invoice.",
     )
 
     @model_validator(mode="after")
@@ -319,10 +301,19 @@ class HoursPurchaseIn(BaseModel):
             raise ValueError("give payment or payments, not both")
         if len(self.payments) > 1 and any(p.amount is None for p in self.payments):
             raise ValueError("every part of a split payment needs its amount")
+        if sum(1 for p in self.payment_parts() if p.is_credit) > 1:
+            raise ValueError("at most one CREDIT line")
         return self
 
     def payment_parts(self) -> list[PurchasePaymentIn]:
         return [self.payment] if self.payment is not None else list(self.payments)
+
+    def money_parts(self) -> list[PurchasePaymentIn]:
+        """The lines that are money received (every line but CREDIT)."""
+        return [p for p in self.payment_parts() if not p.is_credit]
+
+    def credit_part(self) -> PurchasePaymentIn | None:
+        return next((p for p in self.payment_parts() if p.is_credit), None)
 
 
 class PurchaseAllocationIn(BaseModel):
@@ -458,7 +449,12 @@ class HoursPurchaseDto(BaseModel):
     payments: list[CustomerPaymentDto] = Field(
         default_factory=list, description="Every payment part recorded with the purchase (split bills)"
     )
-    job: BookedJobDto | None = Field(default=None, description="The job booked together with this sale, if any")
+    credit_amount: Money | None = Field(
+        default=None, description="The CREDIT line of the order (paid later on its credit invoice); null without one"
+    )
+    credit_invoice: "CreditInvoiceSummaryDto | None" = Field(
+        default=None, description="The credit invoice created for the CREDIT line"
+    )
 
 
 class LedgerEntryDto(Dto):
@@ -733,3 +729,112 @@ class HoursStatementDto(BaseModel):
     usage: list[HoursStatementUsageDto]
     lines: list[HoursStatementLineDto]
     pdf_path: str = Field(description="Same statement as a PDF (GET, same query)")
+
+
+# --- credit invoices (ADR-008 §1) -------------------------------------------------------------------------------
+CreditInvoiceStatus = Literal["UNPAID", "PART_PAID", "PAID", "CANCELLED"]
+InvoicePaymentMethod = Literal["CASH", "BANK", "MOBILE_MONEY"]
+
+
+class CreditInvoiceSummaryDto(BaseModel):
+    """The credit invoice of an order, as shown on the order."""
+
+    id: uuid.UUID
+    invoice_number: str
+    amount: Money
+    paid: Money
+    balance: Money
+    due_date: date
+    status: CreditInvoiceStatus
+    overdue: bool
+
+
+class CreditInvoicePaymentDto(BaseModel):
+    """One payment recorded against a credit invoice (its customer payment record carries the money's status)."""
+
+    id: uuid.UUID
+    payment_id: uuid.UUID
+    amount: Money
+    method: HirePaymentMethod
+    reference: str | None
+    collection_number: str | None = None
+    payment_status: str
+    received_at: datetime
+    received_by_staff_id: uuid.UUID | None
+    received_by_staff_name: str | None = None
+    recorded_by: uuid.UUID | None
+    recorded_by_name: str | None = None
+    created_at: datetime
+    counts: bool = Field(description="False once the payment was rejected or reversed (it no longer pays the invoice)")
+
+
+class CreditInvoiceDto(BaseModel):
+    """CI-<yyyy>-<nnnnn>: created automatically for the CREDIT line of an order. Paid in full or in parts (cash, bank,
+    mobile money). Status: UNPAID, PART_PAID, PAID (CANCELLED when its order was cancelled); `overdue` once the due
+    date passed with a balance. Recorded payments count (claimed or verified) until rejected or reversed."""
+
+    id: uuid.UUID
+    invoice_number: str
+    purchase_id: uuid.UUID
+    purchase_number: str | None = None
+    customer_id: uuid.UUID
+    customer_name: str | None = None
+    machine_id: uuid.UUID
+    machine_code: str | None = None
+    machine_name: str | None = None
+    currency: str
+    hours: Decimal = Field(description="Hours the credit amount pays for (amount / the order's effective rate)")
+    unit_price: Money = Field(description="The order's effective hourly rate")
+    amount: Money
+    paid: Money
+    paid_verified: Money = Field(description="Of `paid`: money already verified")
+    balance: Money
+    payment_terms_days: int
+    issued_at: datetime
+    due_date: date
+    status: CreditInvoiceStatus
+    overdue: bool
+    days_overdue: int
+    created_by: uuid.UUID | None
+    created_by_name: str | None = None
+    payments: list[CreditInvoicePaymentDto] = []
+
+
+class CreditInvoicePaymentIn(BaseModel):
+    """A payment (in full or part) of a credit invoice. CASH goes into the recorder's (or the named custodian's) cash
+    custody like any collection; BANK and MOBILE_MONEY need the transaction reference and stay claimed until the
+    office verifies them. Field staff record bank / mobile money only when the tenant allows field non-cash payments."""
+
+    client_id: uuid.UUID | None = Field(default=None, description="Device/client id (offline idempotency)")
+    amount: PositiveAmount = Field(description="At most the invoice balance")
+    method: InvoicePaymentMethod
+    reference: Ref | None = Field(default=None, description="Required for BANK and MOBILE_MONEY")
+    received_at: datetime
+    staff_member_id: uuid.UUID | None = Field(
+        default=None, description="Cash custodian (defaults to the caller's staff record for CASH)"
+    )
+    note: Note | None = None
+    evidence_attachment_ids: list[uuid.UUID] = Field(default_factory=list, max_length=10)
+
+    @model_validator(mode="after")
+    def _reference(self) -> "CreditInvoicePaymentIn":
+        if self.method != "CASH" and not self.reference:
+            raise ValueError("reference is required for BANK and MOBILE_MONEY payments")
+        return self
+
+
+class CustomerHoursSummaryDto(BaseModel):
+    """One customer's hours (ADR-008): bought (orders not cancelled), activated, used (approved machine reports and
+    any older job allocations), left to use, still awaiting payment or activation, and credit still owed."""
+
+    customer_id: uuid.UUID
+    customer_name: str | None = None
+    bought: Decimal
+    activated: Decimal
+    used: Decimal
+    left: Decimal
+    awaiting_activation: Decimal
+    credit_owed: Money = Field(description="Balance of the customer's open credit invoices (tenant currency)")
+
+
+HoursPurchaseDto.model_rebuild()

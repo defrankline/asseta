@@ -13,6 +13,7 @@ from sqlalchemy import and_, or_, select, text
 from sqlalchemy.orm import Session
 
 from asseta.core.errors import AppError, Conflict, ErrorDetail, NotFound, PermissionDenied
+from asseta.modules.accountability.names import fill_names
 from asseta.modules.expenses.dto import ExpenseCategoryDto
 from asseta.modules.expenses.models import ExpenseCategory
 from asseta.modules.finance.cash_service import CashCustodyService
@@ -26,12 +27,15 @@ from asseta.modules.fleet.machine_view import machine_dtos
 from asseta.modules.fleet.models import Machine, MachineAssignment, StaffMember
 from asseta.modules.geospatial.models import JobSite
 from asseta.modules.geospatial.sites_service import SiteService
+from asseta.modules.hours.credit_invoices import invoice_dtos, invoice_query, local_today
+from asseta.modules.hours.models import CreditInvoice
 from asseta.modules.hours.service import HoursService
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.dto import ContractDto, CustomerDto
 from asseta.modules.jobs.lifecycle import job_dtos
 from asseta.modules.jobs.models import Customer, Job, JobStatus, RentalContract
 from asseta.modules.jobs.scope import job_filter, own_staff
+from asseta.modules.machine_reports.service import MachineReportService
 from asseta.modules.meter.engine_models import EngineHourReason, EngineHourReasonKind
 from asseta.modules.pettycash.dto import (
     PettyCashHolderChangeDto,
@@ -273,6 +277,8 @@ class SyncService:
             my_cash_handovers=inbox.cash_handovers.items,
             **self._petty_cash(staff),
             **self._hours_prices(scope_machines),
+            **self._machine_reports(),
+            **self._credit_invoices(),
         )
         # Every stream is ordered by revision: a truncated stream holds back the cursor to its last delivered row;
         # complete streams were delivered up to the watermark (re-delivery above the cursor is a harmless upsert).
@@ -298,6 +304,27 @@ class SyncService:
             return {}
         svc = HoursService(self._s, self._ctx, self._now)
         return {"hours_prices": svc.current_prices(machine_ids), "customer_discounts": svc.current_discounts()}
+
+    def _machine_reports(self) -> dict[str, Any]:
+        """ADR-008 §2: what a phone needs to make machine reports offline (full snapshots every pull)."""
+        if "tenant.machine_report.submit" not in self._ctx.permissions:
+            return {}
+        return MachineReportService(self._s, self._ctx, self._now).sync_snapshot()
+
+    def _credit_invoices(self) -> dict[str, Any]:
+        """ADR-008 §1: open credit invoices, so a payment can be recorded offline (full snapshot every pull)."""
+        if "tenant.hours.invoice_payment" not in self._ctx.permissions or not capability_on(
+            self._s, self._tid, CUSTOMER_HOURS, self._now
+        ):
+            return {}
+        today = local_today(self._s, self._tid, self._now)
+        stmt = invoice_query(today, open_only=True).order_by(None)
+        invoices = list(
+            self._s.execute(stmt.order_by(CreditInvoice.due_date, CreditInvoice.invoice_number).limit(PAGE)).scalars()
+        )
+        dtos = invoice_dtos(self._s, self._tid, self._now, invoices, with_payments=False)
+        fill_names(self._s, dtos)
+        return {"open_credit_invoices": dtos}
 
     def _petty_on(self) -> bool:
         return "tenant.pettycash.read" in self._ctx.permissions and capability_on(

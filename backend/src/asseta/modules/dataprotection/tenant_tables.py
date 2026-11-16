@@ -89,6 +89,9 @@ DELETE: frozenset[str] = frozenset(
         # customer hours
         "hours_purchase", "hours_ledger_entry", "hours_payment_allocation", "hours_transfer", "hours_cancellation",
         "hours_low_balance_alert", "hours_reason_code", "hours_sequence", "credit_arrangement", "customer_discount",
+        "credit_invoice", "credit_invoice_payment",
+        # machine reports (ADR-008)
+        "machine_report", "machine_report_line",
         # revenue reconciliation
         "revenue_difference", "revenue_difference_adjustment", "revenue_reason",
         # adjustments ledger (Ledger 6) and its propose/decide flow

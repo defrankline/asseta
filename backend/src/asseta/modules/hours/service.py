@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from asseta.core.audit import AuditService
+from asseta.core.db import utcnow
 from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound, PermissionDenied
 from asseta.core.lifecycle import check_version, flush_versioned
 from asseta.core.money import quantize
@@ -33,6 +34,7 @@ from asseta.modules.finance.payment_service import CustomerPaymentService, payme
 from asseta.modules.fleet.models import Machine, MachineStatus
 from asseta.modules.geospatial.models import JobSite
 from asseta.modules.hours.cash_activation import CashActivation
+from asseta.modules.hours.credit_invoices import create_credit_invoice, invoice_summaries
 from asseta.modules.hours.dto import (
     AllocationLineDto,
     CreditActivationIn,
@@ -67,6 +69,7 @@ from asseta.modules.hours.ledger import (
 )
 from asseta.modules.hours.models import (
     SIGN,
+    CreditInvoice,
     CustomerDiscount,
     HoursLedgerEntry,
     HoursPaymentAllocation,
@@ -78,14 +81,15 @@ from asseta.modules.hours.models import (
 )
 from asseta.modules.hours.numbering import next_number
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.booking import SaleBooking, booked_job
 from asseta.modules.jobs.dto import CustomerDto
 from asseta.modules.jobs.models import Customer, CustomerKind, RentalRatePolicy
 from asseta.modules.meter.models import CaptureAttachment, JobException
+from asseta.modules.policy.schemas import ActivationBasis
 
 T = LedgerEntryType
 PAYMENT_RECORDERS = {HirePaymentMethod.CASH: "tenant.collection.record"}
 OFFICE_PAYMENT = "tenant.finance.payment"
+CREDIT_ACTIVATOR = "tenant.hours.credit_activate"  # may always record a CREDIT line on an order
 
 
 def ledger_dto(e: HoursLedgerEntry) -> LedgerEntryDto:
@@ -94,7 +98,9 @@ def ledger_dto(e: HoursLedgerEntry) -> LedgerEntryDto:
     return dto
 
 
-def purchase_dto(session: Session, p: HoursPurchase, payment: CustomerPaymentDto | None = None) -> HoursPurchaseDto:
+def purchase_dto(
+    session: Session, p: HoursPurchase, payment: CustomerPaymentDto | None = None, now: datetime | None = None
+) -> HoursPurchaseDto:
     totals = purchase_totals(session, p)
     verified, claimed = allocated_amounts(session, p.id)
     units = minor_units(session, p.currency)
@@ -182,8 +188,17 @@ def purchase_dto(session: Session, p: HoursPurchase, payment: CustomerPaymentDto
         machines=machines,
         allocations=allocations,
         payment=payment,
-        job=booked_job(session, p.id),
+        **_credit(session, p, now or utcnow()),
     )
+
+
+def _credit(session: Session, p: HoursPurchase, now: datetime) -> dict[str, Any]:
+    """The order's CREDIT line and its credit invoice (ADR-008 §1)."""
+    inv = session.execute(select(CreditInvoice).where(CreditInvoice.purchase_id == p.id)).scalar_one_or_none()
+    if inv is None:
+        return {}
+    summary = invoice_summaries(session, p.tenant_id, now, [p.id])[p.id]
+    return {"credit_amount": inv.amount, "credit_invoice": summary}
 
 
 def _pending_zero_amount(session: Session, p: HoursPurchase) -> uuid.UUID | None:
@@ -533,19 +548,34 @@ class HoursService:
                 f"Recording a {method.value} payment needs {' or '.join(sorted(needed))}", code="PAYMENT_NOT_PERMITTED"
             )
 
+    def _check_credit_sale(self, body: HoursPurchaseIn) -> None:
+        """A CREDIT line (ADR-008 §1): people who may activate hours on credit may always record one; field staff
+        only when the tenant's CUSTOMER_HOURS field_credit_sales is on. Registered customers only."""
+        policy = self.engine.policy
+        if CREDIT_ACTIVATOR not in self._ctx.permissions and not policy.field_credit_sales:
+            raise PermissionDenied(
+                "Recording part of a sale on credit is not allowed for you by the company setting",
+                code="CREDIT_SALES_NOT_ALLOWED",
+            )
+        if not policy.credit_allowed or ActivationBasis.CREDIT not in policy.activation_basis:
+            raise BusinessRuleViolation("Credit is switched off by tenant policy", code="CREDIT_NOT_ALLOWED")
+        if body.walk_in is not None:
+            raise BusinessRuleViolation(
+                "A walk-in customer cannot buy on credit; register the customer first", code="WALK_IN_NO_CREDIT"
+            )
+
     def create_purchase(self, body: HoursPurchaseIn, source: str = "API") -> HoursPurchaseDto:
         if body.client_id is not None:
             existing = self._s.execute(
                 select(HoursPurchase).where(HoursPurchase.client_id == body.client_id)
             ).scalar_one_or_none()
             if existing is not None:
-                return purchase_dto(self._s, existing)  # offline retry: exactly one purchase
+                return purchase_dto(self._s, existing, now=self._now)  # offline retry: exactly one purchase
         self._require_enabled()
-        for part in body.payment_parts():
-            self._check_payment_permission(part.method)
-        booking = SaleBooking(self._s, self._ctx, self._now, self.engine.policy) if body.job is not None else None
-        if booking is not None:
-            booking.check_permission()
+        for part in body.money_parts():
+            self._check_payment_permission(part.money_method)
+        if body.credit_part() is not None:
+            self._check_credit_sale(body)
         if body.walk_in is not None:
             walk_in = body.walk_in
             if walk_in.client_id is None and body.client_id is not None:
@@ -570,8 +600,22 @@ class HoursService:
                 raise NotFound("Job site not found")
             if not site.is_active:
                 raise BusinessRuleViolation("Job site is deactivated", code="SITE_INACTIVE")
+        credit_line = body.credit_part()
+        if credit_line is not None and customer.kind is CustomerKind.WALK_IN:
+            raise BusinessRuleViolation(
+                "A walk-in customer cannot buy on credit; register the customer first", code="WALK_IN_NO_CREDIT"
+            )
         card, discount, pct, effective_rate, amount = self._price(machine, customer.id, body.hours)
-        plan = booking.plan(customer, body.job, body.job_site_id) if booking is not None and body.job else None
+        parts = body.payment_parts()
+        paid = sum((p.amount or amount for p in parts), Decimal(0))
+        if len(parts) > 1 and paid > amount:
+            raise BusinessRuleViolation(
+                f"The payment lines add up to {paid}, more than the purchase total {amount}",
+                code="PAYMENTS_EXCEED_TOTAL",
+            )
+        credit = (credit_line.amount or amount) if credit_line is not None else None
+        if credit is not None and credit <= 0:
+            raise BusinessRuleViolation("Nothing to pay on this purchase", code="NOTHING_TO_PAY")
         year = self._local_year()
         purchase = HoursPurchase(
             id=uuid.uuid4(),
@@ -612,6 +656,7 @@ class HoursService:
                 "discount_percent": str(pct),
                 "amount": str(amount),
                 "currency": purchase.currency,
+                "credit_amount": str(credit) if credit is not None else None,
             },
         )
         OutboxWriter(self._s).emit(
@@ -629,8 +674,6 @@ class HoursService:
             },
             tenant_id=self._tid,
         )
-        if booking is not None and body.job is not None and plan is not None:
-            booking.book(purchase, body.job, plan)  # before any activation, so approval can follow the money
         if amount <= 0:  # nothing to pay: a second person approves, unless the tenant lets it activate on recording
             if self.engine.policy.zero_amount_requires_approval:
                 from asseta.modules.adjustments.requests import AdjustmentRequests  # lazy: builds on the hours modules
@@ -638,15 +681,11 @@ class HoursService:
                 AdjustmentRequests(self._s, self._ctx, self._now).propose_zero_amount(purchase)
             else:
                 self.engine.activate_from_payments(purchase)
-        parts = body.payment_parts()
-        paid = sum((p.amount or purchase.amount for p in parts), Decimal(0))
-        if len(parts) > 1 and paid > purchase.amount:
-            raise BusinessRuleViolation(
-                f"The payment parts add up to {paid}, more than the purchase total {purchase.amount}",
-                code="PAYMENTS_EXCEED_TOTAL",
-            )
-        taken = [self._take_payment(purchase, body, p, i, source) for i, p in enumerate(parts)]
-        out = purchase_dto(self._s, purchase, taken[0] if taken else None)
+        if credit is not None:  # the CREDIT line is invoiced now; it activates nothing (credit activation decides)
+            create_credit_invoice(self._s, self._ctx, self._now, purchase, customer, credit)
+        # Indexes count every line (the CREDIT one included), so each money line keeps its offline id.
+        taken = [self._take_payment(purchase, body, p, i, source) for i, p in enumerate(parts) if not p.is_credit]
+        out = purchase_dto(self._s, purchase, taken[0] if taken else None, self._now)
         out.payments = taken
         return out
 
@@ -659,14 +698,16 @@ class HoursService:
         amount = pay.amount or purchase.amount
         if amount <= 0:
             raise BusinessRuleViolation("Nothing to pay on this purchase", code="NOTHING_TO_PAY")
-        if pay.method is HirePaymentMethod.CASH:
+        method, received_at = pay.money_method, pay.received_at
+        assert received_at is not None  # required for every money line (validated)
+        if method is HirePaymentMethod.CASH:
             recorded = CashCustodyService(self._s, self._ctx, self._now).record_collection(
                 CashCollectionIn(
                     client_id=client_id,
                     customer_id=purchase.customer_id,
                     amount=amount,
                     currency=purchase.currency,
-                    received_at=pay.received_at,
+                    received_at=received_at,
                     staff_member_id=pay.staff_member_id,
                     reference=pay.reference,
                     note=pay.note or f"Hours purchase {purchase.purchase_number}",
@@ -680,9 +721,9 @@ class HoursService:
                     customer_id=purchase.customer_id,
                     amount=amount,
                     currency=purchase.currency,
-                    method=pay.method,
+                    method=method,
                     reference=pay.reference,
-                    received_at=pay.received_at,
+                    received_at=received_at,
                     received_by_staff_id=pay.staff_member_id,
                     note=pay.note or f"Hours purchase {purchase.purchase_number}",
                     client_id=client_id,
@@ -697,7 +738,7 @@ class HoursService:
                 self.allocate(
                     purchase.id, PurchaseAllocationIn(payment_id=recorded.id, amount=min(amount, open_amount))
                 )
-        if pay.method is HirePaymentMethod.CASH:  # tenant policy cash_activation ON_RECORDING: verified as recorded
+        if method is HirePaymentMethod.CASH:  # tenant policy cash_activation ON_RECORDING: verified as recorded
             CashActivation(self._s, self._tid, self._ctx.user_id, self._now).on_recorded(recorded.id)
         return payment_dto(self._s, self._payment(recorded.id))
 
@@ -753,7 +794,7 @@ class HoursService:
         )
         if payment.status is SettlementStatus.VERIFIED:
             self.engine.activate_from_payments(purchase, payment.id)
-        return purchase_dto(self._s, purchase)
+        return purchase_dto(self._s, purchase, now=self._now)
 
     def link_collection(self, payment_id: uuid.UUID, purchase_ref: uuid.UUID, amount: Decimal) -> None:
         """Link a cash collection to the purchase it pays for: the purchase's id or its offline client id; up to the
@@ -775,7 +816,7 @@ class HoursService:
         self._require_enabled()
         purchase = self.engine.lock_purchase(purchase_id)
         self.engine.activate_on_credit(purchase, body.hours, body.reason)
-        return purchase_dto(self._s, purchase)
+        return purchase_dto(self._s, purchase, now=self._now)
 
     # --- evidence -------------------------------------------------------------------------------------------
     def link_evidence(self, payment_id: uuid.UUID, attachment_ids: list[uuid.UUID]) -> list[PaymentEvidenceDto]:

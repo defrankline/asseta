@@ -169,6 +169,14 @@ _TYPES = (
     NotificationType(
         "ADJUSTMENT_APPROVAL_DECIDED", "Adjustment decision", Category.INFO, Severity.INFO, T, low_priority=True
     ),
+    # ADR-008: an order with a CREDIT line (its hours wait for credit activation); credit invoices past their due date
+    NotificationType("HOURS_CREDIT_TO_ACTIVATE", "Credit hours to activate", Category.ACTION, Severity.INFO, T),
+    NotificationType("CREDIT_INVOICE_OVERDUE", "Credit invoice overdue", Category.REMINDER, Severity.WARNING, T),
+    # ADR-008 §2: machine reports to decide, the decision for the submitter, machines that moved without a report
+    NotificationType("MACHINE_REPORT_SUBMITTED", "Machine report to approve", Category.ACTION, Severity.INFO, T),
+    NotificationType("MACHINE_REPORT_APPROVED", "Machine report approved", Category.INFO, Severity.INFO, T),
+    NotificationType("MACHINE_REPORT_REJECTED", "Machine report rejected", Category.ACTION, Severity.WARNING, T),
+    NotificationType("MACHINE_REPORT_MISSING", "No machine report", Category.REMINDER, Severity.WARNING, T),
     NotificationType("HOURS_EXPIRING", "Customer hours expiring", Category.REMINDER, Severity.WARNING, T),
     NotificationType("HOURS_LOW_BALANCE", "Customer hours running low", Category.REMINDER, Severity.WARNING, T),
     NotificationType("HOURS_EXPIRED", "Customer hours expired", Category.INFO, Severity.INFO, T, low_priority=True),

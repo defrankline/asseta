@@ -3,11 +3,12 @@ negotiated agreement, first rate version and subscription (PENDING_ACTIVATION)."
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from asseta.core.audit import AuditActor, AuditService
+from asseta.core.db import DbScope, apply_scope
 from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
 from asseta.core.lifecycle import check_version
 from asseta.core.outbox import OutboxWriter
@@ -72,6 +73,7 @@ class TenantOnboardingService:
             self._s.flush()
         except IntegrityError as exc:
             raise Conflict("Tenant could not be created (duplicate)", code="TENANT_EXISTS") from exc
+        self._seed_tenant_lists(tenant_id)
 
         setup = body.subscription
         agreement = CommercialAgreement(
@@ -151,6 +153,29 @@ class TenantOnboardingService:
             owner_email=str(body.owner.email),
             owner_temporary_password=owner.temporary_password,
         )
+
+    def _seed_tenant_lists(self, tenant_id: uuid.UUID) -> None:
+        """The new company's starting lists that are its own data (ADR-008 §2: the machine-report reasons), written in
+        its RLS scope; the platform scope of the request is restored afterwards."""
+        from asseta.modules.machine_reports.reasons import seed_default_reasons  # builds on many modules
+
+        scope, current_tenant, actor = self._s.execute(
+            text(
+                "SELECT current_setting('app.scope', true), current_setting('app.tenant_id', true),"
+                " current_setting('app.actor_id', true)"
+            )
+        ).one()
+        apply_scope(self._s, DbScope.TENANT, tenant_id, self._actor.user_id)
+        try:
+            seed_default_reasons(self._s, tenant_id, self._actor, "Starting list for a new company (ADR-008)")
+        finally:
+            self._s.execute(
+                text(
+                    "SELECT set_config('app.scope', :s, true), set_config('app.tenant_id', :t, true),"
+                    " set_config('app.actor_id', :a, true)"
+                ),
+                {"s": scope or "", "t": current_tenant or "", "a": actor or ""},
+            )
 
     def update(self, tenant_id: uuid.UUID, body: TenantUpdateIn) -> TenantDto:
         tenant = self._s.get(Tenant, tenant_id, with_for_update=True)
