@@ -533,11 +533,14 @@ fun SheetDayScreen(vm: SheetDayViewModel, features: OwnerFeatures, onOpen: (Owne
             d.money.forEach { m ->
                 item(key = "money-${m.currency}") { SectionCard(T.sheetMoney(m.currency), footer = AllocationTexts.VALUE_AT_RISK_FOOTER.takeIf { RevenuePresentation.nonZero(m.valueAtRisk) }) { RevenuePresentation.moneyRows(m).forEach { (l, v) -> KeyValue(l, v) } } }
             }
-            item { SectionCard(T.SHEET_FUEL) { RevenuePresentation.fuelRows(d).forEach { (l, v) -> KeyValue(l, v) } } }
+            // ADR-008 fuel switch: no fuel card while the company has fuel switched off.
+            if (features.fuel) item { SectionCard(T.SHEET_FUEL) { RevenuePresentation.fuelRows(d).forEach { (l, v) -> KeyValue(l, v) } } }
             item {
                 SectionCard(T.SHEET_FLAGS, footer = T.SHEET_FOOTER) {
-                    if (d.flags.isEmpty()) FootNote(T.SHEET_NO_FLAGS)
-                    d.flags.forEach { Text(T.sheetFlag(it), style = AssetaType.subheadline, color = OwnerColors.Warning) }
+                    // Recorded fuel stays hidden while fuel is switched off (ADR-008), so no fuel flag either.
+                    val flags = d.flags.filter { features.fuel || it != "FUEL_ABOVE_NORM" }
+                    if (flags.isEmpty()) FootNote(T.SHEET_NO_FLAGS)
+                    flags.forEach { Text(T.sheetFlag(it), style = AssetaType.subheadline, color = OwnerColors.Warning) }
                     if (features.cases) RevenuePresentation.caseIds(d).forEach { id ->
                         NavigationRow(T.SHEET_OPEN_CASE) { onOpen(OwnerDestination.Case(id)) }
                     }
