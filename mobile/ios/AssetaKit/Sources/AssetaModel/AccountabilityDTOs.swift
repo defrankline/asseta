@@ -418,6 +418,8 @@ public struct HoursPurchaseDTO: Codable, Hashable, Sendable, Identifiable {
     /// ADR-008: the order's CREDIT part and its invoice (nil without a CREDIT line).
     public let creditAmount: DecimalString?
     public let creditInvoice: CreditInvoiceSummaryDTO?
+    /// The CREDIT part: `AWAITING_ACTIVATION`, `ACTIVATED` or `REJECTED` (nil without one or from older servers).
+    public let creditStatus: String?
     /// The order's payment lines (money received, by method).
     public let payments: [SalePayment]?
     /// ADR-008: the order's rate after discount (credit hours = credit amount ÷ this rate) and its recorder.
@@ -517,7 +519,7 @@ public struct HoursPurchaseDTO: Codable, Hashable, Sendable, Identifiable {
         case customerID = "customer_id", customerName = "customer_name", machineID = "machine_id", createdAt = "created_at"
         case machineCode = "machine_code", machineName = "machine_name", jobSiteName = "job_site_name"
         case createdByName = "created_by_name", cancelledAt = "cancelled_at"
-        case creditAmount = "credit_amount", creditInvoice = "credit_invoice", payments
+        case creditAmount = "credit_amount", creditInvoice = "credit_invoice", creditStatus = "credit_status", payments
         case effectiveRate = "effective_rate", createdBy = "created_by"
     }
 }

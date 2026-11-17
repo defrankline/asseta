@@ -56,6 +56,17 @@ object ApprovalsTexts {
     const val CREDIT_APPROVED = "Credit approved. The customer can use these hours."
     const val OWN_SALE = "You recorded this sale, so someone else must approve its credit."
 
+    // Reject credit (owner decision): a reason is required; the seller is told it.
+    const val REJECT_CREDIT_TITLE = "Reject credit"
+    fun rejectCreditMessage(customer: String, amount: String): String =
+        "$customer: $amount on credit. The credit invoice is cancelled and these hours will not be usable. Parts already paid stay as they are."
+    const val REJECT_REASON_LABEL = "Reason (the seller will see it)"
+    const val REJECT_REASON_HINT = "At least 3 characters."
+    const val REJECT_CONFIRM = "Reject credit"
+    const val CANCEL = "Cancel"
+    const val CREDIT_REJECTED = "Credit rejected. The invoice is cancelled and the seller is told why."
+    const val REJECT_REASON_MIN = 3
+
     /** "Hours approved on credit" etc.: refusals of a credit approval in plain words. */
     fun creditRefusal(code: String?, fallback: String): String = when (code) {
         "SEGREGATION_OF_DUTIES" -> "You recorded this sale, so you can't approve its credit. Someone else must."
@@ -67,13 +78,34 @@ object ApprovalsTexts {
         "CANCELLATION_PENDING" -> "A cancellation is already waiting for this order."
         else -> fallback
     }
+
+    /** Refusals of Reject credit in plain words (else [fallback]). */
+    fun creditRejectRefusal(code: String?, fallback: String): String = when (code) {
+        "SEGREGATION_OF_DUTIES" -> "You recorded this sale, so you can't reject its credit. Someone else must."
+        "CREDIT_NOT_AWAITING" -> "This credit is no longer waiting: it was already approved or rejected. The list has been refreshed."
+        "CREDIT_INVOICE_HAS_PAYMENTS" -> "Payments are already recorded on this credit invoice, so its credit can't be rejected."
+        "NO_CREDIT_PART" -> "This order has no credit part."
+        "PURCHASE_CANCELLED" -> "This order was cancelled."
+        else -> fallback
+    }
+
+    /** The refused rejection reloads the list for these codes (the order moved on). */
+    fun creditRejectReloads(code: String?): Boolean =
+        code == "CREDIT_NOT_AWAITING" || code == "CREDIT_INVOICE_HAS_PAYMENTS" || code == "PURCHASE_CANCELLED" || code == "NO_CREDIT_PART"
+
+    /** A rejection needs a reason of at least 3 characters (trimmed; as the server). */
+    fun rejectReasonValid(text: String): Boolean = text.trim().length >= REJECT_REASON_MIN
 }
 
 /** Credit sales: orders with a CREDIT part whose hours still wait to be made usable (pure, unit-tested). */
 object CreditSales {
-    /** Has a credit part and hours still waiting, not cancelled. */
+    /** Has a credit part (not rejected) and hours still waiting, not cancelled. */
     fun waiting(p: OwnerHoursPurchaseDto): Boolean =
-        p.cancelledAt == null && Figures.dec(p.creditAmount).signum() > 0 && Figures.dec(p.totals.awaitingActivation).signum() > 0
+        p.cancelledAt == null && p.creditStatus != REJECTED && Figures.dec(p.creditAmount).signum() > 0 &&
+            Figures.dec(p.totals.awaitingActivation).signum() > 0
+
+    /** `credit_status` of a rejected credit part. */
+    const val REJECTED = "REJECTED"
 
     /**
      * Hours the credit part pays for: credit amount / the order's effective rate (rounded down to 0.01 h), never more

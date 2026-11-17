@@ -80,6 +80,18 @@ public enum ApprovalsTexts {
     public static let creditApproved = "Credit approved. The customer can use these hours."
     public static let ownSale = "You recorded this sale, so someone else must approve its credit."
 
+    // Reject credit (owner decision): a reason is required; the seller is told it.
+    public static let rejectCreditTitle = "Reject credit"
+    public static func rejectCreditMessage(_ customer: String, _ amount: String) -> String {
+        "\(customer): \(amount) on credit. The credit invoice is cancelled and these hours will not be usable. Parts already paid stay as they are."
+    }
+    public static let rejectReasonLabel = "Reason (the seller will see it)"
+    public static let rejectReasonHint = "At least 3 characters."
+    public static let rejectConfirm = "Reject credit"
+    public static let cancel = "Cancel"
+    public static let creditRejected = "Credit rejected. The invoice is cancelled and the seller is told why."
+    public static let rejectReasonMin = 3
+
     /// Refusals of a credit approval in plain words (else `fallback`).
     public static func creditRefusal(_ code: String?, fallback: String) -> String {
         switch code {
@@ -97,6 +109,28 @@ public enum ApprovalsTexts {
     /// The refused credit approval reloads the list for these codes (and any conflict the server says to reload on).
     public static func creditReloads(_ code: String?) -> Bool {
         code == "EXCEEDS_UNACTIVATED_HOURS" || code == "PURCHASE_CANCELLED"
+    }
+
+    /// Refusals of Reject credit in plain words (else `fallback`).
+    public static func creditRejectRefusal(_ code: String?, fallback: String) -> String {
+        switch code {
+        case "SEGREGATION_OF_DUTIES": "You recorded this sale, so you can't reject its credit. Someone else must."
+        case "CREDIT_NOT_AWAITING": "This credit is no longer waiting: it was already approved or rejected. The list has been refreshed."
+        case "CREDIT_INVOICE_HAS_PAYMENTS": "Payments are already recorded on this credit invoice, so its credit can't be rejected."
+        case "NO_CREDIT_PART": "This order has no credit part."
+        case "PURCHASE_CANCELLED": "This order was cancelled."
+        default: fallback
+        }
+    }
+
+    /// The refused rejection reloads the list for these codes (the order moved on).
+    public static func creditRejectReloads(_ code: String?) -> Bool {
+        ["CREDIT_NOT_AWAITING", "CREDIT_INVOICE_HAS_PAYMENTS", "PURCHASE_CANCELLED", "NO_CREDIT_PART"].contains(code ?? "")
+    }
+
+    /// A rejection needs a reason of at least 3 characters (trimmed; as the server and Android).
+    public static func rejectReasonValid(_ text: String) -> Bool {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).count >= rejectReasonMin
     }
 }
 
@@ -117,9 +151,13 @@ public enum CreditSales {
     /// At most this many customers' credit limits are looked up per list.
     public static let maxExposureLookups = 25
 
-    /// Has a credit part and hours still waiting, not cancelled.
+    /// `credit_status` of a rejected credit part.
+    public static let rejected = "REJECTED"
+
+    /// Has a credit part (not rejected) and hours still waiting, not cancelled.
     public static func waiting(_ p: HoursPurchaseDTO) -> Bool {
-        p.cancelledAt == nil && (p.creditAmount?.value ?? 0) > 0 && p.totals.awaitingActivation.value > 0
+        p.cancelledAt == nil && p.creditStatus != rejected && (p.creditAmount?.value ?? 0) > 0
+            && p.totals.awaitingActivation.value > 0
     }
 
     /// Hours the credit part pays for: credit amount ÷ the order's effective rate (rounded down to 0.01 h), never more

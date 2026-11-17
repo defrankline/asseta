@@ -290,6 +290,10 @@ data class MachineReportRejectIn(val reason: String)
 @Serializable
 data class CreditActivationIn(val hours: String, val reason: String)
 
+/** `CreditRejectionIn` (rejectHoursCredit): why the credit part of an order is not approved (at least 3 characters). */
+@Serializable
+data class CreditRejectionIn(val reason: String)
+
 /** ADR-008 sync operation types. */
 object MachineReportOps {
     const val MACHINE_REPORT = "MACHINE_REPORT"

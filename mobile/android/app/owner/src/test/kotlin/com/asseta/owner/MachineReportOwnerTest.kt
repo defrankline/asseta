@@ -93,11 +93,12 @@ class MachineReportOwnerTest {
 
     private fun dto(s: String = report()) = json.decodeFromString(MachineReportDto.serializer(), s)
 
-    private fun purchase(createdBy: String = ID2, credit: String? = "3800000", awaiting: String = "40") = """{"id":"$ID1","purchase_number":"HP-1",
+    private fun purchase(createdBy: String = ID2, credit: String? = "3800000", awaiting: String = "40", creditStatus: String = "AWAITING_ACTIVATION") = """{"id":"$ID1","purchase_number":"HP-1",
         "customer_id":"$ID2","customer_name":"Msasani Bay","machine_id":"$ID2","hours":"40","status":"AWAITING_PAYMENT",
         "created_at":"2026-11-16T15:20:00Z","cancelled_at":null,"currency":"TZS","amount":"3800000","effective_rate":"95000",
         "created_by":"$createdBy","payments":[],"credit_amount":${credit?.let { "\"$it\"" } ?: "null"},
         "credit_invoice":{"id":"$ID2","invoice_number":"INV-0042","amount":"3800000","paid":"0","balance":"3800000","due_date":"2026-11-30","status":"UNPAID","overdue":false},
+        "credit_status":"$creditStatus",
         "totals":{"purchased":"40","activated":"0","consumed":"0","remaining":"0","awaiting_activation":"$awaiting"}}"""
 
     private fun order(s: String = purchase()) = json.decodeFromString(OwnerHoursPurchaseDto.serializer(), s)
@@ -218,6 +219,55 @@ class MachineReportOwnerTest {
         // Approve credit makes every waiting hour usable, with the fixed reason (as iOS).
         assertEquals(0, BigDecimal("12").compareTo(CreditSales.awaitingHours(order(purchase(awaiting = "12")))))
         assertEquals("Credit approved in the Owner app", ApprovalsTexts.CREDIT_APPROVED_REASON)
+        // A rejected credit no longer waits.
+        assertFalse(CreditSales.waiting(order(purchase(creditStatus = "REJECTED"))))
+    }
+
+    @Test
+    fun `reject credit needs a reason, posts it and explains refusals`() {
+        val h = OwnerHarness()
+        val posts = Collections.synchronizedList(mutableListOf<Pair<String, String>>())
+        val refusal = java.util.concurrent.atomic.AtomicReference<String?>(null)
+        h.server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val path = request.url.encodedPath
+                if (request.method == "POST") {
+                    posts += path to request.body!!.utf8()
+                    refusal.get()?.let { code ->
+                        return MockResponse.Builder().code(422).body("""{"error":{"code":"$code","message":"refused","correlation_id":"c"}}""").build()
+                    }
+                    return MockResponse.Builder().code(200).body(purchase(creditStatus = "REJECTED")).build()
+                }
+                return when {
+                    path.endsWith("/hours-purchases") -> MockResponse.Builder().code(200).body(Samples.page(purchase())).build()
+                    path.endsWith("/credit-exposure") -> MockResponse.Builder().code(404).build()
+                    else -> MockResponse.Builder().code(404).build()
+                }
+            }
+        }
+        try {
+            val vm = ApprovalsViewModel(h.data, emptyFlow(), expenseRequests = false, creditSales = true)
+            val sale = vm.credit!!.state.settled().data!!.single()
+            assertFalse(ApprovalsTexts.rejectReasonValid("  no "))
+            assertTrue(ApprovalsTexts.rejectReasonValid(" Owes "))
+            vm.rejectCredit(sale, "  ")
+            assertTrue(posts.isEmpty())
+            refusal.set("CREDIT_INVOICE_HAS_PAYMENTS")
+            vm.rejectCredit(sale, "Customer already owes too much")
+            assertEquals(ApprovalsTexts.creditRejectRefusal("CREDIT_INVOICE_HAS_PAYMENTS", "x"), vm.creditError.await { it != null }!!.message)
+            assertEquals("/api/v1/tenant/hours-purchases/$ID1/credit/reject", posts[0].first)
+            vm.creditBusy.await { it == null }
+            refusal.set(null)
+            vm.rejectCredit(sale, "Customer already owes too much")
+            assertEquals(ApprovalsTexts.CREDIT_REJECTED, vm.message.await { it != null })
+            assertTrue(posts[1].second.contains("\"reason\":\"Customer already owes too much\""))
+        } finally {
+            h.close()
+        }
+        assertTrue(ApprovalsTexts.creditRejectRefusal("SEGREGATION_OF_DUTIES", "x").startsWith("You recorded this sale"))
+        assertTrue(ApprovalsTexts.creditRejectRefusal("CREDIT_NOT_AWAITING", "x").startsWith("This credit is no longer waiting"))
+        assertTrue(ApprovalsTexts.creditRejectReloads("CREDIT_NOT_AWAITING"))
+        assertEquals("server words", ApprovalsTexts.creditRejectRefusal("SOMETHING_ELSE", "server words"))
     }
 
     @Test

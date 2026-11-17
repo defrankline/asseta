@@ -16,6 +16,7 @@ struct OwnerApprovalsHubView: View {
     @State private var busy: UUID?
     @State private var creditError: (id: UUID, message: String)?
     @State private var message: String?
+    @State private var rejecting: CreditSale?
 
     var body: some View {
         let counts = queues.counts
@@ -50,6 +51,9 @@ struct OwnerApprovalsHubView: View {
         .background(Shell.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .task(id: model.changeTick) { await queues.reload(model) }
+        .sheet(item: $rejecting) { sale in
+            RejectCreditSheet(sale: sale) { reason in Task { await rejectCredit(sale.purchase, reason: reason) } }
+        }
     }
 
     /// Chips the role sees: All, and each kind it can have waiting.
@@ -127,8 +131,9 @@ struct OwnerApprovalsHubView: View {
                 Text(blocked.message).font(.system(size: 13)).foregroundStyle(Shell.muted)
             } else {
                 HStack(spacing: 10) {
-                    // Reject opens the order, where it can be cancelled (no cancellation from this list).
-                    OutlineButton(ApprovalsTexts.reject, height: 40) { push(OwnerRoute.hoursPurchase(order.id)) }
+                    // Reject asks for the reason (the credit invoice is cancelled); Approve credit makes the hours usable.
+                    OutlineButton(ApprovalsTexts.reject, height: 40) { if busy == nil { rejecting = sale } }
+                        .accessibilityIdentifier("approvals.credit.reject")
                     Button { Task { await approveCredit(order) } } label: {
                         Text(busy == order.id ? "…" : ApprovalsTexts.approveCredit).font(.system(size: 14, weight: .bold))
                             .frame(maxWidth: .infinity, minHeight: 40)
@@ -248,6 +253,27 @@ struct OwnerApprovalsHubView: View {
             creditError = (order.id, ApprovalsTexts.creditRefusal(code, fallback: DecisionErrorText.message(for: error)))
             model.handle(error)
             if ApprovalsTexts.creditReloads(code) || DecisionErrorText.needsReload(error) {
+                await queues.reload(model)
+            }
+        }
+    }
+
+    /// Rejects the credit part with the reason given (owner decision), one Idempotency-Key per attempt.
+    private func rejectCredit(_ order: HoursPurchaseDTO, reason: String) async {
+        guard let repository = model.repository, busy == nil, ApprovalsTexts.rejectReasonValid(reason) else { return }
+        busy = order.id
+        creditError = nil
+        defer { busy = nil }
+        do {
+            _ = try await repository.send(OwnerAPI.rejectCredit(order.id, reason: reason, idempotencyKey: UUID()))
+            message = ApprovalsTexts.creditRejected
+            UIAccessibility.post(notification: .announcement, argument: message)
+            await queues.reload(model)
+        } catch {
+            let code = (error as? APIError)?.code
+            creditError = (order.id, ApprovalsTexts.creditRejectRefusal(code, fallback: DecisionErrorText.message(for: error)))
+            model.handle(error)
+            if ApprovalsTexts.creditRejectReloads(code) || DecisionErrorText.needsReload(error) {
                 await queues.reload(model)
             }
         }

@@ -10,6 +10,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -186,6 +189,27 @@ class ApprovalsViewModel(
             _creditBusy.value = null
         }
     }
+
+    /** Reject the credit part of [sale] with [reason] (owner decision); one Idempotency-Key per attempt. */
+    fun rejectCredit(sale: CreditSale, reason: String) {
+        val p = sale.purchase
+        if (_creditBusy.value != null || !ApprovalsTexts.rejectReasonValid(reason)) return
+        _creditBusy.value = p.id
+        _creditError.value = null
+        viewModelScope.launch {
+            when (val r = data.rejectCredit(p.id, reason, UUID.randomUUID().toString())) {
+                is ActionResult.Done -> {
+                    _message.value = ApprovalsTexts.CREDIT_REJECTED
+                    credit?.refresh()
+                }
+                is ActionResult.Refused -> {
+                    _creditError.value = CreditError(p.id, ApprovalsTexts.creditRejectRefusal(r.code, r.error.message))
+                    if (r.reload || ApprovalsTexts.creditRejectReloads(r.code)) credit?.refresh()
+                }
+            }
+            _creditBusy.value = null
+        }
+    }
 }
 
 /** Chips the role sees: All, and each kind it can have waiting. */
@@ -212,6 +236,7 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, session: OwnerSession, online: Boole
     val busy by vm.creditBusy.collectAsStateWithLifecycle()
     val creditError by vm.creditError.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
+    var rejecting by remember { mutableStateOf<CreditSale?>(null) }
     val zone = ZoneId.systemDefault()
     val now = nowMs()
     Column(Modifier.fillMaxSize()) {
@@ -241,9 +266,10 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, session: OwnerSession, online: Boole
                     cards("credit", st) { list ->
                         list.forEach { sale ->
                             item(key = "cs-${sale.purchase.id}") {
-                                // Reject opens the order (cancel it there); Approve credit makes the waiting hours usable at once.
+                                // Reject asks for the reason (the credit invoice is cancelled); Approve credit makes the waiting
+                                // hours usable at once.
                                 CreditSaleCard(sale, session, online, st, busy, creditError, now, zone, { vm.approveCredit(sale) }) {
-                                    onOpen(OwnerDestination.HoursPurchase(sale.purchase.id))
+                                    rejecting = sale
                                 }
                                 CardGap()
                             }
@@ -304,6 +330,7 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, session: OwnerSession, online: Boole
             }
         }
     }
+    rejecting?.let { sale -> RejectCreditDialog(sale, onDismiss = { rejecting = null }) { reason -> vm.rejectCredit(sale, reason) } }
 }
 
 @Composable
@@ -317,7 +344,7 @@ private fun CreditSaleCard(
     nowMs: Long,
     zone: ZoneId,
     onApprove: () -> Unit,
-    onOpenOrder: () -> Unit,
+    onReject: () -> Unit,
 ) {
     val p = sale.purchase
     ItemCard {
@@ -332,7 +359,7 @@ private fun CreditSaleCard(
                 left = ApprovalsTexts.REJECT,
                 right = ApprovalsTexts.APPROVE_CREDIT,
                 enabled = busy == null,
-                onLeft = onOpenOrder, onRight = onApprove,
+                onLeft = onReject, onRight = onApprove,
             )
         }
         error?.takeIf { it.purchaseId == p.id }?.let {

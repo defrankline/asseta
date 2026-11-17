@@ -791,6 +791,14 @@ interface TenantApi {
         @Header("Idempotency-Key") idempotencyKey: String,
     ): com.asseta.core.model.owner.OwnerHoursPurchaseDto
 
+    /** rejectHoursCredit (tenant.hours.credit_activate, never the seller): the order's credit invoice is cancelled. */
+    @POST("api/v1/tenant/hours-purchases/{id}/credit/reject")
+    suspend fun rejectHoursCreditKeyed(
+        @Path("id") id: String,
+        @Body body: com.asseta.core.model.sync.CreditRejectionIn,
+        @Header("Idempotency-Key") idempotencyKey: String,
+    ): com.asseta.core.model.owner.OwnerHoursPurchaseDto
+
     /** recordCreditInvoicePayment with an Idempotency-Key (the form visit's key, also sent as `client_id`). */
     @POST("api/v1/tenant/credit-invoices/{id}/payments")
     suspend fun recordCreditInvoicePaymentKeyed(

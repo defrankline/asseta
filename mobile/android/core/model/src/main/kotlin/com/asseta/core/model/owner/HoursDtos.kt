@@ -31,6 +31,8 @@ data class OwnerHoursPurchaseDto(
     val payments: List<PurchasePaymentDto> = emptyList(),
     @SerialName("credit_amount") val creditAmount: String? = null,
     @SerialName("credit_invoice") val creditInvoice: com.asseta.core.model.sync.CreditInvoiceSummaryDto? = null,
+    /** The CREDIT part: AWAITING_ACTIVATION, ACTIVATED or REJECTED (null without one). */
+    @SerialName("credit_status") val creditStatus: String? = null,
 )
 
 /** `PurchaseAllocationDto`: money of one customer payment counted towards a purchase ([releasedAt]: no longer counted). */

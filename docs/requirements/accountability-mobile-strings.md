@@ -2980,8 +2980,12 @@ Rules (Android `OwnerFeatures`, `MachineReportApproval`; iOS the same):
   the meter's when the machine has a tracker.
 - **Credit sales:** orders with a credit part waiting for activation, for holders of `tenant.hours.credit_activate`
   with customer hours on, never for the person who recorded the sale. Approve credit activates the credit hours (credit
-  amount ÷ effective rate) at once, reason `Credit approved in the Owner app`; Reject opens the order's detail, where the
-  order can be cancelled (no cancellation from the Approvals list).
+  amount ÷ effective rate) at once, reason `Credit approved in the Owner app`; Reject credit asks for a reason (at least
+  3 characters, the seller is told it) and calls `POST /hours-purchases/{id}/credit/reject`: the credit invoice is
+  cancelled, the credit hours are never activated, paid parts of the order stay. A rejected credit leaves the list.
+- **Rejected credit on the Supervisor app:** its invoice disappears from the open credit invoices (the
+  `open_credit_invoices` snapshot no longer carries it); the seller's notification `HOURS_CREDIT_REJECTED` ("Credit not
+  approved — {order}" / "Credit for {customer} was not approved: {reason}") shows like any other.
 - **Record payment:** `tenant.hours.invoice_payment`; at most the invoice's balance; reference required for bank and
   mobile money; one idempotency key per form visit.
 - **Fuel:** while FUEL is off, no fuel choice in Field spend, no fuel card or fuel flag on a machine day.
@@ -3042,7 +3046,10 @@ times `today 07:40`, `yesterday 18:10`, `{n} days ago` (2–6), then `12 Nov`.
 | credit buttons | Reject · Approve credit |
 | credit own sale | You recorded this sale, so someone else must approve its credit. |
 | approve credit | no dialog: activates at once with reason `Credit approved in the Owner app` |
-| reject | opens the order's detail (cancel it there) |
+| reject | opens the Reject credit dialog (below) |
+| reject credit dialog | title Reject credit / {customer}: {TZS 3,800,000} on credit. The credit invoice is cancelled and these hours will not be usable. Parts already paid stay as they are. / field Reason (the seller will see it), hint At least 3 characters. / buttons Reject credit (enabled from 3 characters) · Cancel |
+| reject credit done | Credit rejected. The invoice is cancelled and the seller is told why. |
+| reject credit refusals | SEGREGATION_OF_DUTIES: You recorded this sale, so you can't reject its credit. Someone else must. · CREDIT_NOT_AWAITING: This credit is no longer waiting: it was already approved or rejected. The list has been refreshed. · CREDIT_INVOICE_HAS_PAYMENTS: Payments are already recorded on this credit invoice, so its credit can't be rejected. · NO_CREDIT_PART: This order has no credit part. · PURCHASE_CANCELLED: This order was cancelled. (else the server's message; CREDIT_NOT_AWAITING, CREDIT_INVOICE_HAS_PAYMENTS, NO_CREDIT_PART and PURCHASE_CANCELLED reload the list) |
 | credit done | Credit approved. The customer can use these hours. |
 | credit refusals | SEGREGATION_OF_DUTIES: You recorded this sale, so you can't approve its credit. Someone else must. · NO_CREDIT_ARRANGEMENT: This customer has no approved credit limit. Set one up on the web first. · CREDIT_LIMIT_EXCEEDED: This would take the customer over their credit limit. · EXCEEDS_UNACTIVATED_HOURS: Fewer hours are waiting than this; the list has been refreshed. · CREDIT_NOT_ALLOWED: Credit is switched off for this company. · PURCHASE_CANCELLED: This order was cancelled. · CANCELLATION_PENDING: A cancellation is already waiting for this order. |
 | expense row | EXPENSE · {time} / {description} · {TZS 185,000} / receipt photo · {supplier} · {request reason when different} |

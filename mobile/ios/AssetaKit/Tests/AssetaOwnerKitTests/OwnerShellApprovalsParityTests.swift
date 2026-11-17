@@ -67,14 +67,15 @@ struct OwnerShellApprovalsParityTests {
     }
 
     static func order(credit: String = "3800000", rate: String? = "95000", awaiting: String = "60", createdBy: UUID? = nil,
-                      cancelled: Bool = false) throws -> HoursPurchaseDTO {
+                      cancelled: Bool = false, creditStatus: String = "AWAITING_ACTIVATION") throws -> HoursPurchaseDTO {
         let json = """
         {"id":"\(UUID())","purchase_number":"HP-7","client_id":null,"customer_id":"\(UUID())","customer_name":"Msasani Bay",
          "machine_id":"\(UUID())","hours":"60","currency":"TZS","amount":"5700000","status":"ACTIVE",
          "created_at":"2026-11-16T08:00:00Z"\(cancelled ? ",\"cancelled_at\":\"2026-11-16T09:00:00Z\"" : ""),
          "totals":{"purchased":"60","activated":"0","consumed":"0","remaining":"0","awaiting_activation":"\(awaiting)"},
          "credit_amount":"\(credit)","credit_invoice":{"id":"\(UUID())","invoice_number":"INV-0042","amount":"\(credit)",
-         "paid":"0","balance":"\(credit)","due_date":"2026-11-30","status":"UNPAID","overdue":false}
+         "paid":"0","balance":"\(credit)","due_date":"2026-11-30","status":"UNPAID","overdue":false},
+         "credit_status":"\(creditStatus)"
          \(rate.map { ",\"effective_rate\":\"\($0)\"" } ?? "")\(createdBy.map { ",\"created_by\":\"\($0.uuidString.lowercased())\"" } ?? "")}
         """
         return try AssetaJSON.decoder().decode(HoursPurchaseDTO.self, from: Data(json.utf8))
@@ -98,6 +99,25 @@ struct OwnerShellApprovalsParityTests {
         #expect(ApprovalsTexts.creditRefusal("CREDIT_LIMIT_EXCEEDED", fallback: "x") == "This would take the customer over their credit limit.")
         #expect(ApprovalsTexts.creditRefusal("OTHER", fallback: "x") == "x")
         #expect(OwnerAPI.customerCreditExposure(Self.me).path.hasSuffix("/customers/\(Self.me.uuidString.lowercased())/credit-exposure"))
+    }
+
+    @Test func rejectCreditAsksAReasonAndExplainsRefusals() throws {
+        // A rejected credit no longer waits.
+        #expect(!CreditSales.waiting(try Self.order(creditStatus: "REJECTED")))
+        #expect(try Self.order().creditStatus == "AWAITING_ACTIVATION")
+        #expect(!ApprovalsTexts.rejectReasonValid("  no ") && ApprovalsTexts.rejectReasonValid(" Owes "))
+        let id = UUID()
+        let reject = try OwnerAPI.rejectCredit(id, reason: "  Customer already owes too much ", idempotencyKey: UUID())
+        #expect(reject.path.hasSuffix("/hours-purchases/\(id.uuidString.lowercased())/credit/reject"))
+        let body = try JSONSerialization.jsonObject(with: try #require(reject.body)) as? [String: Any]
+        #expect(body?["reason"] as? String == "Customer already owes too much")
+        #expect(ApprovalsTexts.creditRejectRefusal("SEGREGATION_OF_DUTIES", fallback: "x").hasPrefix("You recorded this sale"))
+        #expect(ApprovalsTexts.creditRejectRefusal("CREDIT_INVOICE_HAS_PAYMENTS", fallback: "x")
+            == "Payments are already recorded on this credit invoice, so its credit can't be rejected.")
+        #expect(ApprovalsTexts.creditRejectRefusal("CREDIT_NOT_AWAITING", fallback: "x").hasPrefix("This credit is no longer waiting"))
+        #expect(ApprovalsTexts.creditRejectRefusal("OTHER", fallback: "server words") == "server words")
+        #expect(ApprovalsTexts.creditRejectReloads("CREDIT_NOT_AWAITING") && !ApprovalsTexts.creditRejectReloads(nil))
+        #expect(ApprovalsTexts.creditRejected == "Credit rejected. The invoice is cancelled and the seller is told why.")
     }
 
     @Test func expenseRows() throws {

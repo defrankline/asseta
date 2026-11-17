@@ -70,6 +70,14 @@ extension OwnerAPI {
                       body: CreditActivationIn(hours: DecimalString(hours), reason: reason), idempotencyKey: idempotencyKey)
     }
 
+    /// Reject the credit part of an order (`tenant.hours.credit_activate`, never the order's recorder): its credit
+    /// invoice is cancelled and its hours never become usable (`POST /hours-purchases/{id}/credit/reject`).
+    public static func rejectCredit(_ purchaseID: UUID, reason: String, idempotencyKey: UUID) throws -> APIRequest<HoursPurchaseDTO> {
+        try .mutation(.post, "\(tenant)/hours-purchases/\(purchaseID.lowercased)/credit/reject",
+                      body: CreditRejectionIn(reason: reason.trimmingCharacters(in: .whitespacesAndNewlines)),
+                      idempotencyKey: idempotencyKey)
+    }
+
     /// A report export (`GET /reports/{code}.pdf`).
     public static func reportPDF(_ code: String, from: String?, to: String?) -> APIRequest<RawData> {
         .get("\(tenant)/reports/\(code).pdf", query: compact([("from", from), ("to", to)]))
@@ -79,6 +87,7 @@ extension OwnerAPI {
 struct MachineReportNoteIn: Codable, Sendable { let note: String? }
 struct MachineReportRejectIn: Codable, Sendable { let reason: String }
 struct CreditActivationIn: Codable, Sendable { let hours: DecimalString; let reason: String }
+struct CreditRejectionIn: Codable, Sendable { let reason: String }
 
 extension SnapshotKey {
     public static let machineReportQueue = SnapshotKey("machine-reports:PENDING")

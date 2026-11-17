@@ -36,6 +36,7 @@ import com.asseta.owner.ui.accountability.DecisionMapper
 import com.asseta.core.model.sync.CreditActivationIn
 import com.asseta.core.model.sync.CreditInvoiceDto
 import com.asseta.core.model.sync.CreditInvoicePaymentIn
+import com.asseta.core.model.sync.CreditRejectionIn
 import com.asseta.core.model.sync.CustomerHoursSummaryDto
 import com.asseta.core.model.sync.MachineReportDecisionIn
 import com.asseta.core.model.sync.MachineReportDto
@@ -581,6 +582,10 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
     /** Make [hours] of a credit sale usable ([key]: one per approval attempt, so a retry never activates twice). */
     suspend fun approveCredit(purchaseId: String, hours: String, reason: String, key: String) =
         repo.act { activateHoursOnCreditKeyed(purchaseId, CreditActivationIn(hours, reason.trim()), key) }
+
+    /** Reject the credit part of a sale ([key]: one per attempt): its invoice is cancelled, its hours never usable. */
+    suspend fun rejectCredit(purchaseId: String, reason: String, key: String) =
+        repo.act { rejectHoursCreditKeyed(purchaseId, CreditRejectionIn(reason.trim()), key) }
 
     /** Orders recorded on the local days [from]..[to] (not cancelled): sold hours and money by method. */
     suspend fun ordersBetween(from: LocalDate, to: LocalDate): Load<List<com.asseta.core.model.owner.OwnerHoursPurchaseDto>> =
