@@ -289,7 +289,9 @@ public struct AttentionRow: Sendable, Equatable, Identifiable {
         typealias T = MachineReportOwnerTexts
         var rows = pending.sorted { $0.submittedAt > $1.submittedAt }.map { r in
             AttentionRow(id: "r-\(r.id)",
-                         title: r.nonProductiveHours.value > 0
+                         title: r.isOpening
+                             ? T.attentionFirstReading(ReportPresentation.machine(r), ReportPresentation.readings(r))
+                             : r.nonProductiveHours.value > 0
                              ? T.attentionReportIdle(ReportPresentation.machine(r), T.h(r.nonProductiveHours.value))
                              : T.attentionReport(ReportPresentation.machine(r), T.h(r.hours.value)),
                          detail: ReportPresentation.attentionDetail(r, now: now),
@@ -321,6 +323,8 @@ public enum MachineReportOwnerTexts {
     public static let overdue = "Overdue"
     public static func attentionReport(_ code: String, _ hours: String) -> String { "\(code) report · \(hours) h" }
     public static func attentionReportIdle(_ code: String, _ hours: String) -> String { "\(code) report · \(hours) h non-productive" }
+    /// An opening report: "EX-01 first reading · 1,520.4 h".
+    public static func attentionFirstReading(_ code: String, _ reading: String) -> String { "\(code) first reading · \(reading)" }
     public static func attentionMissing(_ code: String, _ days: Int) -> String { "\(code) · no report for \(OwnerFigures.days(days))" }
     public static func attentionNoReportYet(_ code: String) -> String { "\(code) · no report yet" }
     public static func attentionRejected(_ code: String) -> String { "\(code) · report rejected, not yet redone" }

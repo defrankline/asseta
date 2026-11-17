@@ -95,6 +95,11 @@ public enum SupervisorShellTexts {
         "\(code) report" + (hours.map { " · \(SupervisorFigures.hours($0)) h" } ?? "")
     }
 
+    /// My reports detail: "1210.0 → 1510.0 h"; an opening report has one reading: "First reading 1520.40 h".
+    public static func readings(_ r: MachineReportDTO) -> String {
+        r.isOpening ? "First reading \(r.endReading) h" : "\(r.startReading) → \(r.endReading) h"
+    }
+
     /// A report's server status: Awaiting approval, Approved, Rejected.
     public static func reportStatus(_ status: String) -> String {
         switch status {
@@ -197,9 +202,9 @@ extension FieldActivity {
             case .rejected: .bad
             default: .waiting
             }
-            let extra = [ "\(r.startReading) → \(r.endReading) h", r.state == .rejected ? r.decisionNote : nil ]
+            let extra = [ S.readings(r), r.state == .rejected ? r.decisionNote : nil ]
                 .compactMap { $0 }.joined(separator: " · ")
-            return RecentActivity(id: r.id, title: S.recentReport(r.machineCode ?? r.machineName ?? "Machine", r.hours.value),
+            return RecentActivity(id: r.id, title: S.recentReport(r.machineCode ?? r.machineName ?? "Machine", r.isOpening ? nil : r.hours.value),
                                   at: r.submittedAt, detail: nil, pill: S.reportStatus(r.status), tone: tone,
                                   machineID: r.machineID, extra: extra)
         }

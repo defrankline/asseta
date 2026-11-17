@@ -38,6 +38,9 @@ object ReportTexts {
     const val STATUS_WAITING = "Awaiting approval"
     const val NOT_FOUND_TITLE = "Report not found"
     const val NOT_FOUND_MESSAGE = "It may have been removed, or you can no longer see it."
+    const val FIRST_READING = "First reading — starting point"
+    const val OPENING_NOTE = "The machine's first reading, so there are no hours to split. Approving it makes this reading the starting point; the next report counts hours from it."
+    const val OPENING_APPROVED = "Reading approved. The next report counts hours from it."
 
     /** Plain sentences for the server's refusal codes on approve / reject (else the server's message). */
     fun refusal(code: String?, fallback: String): String = when (code) {
@@ -58,9 +61,9 @@ object ReportPresentation {
 
     fun nonProductiveLines(r: MachineReportDto): List<MachineReportLineDto> = r.lines.filter { it.kind == MachineReportLineDto.NON_PRODUCTIVE }
 
-    /** "EX-01 · 300 h · Daudi Mollel". */
+    /** "EX-01 · 300 h · Daudi Mollel" (an opening report has no hours: "EX-01 · Daudi Mollel"). */
     fun rowTitle(r: MachineReportDto): String =
-        listOfNotNull(machine(r), Figures.hours(Figures.dec(r.hours)), r.submittedByName?.takeIf { it.isNotBlank() }).joinToString(" · ")
+        listOfNotNull(machine(r), Figures.hours(Figures.dec(r.hours)).takeUnless { r.isOpening }, r.submittedByName?.takeIf { it.isNotBlank() }).joinToString(" · ")
 
     /** Short reason ("transit", "breakdown"): the code in words, else the name. */
     fun reasonShort(l: MachineReportLineDto): String =
@@ -68,9 +71,11 @@ object ReportPresentation {
 
     /**
      * "220 h to 2 customers · 80 h non-productive"; one customer is named ("38 h Mji Mpya Housing"), one reason too
-     * ("4 h transit"). Without lines (a list row may carry none): the totals.
+     * ("4 h transit"). Without lines (a list row may carry none): the totals. An opening report: "First reading — starting
+     * point".
      */
     fun split(r: MachineReportDto): String {
+        if (r.isOpening) return ReportTexts.FIRST_READING
         val customers = customerLines(r)
         val reasons = nonProductiveLines(r)
         val customerHours = Figures.dec(r.customerHours)
@@ -89,13 +94,17 @@ object ReportPresentation {
         return parts.joinToString(" · ").ifEmpty { Figures.hours(Figures.dec(r.hours)) }
     }
 
-    /** "1,210 → 1,510 h". */
+    /** "1,210 → 1,510 h"; an opening report has one reading: "1,520.4 h". */
     fun readings(r: MachineReportDto): String =
-        "${MachineReportRules.formatHours(Figures.dec(r.startReading))} → ${MachineReportRules.formatHours(Figures.dec(r.endReading))} h"
+        if (r.isOpening) "${MachineReportRules.formatHours(Figures.dec(r.endReading))} h"
+        else "${MachineReportRules.formatHours(Figures.dec(r.startReading))} → ${MachineReportRules.formatHours(Figures.dec(r.endReading))} h"
 
-    /** "300 h · read by phone 1510.0 ✓" (or "typed by hand"); just the hours without the reading. */
+    /**
+     * "300 h · read by phone 1510.0 ✓" (or "typed by hand"); just the hours without the reading. An opening report:
+     * "First reading — starting point · typed by hand".
+     */
     fun readLine(r: MachineReportDto, capture: MeterCaptureDto?): String {
-        val hours = Figures.hours(Figures.dec(r.hours))
+        val hours = if (r.isOpening) ReportTexts.FIRST_READING else Figures.hours(Figures.dec(r.hours))
         if (capture == null) return hours
         val ocr = capture.ocrValue?.takeIf { it.isNotBlank() }
         val how = when {
@@ -127,8 +136,9 @@ object ReportPresentation {
     /** “Hydraulic hose replaced on site” (curly quotes, as the design). */
     fun quoted(note: String?): String? = note?.trim()?.takeIf { it.isNotEmpty() }?.let { "“$it”" }
 
-    /** The tracker cross-check sentence. */
+    /** The tracker cross-check sentence; an opening report has no period, so it says what approving it does. */
     fun tracker(t: TrackerCheckDto?, r: MachineReportDto): String {
+        if (r.isOpening) return ReportTexts.OPENING_NOTE
         val tracked = t?.trackerHours?.takeIf { t.available }?.let(Figures::dec) ?: return ReportTexts.NO_TRACKER
         val meter = Figures.dec(t.meterHours.ifBlank { r.hours })
         return "Tracker engine hours for the same period: ${Figures.hours(tracked)} (meter ${Figures.hours(meter)})."
@@ -141,14 +151,25 @@ object ReportPresentation {
         else -> ReportTexts.OWN_REPORT
     }
 
+    /** The message after a decision (an approved opening report sets the starting point; it uses no hours). */
+    fun decided(r: MachineReportDto, approved: Boolean): String = when {
+        !approved -> ReportTexts.REJECTED
+        r.isOpening -> ReportTexts.OPENING_APPROVED
+        else -> ReportTexts.APPROVED
+    }
+
     fun statusLabel(status: String): String = when (status) {
         MachineReportDto.APPROVED -> ReportTexts.STATUS_APPROVED
         MachineReportDto.REJECTED -> ReportTexts.STATUS_REJECTED
         else -> ReportTexts.STATUS_WAITING
     }
 
-    /** Home attention row: "EX-01 report · 80 h non-productive" (or the hours when all are productive). */
+    /**
+     * Home attention row: "EX-01 report · 80 h non-productive" (or the hours when all are productive); an opening report:
+     * "EX-01 first reading · 1,520.4 h".
+     */
     fun attentionTitle(r: MachineReportDto): String {
+        if (r.isOpening) return "${machine(r)} first reading · ${readings(r)}"
         val np = Figures.dec(r.nonProductiveHours)
         return "${machine(r)} report · " + if (np.signum() > 0) "${Figures.hours(np)} non-productive" else Figures.hours(Figures.dec(r.hours))
     }

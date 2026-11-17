@@ -77,7 +77,7 @@ class ReportApprovalViewModel(val data: OwnerData, val reportId: String, reading
             when (r) {
                 is ActionResult.Done -> {
                     replaceData { it.copy(report = r.value.copy(lines = r.value.lines.ifEmpty { it.report.lines }, tracker = r.value.tracker ?: it.report.tracker)) }
-                    _message.value = if (approve) ReportTexts.APPROVED else ReportTexts.REJECTED
+                    _message.value = ReportPresentation.decided(r.value, approve)
                 }
                 is ActionResult.Refused -> {
                     _error.value = ReportTexts.refusal(r.code, r.error.message)

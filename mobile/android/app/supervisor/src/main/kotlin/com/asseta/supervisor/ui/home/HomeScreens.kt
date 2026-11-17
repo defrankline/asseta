@@ -184,7 +184,7 @@ fun reportRows(data: ShellData, now: Long): List<RecentRow> {
             MachineReportDto.REJECTED -> RecentTone.BAD
             else -> RecentTone.WAITING
         }
-        RecentRow("report-${r.id}", at, ReportTexts.recentReport(r.machineCode ?: r.machineName ?: "Machine", r.hours.toBigDecimalOrNull()),
+        RecentRow("report-${r.id}", at, ReportTexts.recentReport(r.machineCode ?: r.machineName ?: "Machine", r.hours.toBigDecimalOrNull()?.takeUnless { r.isOpening }),
             ShellModel.when_(at, now), H.reportStatus(r.status), tone)
     }
     val local = data.reports.local.filter { l -> data.reports.myReports.none { it.id == l.operationId } }.map { l ->
@@ -334,7 +334,7 @@ fun MyReportsScreen(data: ShellData, onRoute: (Route) -> Unit) {
                 val report = data.reports.myReports.firstOrNull { it.id == id }
                 val detail = report?.let { rep ->
                     listOfNotNull(
-                        "${rep.startReading} → ${rep.endReading} h",
+                        ReportTexts.readings(rep.startReading, rep.endReading, rep.isOpening),
                         rep.decisionNote?.takeIf { rep.status == MachineReportDto.REJECTED },
                     ).joinToString(" · ")
                 } ?: data.reports.local.firstOrNull { it.operationId == id }?.let { ReportTexts.conflict(it.errorCode) ?: it.error }

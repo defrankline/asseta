@@ -177,7 +177,7 @@ struct OwnerReportApprovalView: View {
                 ? OwnerAPI.approveMachineReport(report.id, note: reason, idempotencyKey: UUID())
                 : OwnerAPI.rejectMachineReport(report.id, reason: reason, idempotencyKey: UUID()))
             loader.replace(updated)
-            message = approve ? ReportTexts.approved : ReportTexts.rejected
+            message = ReportPresentation.decided(updated, approved: approve)
             reason = ""
             UIAccessibility.post(notification: .announcement, argument: message)
             if updated.lines.isEmpty { await reload() }

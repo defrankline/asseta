@@ -291,6 +291,51 @@ class MachineReportOwnerTest {
         assertEquals(ReportTexts.NO_PERMISSION, ReportPresentation.cannotDecide(setOf("tenant.machine_report.read"), r, me))
     }
 
+    /** A real OPENING report from the server (contracts/fixtures, backend test_contract_fixtures.py). */
+    private fun fixture(name: String): String =
+        java.io.File(System.getProperty("asseta.contracts.dir") ?: error("asseta.contracts.dir not set"), "fixtures/machine-reports/$name").readText()
+
+    @Test
+    fun `an opening report from the server opens, reads as the first reading and is approved`() {
+        val opening = fixture("report-opening-submitted.json")
+        val capture = fixture("meter-capture-opening.json")
+        val h = OwnerHarness()
+        h.server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val path = request.url.encodedPath
+                return when {
+                    request.method == "POST" && path.endsWith("/approve") ->
+                        MockResponse.Builder().code(200).body(opening.replace("\"status\": \"SUBMITTED\"", "\"status\": \"APPROVED\"")).build()
+                    path.contains("/machine-reports/") -> MockResponse.Builder().code(200).body(opening).build()
+                    path.contains("/meter-captures/") -> MockResponse.Builder().code(200).body(capture).build()
+                    else -> MockResponse.Builder().code(404).build()
+                }
+            }
+        }
+        try {
+            val id = json.decodeFromString(MachineReportDto.serializer(), opening).id
+            val vm = ReportApprovalViewModel(h.data, id, reading = true, refreshOn = emptyFlow())
+            val state = vm.state.settled()
+            assertNull(state.error)
+            val detail = state.data!!
+            val r = detail.report
+            assertTrue(r.isOpening)
+            assertEquals("GPS_INACCURATE", r.findings.single().type)
+            assertEquals("1,520.4 h", ReportPresentation.readings(r))
+            assertEquals("First reading — starting point · typed by hand", ReportPresentation.readLine(r, detail.capture))
+            assertEquals("GPS: ±900 m", ReportPresentation.gpsLine(detail.capture))
+            assertEquals(ReportTexts.OPENING_NOTE, ReportPresentation.tracker(r.tracker, r))
+            assertEquals(ReportTexts.FIRST_READING, ReportPresentation.split(r))
+            assertEquals("OPEN-000 · sup-FIX-1", ReportPresentation.rowTitle(r))
+            assertEquals("OPEN-000 first reading · 1,520.4 h", ReportPresentation.attentionTitle(r))
+            vm.decide(approve = true, reason = "")
+            assertEquals(ReportTexts.OPENING_APPROVED, vm.message.await { it != null })
+            assertEquals("APPROVED", vm.state.value.data!!.report.status)
+        } finally {
+            h.close()
+        }
+    }
+
     @Test
     fun `reject needs a reason, approve posts, refusals read as plain sentences`() {
         val h = OwnerHarness()

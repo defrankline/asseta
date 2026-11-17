@@ -33,6 +33,9 @@ public enum ReportTexts {
     public static let statusWaiting = "Awaiting approval"
     public static let notFoundTitle = "Report not found"
     public static let notFoundMessage = "It may have been removed, or you can no longer see it."
+    public static let firstReading = "First reading — starting point"
+    public static let openingNote = "The machine's first reading, so there are no hours to split. Approving it makes this reading the starting point; the next report counts hours from it."
+    public static let openingApproved = "Reading approved. The next report counts hours from it."
 
     /// Plain sentences for the server's refusal codes on approve / reject (else `fallback`).
     public static func refusal(_ code: String?, fallback: String) -> String {
@@ -98,9 +101,9 @@ public enum ReportPresentation {
         r.lines.filter { $0.lineKind == .nonProductive }
     }
 
-    /// "EX-01 · 300 h · Daudi Mollel".
+    /// "EX-01 · 300 h · Daudi Mollel" (an opening report has no hours: "EX-01 · Daudi Mollel").
     public static func rowTitle(_ r: MachineReportDTO) -> String {
-        [machine(r), OwnerFigures.hours(r.hours.value), r.submittedByName.flatMap { $0.isBlank ? nil : $0 }]
+        [machine(r), r.isOpening ? nil : OwnerFigures.hours(r.hours.value), r.submittedByName.flatMap { $0.isBlank ? nil : $0 }]
             .compactMap { $0 }.joined(separator: " · ")
     }
 
@@ -110,8 +113,10 @@ public enum ReportPresentation {
     }
 
     /// "220 h to 2 customers · 80 h non-productive"; one customer is named ("38 h Mji Mpya Housing"), one reason too
-    /// ("4 h transit"). Without lines (a list row may carry none): the totals.
+    /// ("4 h transit"). Without lines (a list row may carry none): the totals. An opening report: "First reading —
+    /// starting point".
     public static func split(_ r: MachineReportDTO) -> String {
+        if r.isOpening { return ReportTexts.firstReading }
         let customers = customerLines(r)
         let reasons = nonProductiveLines(r)
         let customerHours = r.customerHours.value
@@ -130,14 +135,16 @@ public enum ReportPresentation {
         return parts.isEmpty ? OwnerFigures.hours(r.hours.value) : parts.joined(separator: " · ")
     }
 
-    /// "1,210 → 1,510 h".
+    /// "1,210 → 1,510 h"; an opening report has one reading: "1,520.4 h".
     public static func readings(_ r: MachineReportDTO) -> String {
-        "\(OwnerFigures.hoursNumber(r.startReading.value)) → \(OwnerFigures.hoursNumber(r.endReading.value)) h"
+        if r.isOpening { return "\(OwnerFigures.hoursNumber(r.endReading.value)) h" }
+        return "\(OwnerFigures.hoursNumber(r.startReading.value)) → \(OwnerFigures.hoursNumber(r.endReading.value)) h"
     }
 
-    /// "300 h · read by phone 1510.0 ✓" (or "typed by hand"); just the hours without the reading.
+    /// "300 h · read by phone 1510.0 ✓" (or "typed by hand"); just the hours without the reading. An opening report:
+    /// "First reading — starting point · typed by hand".
     public static func readLine(_ r: MachineReportDTO, capture: ReportCaptureDTO?) -> String {
-        let hours = OwnerFigures.hours(r.hours.value)
+        let hours = r.isOpening ? ReportTexts.firstReading : OwnerFigures.hours(r.hours.value)
         guard let capture else { return hours }
         let how: String?
         if let ocr = capture.ocrValue, !ocr.isBlank {
@@ -172,8 +179,9 @@ public enum ReportPresentation {
         return "“\(text)”"
     }
 
-    /// The tracker cross-check sentence.
+    /// The tracker cross-check sentence; an opening report has no period, so it says what approving it does.
     public static func tracker(_ r: MachineReportDTO) -> String {
+        if r.isOpening { return ReportTexts.openingNote }
         guard let t = r.tracker, t.available, let tracked = t.trackerHours?.value else { return ReportTexts.noTracker }
         let meter = t.meterHours.value
         return "Tracker engine hours for the same period: \(OwnerFigures.hours(tracked)) (meter \(OwnerFigures.hours(meter)))."
@@ -186,6 +194,12 @@ public enum ReportPresentation {
         case .notPermitted: ReportTexts.noPermission
         case .allowed, .decided: nil
         }
+    }
+
+    /// The message after a decision (an approved opening report sets the starting point; it uses no hours).
+    public static func decided(_ r: MachineReportDTO, approved: Bool) -> String {
+        if !approved { return ReportTexts.rejected }
+        return r.isOpening ? ReportTexts.openingApproved : ReportTexts.approved
     }
 
     public static func statusLabel(_ r: MachineReportDTO) -> String {

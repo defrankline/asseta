@@ -124,6 +124,9 @@ object ReportTexts {
     /** "EX-01 report · 300 h". */
     fun recentReport(code: String, hours: BigDecimal?) = "$code report" + (hours?.let { " · ${h(it)} h" } ?: "")
 
+    /** My reports detail: "1210.0 → 1510.0 h"; an opening report has one reading: "First reading 1520.40 h". */
+    fun readings(start: String, end: String, opening: Boolean) = if (opening) "First reading $end h" else "$start → $end h"
+
     /** Server refusals of a MACHINE_REPORT or CREDIT_INVOICE_PAYMENT kept for review (sync status, Inbox). */
     fun conflict(code: String?): String? = when (code) {
         "MACHINE_NOT_ASSIGNED" -> "This machine is no longer assigned to you. The report is kept for review."

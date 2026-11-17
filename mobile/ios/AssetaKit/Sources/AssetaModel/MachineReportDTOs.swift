@@ -165,6 +165,9 @@ public struct MachineReportDTO: Codable, Hashable, Sendable, Identifiable {
     public let machineCode: String?
     public let machineName: String?
     public let captureID: UUID
+    /// The machine's first reading (start == end, 0 hours, no lines, `start_source` OPENING).
+    public let opening: Bool
+    /// `REPORT`, `BASELINE`, `RESET` or `OPENING`.
     public let startSource: String
     public let startReading: DecimalString
     public let startAt: Date
@@ -188,6 +191,9 @@ public struct MachineReportDTO: Codable, Hashable, Sendable, Identifiable {
     public let tracker: TrackerCheck?
 
     public var state: MachineReportState? { MachineReportState(rawValue: status) }
+
+    /// An opening report: the machine's first reading (older servers: told by `start_source` OPENING).
+    public var isOpening: Bool { opening || startSource == "OPENING" }
 
     public struct Line: Codable, Hashable, Sendable, Identifiable {
         public let id: UUID
@@ -251,14 +257,16 @@ public struct MachineReportDTO: Codable, Hashable, Sendable, Identifiable {
     public init(id: UUID, reportNumber: String, machineID: UUID, machineCode: String? = nil, machineName: String? = nil,
                 captureID: UUID = UUID(), startReading: Decimal, startAt: Date, endReading: Decimal, endAt: Date,
                 status: MachineReportState, submittedBy: UUID? = nil, submittedByName: String? = nil, submittedAt: Date,
-                lines: [Line], note: String? = nil, decisionNote: String? = nil, tracker: TrackerCheck? = nil) {
+                lines: [Line], note: String? = nil, decisionNote: String? = nil, tracker: TrackerCheck? = nil,
+                opening: Bool = false) {
         self.id = id
         self.reportNumber = reportNumber
         self.machineID = machineID
         self.machineCode = machineCode
         self.machineName = machineName
         self.captureID = captureID
-        startSource = "REPORT"
+        self.opening = opening
+        startSource = opening ? "OPENING" : "REPORT"
         self.startReading = DecimalString(startReading)
         self.startAt = startAt
         self.endReading = DecimalString(endReading)
@@ -290,6 +298,7 @@ public struct MachineReportDTO: Codable, Hashable, Sendable, Identifiable {
         machineCode = try c.decodeIfPresent(String.self, forKey: .machineCode)
         machineName = try c.decodeIfPresent(String.self, forKey: .machineName)
         captureID = try c.decode(UUID.self, forKey: .captureID)
+        opening = try c.decodeIfPresent(Bool.self, forKey: .opening) ?? false
         startSource = try c.decodeIfPresent(String.self, forKey: .startSource) ?? "REPORT"
         startReading = try c.decode(DecimalString.self, forKey: .startReading)
         startAt = try c.decode(Date.self, forKey: .startAt)
@@ -314,7 +323,7 @@ public struct MachineReportDTO: Codable, Hashable, Sendable, Identifiable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, hours, status, note, lines, tracker
+        case id, hours, status, note, lines, tracker, opening
         case reportNumber = "report_number", machineID = "machine_id", machineCode = "machine_code"
         case machineName = "machine_name", captureID = "capture_id", startSource = "start_source"
         case startReading = "start_reading", startAt = "start_at", endReading = "end_reading", endAt = "end_at"

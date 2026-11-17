@@ -2,6 +2,7 @@ package com.asseta.core.model.sync
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 /*
  * ADR-008: machine reports, credit invoices and their offline operations (docs/api-machine-reports.md). Shared by the
@@ -96,7 +97,22 @@ data class TrackerCheckDto(
     @SerialName("tracker_to_at") val trackerToAt: String? = null,
 )
 
-/** `MachineReportDto`: one report (list rows and detail; [findings] and [tracker] only on the detail). */
+/**
+ * `FindingDto` of a report's reading (`type`, not the inbox's `exception_type`; no id or status): what the evidence
+ * checks found on the reading (GPS, photo, OCR...), shown to the approver.
+ */
+@Serializable
+data class ReportFindingDto(
+    val type: String,
+    val severity: String,
+    val blocking: Boolean,
+    val evidence: JsonObject = JsonObject(emptyMap()),
+)
+
+/**
+ * `MachineReportDto`: one report (list rows and detail; [findings] and [tracker] only on the detail). [opening]: the
+ * machine's first reading (start == end, 0 hours, no lines, `start_source` OPENING).
+ */
 @Serializable
 data class MachineReportDto(
     val id: String,
@@ -105,6 +121,8 @@ data class MachineReportDto(
     @SerialName("machine_code") val machineCode: String? = null,
     @SerialName("machine_name") val machineName: String? = null,
     @SerialName("capture_id") val captureId: String,
+    val opening: Boolean = false,
+    /** REPORT, BASELINE, RESET or OPENING. */
     @SerialName("start_source") val startSource: String,
     @SerialName("start_ref") val startRef: String,
     @SerialName("start_reading") val startReading: String,
@@ -131,7 +149,7 @@ data class MachineReportDto(
     @SerialName("policy_version") val policyVersion: String,
     @SerialName("photo_attachment_id") val photoAttachmentId: String? = null,
     @SerialName("capture_state") val captureState: String? = null,
-    val findings: List<FindingDto> = emptyList(),
+    val findings: List<ReportFindingDto> = emptyList(),
     val tracker: TrackerCheckDto? = null,
     val lines: List<MachineReportLineDto> = emptyList(),
 ) {
@@ -139,7 +157,11 @@ data class MachineReportDto(
         const val SUBMITTED = "SUBMITTED"
         const val APPROVED = "APPROVED"
         const val REJECTED = "REJECTED"
+        const val START_OPENING = "OPENING"
     }
+
+    /** An opening report: the machine's first reading (older servers: told by `start_source` OPENING). */
+    val isOpening: Boolean get() = opening || startSource == START_OPENING
 }
 
 /** `CreditInvoicePaymentDto`: one recorded part payment of a credit invoice. */
