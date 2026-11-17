@@ -26,9 +26,10 @@ from sqlalchemy.orm import Session
 import asseta.core.model_registry  # noqa: F401
 from asseta.core.audit import AuditActor
 from asseta.core.config import get_settings
+from asseta.core.db import utcnow
 from asseta.core.errors import BusinessRuleViolation
 from asseta.modules.policy.schemas import SCHEMAS, PolicyScope, PolicyType
-from asseta.modules.policy.service import PolicyService
+from asseta.modules.policy.service import PolicyService, _current
 
 NIL_TENANT = uuid.UUID(int=0)
 # Changed only from the Policies page, where the open-mandate and mandate-actor guards run.
@@ -128,7 +129,11 @@ def apply(service: PolicyService, tid: uuid.UUID, changes: list[Change], reason:
     by_type: dict[PolicyType, dict[str, Any]] = {}
     for c in changes:
         by_type.setdefault(c.ptype, {})[c.field] = c.wanted
-    for ptype, values in by_type.items():
+    for ptype, changed in by_type.items():
+        # A tenant version is the company's whole set for that policy type (the latest one replaces the previous),
+        # so carry over every setting the company already chose and change only these.
+        latest = service._latest(ptype, PolicyScope.TENANT, tid, None, utcnow())
+        values = (_current(ptype, dict(latest.values)) if latest is not None else {}) | changed
         service.create_version(
             ptype=ptype,
             scope=PolicyScope.TENANT,

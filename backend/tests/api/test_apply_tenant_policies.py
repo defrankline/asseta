@@ -70,6 +70,16 @@ def test_dry_run_apply_and_second_run(
     assert "Nothing to change" in capsys.readouterr().out
     assert _versions(owner_engine, tid) == 2
 
+    # A later file for the same policy type changes only its own setting; the earlier ones stay.
+    later = _file(tmp_path, {"CUSTOMER_HOURS": {"field_credit_sales": True}}, reason="Credit sales")
+    assert tool.main(["--tenant-id", tid, "--file", later, "--yes"]) == 0
+    capsys.readouterr()
+    values = a["owner"].get(CUSTOMER_HOURS).json()["values"]
+    assert values["field_credit_sales"] is True
+    assert values["expiry_warning_days"] == 21 and values["expiry_days"] == 365
+    assert tool.main(["--tenant-id", tid, "--file", f]) == 0
+    assert "Nothing to change" in capsys.readouterr().out
+
 
 def test_refusals_change_nothing(
     api: Api, tool: ModuleType, tmp_path: Path, owner_engine: Engine, capsys: pytest.CaptureFixture[str]
