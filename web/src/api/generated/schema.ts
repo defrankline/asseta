@@ -4991,6 +4991,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/hours-purchases/{purchase_id}/credit/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Credit Reject
+         * @description Reject the credit part of an order (owner decision): its credit invoice becomes CANCELLED (reason kept) and
+         *     its credit hours are never activated; paid parts of the order stay unchanged. Only while nothing of the credit
+         *     was activated (CREDIT_NOT_AWAITING) and nothing was paid on the invoice (CREDIT_INVOICE_HAS_PAYMENTS); never by
+         *     the person who recorded the sale (SEGREGATION_OF_DUTIES). The seller is notified with the reason.
+         */
+        post: operations["rejectHoursCredit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/hours-reason-codes": {
         parameters: {
             query?: never;
@@ -11315,8 +11338,9 @@ export interface components {
         /**
          * CreditInvoiceDto
          * @description CI-<yyyy>-<nnnnn>: created automatically for the CREDIT line of an order. Paid in full or in parts (cash, bank,
-         *     mobile money). Status: UNPAID, PART_PAID, PAID (CANCELLED when its order was cancelled); `overdue` once the due
-         *     date passed with a balance. Recorded payments count (claimed or verified) until rejected or reversed.
+         *     mobile money). Status: UNPAID, PART_PAID, PAID (CANCELLED when its order was cancelled or its credit rejected);
+         *     `overdue` once the due date passed with a balance. Recorded payments count (claimed or verified) until rejected
+         *     or reversed.
          */
         CreditInvoiceDto: {
             /** Amount */
@@ -11392,6 +11416,8 @@ export interface components {
             purchase_id: string;
             /** Purchase Number */
             purchase_number?: string | null;
+            /** @description Set when the credit was rejected (the invoice is then CANCELLED, balance 0) */
+            rejection?: components["schemas"]["CreditRejectionDto"] | null;
             /**
              * Status
              * @enum {string}
@@ -11518,11 +11544,48 @@ export interface components {
             overdue: boolean;
             /** Paid */
             paid: string;
+            /** @description Set when the credit was rejected (the invoice is then CANCELLED) */
+            rejection?: components["schemas"]["CreditRejectionDto"] | null;
             /**
              * Status
              * @enum {string}
              */
             status: "UNPAID" | "PART_PAID" | "PAID" | "CANCELLED";
+        };
+        /**
+         * CreditRejectionDto
+         * @description The credit part of an order was not approved: its hours are never activated and its invoice is CANCELLED.
+         */
+        CreditRejectionDto: {
+            /**
+             * Amount
+             * @description The credit amount no longer owed
+             */
+            amount: string;
+            /**
+             * Hours
+             * @description The credit hours that will not be activated
+             */
+            hours: string;
+            /** Reason */
+            reason: string;
+            /**
+             * Rejected At
+             * Format: date-time
+             */
+            rejected_at: string;
+            /** Rejected By */
+            rejected_by: string | null;
+            /** Rejected By Name */
+            rejected_by_name?: string | null;
+        };
+        /** CreditRejectionIn */
+        CreditRejectionIn: {
+            /**
+             * Reason
+             * @description Why the credit is not approved (told to the seller)
+             */
+            reason: string;
         };
         /** CurrencyTotalsDto */
         CurrencyTotalsDto: {
@@ -13737,6 +13800,13 @@ export interface components {
             credit_amount?: string | null;
             /** @description The credit invoice created for the CREDIT line */
             credit_invoice?: components["schemas"]["CreditInvoiceSummaryDto"] | null;
+            /** @description Who rejected the credit, when and why (credit_status REJECTED) */
+            credit_rejection?: components["schemas"]["CreditRejectionDto"] | null;
+            /**
+             * Credit Status
+             * @description The CREDIT part: AWAITING_ACTIVATION (the credit approvers' queue), ACTIVATED (activated on credit or nothing left to activate) or REJECTED; null without a CREDIT line
+             */
+            credit_status?: ("AWAITING_ACTIVATION" | "ACTIVATED" | "REJECTED") | null;
             /** Currency */
             currency: string;
             /**
@@ -13806,7 +13876,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "AWAITING_PAYMENT" | "PARTLY_ACTIVE" | "ACTIVE" | "CONSUMED" | "EXPIRED" | "CANCELLED";
+            status: "AWAITING_PAYMENT" | "PARTLY_ACTIVE" | "ACTIVE" | "CONSUMED" | "EXPIRED" | "CANCELLED" | "CREDIT_REJECTED";
             totals: components["schemas"]["PurchaseTotalsDto"];
         };
         /** HoursPurchaseIn */
@@ -14017,7 +14087,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "AWAITING_PAYMENT" | "PARTLY_ACTIVE" | "ACTIVE" | "CONSUMED" | "EXPIRED" | "CANCELLED";
+            status: "AWAITING_PAYMENT" | "PARTLY_ACTIVE" | "ACTIVE" | "CONSUMED" | "EXPIRED" | "CANCELLED" | "CREDIT_REJECTED";
         };
         /**
          * HoursStatementTotalsDto
@@ -51765,6 +51835,99 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CreditActivationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoursPurchaseDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    rejectHoursCredit: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                purchase_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreditRejectionIn"];
             };
         };
         responses: {

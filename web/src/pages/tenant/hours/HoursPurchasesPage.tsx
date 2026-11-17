@@ -40,6 +40,7 @@ const QUEUE_OPTIONS = [
   { value: 'UNPAID', label: 'Unpaid' },
   { value: 'UNCONFIRMED', label: 'Payment not confirmed' },
   { value: 'AWAITING_ACTIVATION', label: 'Awaiting activation' },
+  { value: 'CREDIT_TO_ACTIVATE', label: 'Credit to approve' },
 ] as const;
 
 /** Prepaid customer hours purchases: search, filter, record (incl. walk-ins), open a purchase. */

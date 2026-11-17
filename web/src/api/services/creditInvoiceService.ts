@@ -1,10 +1,12 @@
-import { array, object, string, type Schema } from 'yup';
+import { array, mixed, object, string, type Schema } from 'yup';
 import type {
   CreditInvoiceDto,
   CreditInvoicePaymentDto,
   CreditInvoicePaymentIn,
+  CreditRejectionDto,
   CustomerHoursSummaryDto,
 } from '../hoursTypes';
+import { creditRejectionSchema } from './hoursSchemas';
 import type { Page } from '../types';
 import { PAYMENT_METHODS } from './financeSchemas';
 import { bool, id, int, nullableId, nullableText, oneOf, text } from './schemaKit';
@@ -62,6 +64,14 @@ export const creditInvoiceSchema: Schema<CreditInvoiceDto> = object({
   days_overdue: int(),
   created_by: nullableId(),
   created_by_name: optionalText(),
+  rejection: mixed<CreditRejectionDto>()
+    .nullable()
+    .default(null)
+    .test(
+      'rejection',
+      'invalid credit rejection',
+      (v) => v == null || creditRejectionSchema.isValidSync(v),
+    ),
   payments: array(invoicePaymentSchema).default([]),
 });
 

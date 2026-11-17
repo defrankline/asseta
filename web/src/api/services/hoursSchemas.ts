@@ -10,6 +10,8 @@ import type {
   CreditArrangementDto,
   CreditInvoiceSummaryDto,
   CreditExposureDto,
+  CreditPartStatus,
+  CreditRejectionDto,
   DiscountDto,
   HoursBalanceDto,
   HoursPurchaseDto,
@@ -40,6 +42,12 @@ export const PURCHASE_STATUSES: readonly HoursPurchaseStatus[] = [
   'CONSUMED',
   'EXPIRED',
   'CANCELLED',
+  'CREDIT_REJECTED',
+];
+export const CREDIT_PART_STATUSES: readonly CreditPartStatus[] = [
+  'AWAITING_ACTIVATION',
+  'ACTIVATED',
+  'REJECTED',
 ];
 export const LEDGER_ENTRY_TYPES: readonly LedgerEntryType[] = [
   'ACTIVATED',
@@ -132,6 +140,26 @@ export const hoursQuoteSchema: Schema<HoursQuoteDto> = object({
   minimum_hours: text(),
 });
 
+/** Who rejected the credit part of an order, when and why. */
+export const creditRejectionSchema: Schema<CreditRejectionDto> = object({
+  rejected_at: text(),
+  rejected_by: nullableId(),
+  rejected_by_name: optionalText(),
+  reason: text(),
+  hours: text(),
+  amount: text(),
+});
+
+const optionalRejection = () =>
+  mixed<CreditRejectionDto>()
+    .nullable()
+    .default(null)
+    .test(
+      'rejection',
+      'invalid credit rejection',
+      (v) => v == null || creditRejectionSchema.isValidSync(v),
+    );
+
 /** The credit invoice a sale with a CREDIT line created. */
 export const creditInvoiceSummarySchema: Schema<CreditInvoiceSummaryDto> = object({
   id: id(),
@@ -142,6 +170,7 @@ export const creditInvoiceSummarySchema: Schema<CreditInvoiceSummaryDto> = objec
   due_date: text(),
   status: oneOf(['UNPAID', 'PART_PAID', 'PAID', 'CANCELLED'] as const),
   overdue: bool(),
+  rejection: optionalRejection(),
 });
 
 export const hoursPurchaseSchema: Schema<HoursPurchaseDto> = object({
@@ -187,6 +216,8 @@ export const hoursPurchaseSchema: Schema<HoursPurchaseDto> = object({
       'invalid credit invoice',
       (v) => v == null || creditInvoiceSummarySchema.isValidSync(v),
     ),
+  credit_status: nullableOneOf(CREDIT_PART_STATUSES).default(null),
+  credit_rejection: optionalRejection(),
 });
 
 export const hoursBalanceSchema: Schema<HoursBalanceDto> = object({

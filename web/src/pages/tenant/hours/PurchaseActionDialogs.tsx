@@ -134,6 +134,62 @@ export function ActivateOnCreditDialog({
   );
 }
 
+interface RejectCreditValues {
+  reason: string;
+}
+
+const rejectCreditSchema: ObjectSchema<RejectCreditValues> = object({ reason: reasonField() });
+
+/**
+ * Reject the credit part of an order (next to activating it): its credit invoice is cancelled and its
+ * credit hours are never activated; paid parts stay. The seller is told the reason.
+ */
+export function RejectCreditDialog({
+  purchaseId,
+  purchaseNumber,
+  customerName,
+  amount,
+  onClose,
+  onDone,
+}: {
+  purchaseId: string;
+  purchaseNumber: string;
+  customerName: string;
+  /** The credit amount with its currency, as shown to the user. */
+  amount: string;
+  onClose: () => void;
+  onDone: (p: HoursPurchaseDto) => void;
+}) {
+  const keyFor = useIdempotencyKey();
+  return (
+    <FormDialog<RejectCreditValues>
+      open
+      title={`Reject the credit of ${purchaseNumber}`}
+      initialValues={{ reason: '' }}
+      validationSchema={rejectCreditSchema}
+      submitLabel="Reject credit"
+      onClose={onClose}
+      onSubmit={async (v) => {
+        const body = { reason: v.reason.trim() };
+        try {
+          onDone(await hoursService.rejectCredit(purchaseId, body, keyFor(body)));
+        } catch (err) {
+          throw withErrorCode(err, HOURS_ERROR_HINTS);
+        }
+      }}
+    >
+      <Typography variant="body2">
+        {customerName}: {amount} on credit.
+      </Typography>
+      <FormikTextField name="reason" label="Reason" required multiline minRows={2} />
+      <Alert severity="warning">
+        The credit invoice is cancelled and the credit hours will not be activated. Parts already
+        paid stay as they are. The seller is told the reason.
+      </Alert>
+    </FormDialog>
+  );
+}
+
 interface TransferValues {
   purchase_id: string;
   from_machine_id: string;

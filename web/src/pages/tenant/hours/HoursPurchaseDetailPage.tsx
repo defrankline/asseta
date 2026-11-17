@@ -27,22 +27,22 @@ import { shortId } from '../shared/financeDisplay';
 import { PersonName } from '../shared/PersonName';
 import { machineText, nameOr } from '../shared/names';
 import { recordedOnPhone } from '../shared/recordedOnPhone';
-import { CreditInvoiceSummaryGrid } from './creditInvoices/CreditInvoiceParts';
+import {
+  CreditInvoiceSummaryGrid,
+  CreditRejectionNotice,
+} from './creditInvoices/CreditInvoiceParts';
 import { HoursOffNotice, ReasonDialog } from './HoursDialogs';
 import { hoursText, PURCHASE_STATUS_LABELS, PURCHASE_STATUS_TONES } from './hoursDisplay';
 import { requestsOfRecordPath } from '../finance/adjustments/adjustmentDisplay';
 import { usePurchaseAdjustments } from '../finance/adjustments/usePurchaseAdjustments';
 import { PaymentEvidenceDialog } from './PaymentEvidenceDialog';
 import { PendingZeroAmountNotice } from './PendingZeroAmountNotice';
-import {
-  ActivateOnCreditDialog,
-  AllocatePaymentDialog,
-  RequestTransferDialog,
-} from './PurchaseActionDialogs';
+import { AllocatePaymentDialog, RequestTransferDialog } from './PurchaseActionDialogs';
+import { usePurchaseCreditActions } from './usePurchaseCreditActions';
 import { useCancellationRequests, useTransferRequests } from './useHoursRequests';
 import { useHoursPolicy } from './useHoursPolicy';
 
-type Open = 'allocate' | 'credit' | 'transfer' | 'cancel' | null;
+type Open = 'allocate' | 'transfer' | 'cancel' | null;
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -122,7 +122,6 @@ export function HoursPurchaseDetailPage() {
   const timeZone = useDisplayTimeZone();
   const hours = useHoursPolicy();
   const canPurchase = useCanMutate(PERMISSIONS.tenantHoursPurchase);
-  const canCredit = useCanMutate(PERMISSIONS.tenantHoursCreditActivate);
   const canTransfer = useCanMutate(PERMISSIONS.tenantHoursTransfer);
   const canCancel = useCanMutate(PERMISSIONS.tenantHoursCancel);
   const [open, setOpen] = useState<Open>(null);
@@ -148,6 +147,14 @@ export function HoursPurchaseDetailPage() {
     live,
     refundAllowed: hours.policy?.refundAllowed === true,
   });
+  const credit = usePurchaseCreditActions(p, {
+    live,
+    creditOn,
+    onDone: (message) => {
+      notify.success(message);
+      changed();
+    },
+  });
   const actions: RowAction[] =
     p === null
       ? []
@@ -160,14 +167,7 @@ export function HoursPurchaseDetailPage() {
               setOpen('allocate');
             },
           },
-          {
-            key: 'credit',
-            label: 'Activate on credit',
-            hidden: !canCredit || !live || !creditOn || isZeroDecimal(p.totals.awaiting_activation),
-            onClick: () => {
-              setOpen('credit');
-            },
-          },
+          ...credit.actions,
           {
             key: 'transfer',
             label: 'Request transfer',
@@ -265,6 +265,9 @@ export function HoursPurchaseDetailPage() {
             </Section>
             {d.credit_invoice != null && (
               <Section title="Credit invoice">
+                {d.credit_rejection != null && (
+                  <CreditRejectionNotice rejection={d.credit_rejection} timeZone={timeZone} />
+                )}
                 <CreditInvoiceSummaryGrid invoice={d.credit_invoice} currency={d.currency} />
               </Section>
             )}
@@ -428,15 +431,7 @@ export function HoursPurchaseDetailPage() {
           }}
         />
       )}
-      {p !== null && open === 'credit' && (
-        <ActivateOnCreditDialog
-          purchase={p}
-          onClose={close}
-          onDone={() => {
-            updated('Hours activated on credit.');
-          }}
-        />
-      )}
+      {credit.dialogs}
       {p !== null && open === 'transfer' && (
         <RequestTransferDialog
           purchase={p}

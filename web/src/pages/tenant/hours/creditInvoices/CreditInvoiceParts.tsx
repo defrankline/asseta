@@ -1,11 +1,13 @@
 import { Alert, AlertTitle, Chip, Link, Stack } from '@mui/material';
 import type { ReactNode } from 'react';
 import { Link as RouterLink } from 'react-router';
-import type { CreditInvoiceSummaryDto } from '../../../../api/hoursTypes';
+import type { CreditInvoiceSummaryDto, CreditRejectionDto } from '../../../../api/hoursTypes';
 import { KeyValueGrid } from '../../../../components/display/KeyValueGrid';
 import { MoneyText } from '../../../../components/display/MoneyText';
 import { StatusChip } from '../../../../components/display/StatusChip';
 import { creditInvoicePath } from '../../../../navigation/hoursRoutes';
+import { formatInstantIn } from '../../../../utils/time';
+import { PersonName } from '../../shared/PersonName';
 import { money } from '../hoursQuote';
 import { CREDIT_INVOICE_STATUS_LABELS, CREDIT_INVOICE_STATUS_TONES } from './creditInvoiceDisplay';
 
@@ -76,6 +78,27 @@ export function CreditInvoiceLink({
     <Link component={RouterLink} to={creditInvoicePath(invoice.id)}>
       {invoice.invoice_number}
     </Link>
+  );
+}
+
+/** The credit was not approved: who, when and why (the invoice is cancelled). */
+export function CreditRejectionNotice({
+  rejection,
+  timeZone,
+}: {
+  rejection: CreditRejectionDto;
+  timeZone: string;
+}) {
+  return (
+    <Alert severity="warning">
+      <AlertTitle>Credit not approved</AlertTitle>
+      Rejected by{' '}
+      <PersonName
+        userId={rejection.rejected_by}
+        name={rejection.rejected_by_name ?? null}
+      /> on {formatInstantIn(rejection.rejected_at, timeZone)}: {rejection.reason}. The invoice is
+      cancelled and these credit hours will not be activated.
+    </Alert>
   );
 }
 

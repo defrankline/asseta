@@ -3,6 +3,7 @@ import type {
   CancellationDto,
   CancellationIn,
   CreditActivationIn,
+  CreditRejectionIn,
   CreditArrangementDto,
   CreditArrangementIn,
   CreditArrangementUpdateIn,
@@ -152,6 +153,24 @@ export const hoursService = {
     return tenantSend(
       'post',
       `${T}/hours-purchases/${seg(purchaseId)}/credit-activations`,
+      body,
+      hoursPurchaseSchema,
+      'hours purchase',
+      idempotencyKey,
+    );
+  },
+  /**
+   * POST /tenant/hours-purchases/{id}/credit/reject (rejectHoursCredit): the credit part is not approved; its
+   * invoice is cancelled and its hours are never activated. Never by the seller.
+   */
+  rejectCredit(
+    purchaseId: string,
+    body: CreditRejectionIn,
+    idempotencyKey: string,
+  ): Promise<HoursPurchaseDto> {
+    return tenantSend(
+      'post',
+      `${T}/hours-purchases/${seg(purchaseId)}/credit/reject`,
       body,
       hoursPurchaseSchema,
       'hours purchase',

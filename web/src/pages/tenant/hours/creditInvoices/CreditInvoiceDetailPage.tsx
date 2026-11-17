@@ -25,7 +25,9 @@ import { hoursText } from '../hoursDisplay';
 import { money } from '../hoursQuote';
 import { SALE_METHOD_LABELS } from '../saleMethods';
 import { useHoursPolicy } from '../useHoursPolicy';
-import { CreditInvoiceStatus } from './CreditInvoiceParts';
+import { useMyUserId } from '../../shared/useFinanceLabels';
+import { RejectCreditDialog } from '../PurchaseActionDialogs';
+import { CreditInvoiceStatus, CreditRejectionNotice } from './CreditInvoiceParts';
 import { invoicePaymentStatusText } from './creditInvoiceDisplay';
 import { RecordInvoicePaymentDialog } from './RecordInvoicePaymentDialog';
 
@@ -105,12 +107,21 @@ export function CreditInvoiceDetailPage() {
   const canPay = useCanMutate(PERMISSIONS.tenantHoursInvoicePayment) && hours.on;
   const canOpenCustomer = hasPermission(PERMISSIONS.tenantCustomerRead);
   const canOpenPayments = hasPermission(PERMISSIONS.tenantFinanceRead);
+  const canDecideCredit = useCanMutate(PERMISSIONS.tenantHoursCreditActivate) && hours.on;
+  const me = useMyUserId();
   const [paying, setPaying] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const load = useCallback((signal: AbortSignal) => creditInvoiceService.get(id, signal), [id]);
   const res = useAsyncResource(load, [reloadKey]);
   const inv = res.data;
   const open = inv !== null && inv.status !== 'PAID' && inv.status !== 'CANCELLED';
+  // Credit can be rejected while nothing is paid on the invoice, never by the person who recorded the sale.
+  const rejectable =
+    inv !== null &&
+    inv.status === 'UNPAID' &&
+    inv.payments.every((p) => !p.counts) &&
+    !(inv.created_by !== null && inv.created_by === me);
   return (
     <EntityDetailsLayout
       title={inv === null ? 'Credit invoice' : inv.invoice_number}
@@ -130,6 +141,15 @@ export function CreditInvoiceDetailPage() {
                       setPaying(true);
                     },
                   },
+                  {
+                    key: 'rejectCredit',
+                    label: 'Reject credit',
+                    destructive: true,
+                    hidden: !canDecideCredit || !rejectable,
+                    onClick: () => {
+                      setRejecting(true);
+                    },
+                  },
                 ]}
                 primaryKey="pay"
               />
@@ -138,7 +158,12 @@ export function CreditInvoiceDetailPage() {
         : {})}
       inactive={
         inv?.status === 'CANCELLED'
-          ? { title: 'The order of this invoice was cancelled.', since: null }
+          ? inv.rejection != null
+            ? {
+                title: 'This invoice is cancelled: its credit was not approved.',
+                since: formatInstantIn(inv.rejection.rejected_at, timeZone),
+              }
+            : { title: 'The order of this invoice was cancelled.', since: null }
           : null
       }
     >
@@ -146,6 +171,9 @@ export function CreditInvoiceDetailPage() {
       <AsyncContent resource={res} errorTitle="Could not load the credit invoice">
         {(d) => (
           <Stack spacing={3}>
+            {d.rejection != null && (
+              <CreditRejectionNotice rejection={d.rejection} timeZone={timeZone} />
+            )}
             <Section title="Invoice">
               <KeyValueGrid
                 columns={3}
@@ -224,6 +252,24 @@ export function CreditInvoiceDetailPage() {
           </Stack>
         )}
       </AsyncContent>
+      {rejecting && inv !== null && (
+        <RejectCreditDialog
+          purchaseId={inv.purchase_id}
+          purchaseNumber={inv.purchase_number ?? inv.invoice_number}
+          customerName={nameOr(inv.customer_name, inv.customer_id)}
+          amount={money(inv.amount, inv.currency)}
+          onClose={() => {
+            setRejecting(false);
+          }}
+          onDone={() => {
+            notify.success(
+              'Credit rejected; this invoice is cancelled and the seller is told why.',
+            );
+            setRejecting(false);
+            setReloadKey((k) => k + 1);
+          }}
+        />
+      )}
       {paying && inv !== null && (
         <RecordInvoicePaymentDialog
           invoice={inv}

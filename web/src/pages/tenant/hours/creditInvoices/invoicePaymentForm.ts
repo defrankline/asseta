@@ -87,7 +87,8 @@ export const INVOICE_PAYMENT_HINTS: Readonly<Record<string, string>> = {
   INVOICE_NOT_FOUND: 'This invoice no longer exists. Reload the page.',
   INVOICE_OVERPAYMENT: 'The amount is more than what is left to pay. Lower the amount.',
   INVOICE_PAID: 'This invoice is already paid in full.',
-  INVOICE_CANCELLED: 'The order of this invoice was cancelled; it takes no payments.',
+  INVOICE_CANCELLED:
+    'This invoice is cancelled (its order was cancelled or its credit was rejected); it takes no payments.',
   PAYMENT_NOT_PERMITTED:
     'Your company lets the office record bank and mobile-money payments. Record cash, or ask the office.',
 };

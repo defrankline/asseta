@@ -24,6 +24,10 @@ export type PurchaseAllocationIn = Schemas['PurchaseAllocationIn'];
 export type PurchaseTotalsDto = Schemas['PurchaseTotalsDto'];
 export type MachineHoursDto = Schemas['MachineHoursDto'];
 export type CreditActivationIn = Schemas['CreditActivationIn'];
+/** Rejecting the credit part of an order ("Reject credit"): its invoice is cancelled, its hours never activate. */
+export type CreditRejectionIn = Schemas['CreditRejectionIn'];
+export type CreditRejectionDto = Schemas['CreditRejectionDto'];
+export type CreditPartStatus = NonNullable<HoursPurchaseDto['credit_status']>;
 export type HoursBalanceDto = Schemas['HoursBalanceDto'];
 export type LedgerEntryDto = Schemas['LedgerEntryDto'];
 export type LedgerEntryType = Schemas['LedgerEntryType'];

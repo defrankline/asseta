@@ -32,6 +32,7 @@ export const PURCHASE_STATUS_LABELS: Readonly<Record<HoursPurchaseStatus, string
   CONSUMED: 'Used up',
   EXPIRED: 'Expired',
   CANCELLED: 'Cancelled',
+  CREDIT_REJECTED: 'Credit rejected',
 };
 export const PURCHASE_STATUS_TONES: Readonly<Record<HoursPurchaseStatus, StatusTone>> = {
   AWAITING_PAYMENT: 'warning',
@@ -40,6 +41,7 @@ export const PURCHASE_STATUS_TONES: Readonly<Record<HoursPurchaseStatus, StatusT
   CONSUMED: 'default',
   EXPIRED: 'default',
   CANCELLED: 'default',
+  CREDIT_REJECTED: 'default',
 };
 export const PURCHASE_STATUS_OPTIONS: readonly Option<HoursPurchaseStatus>[] =
   PURCHASE_STATUSES.map((s) => ({ value: s, label: PURCHASE_STATUS_LABELS[s] }));
@@ -131,6 +133,14 @@ export const HOURS_ERROR_HINTS: Readonly<Record<string, string>> = {
   NOTHING_TO_PAY: 'Nothing is left to pay on this purchase.',
   CREDIT_NOT_ALLOWED: 'Credit is not allowed by your company policy.',
   NO_CREDIT_ARRANGEMENT: 'The customer has no approved credit arrangement in effect.',
+  NO_CREDIT_PART: 'This order has no credit part.',
+  CREDIT_NOT_AWAITING:
+    'The credit is no longer awaiting approval: hours were already activated on credit, or it was already rejected. Reload to see it.',
+  CREDIT_INVOICE_HAS_PAYMENTS:
+    'Payments are already recorded on the credit invoice, so the credit can no longer be rejected.',
+  CREDIT_REJECTED: 'The credit of this order was rejected; it can no longer be activated.',
+  INVOICE_CANCELLED:
+    'This invoice is cancelled (its order was cancelled or its credit was rejected).',
   CREDIT_LIMIT_EXCEEDED: 'This would exceed the customer’s available credit.',
   EXCEEDS_UNACTIVATED_HOURS: 'Activate no more than the hours still awaiting activation.',
   EXCEEDS_REMAINING_HOURS: 'Transfer no more than the hours remaining on that machine.',
