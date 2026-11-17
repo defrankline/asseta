@@ -20,14 +20,14 @@ First release of Asseta Supervisor, the field app for equipment-hire companies:
 </en-US>
 ```
 
-Swahili (504/500):
+Swahili (495/500):
 
 ```
 <sw>
 Toleo la kwanza la Asseta Supervisor, programu ya uwanjani kwa kampuni za kukodisha mitambo:
 • Uza saa za mitambo: taslimu, benki, pesa za simu au mkopo
 • Ripoti ya mtambo: picha ya mita, kisha hesabu ya kila saa kwa mteja na sababu
-• Pesa: pesa mkononi, makusanyo kwa njia, kukabidhi, matumizi, pesa ndogo
+• Pesa: pesa mkononi, makusanyo, kukabidhi, matumizi, pesa ndogo
 • Malipo ya ankara za mkopo za wateja
 • Dashibodi yenye mitambo yako kwenye orodha au ramani
 • Inafanya kazi bila mtandao kwa siku, hutuma data mtandao ukirudi
