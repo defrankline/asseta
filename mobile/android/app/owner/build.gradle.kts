@@ -34,8 +34,8 @@ android {
     namespace = "com.asseta.owner"
     defaultConfig {
         applicationId = "com.asseta.owner"
-        versionCode = 8
-        versionName = "0.9.1"
+        versionCode = 9
+        versionName = "0.9.2"
         manifestPlaceholders["appAuthRedirectScheme"] = oidcRedirectScheme
         buildConfigField("String", "OIDC_REDIRECT_SCHEME", "\"$oidcRedirectScheme\"")
         buildConfigField("boolean", "FCM_ENABLED", fcmEnabled.toString())

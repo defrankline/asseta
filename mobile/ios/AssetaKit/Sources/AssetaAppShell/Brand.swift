@@ -22,6 +22,6 @@ public struct AppFlavor: Sendable, Equatable {
     }
 
     public static let supervisor = AppFlavor(appName: "Asseta Supervisor", roleName: "Supervisor",
-                                             tagline: "Field jobs, meters and evidence")
+                                             tagline: "Machine hours, money and evidence")
     public static let owner = AppFlavor(appName: "Asseta Owner", roleName: "Owner", tagline: "Your fleet at a glance")
 }

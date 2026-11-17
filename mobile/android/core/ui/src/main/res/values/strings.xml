@@ -3,7 +3,7 @@
     <string name="asseta_brand">Asseta</string>
     <string name="role_supervisor">Supervisor</string>
     <string name="role_owner">Owner</string>
-    <string name="tagline_supervisor">Field jobs, meters and evidence</string>
+    <string name="tagline_supervisor">Machine hours, money and evidence</string>
     <string name="tagline_owner">Your fleet at a glance</string>
     <string name="sign_out_title">Sign out?</string>
     <string name="cancel">Cancel</string>
