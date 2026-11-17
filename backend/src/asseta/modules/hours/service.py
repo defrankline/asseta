@@ -72,6 +72,7 @@ from asseta.modules.hours.ledger import (
 from asseta.modules.hours.models import (
     SIGN,
     CreditInvoice,
+    CreditInvoicePayment,
     CustomerDiscount,
     HoursLedgerEntry,
     HoursPaymentAllocation,
@@ -107,16 +108,30 @@ def purchase_dto(
     rejected_amount = inv.amount if inv is not None and inv.rejected_at is not None else ZERO
     customer = session.get(Customer, p.customer_id)
     allocs = session.execute(
-        select(HoursPaymentAllocation, CustomerPayment.status)
+        select(HoursPaymentAllocation, CustomerPayment)
         .join(CustomerPayment, CustomerPayment.id == HoursPaymentAllocation.payment_id)
         .where(HoursPaymentAllocation.purchase_id == p.id)
         .order_by(HoursPaymentAllocation.created_at)
+    ).all()
+    # The order's own payment parts (split bills): the money allocated to it, except payments of its credit invoice
+    # (those pay the CREDIT part later). Lists and reads carry them too, not only the response that recorded the sale.
+    invoice_payments = (
+        set(
+            session.execute(
+                select(CreditInvoicePayment.payment_id).where(CreditInvoicePayment.invoice_id == inv.id)
+            ).scalars()
+        )
+        if inv is not None
+        else set()
     )
     allocations = []
-    for a, status in allocs:
+    parts: dict[uuid.UUID, CustomerPayment] = {}
+    for a, paid in allocs:
         dto = PurchaseAllocationDto.model_validate(a)
-        dto.payment_status = status.value
+        dto.payment_status = paid.status.value
         allocations.append(dto)
+        if paid.id not in invoice_payments:
+            parts.setdefault(paid.id, paid)
     machines = [
         MachineHoursDto(
             machine_id=mid,
@@ -191,6 +206,7 @@ def purchase_dto(
         machines=machines,
         allocations=allocations,
         payment=payment,
+        payments=[payment_dto(session, x) for x in parts.values()],
         **_credit(session, p, inv, totals, now or utcnow()),
     )
 
