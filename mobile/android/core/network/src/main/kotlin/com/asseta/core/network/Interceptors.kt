@@ -6,14 +6,28 @@ import okhttp3.Interceptor
 import okhttp3.Response
 import java.util.UUID
 
-/** Adds `Authorization: Bearer` when a session exists. Never invents credentials. */
+/**
+ * Adds `Authorization: Bearer` when a session exists. Never invents credentials. A 401 on a call that carried a token
+ * gets one refresh-and-retry (safe for mutations: the idempotency key is already on the request); the 401 stands when
+ * the session is gone. A session that cannot get a token right now fails the call with [TokenUnavailableException]
+ * (an IOException, like being offline) instead of sending it without credentials.
+ */
 class AuthInterceptor(private val tokens: AccessTokenProvider) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val token = tokens.accessToken()
-        val request = if (token.isNullOrBlank()) chain.request() else
-            chain.request().newBuilder().header(AssetaHeaders.AUTHORIZATION, "Bearer $token").build()
-        return chain.proceed(request)
+        if (token.isNullOrBlank()) return chain.proceed(chain.request())
+        try {
+            return chain.proceed(withToken(chain, token))
+        } catch (e: ApiException) {
+            if (!e.isUnauthenticated) throw e
+            val fresh = tokens.refreshedAccessToken(token)
+            if (fresh.isNullOrBlank() || fresh == token) throw e
+            return chain.proceed(withToken(chain, fresh))
+        }
     }
+
+    private fun withToken(chain: Interceptor.Chain, token: String) =
+        chain.request().newBuilder().header(AssetaHeaders.AUTHORIZATION, "Bearer $token").build()
 }
 
 /** Adds `X-Tenant-ID` for the selected tenant unless the caller already set one explicitly. */

@@ -114,7 +114,9 @@ class RealtimeSocket(
                 when (val event = RealtimeProtocol.parse(text, json)) {
                     null -> Unit
                     RealtimeEvent.Ping -> webSocket.send(RealtimeProtocol.PONG)
-                    RealtimeEvent.ReauthRequired -> tokens.accessToken()?.let { webSocket.send(RealtimeProtocol.auth(it, tenantId)) }
+                    // No token right now (offline, sign-in server down): the server closes the socket and the caller reconnects.
+                    RealtimeEvent.ReauthRequired -> runCatching { tokens.accessToken() }.getOrNull()
+                        ?.let { webSocket.send(RealtimeProtocol.auth(it, tenantId)) }
                     else -> trySend(event)
                 }
             }

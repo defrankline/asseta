@@ -113,4 +113,55 @@ class InterceptorsTest {
         assertThrows(IllegalArgumentException::class.java) { NetworkFactory.api("http://api.local/", client, false) }
         assertThrows(IllegalArgumentException::class.java) { NetworkFactory.api("", client, true) }
     }
+
+    /** A provider whose refresh after a 401 hands out [refreshed] (null = the session is gone). */
+    private fun refreshingClient(refreshed: () -> String?): Pair<OkHttpClient, MutableList<String>> {
+        val seen = mutableListOf<String>()
+        val provider = object : AccessTokenProvider {
+            override fun accessToken() = "access-1"
+            override fun refreshedAccessToken(rejected: String): String? {
+                seen += rejected
+                return refreshed()
+            }
+        }
+        return NetworkFactory.okHttpClient(provider, { tenant }) to seen
+    }
+
+    @Test
+    fun `401 refreshes once and retries with the new token and the same idempotency key`() {
+        val (c, rejected) = refreshingClient { "access-2" }
+        server.enqueue(MockResponse(code = 401, body = """{"error":{"code":"NOT_AUTHENTICATED","message":"no","correlation_id":"c"}}"""))
+        server.enqueue(MockResponse(code = 201))
+        assertEquals(201, c.newCall(post()).execute().use { it.code })
+        val first = server.takeRequest()
+        val retry = server.takeRequest()
+        assertEquals("Bearer access-1", first.headers["Authorization"])
+        assertEquals("Bearer access-2", retry.headers["Authorization"])
+        assertEquals(first.headers["Idempotency-Key"], retry.headers["Idempotency-Key"])
+        assertEquals(listOf("access-1"), rejected)
+    }
+
+    @Test
+    fun `401 stands when the session is gone`() {
+        val (c, _) = refreshingClient { null }
+        server.enqueue(MockResponse(code = 401, body = """{"error":{"code":"NOT_AUTHENTICATED","message":"no","correlation_id":"c"}}"""))
+        val e = assertThrows(ApiException::class.java) { c.newCall(get()).execute().close() }
+        assertTrue(e.isUnauthenticated)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun `a session without a token right now fails like a network error and sends nothing`() {
+        val c = NetworkFactory.okHttpClient({ throw TokenUnavailableException("offline") }, { tenant })
+        assertThrows(java.io.IOException::class.java) { c.newCall(get()).execute().close() }
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun `a refresh that cannot reach the sign-in server after a 401 is a network error`() {
+        val (c, _) = refreshingClient { throw TokenUnavailableException("offline") }
+        server.enqueue(MockResponse(code = 401, body = """{"error":{"code":"NOT_AUTHENTICATED","message":"no","correlation_id":"c"}}"""))
+        val e = assertThrows(java.io.IOException::class.java) { c.newCall(get()).execute().close() }
+        assertTrue(e is TokenUnavailableException)
+    }
 }

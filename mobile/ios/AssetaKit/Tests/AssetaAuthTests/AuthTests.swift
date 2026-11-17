@@ -242,7 +242,97 @@ struct AuthSessionTests {
         let session = makeSession()
         try await signIn(session)
         keycloak.transport.setHandler { _ in throw URLError(.notConnectedToInternet) }
-        await #expect(throws: URLError.self) { try await session.validAccessToken() }
+        // Fails like any network error (retryable), so callers treat it as offline.
+        do {
+            _ = try await session.validAccessToken()
+            Issue.record("expected a network error")
+        } catch let error as APIError {
+            #expect(error.isRetryable)
+            #expect(error != .notAuthenticated)
+        }
+        #expect(await session.state == .signedIn)
+        #expect(try TokenStore(store: secrets).load()?.refreshToken == "refresh-1")
+    }
+
+    @Test func signInAsksForAnOfflineToken() async throws {
+        let session = makeSession()
+        let pending = try await session.beginSignIn()
+        let scope = URLComponents(url: pending.url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "scope" }?.value
+        #expect(scope?.split(separator: " ").contains("offline_access") == true)
+    }
+
+    @Test func rotatedRefreshTokenIsSavedAndUsedNext() async throws {
+        keycloak.accessTTL = 30
+        let session = makeSession()
+        try await signIn(session)
+        #expect(try await session.validAccessToken() == "access-2")
+        #expect(try TokenStore(store: secrets).load()?.refreshToken == "refresh-2")
+        #expect(try await session.validAccessToken() == "access-3")
+        #expect(try TokenStore(store: secrets).load()?.refreshToken == "refresh-3")
+        // Each refresh sent the newest refresh token, never a rotated-out one.
+        #expect(keycloak.refreshTokensSent == ["refresh-1", "refresh-2"])
+    }
+
+    @Test(arguments: [
+        (503, #"{"error":"unknown_error"}"#),
+        (502, "<html>Bad gateway</html>"),
+        (500, ""),
+        (400, "<html>Captive portal</html>"), // a 4xx without an OAuth error is not Keycloak's answer
+        (403, #"{"error":"access_denied"}"#),
+    ])
+    func serverTroubleKeepsSession(_ status: Int, _ body: String) async throws {
+        keycloak.accessTTL = 30
+        let session = makeSession()
+        try await signIn(session)
+        keycloak.refreshReply = (status, body)
+        await #expect(throws: APIError.self) { try await session.validAccessToken() }
+        #expect(await session.state == .signedIn)
+        #expect(try TokenStore(store: secrets).load()?.refreshToken == "refresh-1")
+        // The sign-in server is back: the same session refreshes.
+        keycloak.refreshReply = nil
+        #expect(try await session.validAccessToken() == "access-2")
+    }
+
+    @Test(arguments: [
+        (400, #"{"error":"invalid_grant","error_description":"Offline session not active"}"#),
+        (401, #"{"error":"unauthorized_client"}"#),
+        (400, #"{"error":"invalid_client"}"#),
+    ])
+    func refusalByTheTokenEndpointEndsSession(_ status: Int, _ body: String) async throws {
+        keycloak.accessTTL = 30
+        let session = makeSession()
+        try await signIn(session)
+        keycloak.refreshReply = (status, body)
+        await #expect(throws: APIError.notAuthenticated) { try await session.validAccessToken() }
+        #expect(await session.state == .signedOut)
+        #expect(try TokenStore(store: secrets).load() == nil)
+    }
+
+    @Test func phoneClockPastTheRefreshExpiryStillAsksTheServer() async throws {
+        keycloak.accessTTL = 30
+        let session = makeSession()
+        try await signIn(session)
+        // The stored refresh expiry is in the past by the phone's clock (wrong clock, or Keycloak extended it).
+        var stored = try #require(try TokenStore(store: secrets).load())
+        stored.refreshTokenExpiresAt = Date().addingTimeInterval(-3600)
+        try TokenStore(store: secrets).save(stored)
+        let restored = makeSession()
+        #expect(try await restored.validAccessToken() == "access-2")
+        #expect(await restored.state == .signedIn)
+    }
+
+    @Test func concurrentCallersAfterLaunchShareOneRefresh() async throws {
+        keycloak.accessTTL = 30
+        try await signIn(makeSession())
+        keycloak.accessTTL = 300
+        // A new launch: provider metadata not discovered yet, so the first refresh suspends before reaching Keycloak.
+        let session = makeSession()
+        async let a = session.validAccessToken()
+        async let b = session.validAccessToken()
+        async let c = session.validAccessToken()
+        let tokens = try await [a, b, c]
+        #expect(Set(tokens) == ["access-2"])
+        #expect(keycloak.refreshTokensSent == ["refresh-1"])
         #expect(await session.state == .signedIn)
     }
 

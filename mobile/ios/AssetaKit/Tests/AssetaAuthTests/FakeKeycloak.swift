@@ -10,6 +10,10 @@ final class FakeKeycloak: @unchecked Sendable {
     var challenge: String?
     var nonce: String?
     var refreshAllowed = true
+    /// Scripted answer of the token endpoint to a refresh (status, body); nil = Keycloak's normal answer.
+    var refreshReply: (status: Int, body: String)?
+    /// The refresh tokens sent, in order (rotation: each must be the newest).
+    var refreshTokensSent: [String] = []
     var issued = 0
     var endSessionCalls: [[String: String]] = []
     var accessTTL = 300
@@ -59,6 +63,8 @@ final class FakeKeycloak: @unchecked Sendable {
                 else { return (400, Data(#"{"error":"invalid_grant"}"#.utf8)) }
                 return (200, tokenResponse(includeID: true))
             case "refresh_token":
+                refreshTokensSent.append(form["refresh_token"] ?? "")
+                if let refreshReply { return (refreshReply.status, Data(refreshReply.body.utf8)) }
                 guard refreshAllowed, form["refresh_token"]?.hasPrefix("refresh-") == true else {
                     return (400, Data(#"{"error":"invalid_grant","error_description":"Token is not active"}"#.utf8))
                 }

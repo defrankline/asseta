@@ -11,7 +11,7 @@ data class AuthConfig(
     val clientId: String,
     val redirectScheme: String,
     val allowInsecureHttp: Boolean,
-    val scopes: List<String> = listOf("openid", "profile", "email"),
+    val scopes: List<String> = DEFAULT_SCOPES,
 ) {
     init {
         require(issuer.isNotBlank()) { "Keycloak issuer is not configured (gradle property asseta.<buildType>.keycloakIssuer)" }
@@ -27,6 +27,13 @@ data class AuthConfig(
     val postLogoutRedirectUri: String get() = "$redirectScheme:/logout"
 
     companion object {
+        /**
+         * `offline_access`: the refresh token is an offline token, kept by Keycloak for 14 days of non-use (the realm's
+         * offline idle timeout, matching the DEVICE_SYNC offline grant) instead of dying with the 30-minute browser
+         * session. Field users work offline for days.
+         */
+        val DEFAULT_SCOPES = listOf("openid", "profile", "email", "offline_access")
+
         /**
          * [redirectScheme] is app-specific (e.g. `com.asseta.supervisor`) and supplied by each app module, so two
          * installed Asseta apps never share an OIDC callback; it is deliberately not defined in this shared module.

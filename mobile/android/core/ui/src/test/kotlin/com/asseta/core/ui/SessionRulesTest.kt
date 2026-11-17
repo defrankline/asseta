@@ -10,7 +10,9 @@ import com.asseta.core.ui.session.PasswordChangeState
 import com.asseta.core.ui.session.PasswordChangeText
 import com.asseta.core.ui.session.SessionRules
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
 import java.util.UUID
@@ -51,5 +53,19 @@ class SessionRulesTest {
             SessionRules.passwordChangeState(PasswordChangeResult.Failed(PasswordChange.FAILED_MESSAGE)),
         )
         assertEquals("Password changed.", PasswordChangeText.CHANGED)
+    }
+
+    @Test
+    fun `only a refusal by the sign-in server ends the session`() {
+        val unauthorized = ApiException(401, "NOT_AUTHENTICATED", "no", "cid")
+        // The token endpoint refused the refresh token: the auth layer holds no session any more.
+        assertTrue(SessionRules.endsSession(unauthorized, stillSignedIn = false))
+        // A 401 the session survived (refreshed and retried) keeps it.
+        assertFalse(SessionRules.endsSession(unauthorized, stillSignedIn = true))
+        // Network failures and server trouble never end it.
+        assertFalse(SessionRules.endsSession(IOException("timeout"), stillSignedIn = true))
+        assertFalse(SessionRules.endsSession(com.asseta.core.network.TokenUnavailableException("offline"), stillSignedIn = true))
+        assertFalse(SessionRules.endsSession(ApiException(503, "HTTP_503", "down", null), stillSignedIn = true))
+        assertFalse(SessionRules.endsSession(ApiException(502, "HTTP_502", "bad gateway", null), stillSignedIn = false))
     }
 }

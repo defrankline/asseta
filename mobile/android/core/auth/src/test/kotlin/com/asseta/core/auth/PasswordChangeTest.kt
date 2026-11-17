@@ -38,7 +38,7 @@ class PasswordChangeTest {
             assertEquals("asseta-mobile", request.clientId)
             assertEquals("code", request.responseType)
             assertEquals("com.asseta.owner:/oauth2redirect", request.redirectUri.toString())
-            assertEquals(setOf("openid", "profile", "email"), request.scopeSet)
+            assertEquals(setOf("openid", "profile", "email", "offline_access"), request.scopeSet)
             assertEquals("S256", request.codeVerifierChallengeMethod)
             assertNotNull(request.codeVerifier)
             assertNotNull(request.nonce)

@@ -15,12 +15,17 @@ public struct OIDCConfiguration: Sendable, Equatable {
     public let postLogoutRedirectURI: URL
     public let scopes: [String]
 
+    /// `offline_access`: the refresh token is an offline token, kept by Keycloak for 14 days of non-use (the realm's
+    /// offline idle timeout, matching the DEVICE_SYNC offline grant) instead of dying with the 30-minute browser
+    /// session. Field users work offline for days.
+    public static let defaultScopes = ["openid", "profile", "email", "offline_access"]
+
     public init(
         issuer: URL,
         clientID: String = "asseta-mobile",
         redirectURI: URL,
         postLogoutRedirectURI: URL,
-        scopes: [String] = ["openid", "profile", "email"]
+        scopes: [String] = OIDCConfiguration.defaultScopes
     ) {
         self.issuer = issuer
         self.clientID = clientID

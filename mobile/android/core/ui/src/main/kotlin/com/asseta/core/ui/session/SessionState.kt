@@ -52,6 +52,15 @@ internal object SessionRules {
             ?: enterable.singleOrNull()?.tenantId?.toString()
     }
 
+    /**
+     * Whether a failed call ends the session. Only an authoritative refusal does: the sign-in server refused the refresh
+     * token (the auth layer then holds no session, so the API answered 401), or the account is inactive (handled on its
+     * own). A 401 while a session is still held (the token was refreshed and retried), a timeout, no connection or a
+     * 5xx keep it: the app works offline.
+     */
+    fun endsSession(t: Throwable, stillSignedIn: Boolean): Boolean =
+        t is ApiException && t.isUnauthenticated && !stillSignedIn
+
     fun toUiError(t: Throwable): UiError = when (t) {
         is ApiException -> UiError(t.message, t.correlationId)
         is java.io.IOException -> UiError("Cannot reach Asseta. Check your connection and try again.")

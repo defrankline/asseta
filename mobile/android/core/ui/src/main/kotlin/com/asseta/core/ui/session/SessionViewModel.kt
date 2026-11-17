@@ -80,9 +80,10 @@ class SessionViewModel(
                     if (e is ApiException && e.isUserInactive) {
                         notice?.consume()
                         signOutLocally(AccountDeletionText.INACTIVE)
-                    } else if (e is ApiException && e.isUnauthenticated) {
-                        endSession(e.correlationId)
+                    } else if (SessionRules.endsSession(e, auth.signedIn.value)) {
+                        endSession((e as ApiException).correlationId)
                     } else {
+                        // Offline, server trouble, or a 401 the session survived: stay signed in; the user can retry.
                         _state.value = SessionState.ProfileError(SessionRules.toUiError(e))
                     }
                 }
@@ -171,8 +172,12 @@ class SessionViewModel(
         _state.value = SessionState.SignedOut(UiError(message))
     }
 
-    /** The API rejected the session (401): sign out locally and explain why. */
+    /**
+     * The API rejected the session (401): sign out locally and explain why, but only once the sign-in server refused
+     * the session (the auth layer then holds none). A 401 the session survived (refreshed, still held) changes nothing.
+     */
     fun endSession(reference: String? = null) {
+        if (auth.signedIn.value) return
         auth.logout()
         tenants.clear()
         hooks.onSignedOut()

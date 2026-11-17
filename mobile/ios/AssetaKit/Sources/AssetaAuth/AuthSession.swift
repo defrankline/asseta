@@ -6,6 +6,10 @@ import Foundation
 /// Owns the OAuth session: sign-in (Authorization Code + PKCE), token persistence in the Keychain,
 /// coalesced refresh and logout. Serves as the ``AccessTokenProvider`` for ``APIClient``.
 ///
+/// The app asks for `offline_access`, so the refresh token outlives the 30-minute browser session (14 days of non-use).
+/// Keycloak rotates refresh tokens: each refresh result replaces the stored tokens at once. Only the token endpoint's
+/// refusal ends the session; a network failure never does (the app works offline).
+///
 /// The browser step is performed by the UI layer (SwiftUI `WebAuthenticationSession`, ephemeral)
 /// between ``beginSignIn()`` and ``completeSignIn(callbackURL:pending:)`` so this type stays
 /// testable without UIKit.
@@ -111,7 +115,7 @@ public actor AuthSession: AccessTokenProvider {
         if current.accessToken != rejected { return current.accessToken }
         let fresh = try await refresh()
         guard fresh.accessToken != rejected else {
-            try signOutLocally()
+            try? signOutLocally()
             throw APIError.notAuthenticated
         }
         return fresh.accessToken
@@ -150,29 +154,67 @@ public actor AuthSession: AccessTokenProvider {
         return discovered
     }
 
-    /// Single-flight refresh: concurrent callers await the same network exchange.
+    /// Single-flight refresh: concurrent callers await the same network exchange. The task is registered before
+    /// anything suspends, so a rotated refresh token (Keycloak `revokeRefreshToken`) is never sent twice.
     private func refresh() async throws -> StoredTokens {
         if let refreshTask { return try await refreshTask.value }
         guard let current = tokens else { throw APIError.notAuthenticated }
-        if let expiry = current.refreshTokenExpiresAt, expiry <= now() {
-            try signOutLocally()
-            throw APIError.notAuthenticated
-        }
-        let metadata = try await providerMetadata()
-        let client = tokenClient
-        let task = Task { try await client.refresh(current, metadata: metadata) }
+        let task = Task { try await self.exchangeRefreshToken(current) }
         refreshTask = task
         defer { refreshTask = nil }
+        return try await task.value
+    }
+
+    /// One refresh round trip. Only the token endpoint's refusal (``refusesSession(_:)``) ends the session; anything
+    /// else (offline, timeout, DNS, a captive portal, 5xx) keeps it and fails like a network error
+    /// (``APIError/isRetryable``). The refresh token's own expiry is the server's to judge, not the phone clock's.
+    private func exchangeRefreshToken(_ current: StoredTokens) async throws -> StoredTokens {
+        let fresh: StoredTokens
         do {
-            let fresh = try await task.value
-            try tokenStore.save(fresh)
-            tokens = fresh
-            return fresh
-        } catch let AuthError.tokenEndpoint(status, code, _) where code == "invalid_grant" || status == 401 {
-            // Refresh token revoked/expired (or user disabled in Keycloak): session is over.
-            try signOutLocally()
+            let metadata = try await providerMetadata()
+            fresh = try await tokenClient.refresh(current, metadata: metadata)
+        } catch let error as AuthError where Self.refusesSession(error) {
+            // Refresh token expired, revoked or rotated out, or the user was disabled in Keycloak: the session is over.
+            if tokens == current { try? signOutLocally() }
             throw APIError.notAuthenticated
+        } catch {
+            throw Self.temporary(error)
         }
-        // Transport errors propagate unchanged: being offline must not destroy the session.
+        // Signed out or signed in again meanwhile: this result belongs to a session that is gone.
+        guard tokens == current else {
+            guard let tokens else { throw APIError.notAuthenticated }
+            return tokens
+        }
+        // In memory first, then the Keychain (one item, replaced atomically): the newest refresh token is never lost
+        // while the app runs, even if the Keychain write fails.
+        tokens = fresh
+        try? tokenStore.save(fresh)
+        return fresh
+    }
+
+    /// An authoritative refusal by the token endpoint: HTTP 400/401 with an OAuth error (`invalid_grant`, ...), or no
+    /// refresh token to use. A body-less 4xx (a proxy or captive portal) and every 5xx are not.
+    static func refusesSession(_ error: AuthError) -> Bool {
+        switch error {
+        case let .tokenEndpoint(status, code, _): (status == 400 || status == 401) && !(code ?? "").isEmpty
+        case .notSignedIn: true
+        default: false
+        }
+    }
+
+    /// A refresh that could not be done now, as the network error callers already retry (`APIError.transport` for no
+    /// connection, timeouts and unreadable answers; `unexpectedStatus` for a sign-in server answering 5xx).
+    static func temporary(_ error: any Error) -> any Error {
+        switch error {
+        case is CancellationError, is APIError: return error
+        case let url as URLError:
+            return APIError.transport(code: url.errorCode, message: url.localizedDescription, correlationID: "")
+        case let AuthError.tokenEndpoint(status, _, _), let AuthError.discoveryFailed(status):
+            return APIError.unexpectedStatus(status: status, correlationID: "")
+        default:
+            return APIError.transport(code: URLError.badServerResponse.rawValue,
+                                      message: "The sign-in server could not be reached. Try again when you are online.",
+                                      correlationID: "")
+        }
     }
 }
