@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Package | `com.asseta.supervisor` |
-| Version | 0.6.2 (versionCode 13) |
+| Version | 0.6.3 (versionCode 14) |
 | Default language | English (United States) – en-US |
 | Added language | Swahili – sw |
 | App or game | App |
