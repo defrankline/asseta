@@ -29,6 +29,10 @@ interface SyncHost {
 /**
  * Background sync (WorkManager survives process death and reboots; requires a network connection). Retryable failures
  * schedule a follow-up run with exponential backoff + jitter computed from the persisted failure streak.
+ *
+ * A [CoroutineWorker]: when WorkManager stops it (the network dropped), its coroutine is cancelled, which cancels the
+ * in-flight Retrofit calls; the run itself works on the IO dispatcher ([com.asseta.core.sync.engine.SyncEngine.sync]),
+ * so stopping never waits on the main thread. A cancelled run records no failure and schedules nothing.
  */
 class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {

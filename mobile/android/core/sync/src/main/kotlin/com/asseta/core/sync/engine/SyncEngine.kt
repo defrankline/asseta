@@ -11,8 +11,11 @@ import com.asseta.core.network.SyncApi
 import com.asseta.core.sync.SyncClock
 import com.asseta.core.sync.data.ServerDataWriter
 import com.asseta.core.sync.evidence.EvidenceFiles
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import java.io.IOException
@@ -54,6 +57,8 @@ class SyncEngine(
     private val account: () -> SyncAccount?,
     private val backoff: Backoff = Backoff(),
     private val random: () -> Double = { Random.nextDouble() },
+    /** Database, file and JSON work runs here, never on the caller's thread (a UI "Sync now" calls from main). */
+    private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     private val mutex = Mutex()
     private val writer = ServerDataWriter(db, json)
@@ -61,7 +66,11 @@ class SyncEngine(
     private val pusher = OutboxPusher(api, db, clock, json)
     private val accounts = AccountSwitch(db)
 
-    suspend fun sync(tenantId: String): SyncReport = mutex.withLock {
+    /**
+     * Cancellable: the WorkManager worker's cancellation (constraints lost, e.g. the network dropped) cancels the
+     * in-flight Retrofit calls; nothing blocks the caller's thread.
+     */
+    suspend fun sync(tenantId: String): SyncReport = withContext(dispatcher) { mutex.withLock {
         val user = account() ?: return@withLock SyncReport.AuthRequired
         try {
             accounts.claim(tenantId, user)
@@ -81,7 +90,7 @@ class SyncEngine(
             // Unexpected server payload: keep everything local and retry on the normal schedule.
             SyncReport.Failed("BAD_SERVER_RESPONSE", e.message ?: "Unreadable server response", recordFailure(tenantId, "BAD_SERVER_RESPONSE"))
         }
-    }
+    } }
 
     private suspend fun handleApiError(tenantId: String, e: ApiException): SyncReport = when {
         e.code == SyncErrorCodes.DEVICE_REVOKED -> {
