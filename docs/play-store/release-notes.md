@@ -20,7 +20,7 @@ First release of Asseta Supervisor, the field app for equipment-hire companies:
 </en-US>
 ```
 
-Swahili (513/500):
+Swahili (504/500):
 
 ```
 <sw>
@@ -30,7 +30,7 @@ Toleo la kwanza la Asseta Supervisor, programu ya uwanjani kwa kampuni za kukodi
 • Pesa: pesa mkononi, makusanyo kwa njia, kukabidhi, matumizi, pesa ndogo
 • Malipo ya ankara za mkopo za wateja
 • Dashibodi yenye mitambo yako kwenye orodha au ramani
-• Inafanya kazi bila mtandao kwa siku kadhaa na kutuma data mtandao ukirudi
+• Inafanya kazi bila mtandao kwa siku, hutuma data mtandao ukirudi
 • Futa akaunti yako ndani ya programu
 </sw>
 ```
