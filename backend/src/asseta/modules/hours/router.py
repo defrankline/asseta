@@ -43,6 +43,7 @@ from asseta.modules.hours.dto import (
     CreditInvoiceDto,
     CreditInvoicePaymentIn,
     CreditInvoiceStatus,
+    CreditRejectionIn,
     CustomerHoursSummaryDto,
     CustomerRegistrationIn,
     DecisionIn,
@@ -558,6 +559,34 @@ def credit_activate(
     if (replay := guard.begin()) is not None:
         return HoursPurchaseDto.model_validate(replay)
     dto = HoursService(session, ctx, now).credit_activate(purchase_id, body)
+    guard.complete(dto)
+    return dto
+
+
+@router.post(
+    "/hours-purchases/{purchase_id}/credit/reject",
+    response_model=HoursPurchaseDto,
+    operation_id="rejectHoursCredit",
+)
+@named
+def credit_reject(
+    purchase_id: uuid.UUID,
+    body: CreditRejectionIn,
+    session: DbSession,
+    now: Now,
+    ctx: Annotated[RequestContext, Depends(CREDIT_ACTIVATE)],
+    idempotency_key: IdemKey = None,
+) -> HoursPurchaseDto:
+    """Reject the credit part of an order (owner decision): its credit invoice becomes CANCELLED (reason kept) and
+    its credit hours are never activated; paid parts of the order stay unchanged. Only while nothing of the credit
+    was activated (CREDIT_NOT_AWAITING) and nothing was paid on the invoice (CREDIT_INVOICE_HAS_PAYMENTS); never by
+    the person who recorded the sale (SEGREGATION_OF_DUTIES). The seller is notified with the reason."""
+    guard = IdempotencyGuard(
+        session, str(ctx.tenant_id), f"rejectHoursCredit:{purchase_id}", idempotency_key, request_hash(body)
+    )
+    if (replay := guard.begin()) is not None:
+        return HoursPurchaseDto.model_validate(replay)
+    dto = HoursService(session, ctx, now).credit_reject(purchase_id, body)
     guard.complete(dto)
     return dto
 

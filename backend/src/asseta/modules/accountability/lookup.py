@@ -100,7 +100,7 @@ def _purchase(s: Session, p: HoursPurchase) -> dict[str, Any]:
 def _credit_invoice(s: Session, i: CreditInvoice) -> dict[str, Any]:
     order = s.get(HoursPurchase, i.purchase_id)
     paid = paid_figures(s, [i.id]).get(i.id, (ZERO, ZERO))[0]
-    open_ = order is not None and order.cancelled_at is None
+    open_ = order is not None and order.cancelled_at is None and i.rejected_at is None
     return {
         "recorded_by": i.created_by,
         "recorded_at": i.issued_at,

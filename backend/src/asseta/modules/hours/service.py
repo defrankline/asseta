@@ -35,9 +35,11 @@ from asseta.modules.finance.payment_service import CustomerPaymentService, payme
 from asseta.modules.fleet.models import Machine, MachineStatus
 from asseta.modules.geospatial.models import JobSite
 from asseta.modules.hours.cash_activation import CashActivation
-from asseta.modules.hours.credit_invoices import create_credit_invoice, invoice_summaries
+from asseta.modules.hours.credit_invoices import create_credit_invoice, invoice_summaries, rejection_dto
 from asseta.modules.hours.dto import (
     CreditActivationIn,
+    CreditPartStatus,
+    CreditRejectionIn,
     CustomerDiscountRateDto,
     CustomerRegistrationIn,
     HoursBalanceDto,
@@ -59,6 +61,7 @@ from asseta.modules.hours.engine import TOPIC, HoursEngine, minor_units
 from asseta.modules.hours.ledger import (
     ZERO,
     PurchaseQueue,
+    PurchaseTotals,
     active_allocated,
     allocated_amounts,
     derived_status,
@@ -100,6 +103,8 @@ def purchase_dto(
     totals = purchase_totals(session, p)
     verified, claimed = allocated_amounts(session, p.id)
     units = minor_units(session, p.currency)
+    inv = session.execute(select(CreditInvoice).where(CreditInvoice.purchase_id == p.id)).scalar_one_or_none()
+    rejected_amount = inv.amount if inv is not None and inv.rejected_at is not None else ZERO
     customer = session.get(Customer, p.customer_id)
     allocs = session.execute(
         select(HoursPaymentAllocation, CustomerPayment.status)
@@ -160,9 +165,7 @@ def purchase_dto(
             activated_from_payments=totals.activated_payment,
             activated_on_credit=totals.activated_credit,
             awaiting_activation=(
-                ZERO
-                if p.cancelled_at is not None
-                else max(ZERO, p.hours - totals.net_activated - totals.total(T.REFUNDED))
+                ZERO if p.cancelled_at is not None else max(ZERO, totals.awaiting - totals.total(T.REFUNDED))
             ),
             consumed=totals.total(T.CONSUMED),
             transferred=totals.total(T.TRANSFER_OUT),
@@ -174,7 +177,13 @@ def purchase_dto(
             amount_verified=verified,
             amount_claimed_unverified=claimed,
             amount_outstanding=(
-                max(ZERO, p.amount - verified - quantize(totals.total(T.REFUNDED) * p.effective_rate, units))
+                max(
+                    ZERO,
+                    p.amount
+                    - rejected_amount
+                    - verified
+                    - quantize(totals.total(T.REFUNDED) * p.effective_rate, units),
+                )
                 if p.cancelled_at is None
                 else ZERO
             ),
@@ -182,17 +191,31 @@ def purchase_dto(
         machines=machines,
         allocations=allocations,
         payment=payment,
-        **_credit(session, p, now or utcnow()),
+        **_credit(session, p, inv, totals, now or utcnow()),
     )
 
 
-def _credit(session: Session, p: HoursPurchase, now: datetime) -> dict[str, Any]:
-    """The order's CREDIT line and its credit invoice (ADR-008 §1)."""
-    inv = session.execute(select(CreditInvoice).where(CreditInvoice.purchase_id == p.id)).scalar_one_or_none()
+def _credit(
+    session: Session, p: HoursPurchase, inv: CreditInvoice | None, totals: PurchaseTotals, now: datetime
+) -> dict[str, Any]:
+    """The order's CREDIT line, its credit invoice and where the credit part stands (ADR-008 §1)."""
     if inv is None:
         return {}
     summary = invoice_summaries(session, p.tenant_id, now, [p.id])[p.id]
-    return {"credit_amount": inv.amount, "credit_invoice": summary}
+    rejection = rejection_dto(inv)
+    status: CreditPartStatus
+    if rejection is not None:
+        status = "REJECTED"
+    elif totals.activated_credit > 0 or totals.awaiting <= 0:
+        status = "ACTIVATED"
+    else:
+        status = "AWAITING_ACTIVATION"
+    return {
+        "credit_amount": inv.amount,
+        "credit_invoice": summary,
+        "credit_status": status,
+        "credit_rejection": rejection,
+    }
 
 
 def _pending_zero_amount(session: Session, p: HoursPurchase) -> uuid.UUID | None:
@@ -274,7 +297,7 @@ def balances(
     purchases = list(session.execute(select(HoursPurchase).where(*purchase_conds)).scalars())
     totals_of = purchase_totals_bulk(session, purchases)
     for p in purchases:
-        awaiting = max(ZERO, p.hours - totals_of[p.id].net_activated)
+        awaiting = totals_of[p.id].awaiting
         if awaiting > 0:
             r = row(p.customer_id, p.machine_id)
             r["awaiting"] += awaiting
@@ -695,7 +718,7 @@ class HoursService:
         if pay.evidence_attachment_ids:
             self.link_evidence(recorded.id, pay.evidence_attachment_ids)
         if purchase.amount > 0:
-            open_amount = purchase.amount - active_allocated(self._s, purchase_id=purchase.id)
+            open_amount = self._open_amount(purchase)
             if open_amount > 0:
                 self.allocate(
                     purchase.id, PurchaseAllocationIn(payment_id=recorded.id, amount=min(amount, open_amount))
@@ -723,7 +746,7 @@ class HoursService:
             raise BusinessRuleViolation("The purchase is cancelled", code="PURCHASE_CANCELLED")
         if payment.customer_id != purchase.customer_id or payment.currency != purchase.currency:
             raise BusinessRuleViolation("Payment belongs to another customer or currency", code="ALLOCATION_MISMATCH")
-        open_amount = purchase.amount - active_allocated(self._s, purchase_id=purchase.id)
+        open_amount = self._open_amount(purchase)
         if body.amount > open_amount:
             raise BusinessRuleViolation(
                 f"Allocation exceeds the purchase's open amount {open_amount}", code="OVER_ALLOCATION"
@@ -762,15 +785,31 @@ class HoursService:
         if purchase_id is None:
             raise NotFound("Hours purchase not found", code="PURCHASE_NOT_FOUND")
         purchase = self.engine.lock_purchase(purchase_id)
-        open_amount = purchase.amount - active_allocated(self._s, purchase_id=purchase.id)
+        open_amount = self._open_amount(purchase)
         if open_amount <= 0:
             raise BusinessRuleViolation("This purchase is already fully paid for", code="OVER_ALLOCATION")
         self.allocate(purchase.id, PurchaseAllocationIn(payment_id=payment_id, amount=min(amount, open_amount)))
+
+    def _open_amount(self, purchase: HoursPurchase) -> Decimal:
+        """What may still be linked to the order: its amount less linked money and any rejected credit."""
+        return (
+            purchase.amount
+            - self.engine.rejected_credit_amount(purchase)
+            - active_allocated(self._s, purchase_id=purchase.id)
+        )
 
     def credit_activate(self, purchase_id: uuid.UUID, body: CreditActivationIn) -> HoursPurchaseDto:
         self._require_enabled()
         purchase = self.engine.lock_purchase(purchase_id)
         self.engine.activate_on_credit(purchase, body.hours, body.reason)
+        return purchase_dto(self._s, purchase, now=self._now)
+
+    def credit_reject(self, purchase_id: uuid.UUID, body: CreditRejectionIn) -> HoursPurchaseDto:
+        """Reject the credit part of an order (CREDIT_NOT_AWAITING, CREDIT_INVOICE_HAS_PAYMENTS, NO_CREDIT_PART,
+        PURCHASE_CANCELLED, SEGREGATION_OF_DUTIES)."""
+        self._require_enabled()
+        purchase = self.engine.lock_purchase(purchase_id)
+        self.engine.reject_credit(purchase, body.reason)
         return purchase_dto(self._s, purchase, now=self._now)
 
     # --- evidence -------------------------------------------------------------------------------------------

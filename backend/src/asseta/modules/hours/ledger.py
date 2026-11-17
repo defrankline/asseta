@@ -51,6 +51,7 @@ class PurchaseTotals:
     machines: dict[uuid.UUID, MachineTotals]
     activated_payment: Decimal
     activated_credit: Decimal
+    rejected_hours: Decimal = ZERO  # credit hours whose credit was rejected: never activated, never awaited
 
     def total(self, t: LedgerEntryType) -> Decimal:
         return sum((m.by_type[t] for m in self.machines.values()), ZERO)
@@ -68,9 +69,39 @@ class PurchaseTotals:
     def remaining(self) -> Decimal:
         return sum((m.remaining for m in self.machines.values()), ZERO)
 
+    @property
+    def to_activate(self) -> Decimal:
+        """The hours of the order that can still become usable: all of them less the rejected credit hours."""
+        return max(ZERO, self.hours - self.rejected_hours)
+
+    @property
+    def awaiting(self) -> Decimal:
+        """Hours bought and not yet activated (rejected credit hours are not awaited)."""
+        return max(ZERO, self.to_activate - self.net_activated)
+
     def remaining_on(self, machine_id: uuid.UUID) -> Decimal:
         m = self.machines.get(machine_id)
         return m.remaining if m else ZERO
+
+
+def rejected_hours_select() -> Any:
+    """(purchase id, hours) of every order whose credit was rejected: its credit invoice's hours (all the order's
+    hours when the whole order was on credit, so rounding never leaves a fraction awaiting)."""
+    i, p = CreditInvoice, HoursPurchase
+    hours = case((i.amount >= p.amount, p.hours), else_=i.hours)
+    return (
+        select(i.purchase_id.label("id"), hours.label("hours"), i.customer_id.label("customer_id"))
+        .join(p, p.id == i.purchase_id)
+        .where(i.rejected_at.is_not(None))
+    )
+
+
+def rejected_credit_hours(session: Session, purchase_ids: set[uuid.UUID]) -> dict[uuid.UUID, Decimal]:
+    """Per order: the credit hours that will never be activated because the credit was rejected."""
+    if not purchase_ids:
+        return {}
+    stmt = rejected_hours_select().where(CreditInvoice.purchase_id.in_(purchase_ids))
+    return {pid: Decimal(h) for pid, h, _ in session.execute(stmt).tuples()}
 
 
 def purchase_totals(session: Session, purchase: HoursPurchase) -> PurchaseTotals:
@@ -93,7 +124,8 @@ def purchase_totals(session: Session, purchase: HoursPurchase) -> PurchaseTotals
             paid += Decimal(hours)
         elif source is ActivationSource.CREDIT:
             credit += Decimal(hours)
-    return PurchaseTotals(purchase.hours, dict(machines), paid, credit)
+    rejected = rejected_credit_hours(session, {purchase.id}).get(purchase.id, ZERO)
+    return PurchaseTotals(purchase.hours, dict(machines), paid, credit, rejected)
 
 
 def purchase_totals_bulk(session: Session, purchases: list[HoursPurchase]) -> dict[uuid.UUID, PurchaseTotals]:
@@ -127,19 +159,25 @@ def purchase_totals_bulk(session: Session, purchases: list[HoursPurchase]) -> di
             paid[purchase_id] += Decimal(hours)
         elif source is ActivationSource.CREDIT:
             credit[purchase_id] += Decimal(hours)
-    return {p.id: PurchaseTotals(p.hours, dict(machines[p.id]), paid[p.id], credit[p.id]) for p in purchases}
+    rejected = rejected_credit_hours(session, wanted)
+    return {
+        p.id: PurchaseTotals(p.hours, dict(machines[p.id]), paid[p.id], credit[p.id], rejected.get(p.id, ZERO))
+        for p in purchases
+    }
 
 
 class PurchaseQueue(StrEnum):
     AWAITING_ACTIVATION = "AWAITING_ACTIVATION"  # hours bought and not yet activated
     UNPAID = "UNPAID"  # awaiting activation with no payment waiting to be confirmed
     UNCONFIRMED = "UNCONFIRMED"  # awaiting activation with a claimed payment the office has not confirmed
-    # ADR-008 §1: awaiting activation and sold with a CREDIT line (credit invoice): the credit approvers' queue
+    # ADR-008 §1: awaiting activation and sold with a CREDIT line (credit invoice) whose credit was not rejected:
+    # the credit approvers' queue
     CREDIT_TO_ACTIVATE = "CREDIT_TO_ACTIVATE"
 
 
 def purchase_queue_select() -> Any:
-    """One row per open purchase with hours still awaiting activation: (purchase, awaiting, verified, claimed)."""
+    """One row per open purchase with hours still awaiting activation: (purchase, awaiting, verified, claimed).
+    Rejected credit hours are not awaited."""
     e, a, p, c = HoursLedgerEntry, HoursPaymentAllocation, HoursPurchase, CustomerPayment
     signed = case(
         (e.entry_type == T.ACTIVATED, e.hours),
@@ -158,7 +196,8 @@ def purchase_queue_select() -> Any:
         .group_by(a.purchase_id)
         .subquery("money")
     )
-    awaiting = p.hours - func.coalesce(net.c.net, ZERO)
+    rejected = rejected_hours_select().subquery("rejected")
+    awaiting = p.hours - func.coalesce(rejected.c.hours, ZERO) - func.coalesce(net.c.net, ZERO)
     return (
         select(
             p,
@@ -168,6 +207,7 @@ def purchase_queue_select() -> Any:
         )
         .outerjoin(net, net.c.id == p.id)
         .outerjoin(money, money.c.id == p.id)
+        .outerjoin(rejected, rejected.c.id == p.id)
         .where(p.cancelled_at.is_(None), awaiting > 0)
     )
 
@@ -181,7 +221,7 @@ def purchase_queue_ids(queue: PurchaseQueue) -> Select[Any]:
     if queue is PurchaseQueue.UNCONFIRMED:
         return stmt.where(sub.c.claimed > 0)
     if queue is PurchaseQueue.CREDIT_TO_ACTIVATE:
-        return stmt.where(sub.c.id.in_(select(CreditInvoice.purchase_id)))
+        return stmt.where(sub.c.id.in_(select(CreditInvoice.purchase_id).where(CreditInvoice.rejected_at.is_(None))))
     return stmt
 
 
@@ -218,8 +258,8 @@ def derived_status(purchase: HoursPurchase, totals: PurchaseTotals) -> str:
         return "CANCELLED"
     activated = totals.activated
     if activated <= 0:
-        return "AWAITING_PAYMENT"
-    if activated < purchase.hours:
+        return "CREDIT_REJECTED" if totals.rejected_hours > 0 and totals.to_activate <= 0 else "AWAITING_PAYMENT"
+    if activated < totals.to_activate:
         return "PARTLY_ACTIVE"
     if totals.remaining > 0:
         return "ACTIVE"

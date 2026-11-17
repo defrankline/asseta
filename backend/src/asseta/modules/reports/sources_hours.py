@@ -232,12 +232,16 @@ def _sales(session: Session, ctx: RequestContext, now: datetime, f: BaseModel, l
         ).tuples():
             sold[(method.value, currency)] += amount
             covered[pid] += amount
-        for pid, currency, amount in session.execute(
-            select(CreditInvoice.purchase_id, CreditInvoice.currency, CreditInvoice.amount).where(
-                CreditInvoice.purchase_id.in_(ids)
-            )
+        for pid, currency, amount, rejected in session.execute(
+            select(
+                CreditInvoice.purchase_id,
+                CreditInvoice.currency,
+                CreditInvoice.amount,
+                CreditInvoice.rejected_at.is_not(None),
+            ).where(CreditInvoice.purchase_id.in_(ids))
         ).tuples():
-            sold[("CREDIT", currency)] += amount
+            if not rejected:  # rejected credit was never sold (and is not unpaid either)
+                sold[("CREDIT", currency)] += amount
             covered[pid] += amount
     for p in purchases:
         if (gap := p.amount - covered[p.id]) > 0:

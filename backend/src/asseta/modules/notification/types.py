@@ -159,6 +159,7 @@ _TYPES = (
     ),
     # ADR-008: an order with a CREDIT line (its hours wait for credit activation); credit invoices past their due date
     NotificationType("HOURS_CREDIT_TO_ACTIVATE", "Credit hours to activate", Category.ACTION, Severity.INFO, T),
+    NotificationType("HOURS_CREDIT_REJECTED", "Credit not approved", Category.INFO, Severity.WARNING, T),
     NotificationType("CREDIT_INVOICE_OVERDUE", "Credit invoice overdue", Category.REMINDER, Severity.WARNING, T),
     # ADR-008 §2: machine reports to decide, the decision for the submitter, machines that moved without a report
     NotificationType("MACHINE_REPORT_SUBMITTED", "Machine report to approve", Category.ACTION, Severity.INFO, T),

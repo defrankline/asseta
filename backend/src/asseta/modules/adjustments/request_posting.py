@@ -115,7 +115,7 @@ class RequestPosting:
             purchase = self._s.get(HoursPurchase, row.original_id)
             assert purchase is not None
             totals = purchase_totals(self._s, purchase)
-            return {"hours_to_activate": str(purchase.hours - totals.net_activated)}
+            return {"hours_to_activate": str(totals.awaiting)}
         return {"original_id": str(row.original_id)}
 
     def post(self, row: AdjustmentRequest, note: str | None, result: dict[str, Any]) -> None:

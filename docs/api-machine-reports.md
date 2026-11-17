@@ -57,7 +57,10 @@ The full list is in §8.
   whole order (also for CREDIT).
 - The `job` field ("Book the job") is removed and ignored if sent.
 - Response (`HoursPurchaseDto`) adds `credit_amount` and `credit_invoice`
-  `{id, invoice_number, amount, paid, balance, due_date, status, overdue}` (both null without a CREDIT line).
+  `{id, invoice_number, amount, paid, balance, due_date, status, overdue, rejection}` (both null without a CREDIT
+  line), `credit_status` (`AWAITING_ACTIVATION | ACTIVATED | REJECTED`, null without a CREDIT line) and
+  `credit_rejection` `{rejected_at, rejected_by, rejected_by_name, reason, hours, amount}` (null unless REJECTED).
+  Order `status` adds `CREDIT_REJECTED` (the whole order was on credit and the credit was rejected).
 - Credit makes no hours usable: the credit part waits for `POST /hours-purchases/{id}/credit-activations` (existing,
   `tenant.hours.credit_activate`, within the customer's credit arrangement, never by the order's recorder).
 
@@ -73,7 +76,8 @@ The full list is in §8.
 
 The order's CREDIT line is invoiced automatically: `CI-<yyyy>-<nnnnn>` (per tenant), hours = credit amount / the
 order's effective rate, `due_date` = tenant-local day of the sale + the customer's `payment_terms_days`. Paid orders get
-no invoice. Status (derived): `UNPAID`, `PART_PAID`, `PAID`, `CANCELLED` (its order was cancelled). `overdue` /
+no invoice. Status (derived): `UNPAID`, `PART_PAID`, `PAID`, `CANCELLED` (its order was cancelled or its credit was
+rejected, §1 "Rejecting credit"; `rejection` then carries who, when and why). `overdue` /
 `days_overdue`: due date passed with a balance. Recorded payments count (claimed or verified) until rejected or
 reversed; `paid_verified` is the verified part.
 
@@ -101,16 +105,48 @@ cash.
 | `INVOICE_NOT_FOUND` | 404 | |
 | `INVOICE_OVERPAYMENT` | 422 | Amount above the balance |
 | `INVOICE_PAID` | 422 | Nothing left to pay |
-| `INVOICE_CANCELLED` | 422 | The order was cancelled |
+| `INVOICE_CANCELLED` | 422 | The order was cancelled or its credit was rejected |
 | `PAYMENT_NOT_PERMITTED` | 403 | BANK/MOBILE_MONEY by field staff while `field_noncash_payments` is off |
 | `STAFF_NOT_LINKED`, `NOT_CUSTODIAN` | 4xx | Cash custody rules (as for collections) |
 
 ### Customer hours
 
 Orders whose credit part waits for approval: `GET /hours-purchases?queue=CREDIT_TO_ACTIVATE` (open orders with a
-credit invoice and hours not yet activated; the credit approvers' queue, `POST /hours-purchases/{id}/credit-activations`
-decides). `queue=AWAITING_ACTIVATION` lists every order with hours awaiting activation (cash or bank waiting for
+credit invoice whose credit was not rejected and hours not yet activated; the credit approvers' queue,
+`POST /hours-purchases/{id}/credit-activations` approves, `POST /hours-purchases/{id}/credit/reject` rejects). `queue=AWAITING_ACTIVATION` lists every order with hours awaiting activation (cash or bank waiting for
 verification included); `UNPAID` / `UNCONFIRMED` narrow it by payment state.
+
+### Rejecting credit — `POST /hours-purchases/{id}/credit/reject` (`rejectHoursCredit`)
+
+Owner decision: next to approving (activating) the credit part, a credit approver may reject it. Permission
+`tenant.hours.credit_activate`; never the person who recorded the sale. Body `{"reason": "…"}` (required, 3–1000
+characters). `Idempotency-Key` supported. Returns the order (`HoursPurchaseDto`).
+
+Effect:
+- The credit part is REJECTED (`credit_status`, `credit_rejection`: who, when, reason). The credit hours are never
+  activated and no longer count as awaiting activation; the order leaves `queue=CREDIT_TO_ACTIVATE`.
+- Its credit invoice becomes `CANCELLED` (reason kept in `rejection`, balance 0): still listed (`status=CANCELLED`),
+  never overdue, excluded from what the customer owes (customer balance and statement, `credit_owed`, open
+  receivables, reports' open amounts) and from `open_credit_invoices` on phones. Payments on it are refused
+  (`INVOICE_CANCELLED`). The credit amount is no longer counted as sold (`sales_collections`) nor as bought hours
+  (`customer_hours`).
+- Paid parts of the order stay unchanged; if the rejected credit was all that held them back (no partial activation),
+  their verified money activates their hours now.
+- Audit `hours.credit_rejected` (reason); event `HoursCreditRejected`; notification `HOURS_CREDIT_REJECTED` to the
+  seller: "Credit for {customer} was not approved: {reason}".
+- A rejection is final (single database stamp); credit activation on that order is refused afterwards
+  (`CREDIT_REJECTED`).
+
+| Code | HTTP | When |
+|---|---|---|
+| `NO_CREDIT_PART` | 422 | The order has no CREDIT line |
+| `CREDIT_NOT_AWAITING` | 422 | Hours of the order were already activated on credit, or the credit was already rejected |
+| `CREDIT_INVOICE_HAS_PAYMENTS` | 422 | Payments are recorded on the credit invoice (rejected or reversed payments do not count) |
+| `PURCHASE_CANCELLED` | 422 | The order is cancelled |
+| `SEGREGATION_OF_DUTIES` | 422 | The caller recorded the sale |
+| `VALIDATION_FAILED` | 422 | Reason missing or shorter than 3 characters |
+
+### Customer hours summary
 
 `GET /customer-hours?customer_id=` — `listCustomerHours`: per customer `{customer_id, customer_name, bought, activated,
 used, left, awaiting_activation, credit_owed}`.
@@ -302,7 +338,7 @@ are `CONFLICT` (money changed hands); `PAYMENT_NOT_PERMITTED` stays `REJECTED`. 
 | `machine_report_states` | `…submit` holders | `MachineReportStatusDto` of the caller's machines (open SUPERVISOR assignment) |
 | `machine_report_hours` | `…submit` holders | `AvailableHoursDto` with `customer_name`, customers with available > 0 (per machine when scope is MACHINE) |
 | `my_machine_reports` | `…submit` holders | The caller's reports of the last 30 days and any still SUBMITTED |
-| `open_credit_invoices` | `…invoice_payment` holders, hours on | `CreditInvoiceDto` (no payments) with balance > 0, oldest due first |
+| `open_credit_invoices` | `…invoice_payment` holders, hours on | `CreditInvoiceDto` (no payments) with balance > 0, oldest due first; never a CANCELLED invoice (order cancelled or credit rejected) |
 
 ## 4. Fuel switch (§3)
 
@@ -330,6 +366,7 @@ are `CONFLICT` (money changed hands); `PAYMENT_NOT_PERMITTED` stays `REJECTED`. 
 | `MACHINE_REPORT_SUBMITTED` | `tenant.machine_report.approve` | A report waits for a decision (link `/tenant/machine-reports/{id}`) |
 | `MACHINE_REPORT_APPROVED` / `MACHINE_REPORT_REJECTED` | the submitter | Decision (rejection carries the reason) |
 | `HOURS_CREDIT_TO_ACTIVATE` | `tenant.hours.credit_activate` | An order with a CREDIT line (link to the order) |
+| `HOURS_CREDIT_REJECTED` | the seller (who recorded the sale) | Its credit was rejected: "Credit for {customer} was not approved: {reason}" (link to the order) |
 | `CREDIT_INVOICE_OVERDUE` | `tenant.finance.payment`, `tenant.hours.credit_activate` | Once per invoice past its due date |
 | `MACHINE_REPORT_MISSING` | `tenant.machine_report.approve` | Daily while a machine moved with no report for `machine_report_reminder_days` |
 

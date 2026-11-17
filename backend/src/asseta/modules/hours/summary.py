@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from asseta.modules.hours.credit_invoices import invoice_dtos, invoice_query, local_today
 from asseta.modules.hours.dto import CustomerHoursSummaryDto
-from asseta.modules.hours.ledger import ZERO
+from asseta.modules.hours.ledger import ZERO, rejected_hours_select
 from asseta.modules.hours.models import HoursPurchase
 from asseta.modules.hours.service import balances
 
@@ -35,6 +35,11 @@ def customer_hours(
         stmt = stmt.where(HoursPurchase.customer_id == customer_id)
     for cid, hours in session.execute(stmt).tuples():
         acc[cid]["bought"] += Decimal(hours)
+    rejected = rejected_hours_select().where(HoursPurchase.cancelled_at.is_(None))
+    if customer_id is not None:
+        rejected = rejected.where(HoursPurchase.customer_id == customer_id)
+    for _, hours, cid in session.execute(rejected).tuples():
+        acc[cid]["bought"] -= Decimal(hours)  # credit hours whose credit was rejected were never sold
     owed: dict[uuid.UUID, Decimal] = defaultdict(lambda: ZERO)
     open_invoices = list(
         session.execute(invoice_query(local_today(session, tenant_id, now), customer_id=customer_id, open_only=True))

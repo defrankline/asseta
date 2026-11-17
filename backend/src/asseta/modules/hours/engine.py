@@ -27,6 +27,7 @@ from asseta.modules.hours.models import (
     SIGN,
     ActivationSource,
     CreditArrangement,
+    CreditInvoice,
     HoursLedgerEntry,
     HoursPaymentAllocation,
     HoursPurchase,
@@ -135,13 +136,15 @@ class HoursEngine:
         if purchase.amount <= 0 and self.policy.zero_amount_requires_approval and not approved:
             return ZERO
         verified, _ = allocated_amounts(self._s, purchase.id)
-        if purchase.amount <= 0:
-            target = purchase.hours  # fully discounted by an approved discount: nothing to pay
-        elif self.policy.partial_activation:
-            target = min(purchase.hours, floor_to(verified / purchase.effective_rate, self.policy.hours_increment))
-        else:
-            target = purchase.hours if verified >= purchase.amount else ZERO
         totals = purchase_totals(self._s, purchase)
+        # Rejected credit: its hours are never activated and its amount is no longer asked for
+        hours, amount = totals.to_activate, purchase.amount - self.rejected_credit_amount(purchase)
+        if purchase.amount <= 0:
+            target = hours  # fully discounted by an approved discount: nothing to pay
+        elif self.policy.partial_activation:
+            target = min(hours, floor_to(verified / purchase.effective_rate, self.policy.hours_increment))
+        else:
+            target = hours if amount > 0 and verified >= amount else ZERO
         new = target - totals.net_activated
         if new <= 0:
             return ZERO
@@ -198,13 +201,15 @@ class HoursEngine:
             raise BusinessRuleViolation("Credit activation is switched off by tenant policy", code="CREDIT_NOT_ALLOWED")
         if purchase.cancelled_at is not None:
             raise BusinessRuleViolation("The purchase is cancelled", code="PURCHASE_CANCELLED")
+        if self.rejected_credit_amount(purchase) > 0:
+            raise BusinessRuleViolation("The credit of this order was rejected", code="CREDIT_REJECTED")
         if purchase.created_by is not None and purchase.created_by == self._actor.user_id:
             sod_violation(self._tid, self._actor.user_id, "credit_activate", "hours_purchase", purchase.id)
             raise BusinessRuleViolation(
                 "The person who recorded a purchase cannot activate it on credit", code="SEGREGATION_OF_DUTIES"
             )
         totals = purchase_totals(self._s, purchase)
-        open_hours = purchase.hours - totals.net_activated
+        open_hours = totals.awaiting
         if hours > open_hours:
             raise BusinessRuleViolation(
                 f"Only {open_hours} hours of this purchase are not yet activated", code="EXCEEDS_UNACTIVATED_HOURS"
@@ -246,6 +251,77 @@ class HoursEngine:
         )
         self._emit("CustomerHoursActivated", purchase, {"hours": str(hours), "source": "CREDIT"})
         return entry
+
+    # --- credit rejection (owner decision: "Reject credit") ----------------------------------------------------
+    def credit_invoice(self, purchase: HoursPurchase, lock: bool = False) -> CreditInvoice | None:
+        stmt = select(CreditInvoice).where(CreditInvoice.purchase_id == purchase.id)
+        return self._s.execute(stmt.with_for_update() if lock else stmt).scalar_one_or_none()
+
+    def rejected_credit_amount(self, purchase: HoursPurchase) -> Decimal:
+        inv = self.credit_invoice(purchase)
+        return inv.amount if inv is not None and inv.rejected_at is not None else ZERO
+
+    def reject_credit(self, purchase: HoursPurchase, reason: str) -> CreditInvoice:
+        """The credit part of an order is not approved: its invoice is cancelled (the stamp keeps who, when and why)
+        and its hours are never activated. Only while nothing of it was activated on credit and nothing was paid on
+        its invoice; never by the person who recorded the sale. Paid parts of the order stay as they are (and
+        activate now if the rejected credit was all that held them back)."""
+        from asseta.modules.hours.credit_invoices import paid_figures  # the invoice module builds on the engine
+
+        if purchase.cancelled_at is not None:
+            raise BusinessRuleViolation("The order is cancelled", code="PURCHASE_CANCELLED")
+        inv = self.credit_invoice(purchase, lock=True)
+        if inv is None:
+            raise BusinessRuleViolation("This order has no credit part", code="NO_CREDIT_PART")
+        if inv.rejected_at is not None:
+            raise BusinessRuleViolation("The credit of this order was already rejected", code="CREDIT_NOT_AWAITING")
+        if purchase.created_by is not None and purchase.created_by == self._actor.user_id:
+            sod_violation(self._tid, self._actor.user_id, "credit_reject", "hours_purchase", purchase.id)
+            raise BusinessRuleViolation(
+                "The person who recorded a sale cannot decide its credit", code="SEGREGATION_OF_DUTIES"
+            )
+        totals = purchase_totals(self._s, purchase)
+        if totals.activated_credit > 0:
+            raise BusinessRuleViolation(
+                "Hours of this order were already activated on credit", code="CREDIT_NOT_AWAITING"
+            )
+        paid, _ = paid_figures(self._s, [inv.id]).get(inv.id, (ZERO, ZERO))
+        if paid > 0:
+            raise BusinessRuleViolation(
+                f"Payments of {paid} {inv.currency} are recorded on invoice {inv.invoice_number}",
+                code="CREDIT_INVOICE_HAS_PAYMENTS",
+            )
+        inv.rejected_at, inv.rejected_by, inv.rejection_reason = self._now, self._actor.user_id, reason
+        self._s.flush()
+        self._record(
+            "hours.credit_rejected",
+            purchase,
+            {
+                "invoice_id": str(inv.id),
+                "invoice_number": inv.invoice_number,
+                "hours": str(inv.hours),
+                "amount": str(inv.amount),
+                "currency": inv.currency,
+                "invoice_status": "CANCELLED",
+            },
+            reason,
+        )
+        self._emit(
+            "HoursCreditRejected",
+            purchase,
+            {
+                "invoice_id": str(inv.id),
+                "invoice_number": inv.invoice_number,
+                "hours": str(inv.hours),
+                "credit_amount": str(inv.amount),
+                "currency": inv.currency,
+                "reason": reason,
+                "seller_id": str(purchase.created_by) if purchase.created_by else None,
+                "rejected_by": str(self._actor.user_id) if self._actor.user_id else None,
+            },
+        )
+        self.activate_from_payments(purchase)  # the paid parts no longer wait for the credit
+        return inv
 
     def on_payment_decided(self, payment: CustomerPayment) -> None:
         """Verified: activate every purchase the payment is linked to. Rejected: release its purchase links (a

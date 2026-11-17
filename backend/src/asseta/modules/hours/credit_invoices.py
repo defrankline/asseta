@@ -4,8 +4,9 @@ bank or mobile money, recorded by the office or by field staff (cash goes into t
 collection). Every part is an ordinary customer payment, linked to the invoice and to the order, so verified money
 activates the order's hours and settles the credit exposure exactly as other payments do.
 
-Nothing about an invoice is stored after it is created: what was paid (recorded payments that are not rejected or
-reversed), the status (UNPAID, PART_PAID, PAID, CANCELLED with its order) and whether it is overdue are derived."""
+Nothing about an invoice is stored after it is created except a single rejection stamp (the credit was not approved,
+`reject_credit`): what was paid (recorded payments that are not rejected or reversed), the status (UNPAID, PART_PAID,
+PAID, CANCELLED with its order or when its credit was rejected) and whether it is overdue are derived."""
 
 import uuid
 from collections.abc import Sequence
@@ -14,7 +15,7 @@ from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import ColumnElement, Select, and_, case, func, select
+from sqlalchemy import ColumnElement, Select, and_, case, func, or_, select
 from sqlalchemy.orm import Session
 
 from asseta.core.audit import AuditService
@@ -30,6 +31,7 @@ from asseta.modules.hours.dto import (
     CreditInvoicePaymentIn,
     CreditInvoiceStatus,
     CreditInvoiceSummaryDto,
+    CreditRejectionDto,
 )
 from asseta.modules.hours.ledger import ZERO
 from asseta.modules.hours.models import CreditInvoice, CreditInvoicePayment, HoursPurchase
@@ -43,6 +45,32 @@ OFFICE_PAYMENT = "tenant.finance.payment"
 
 def local_today(session: Session, tenant_id: uuid.UUID, now: datetime) -> date:
     return now.astimezone(ZoneInfo(tenant_settings(session, tenant_id).timezone)).date()
+
+
+def invoice_cancelled() -> ColumnElement[bool]:
+    """The invoice's order was cancelled or its credit was rejected (needs `HoursPurchase` joined)."""
+    return or_(HoursPurchase.cancelled_at.is_not(None), CreditInvoice.rejected_at.is_not(None))
+
+
+def invoice_open() -> tuple[ColumnElement[bool], ...]:
+    """Credit invoices that can still be owed: their order is not cancelled and their credit was not rejected."""
+    return (
+        HoursPurchase.id == CreditInvoice.purchase_id,
+        HoursPurchase.cancelled_at.is_(None),
+        CreditInvoice.rejected_at.is_(None),
+    )
+
+
+def rejection_dto(inv: CreditInvoice) -> CreditRejectionDto | None:
+    if inv.rejected_at is None:
+        return None
+    return CreditRejectionDto(
+        rejected_at=inv.rejected_at,
+        rejected_by=inv.rejected_by,
+        reason=inv.rejection_reason or "",
+        hours=inv.hours,
+        amount=inv.amount,
+    )
 
 
 def _counting() -> ColumnElement[bool]:
@@ -96,7 +124,7 @@ def invoice_query(
 ) -> Select[CreditInvoice]:
     """Credit invoices, newest first. Status and overdue are derived, so the filters read the payments."""
     paid = paid_subquery()
-    cancelled = HoursPurchase.cancelled_at.is_not(None)
+    cancelled = invoice_cancelled()
     stmt = (
         select(CreditInvoice)
         .join(HoursPurchase, HoursPurchase.id == CreditInvoice.purchase_id)
@@ -149,7 +177,7 @@ def invoice_summaries(
     out = {}
     for inv, cancelled_at in rows:
         paid, _ = figures.get(inv.id, (ZERO, ZERO))
-        status = derive_status(inv.amount, paid, cancelled_at is not None)
+        status = derive_status(inv.amount, paid, cancelled_at is not None or inv.rejected_at is not None)
         out[inv.purchase_id] = CreditInvoiceSummaryDto(
             id=inv.id,
             invoice_number=inv.invoice_number,
@@ -159,6 +187,7 @@ def invoice_summaries(
             due_date=inv.due_date,
             status=status,
             overdue=_overdue(inv, status, today) > 0,
+            rejection=rejection_dto(inv),
         )
     return out
 
@@ -205,7 +234,7 @@ def invoice_dtos(
     for inv in invoices:
         purchase = purchases[inv.purchase_id]
         paid, verified = figures.get(inv.id, (ZERO, ZERO))
-        status = derive_status(inv.amount, paid, purchase.cancelled_at is not None)
+        status = derive_status(inv.amount, paid, purchase.cancelled_at is not None or inv.rejected_at is not None)
         days = _overdue(inv, status, today)
         out.append(
             CreditInvoiceDto(
@@ -229,6 +258,7 @@ def invoice_dtos(
                 overdue=days > 0,
                 days_overdue=days,
                 created_by=inv.created_by,
+                rejection=rejection_dto(inv),
                 payments=payments[inv.id],
             )
         )
@@ -332,7 +362,7 @@ class CreditInvoiceService:
         self, invoice_id: uuid.UUID, body: CreditInvoicePaymentIn, source: str = "API"
     ) -> CreditInvoiceDto:
         """A payment in full or in part. Refused above the balance (INVOICE_OVERPAYMENT), on a paid invoice
-        (INVOICE_PAID) and on the invoice of a cancelled order (INVOICE_CANCELLED)."""
+        (INVOICE_PAID) and on the invoice of a cancelled order or of rejected credit (INVOICE_CANCELLED)."""
         # Lazy: the hours service builds on this module (it creates the invoice with the order).
         from asseta.modules.finance.cash_service import CashCustodyService
         from asseta.modules.finance.dto import CashCollectionIn, CustomerPaymentIn
@@ -350,6 +380,10 @@ class CreditInvoiceService:
         assert purchase is not None
         if purchase.cancelled_at is not None:
             raise BusinessRuleViolation("The order of this invoice was cancelled", code="INVOICE_CANCELLED")
+        if inv.rejected_at is not None:
+            raise BusinessRuleViolation(
+                "The credit of this invoice was not approved: the invoice is cancelled", code="INVOICE_CANCELLED"
+            )
         paid, _ = paid_figures(self._s, [inv.id]).get(inv.id, (ZERO, ZERO))
         balance = inv.amount - paid
         if balance <= 0:

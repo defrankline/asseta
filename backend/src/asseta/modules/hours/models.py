@@ -364,13 +364,16 @@ class HoursLedgerEntry(UuidPk, Base):
 
 class CreditInvoice(UuidPk, Base):
     """CI-<yyyy>-<nnnnn> (ADR-008 §1): the CREDIT line of an order, invoiced automatically when the order is recorded
-    (one per order). Immutable (guard trigger): what was paid and its status are derived from the linked payments."""
+    (one per order). Immutable (guard trigger) except a single rejection stamp: the credit was not approved
+    (`rejected_*`, set once while nothing was paid; the invoice is then CANCELLED). What was paid and the status are
+    derived from the linked payments."""
 
     __tablename__ = "credit_invoice"
     __table_args__ = (
         UniqueConstraint("tenant_id", "invoice_number", name="uq_credit_invoice_number"),
         UniqueConstraint("purchase_id", name="uq_credit_invoice_purchase"),
         CheckConstraint("amount > 0 AND unit_price >= 0 AND hours >= 0", name="ck_credit_invoice_amounts"),
+        CheckConstraint("(rejected_at IS NULL) = (rejection_reason IS NULL)", name="ck_credit_invoice_rejection"),
         Index("ix_credit_invoice_customer", "tenant_id", "customer_id"),
         Index("ix_credit_invoice_due", "tenant_id", "due_date"),
     )
@@ -389,6 +392,10 @@ class CreditInvoice(UuidPk, Base):
     due_date: Mapped[date] = mapped_column(Date, nullable=False)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    # The credit was not approved (POST /hours-purchases/{id}/credit/reject): its hours are never activated
+    rejected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rejected_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
 
 
 class CreditInvoicePayment(UuidPk, Base):

@@ -101,7 +101,8 @@ def check_cash(s: Session, r: Report, now: datetime) -> None:
 
 # --- customer receivables ------------------------------------------------------------------------------------------
 def _recompute_receivable(s: Session, customer_id: uuid.UUID, currency: str) -> Decimal:
-    """Credit invoices of orders not cancelled, less their verified (not reversed) payments, straight from the rows."""
+    """Credit invoices of orders not cancelled (credit not rejected), less their verified (not reversed) payments,
+    straight from the rows."""
     invoiced = Decimal(
         s.execute(
             select(func.coalesce(func.sum(CreditInvoice.amount), 0))
@@ -110,6 +111,7 @@ def _recompute_receivable(s: Session, customer_id: uuid.UUID, currency: str) -> 
                 CreditInvoice.customer_id == customer_id,
                 CreditInvoice.currency == currency,
                 HoursPurchase.cancelled_at.is_(None),
+                CreditInvoice.rejected_at.is_(None),
             )
         ).scalar_one()
     )
@@ -123,6 +125,7 @@ def _recompute_receivable(s: Session, customer_id: uuid.UUID, currency: str) -> 
                 CreditInvoice.customer_id == customer_id,
                 CreditInvoice.currency == currency,
                 HoursPurchase.cancelled_at.is_(None),
+                CreditInvoice.rejected_at.is_(None),
                 CustomerPayment.status == SettlementStatus.VERIFIED,
                 CustomerPayment.reversed_at.is_(None),
             )

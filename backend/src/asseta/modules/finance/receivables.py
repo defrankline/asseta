@@ -49,8 +49,12 @@ def verified_paid_subquery() -> ScalarSelect[Decimal]:
 
 
 def _open_invoices() -> tuple[ColumnElement[bool], ...]:
-    """Credit invoices whose order is not cancelled."""
-    return (HoursPurchase.id == CreditInvoice.purchase_id, HoursPurchase.cancelled_at.is_(None))
+    """Credit invoices whose order is not cancelled and whose credit was not rejected."""
+    return (
+        HoursPurchase.id == CreditInvoice.purchase_id,
+        HoursPurchase.cancelled_at.is_(None),
+        CreditInvoice.rejected_at.is_(None),
+    )
 
 
 def open_receivables(session: Session, today: date) -> list[ReceivableTotals]:
@@ -59,7 +63,7 @@ def open_receivables(session: Session, today: date) -> list[ReceivableTotals]:
     rows = session.execute(
         select(CreditInvoice.currency, CreditInvoice.due_date, CreditInvoice.amount - paid)
         .join(HoursPurchase, HoursPurchase.id == CreditInvoice.purchase_id)
-        .where(HoursPurchase.cancelled_at.is_(None), CreditInvoice.amount > paid)
+        .where(HoursPurchase.cancelled_at.is_(None), CreditInvoice.rejected_at.is_(None), CreditInvoice.amount > paid)
     ).tuples()
     acc: dict[str, list[Decimal]] = {}
     for currency, due, balance in rows:

@@ -604,6 +604,34 @@ def _hours_credit_sale(session: Session, e: DomainEvent) -> list[Intent]:
     ]
 
 
+@rule("HoursCreditRejected")
+def _hours_credit_rejected(session: Session, e: DomainEvent) -> list[Intent]:
+    """Owner decision: the credit part of a sale was not approved. The seller learns why; the invoice is cancelled and
+    the credit hours will not be activated."""
+    p = e.payload
+    if not p.get("seller_id"):
+        return []
+    customer = session.execute(select(Customer.name).where(Customer.id == uuid.UUID(p["customer_id"]))).scalar()
+    return [
+        Intent(
+            "HOURS_CREDIT_REJECTED",
+            (user(p["seller_id"]),),
+            f"Credit not approved — {p['purchase_number']}",
+            f"Credit for {customer or 'the customer'} was not approved: {p['reason']}",
+            _key(e),
+            record_link("hours_purchase", p["purchase_id"], "/tenant/hours/purchases"),
+            "hours_purchase",
+            p["purchase_id"],
+            data={
+                **record_data("hours_purchase", p["purchase_id"]),
+                "invoice_id": p["invoice_id"],
+                "credit_amount": p["credit_amount"],
+                "currency": p["currency"],
+            },
+        )
+    ]
+
+
 @rule("MachineReportSubmitted")
 def _machine_report_submitted(session: Session, e: DomainEvent) -> list[Intent]:
     """ADR-008 §2: a report waits for a decision by someone allowed to approve (never the person who submitted it)."""
@@ -1097,6 +1125,7 @@ ENTITY_CHANGES: dict[str, tuple[str, str, str]] = {
     "CashHandoverVerified": ("cash_handover", "handover_id", "verified"),
     "HoursPurchaseRecorded": ("hours_purchase", "purchase_id", "created"),
     "CustomerHoursActivated": ("hours_purchase", "purchase_id", "updated"),
+    "HoursCreditRejected": ("hours_purchase", "purchase_id", "updated"),
     "CustomerHoursExpired": ("hours_purchase", "purchase_id", "updated"),
     "MeterCaptured": ("meter_capture", "capture_id", "created"),
     "MeterExceptionRaised": ("meter_exception", "capture_id", "created"),

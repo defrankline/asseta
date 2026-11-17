@@ -9058,7 +9058,7 @@
         "type": "object"
       },
       "CreditInvoiceDto": {
-        "description": "CI-<yyyy>-<nnnnn>: created automatically for the CREDIT line of an order. Paid in full or in parts (cash, bank,\nmobile money). Status: UNPAID, PART_PAID, PAID (CANCELLED when its order was cancelled); `overdue` once the due\ndate passed with a balance. Recorded payments count (claimed or verified) until rejected or reversed.",
+        "description": "CI-<yyyy>-<nnnnn>: created automatically for the CREDIT line of an order. Paid in full or in parts (cash, bank,\nmobile money). Status: UNPAID, PART_PAID, PAID (CANCELLED when its order was cancelled or its credit rejected);\n`overdue` once the due date passed with a balance. Recorded payments count (claimed or verified) until rejected\nor reversed.",
         "properties": {
           "amount": {
             "title": "Amount",
@@ -9206,6 +9206,17 @@
               }
             ],
             "title": "Purchase Number"
+          },
+          "rejection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CreditRejectionDto"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the credit was rejected (the invoice is then CANCELLED, balance 0)"
           },
           "status": {
             "enum": [
@@ -9504,6 +9515,17 @@
             "title": "Paid",
             "type": "string"
           },
+          "rejection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CreditRejectionDto"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the credit was rejected (the invoice is then CANCELLED)"
+          },
           "status": {
             "enum": [
               "UNPAID",
@@ -9526,6 +9548,78 @@
           "overdue"
         ],
         "title": "CreditInvoiceSummaryDto",
+        "type": "object"
+      },
+      "CreditRejectionDto": {
+        "description": "The credit part of an order was not approved: its hours are never activated and its invoice is CANCELLED.",
+        "properties": {
+          "amount": {
+            "description": "The credit amount no longer owed",
+            "title": "Amount",
+            "type": "string"
+          },
+          "hours": {
+            "description": "The credit hours that will not be activated",
+            "title": "Hours",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "rejected_at": {
+            "format": "date-time",
+            "title": "Rejected At",
+            "type": "string"
+          },
+          "rejected_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rejected By"
+          },
+          "rejected_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rejected By Name"
+          }
+        },
+        "required": [
+          "rejected_at",
+          "rejected_by",
+          "reason",
+          "hours",
+          "amount"
+        ],
+        "title": "CreditRejectionDto",
+        "type": "object"
+      },
+      "CreditRejectionIn": {
+        "properties": {
+          "reason": {
+            "description": "Why the credit is not approved (told to the seller)",
+            "maxLength": 1000,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "CreditRejectionIn",
         "type": "object"
       },
       "CurrencyTotalsDto": {
@@ -16129,6 +16223,34 @@
             ],
             "description": "The credit invoice created for the CREDIT line"
           },
+          "credit_rejection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CreditRejectionDto"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who rejected the credit, when and why (credit_status REJECTED)"
+          },
+          "credit_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "AWAITING_ACTIVATION",
+                  "ACTIVATED",
+                  "REJECTED"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The CREDIT part: AWAITING_ACTIVATION (the credit approvers' queue), ACTIVATED (activated on credit or nothing left to activate) or REJECTED; null without a CREDIT line",
+            "title": "Credit Status"
+          },
           "currency": {
             "title": "Currency",
             "type": "string"
@@ -16316,7 +16438,8 @@
               "ACTIVE",
               "CONSUMED",
               "EXPIRED",
-              "CANCELLED"
+              "CANCELLED",
+              "CREDIT_REJECTED"
             ],
             "title": "Status",
             "type": "string"
@@ -16886,7 +17009,8 @@
               "ACTIVE",
               "CONSUMED",
               "EXPIRED",
-              "CANCELLED"
+              "CANCELLED",
+              "CREDIT_REJECTED"
             ],
             "title": "Status",
             "type": "string"
@@ -92246,6 +92370,168 @@
           }
         },
         "summary": "Credit Activate",
+        "tags": [
+          "hours"
+        ]
+      }
+    },
+    "/api/v1/tenant/hours-purchases/{purchase_id}/credit/reject": {
+      "post": {
+        "description": "Reject the credit part of an order (owner decision): its credit invoice becomes CANCELLED (reason kept) and\nits credit hours are never activated; paid parts of the order stay unchanged. Only while nothing of the credit\nwas activated (CREDIT_NOT_AWAITING) and nothing was paid on the invoice (CREDIT_INVOICE_HAS_PAYMENTS); never by\nthe person who recorded the sale (SEGREGATION_OF_DUTIES). The seller is notified with the reason.",
+        "operationId": "rejectHoursCredit",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "purchase_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Purchase Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreditRejectionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HoursPurchaseDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Credit Reject",
         "tags": [
           "hours"
         ]

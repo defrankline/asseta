@@ -28,7 +28,12 @@ Ref = Annotated[str, StringConstraints(min_length=1, max_length=120, strip_white
 Name = Annotated[str, StringConstraints(min_length=1, max_length=200, strip_whitespace=True)]
 Code = Annotated[str, StringConstraints(min_length=1, max_length=32, strip_whitespace=True)]
 Phone = Annotated[str, StringConstraints(min_length=3, max_length=40, strip_whitespace=True)]
-PurchaseStatus = Literal["AWAITING_PAYMENT", "PARTLY_ACTIVE", "ACTIVE", "CONSUMED", "EXPIRED", "CANCELLED"]
+# CREDIT_REJECTED: the whole order was on credit and the credit was rejected (nothing to activate)
+PurchaseStatus = Literal[
+    "AWAITING_PAYMENT", "PARTLY_ACTIVE", "ACTIVE", "CONSUMED", "EXPIRED", "CANCELLED", "CREDIT_REJECTED"
+]
+# The CREDIT part of an order: waiting for credit approval, (partly) activated on credit or settled, or rejected
+CreditPartStatus = Literal["AWAITING_ACTIVATION", "ACTIVATED", "REJECTED"]
 
 
 class Dto(BaseModel):
@@ -337,6 +342,21 @@ class CreditActivationIn(BaseModel):
     reason: Reason
 
 
+class CreditRejectionIn(BaseModel):
+    reason: Reason = Field(description="Why the credit is not approved (told to the seller)")
+
+
+class CreditRejectionDto(BaseModel):
+    """The credit part of an order was not approved: its hours are never activated and its invoice is CANCELLED."""
+
+    rejected_at: datetime
+    rejected_by: uuid.UUID | None
+    rejected_by_name: str | None = None
+    reason: str
+    hours: Decimal = Field(description="The credit hours that will not be activated")
+    amount: Money = Field(description="The credit amount no longer owed")
+
+
 class MachineHoursDto(BaseModel):
     machine_id: uuid.UUID
     machine_code: str | None = None
@@ -448,6 +468,14 @@ class HoursPurchaseDto(BaseModel):
     )
     credit_invoice: "CreditInvoiceSummaryDto | None" = Field(
         default=None, description="The credit invoice created for the CREDIT line"
+    )
+    credit_status: CreditPartStatus | None = Field(
+        default=None,
+        description="The CREDIT part: AWAITING_ACTIVATION (the credit approvers' queue), ACTIVATED (activated on "
+        "credit or nothing left to activate) or REJECTED; null without a CREDIT line",
+    )
+    credit_rejection: CreditRejectionDto | None = Field(
+        default=None, description="Who rejected the credit, when and why (credit_status REJECTED)"
     )
 
 
@@ -701,6 +729,9 @@ class CreditInvoiceSummaryDto(BaseModel):
     due_date: date
     status: CreditInvoiceStatus
     overdue: bool
+    rejection: CreditRejectionDto | None = Field(
+        default=None, description="Set when the credit was rejected (the invoice is then CANCELLED)"
+    )
 
 
 class CreditInvoicePaymentDto(BaseModel):
@@ -724,8 +755,9 @@ class CreditInvoicePaymentDto(BaseModel):
 
 class CreditInvoiceDto(BaseModel):
     """CI-<yyyy>-<nnnnn>: created automatically for the CREDIT line of an order. Paid in full or in parts (cash, bank,
-    mobile money). Status: UNPAID, PART_PAID, PAID (CANCELLED when its order was cancelled); `overdue` once the due
-    date passed with a balance. Recorded payments count (claimed or verified) until rejected or reversed."""
+    mobile money). Status: UNPAID, PART_PAID, PAID (CANCELLED when its order was cancelled or its credit rejected);
+    `overdue` once the due date passed with a balance. Recorded payments count (claimed or verified) until rejected
+    or reversed."""
 
     id: uuid.UUID
     invoice_number: str
@@ -751,6 +783,9 @@ class CreditInvoiceDto(BaseModel):
     days_overdue: int
     created_by: uuid.UUID | None
     created_by_name: str | None = None
+    rejection: CreditRejectionDto | None = Field(
+        default=None, description="Set when the credit was rejected (the invoice is then CANCELLED, balance 0)"
+    )
     payments: list[CreditInvoicePaymentDto] = []
 
 

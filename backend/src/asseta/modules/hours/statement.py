@@ -129,7 +129,7 @@ def build_statement(s: Session, tz: ZoneInfo, q: StatementQuery, now: datetime, 
             continue  # cancelled before the period with nothing in it
         totals = purchase_totals(s, p)
         if p.cancelled_at is None and q.machine_id in (None, p.machine_id):
-            awaiting += max(ZERO, p.hours - totals.net_activated)
+            awaiting += totals.awaiting
         soon = next_expiry(s, p.id, now) if p.cancelled_at is None else None
         purchase_rows.append(
             HoursStatementPurchaseDto(

@@ -286,11 +286,11 @@ def test_planted_invoice_and_report_figures_are_flagged(api: Api, owner_engine: 
     invoice = _ok(f.accountant.post(f"{T}/hours-purchases", sale), 201)["credit_invoice"]
     clean = _check(_run(f), CheckKind.INVOICE_TOTAL)
     assert (clean["checked"], clean["mismatches"]) == (1, 0)
-    _sql(owner_engine, "ALTER TABLE credit_invoice DISABLE TRIGGER trg_credit_invoice_immutable")
+    _sql(owner_engine, "ALTER TABLE credit_invoice DISABLE TRIGGER trg_credit_invoice_guard")
     try:  # a credit invoice asking for more than its order costs
         _sql(owner_engine, "UPDATE credit_invoice SET amount = amount + 1000 WHERE id = :i", i=invoice["id"])
     finally:
-        _sql(owner_engine, "ALTER TABLE credit_invoice ENABLE TRIGGER trg_credit_invoice_immutable")
+        _sql(owner_engine, "ALTER TABLE credit_invoice ENABLE TRIGGER trg_credit_invoice_guard")
     run = _run(f)
     assert _check(run, CheckKind.INVOICE_TOTAL)["mismatches"] == 1
     assert any(x["label"] == invoice["invoice_number"] for x in run["findings"])

@@ -147,11 +147,13 @@ class ReversalEngine:
         p = self.engine.policy
         verified, _ = allocated_amounts(self._s, purchase.id)
         after = max(ZERO, verified - money_removed)
+        hours = totals.to_activate  # rejected credit hours are never activated
+        payable = purchase.amount - self.engine.rejected_credit_amount(purchase)
         if p.partial_activation:
-            funded = min(purchase.hours, floor_to(after / purchase.effective_rate, p.hours_increment))
+            funded = min(hours, floor_to(after / purchase.effective_rate, p.hours_increment))
         else:
-            funded = purchase.hours if after >= purchase.amount else ZERO
-        target = min(purchase.hours, funded + totals.activated_credit)
+            funded = hours if payable > 0 and after >= payable else ZERO
+        target = min(hours, funded + totals.activated_credit)
         remove = max(ZERO, totals.net_activated - target)
         unused = min(remove, max(ZERO, totals.remaining))
         plan.unused = _unused_by_machine(totals, unused)
