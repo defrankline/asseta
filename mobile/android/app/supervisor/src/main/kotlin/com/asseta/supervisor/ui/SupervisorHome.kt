@@ -341,10 +341,13 @@ fun SupervisorHome(
     var screenTitle by remember(route) { mutableStateOf<String?>(null) }
     fun push(r: Route) { nav = nav.push(r) }
     fun pop() { nav = nav.pop() }
+    // The open screen may hold unsaved work: leaving (system Back, the bar's Back or Cancel) asks it first.
+    val leaveGuard = remember(route) { LeaveGuard() }
+    fun leave() { if (leaveGuard.intercept?.invoke() != true) pop() }
     val drawer = rememberDrawerState(DrawerValue.Closed)
     val coroutines = rememberCoroutineScope()
     BackHandler(enabled = drawer.isOpen) { coroutines.launch { drawer.close() } }
-    BackHandler(enabled = !drawer.isOpen && stack.size > 1 && route !is Route.MachineReport) { pop() }
+    BackHandler(enabled = !drawer.isOpen && stack.size > 1) { leave() }
     val sync: FieldSyncViewModel = viewModel(key = "sync-$scope") { FieldSyncViewModel(field, tenantId) }
     val syncing by sync.syncing.collectAsStateWithLifecycle()
     val inbox: InboxViewModel = viewModel(key = "inbox-$scope") { InboxViewModel(field, tenantId) }
@@ -551,14 +554,14 @@ fun SupervisorHome(
                 route == Route.Home -> Unit
                 route.isForm -> AssetaTopBar(
                     title, large = false,
-                    leading = { BarTextButton("Cancel", onClick = ::pop) },
+                    leading = { BarTextButton("Cancel", onClick = ::leave) },
                     actions = {
                         val save = formBar.save
                         BarTextButton(save?.label ?: "Save", enabled = save?.enabled == true) { save?.onSave?.invoke() }
                     },
                 )
                 else -> AssetaTopBar(
-                    title, large = false, onBack = ::pop,
+                    title, large = false, onBack = ::leave,
                     backLabel = NavigationChrome.backLabel(stack.getOrNull(stack.size - 2)?.title(tenant.name)),
                     actions = {
                         if (route == Route.SyncStatus) BarTextButton("Sync now", enabled = !syncing, onClick = sync::syncNow)
@@ -569,7 +572,7 @@ fun SupervisorHome(
                 )
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                CompositionLocalProvider(LocalFormBar provides formBar) {
+                CompositionLocalProvider(LocalFormBar provides formBar, LocalLeaveGuard provides leaveGuard) {
                     when (route) {
                         Route.Home -> HomeScreen(
                             displayName, tenant.name, access, data, syncing, ::refresh, com.asseta.core.ui.session.CompanyNotice.banner(tenant), ::push,
@@ -635,7 +638,6 @@ private fun RouteContent(
         is Route.MachineReport -> {
             val visit = remember(route) { System.nanoTime() }
             val vm: MachineReportViewModel = viewModel(key = "machine-report-$visit") { MachineReportViewModel(field, tenantId, permissions, route.machineId) }
-            BackHandler { if (!vm.back()) pop() }
             MachineReportScreen(vm, onDone = pop, onTitle = onTitle)
         }
         is Route.InvoicePayment -> {

@@ -47,6 +47,8 @@ import com.asseta.core.domain.accountability.HoursSalePrice
 import com.asseta.core.domain.accountability.PaymentLine
 import com.asseta.core.domain.accountability.PaymentMethod
 import com.asseta.core.domain.finance.FormCheck
+import com.asseta.core.domain.forms.FormLeave
+import com.asseta.core.domain.forms.LeaveAction
 import com.asseta.core.model.sync.CustodianDto
 import com.asseta.core.model.sync.FieldHoursPurchaseDto
 import com.asseta.core.sync.data.FieldAccountabilityCache
@@ -64,6 +66,8 @@ import com.asseta.supervisor.capture.MeterOcr
 import com.asseta.supervisor.capture.PermissionRationale
 import com.asseta.supervisor.capture.hasAllPermissions
 import com.asseta.supervisor.ui.DateTimeField
+import com.asseta.supervisor.ui.DiscardDialog
+import com.asseta.supervisor.ui.GuardLeave
 import com.asseta.supervisor.ui.EmptyState
 import com.asseta.supervisor.ui.FormSaveAction
 import com.asseta.supervisor.ui.LabeledRow
@@ -191,6 +195,22 @@ class HoursSaleViewModel(field: FieldGraph, tenantId: String, permissions: Set<S
 
     fun onPhotoError(message: String) = _save.update { it.copy(messages = listOf("The photo could not be saved: $message")) }
 
+    /** Leaving was asked with entered data: "Discard this sale?" is shown. */
+    val confirmDiscard = MutableStateFlow(false)
+
+    /** Leaving (system Back, the bar's Back) with entered data asks first; true when handled here (stay). */
+    fun onLeave(): Boolean {
+        val f = form.value
+        val entered = FormLeave.saleEntered(f.draft(), f.photos.sumOf { it.size }, f.holderId != null)
+        return when (FormLeave.decide(_save.value.saving, _save.value.saved, entered)) {
+            LeaveAction.LEAVE -> false
+            LeaveAction.STAY -> true
+            LeaveAction.ASK -> { confirmDiscard.value = true; true }
+        }
+    }
+
+    fun keepEditing() { confirmDiscard.value = false }
+
     /** A new payment line: cash, its amount set once to what is still owed (when the total is known). */
     fun addPayment() = edit { f ->
         if (f.payments.size >= HoursPayments.MAX) return@edit f
@@ -238,6 +258,11 @@ fun HoursSaleScreen(vm: HoursSaleViewModel, onDone: () -> Unit) {
     val customers by vm.customers.collectAsStateWithLifecycle()
     val machines by vm.machines.collectAsStateWithLifecycle()
     val prices by vm.prices.collectAsStateWithLifecycle()
+    val confirmDiscard by vm.confirmDiscard.collectAsStateWithLifecycle()
+    GuardLeave { vm.onLeave() }
+    if (confirmDiscard) {
+        DiscardDialog(FormLeave.SALE_TITLE, FormLeave.SALE_BODY, onKeepEditing = vm::keepEditing) { vm.keepEditing(); onDone() }
+    }
     val a = access ?: return
     val draft = vm.draft(form, a)
     val editable = !save.saving && !save.saved

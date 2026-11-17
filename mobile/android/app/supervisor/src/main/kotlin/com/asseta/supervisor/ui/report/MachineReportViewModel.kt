@@ -9,6 +9,8 @@ import com.asseta.core.domain.capture.OcrFlow
 import com.asseta.core.domain.capture.OcrStep
 import com.asseta.core.domain.capture.ReadingInput
 import com.asseta.core.domain.capture.ReadingValidator
+import com.asseta.core.domain.forms.FormLeave
+import com.asseta.core.domain.forms.LeaveAction
 import com.asseta.core.domain.ocr.OcrReading
 import com.asseta.core.domain.policy.CaptureMode
 import com.asseta.core.domain.policy.CapturePolicyDecision
@@ -50,10 +52,14 @@ data class ReportForm(
     val machineId: String? = null,
     val capture: CaptureUi = CaptureUi(ReadingKind.DAILY, loading = false),
     val lines: List<ReportLineDraft> = emptyList(),
+    /** The lines the report opened with (a correction brings back the rejected report's): not new input. */
+    val startingLines: List<ReportLineDraft> = emptyList(),
     val note: String = "",
     val saving: Boolean = false,
     val saved: Boolean = false,
     val messages: List<String> = emptyList(),
+    /** Leaving was asked with entered work: "Discard this report?" is shown. */
+    val confirmDiscard: Boolean = false,
 )
 
 /**
@@ -105,7 +111,7 @@ class MachineReportViewModel(
                         ReportLineDraft.NonProductive(l.reasonId.orEmpty(), l.reasonName ?: "Non-productive", MachineReportRules.formatHours(BigDecimal(l.hours)).replace(",", ""), l.note.orEmpty())
                     }
                 }
-                _form.update { it.copy(lines = lines, capture = it.capture.copy(readingText = r.endReading, decimals = m.decimals)) }
+                _form.update { it.copy(lines = lines, startingLines = lines, capture = it.capture.copy(readingText = r.endReading, decimals = m.decimals)) }
                 return@launch
             }
             when (val decision = field.repository.capturePolicy(tenantId, machineId)) {
@@ -240,6 +246,29 @@ class MachineReportViewModel(
             ReportStep.REVIEW -> { _form.update { it.copy(step = ReportStep.SPLIT) }; true }
         }
     }
+
+    /** A photo, a typed reading, a note or changed lines: leaving would throw them away. */
+    fun hasEnteredData(f: ReportForm = _form.value): Boolean = FormLeave.reportEntered(
+        hasPhoto = f.capture.photo != null,
+        typedReading = if (correcting()) "" else f.capture.readingText,
+        lines = f.lines, startingLines = f.startingLines, note = f.note,
+    )
+
+    /**
+     * Leaving (system Back, the bar's Back): steps back first; then, with entered work, asks "Discard this report?"
+     * instead of leaving. True when handled here (stay on the screen).
+     */
+    fun onLeave(): Boolean {
+        if (back()) return true
+        val f = _form.value
+        return when (FormLeave.decide(f.saving, f.saved, hasEnteredData(f))) {
+            LeaveAction.LEAVE -> false
+            LeaveAction.STAY -> true
+            LeaveAction.ASK -> { _form.update { it.copy(confirmDiscard = true) }; true }
+        }
+    }
+
+    fun keepEditing() = _form.update { it.copy(confirmDiscard = false) }
 
     // --- Step 3: submit -------------------------------------------------------------------------------------------------
 

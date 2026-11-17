@@ -62,6 +62,10 @@ struct MachineReportFlow: View {
     @State private var redo: MachineReportDTO?
     /// A submit is under way (the button reads "Submitting…" and cannot be pressed twice).
     @State private var saving = false
+    /// The lines the report opened with (a redo brings back the rejected report's): not new input.
+    @State private var startingLines: [ReportLineDraft] = []
+    /// Leaving was asked with entered work: "Discard this report?" is shown.
+    @State private var confirmDiscard = false
     @Environment(\.openURL) private var openURL
 
     init(model: FieldModel, machineID: UUID?, close: @escaping () -> Void, openMachine: @escaping (UUID) -> Void = { _ in }) {
@@ -120,6 +124,12 @@ struct MachineReportFlow: View {
         .alert("Not saved", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button("OK") { error = nil }
         } message: { Text(error ?? "") }
+        // Swipe-back would leave without asking (or skip the steps): off once there is something to lose.
+        .navigationBarBackButtonHidden(entered || step > 1)
+        .alert(FormLeave.reportTitle, isPresented: $confirmDiscard) {
+            Button(FormLeave.keepEditing, role: .cancel) {}
+            Button(FormLeave.discard, role: .destructive) { leave() }
+        } message: { Text(FormLeave.reportBody) }
         .sheet(item: $editing) { line in
             ReportLineEditor(model: model, line: line, caps: caps, reasons: model.reportReasons, decimals: decimals) { saved in
                 if let saved {
@@ -148,11 +158,27 @@ struct MachineReportFlow: View {
         (difference ?? 0) - MachineReportRules.accounted(lines.filter { $0.id != id }, decimalPlaces: decimals)
     }
 
+    /// The header's Back: steps back first; then, with a photo or anything entered, asks "Discard this report?"
+    /// instead of leaving. Never while the report is being saved.
     private func back() {
         if saving { return }
         if step > 1 { step -= 1; return }
+        switch FormLeave.decide(saving: saving, saved: false, entered: entered) {
+        case .stay: return
+        case .ask: confirmDiscard = true
+        case .leave: leave()
+        }
+    }
+
+    private func leave() {
         capture?.cancel(model: model)
         close()
+    }
+
+    /// A photo, a typed reading, a note or changed lines: leaving would throw them away.
+    private var entered: Bool {
+        FormLeave.reportEntered(hasPhoto: capture?.photo != nil, typedReading: redo == nil ? capture?.draft.readingText ?? "" : "",
+                                lines: lines, startingLines: startingLines, note: note)
     }
 
     /// A new machine: a fresh capture under its rules (photo, OCR, GPS start now). A rejected report brings back its
@@ -161,6 +187,7 @@ struct MachineReportFlow: View {
         capture?.cancel(model: model)
         capture = nil
         lines = []
+        startingLines = []
         note = ""
         redo = nil
         reportID = UUID()
@@ -169,6 +196,7 @@ struct MachineReportFlow: View {
            let report = model.myReports.first(where: { $0.id == rejectedID }) {
             redo = report
             lines = MachineReportRules.drafts(from: report)
+            startingLines = lines
             return
         }
         guard let machine = model.reportMachine(id) else { return }

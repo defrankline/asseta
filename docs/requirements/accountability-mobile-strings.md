@@ -2966,6 +2966,20 @@ Rules (Android `ShellModel`, `MachineReportRules`, `FieldAccess`; iOS the same n
 | field.settings.version | Asseta Supervisor {version} (caption under the rows: Notifications on this phone, Change password, Delete my account, Sign out) |
 | field.sell.linePhoto | Photo of the slip or message (optional) / Photo of the message attached / Photo of the message attached ({n}) |
 | field.report.screenTitle | Step 1: Machine report · step 2: the split header · step 3: Review & submit (the step line shows under the bars on every step) |
+| field.report.discard.title | Discard this report? |
+| field.report.discard.body | The photo and readings you entered will be lost. |
+| field.sell.discard.title | Discard this sale? |
+| field.sell.discard.body | The customer, hours and payments you entered will be lost. |
+| field.form.discard.keepEditing | Keep editing |
+| field.form.discard.discard | Discard (destructive) |
+
+Leaving a machine report or Sell hours never throws entered work away silently (Android `FormLeave`, iOS `FormLeave`):
+Back (Android system Back, the bar's Back or Cancel; iOS the header's Back) first steps back through the report's
+steps; on the first step, a report with a photo, a typed reading, a note or changed lines (a correction's own reading
+and lines do not count), or a sale with anything chosen or typed (customer, walk-in name or phone, machine, hours, a
+payment line changed, a payment photo, a cash holder), asks the question above. Keep editing stays; Discard leaves
+(the report's or sale's photos are not kept). Nothing is asked while the report or sale is being saved,
+and iOS swipe-back is off while there is something to lose.
 
 ### Owner
 

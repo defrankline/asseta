@@ -105,6 +105,39 @@ fun FormSaveAction(enabled: Boolean, saving: Boolean = false, label: String = "S
     DisposableEffect(bar) { onDispose { bar.save = null } }
 }
 
+/**
+ * Lets the open screen intercept leaving it (system Back, the bar's Back or Cancel): [intercept] returns true when it
+ * handled the attempt (stepped back, or asked "Discard …?"), false to let the shell pop the screen.
+ */
+class LeaveGuard {
+    @Volatile var intercept: (() -> Boolean)? = null
+}
+
+val LocalLeaveGuard = staticCompositionLocalOf<LeaveGuard?> { null }
+
+/** Installs [intercept] as the open screen's [LeaveGuard] while it is shown. */
+@Composable
+fun GuardLeave(intercept: () -> Boolean) {
+    val guard = LocalLeaveGuard.current ?: return
+    val latest by rememberUpdatedState(intercept)
+    DisposableEffect(guard) {
+        guard.intercept = { latest() }
+        onDispose { guard.intercept = null }
+    }
+}
+
+/** "Discard this report?" / "Discard this sale?": Keep editing (dismiss) or Discard (destructive). */
+@Composable
+fun DiscardDialog(title: String, body: String, onKeepEditing: () -> Unit, onDiscard: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onKeepEditing,
+        title = { Text(title) },
+        text = { Text(body) },
+        confirmButton = { TextButton(onClick = onDiscard) { Text(com.asseta.core.domain.forms.FormLeave.DISCARD, color = palette.offline) } },
+        dismissButton = { TextButton(onClick = onKeepEditing) { Text(com.asseta.core.domain.forms.FormLeave.KEEP_EDITING) } },
+    )
+}
+
 /** "Not saved" alert with the refusal message (the iOS `.alert("Not saved")`). */
 @Composable
 fun NotSavedAlert(message: String?, onDismiss: () -> Unit) {

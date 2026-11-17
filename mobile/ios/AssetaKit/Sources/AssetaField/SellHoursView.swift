@@ -23,6 +23,8 @@ struct SellHoursView: View {
     @State private var cameraDenied = false
     @State private var error: String?
     @State private var saving = false
+    /// Leaving was asked with entered data: "Discard this sale?" is shown.
+    @State private var confirmDiscard = false
     @Environment(\.openURL) private var openURL
 
     var body: some View {
@@ -33,7 +35,7 @@ struct SellHoursView: View {
         let valid = { if case .success = AccountabilityRules.hoursSale(draft, walkInAllowed: a.walkIn, noncashAllowed: a.noncashPayments,
                                                                          price: price, creditAllowed: credit) { true } else { false } }()
         VStack(spacing: 0) {
-            ShellHeader(T.saleTitle, action: { discardPhotos(); close() })
+            ShellHeader(T.saleTitle, action: leaveTapped)
             if !a.sellHours {
                 ShellCard { Text(a.hours == nil ? A.needsRules : A.hoursOff).foregroundStyle(Shell.muted) }.padding(16)
                 Spacer()
@@ -123,6 +125,12 @@ struct SellHoursView: View {
         .alert("Not saved", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button("OK") { error = nil }
         } message: { Text(error ?? "") }
+        // Swipe-back would leave without asking: off while there is something to lose.
+        .navigationBarBackButtonHidden(entered)
+        .alert(FormLeave.saleTitle, isPresented: $confirmDiscard) {
+            Button(FormLeave.keepEditing, role: .cancel) {}
+            Button(FormLeave.discard, role: .destructive) { discard() }
+        } message: { Text(FormLeave.saleBody) }
     }
 
     private struct LineID: Identifiable { let id: UUID }
@@ -243,6 +251,25 @@ struct SellHoursView: View {
     private func discardPhotos() {
         photos.values.joined().forEach { model.discardEvidence($0.evidence) }
         photos = [:]
+    }
+
+    /// Something was chosen or typed: leaving would throw it away.
+    private var entered: Bool {
+        FormLeave.saleEntered(draft, photoCount: photos.values.reduce(0) { $0 + $1.count }, holderChosen: holderID != nil)
+    }
+
+    /// The header's Back: with entered data, asks "Discard this sale?" first; never while the sale is being saved.
+    private func leaveTapped() {
+        switch FormLeave.decide(saving: saving, saved: false, entered: entered) {
+        case .stay: return
+        case .ask: confirmDiscard = true
+        case .leave: discard()
+        }
+    }
+
+    private func discard() {
+        discardPhotos()
+        close()
     }
 
     private func save(price: HoursSalePrice, credit: Bool) {

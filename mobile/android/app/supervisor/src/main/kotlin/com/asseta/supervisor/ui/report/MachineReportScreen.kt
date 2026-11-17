@@ -42,6 +42,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.asseta.core.domain.capture.GpsOutcome
 import com.asseta.core.domain.capture.OcrStep
 import com.asseta.core.domain.finance.FormCheck
+import com.asseta.core.domain.forms.FormLeave
 import com.asseta.core.domain.policy.CaptureMode
 import com.asseta.core.domain.reports.MachineReportRules
 import com.asseta.core.domain.reports.ReportLineDraft
@@ -63,6 +64,9 @@ import com.asseta.supervisor.capture.PermissionRationale
 import com.asseta.supervisor.capture.hasAllPermissions
 import com.asseta.supervisor.capture.hasAnyPermission
 import com.asseta.supervisor.ui.Busy
+import com.asseta.supervisor.ui.DiscardDialog
+import com.asseta.supervisor.ui.GuardLeave
+import com.asseta.supervisor.ui.LocalLeaveGuard
 import com.asseta.supervisor.ui.EmptyState
 import com.asseta.supervisor.ui.FieldTexts
 import com.asseta.supervisor.ui.finance.PickerOption
@@ -75,14 +79,22 @@ import java.util.Locale
 
 private val T = ReportTexts
 
-/** Machine report in three steps; system back steps back before leaving. [onDone] after the report is queued. */
+/**
+ * Machine report in three steps. Back (system, the bar's) steps back before leaving; leaving with a photo or anything
+ * entered asks "Discard this report?" first. [onDone] after the report is queued or discarded.
+ */
 @Composable
 fun MachineReportScreen(vm: MachineReportViewModel, onDone: () -> Unit, onTitle: (String) -> Unit = {}) {
     val form by vm.form.collectAsStateWithLifecycle()
     val view by vm.view.collectAsStateWithLifecycle()
     val access by vm.access.collectAsStateWithLifecycle()
-    BackHandler(enabled = form.step != ReportStep.READING && !form.saving) { vm.back() }
+    GuardLeave { vm.onLeave() }
+    // Outside the shell (no guard), the screen handles system Back itself.
+    if (LocalLeaveGuard.current == null) BackHandler { if (!vm.onLeave()) onDone() }
     LaunchedEffect(form.saved) { if (form.saved) onDone() }
+    if (form.confirmDiscard) {
+        DiscardDialog(FormLeave.REPORT_TITLE, FormLeave.REPORT_BODY, onKeepEditing = vm::keepEditing) { vm.keepEditing(); onDone() }
+    }
     val machines = vm.machines(view)
     val machine = machines.firstOrNull { it.id == form.machineId }
     val previous = vm.previous()
