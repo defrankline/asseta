@@ -1,0 +1,35 @@
+{
+  "items": [
+    {
+      "amount": "450000.0000",
+      "balance": "300000.0000",
+      "created_by": "c14596f2-a1e1-4539-8221-81b4ac02ed77",
+      "created_by_name": "sup-FIX-1",
+      "currency": "TZS",
+      "customer_id": "8267b96f-7628-4c95-b223-3c9084b91c24",
+      "customer_name": "Road Builders Ltd",
+      "days_overdue": 0,
+      "due_date": "2026-12-01",
+      "hours": "5.29",
+      "id": "c66f36bc-6b7c-478c-9131-dfccf26e4338",
+      "invoice_number": "CI-2026-00001",
+      "issued_at": "2026-11-01T17:00:00Z",
+      "machine_code": "FIX1-000",
+      "machine_id": "8e178798-d2d5-4b00-9d05-e721e9b44c9a",
+      "machine_name": "Machine 0",
+      "overdue": false,
+      "paid": "150000.0000",
+      "paid_verified": "0.0000",
+      "payment_terms_days": 30,
+      "payments": [],
+      "purchase_id": "0b052089-bacb-4eb8-bfef-f8e6723ed304",
+      "purchase_number": "HP-2026-00002",
+      "rejection": null,
+      "status": "PART_PAID",
+      "unit_price": "85000.0000"
+    }
+  ],
+  "page": 1,
+  "page_size": 25,
+  "total": 1
+}

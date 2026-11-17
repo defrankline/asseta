@@ -1,0 +1,26 @@
+{
+  "accuracy_m": 900.0,
+  "capture_mode": "MANUAL",
+  "captured_at": "2026-11-01T10:00:00Z",
+  "gps_status": "FIX",
+  "id": "83f796b1-fe31-4288-bb97-6497923a2b2f",
+  "kind": "DAILY",
+  "latitude": -6.8,
+  "location_captured_at": "2026-11-01T09:59:55Z",
+  "longitude": 39.28,
+  "machine_id": "0c7924e8-9d09-4e23-9c6c-4c320c60ae04",
+  "manually_corrected": false,
+  "ocr_confidence": null,
+  "ocr_value": null,
+  "photo_attachment_id": null,
+  "photo_sha256": null,
+  "policy_version": "METER_CAPTURE@P1.T1",
+  "reading": "1520.40",
+  "received_at": "2026-11-01T10:00:00Z",
+  "state": "PROVISIONAL",
+  "supersedes_id": null,
+  "tracker_comparison": {
+    "compared": false,
+    "reason": "no tracker position within comparison window"
+  }
+}

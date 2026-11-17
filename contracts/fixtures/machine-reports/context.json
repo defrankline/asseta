@@ -1,0 +1,74 @@
+{
+  "customers": [
+    {
+      "available": "6.00",
+      "customer_id": "8267b96f-7628-4c95-b223-3c9084b91c24",
+      "customer_name": "Road Builders Ltd",
+      "machine_id": null,
+      "remaining": "8.00",
+      "reserved": "2.00"
+    }
+  ],
+  "hours_scope": "CUSTOMER",
+  "last_report_at": "2026-11-01T17:00:00Z",
+  "machine_code": "FIX1-000",
+  "machine_id": "8e178798-d2d5-4b00-9d05-e721e9b44c9a",
+  "machine_name": "Machine 0",
+  "meter_decimal_places": 1,
+  "meter_epoch": 0,
+  "opening_required": false,
+  "pending_report_id": "570ae2f2-953d-463a-8dcc-d0951439e0be",
+  "previous_at": "2026-11-01T14:00:00Z",
+  "previous_reading": "1004.00",
+  "previous_source": "REPORT",
+  "reasons": [
+    {
+      "code": "BREAKDOWN",
+      "description": null,
+      "id": "b35e7fad-742d-4014-bbbb-552d85115d54",
+      "is_active": true,
+      "name": "Breakdown / repair",
+      "version": 1
+    },
+    {
+      "code": "IDLE_ON_SITE",
+      "description": null,
+      "id": "55885f9d-f2fc-44e9-87b5-a05939cd6c40",
+      "is_active": true,
+      "name": "Idle on site",
+      "version": 1
+    },
+    {
+      "code": "SERVICING",
+      "description": null,
+      "id": "88edec66-495f-4a7e-8090-42af4be4ee5a",
+      "is_active": true,
+      "name": "Servicing",
+      "version": 1
+    },
+    {
+      "code": "TRANSIT",
+      "description": null,
+      "id": "d8714f0d-7631-46a2-b4ee-00f568dbe83f",
+      "is_active": true,
+      "name": "Transit between sites",
+      "version": 1
+    },
+    {
+      "code": "WAITING_CUSTOMER",
+      "description": null,
+      "id": "3885d268-18f2-464a-aeef-3a22afb82c87",
+      "is_active": true,
+      "name": "Waiting for customer",
+      "version": 1
+    },
+    {
+      "code": "WEATHER",
+      "description": null,
+      "id": "1cd1ee70-dfd3-4bee-8adc-07bb6c70519a",
+      "is_active": true,
+      "name": "Weather",
+      "version": 1
+    }
+  ]
+}
