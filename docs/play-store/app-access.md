@@ -23,7 +23,7 @@ Asseta Supervisor is a business app for staff of equipment-hire companies. Accou
 1. Open the app and tap "Sign in". The company sign-in page (asseta.co.tz) opens in a browser tab.
 2. Enter the username and password given here and tap "Sign in".
 3. If asked to choose a company, choose the demo company.
-The Jobs tab lists demo jobs. Money shows petty cash, customers and cash. Camera and location are asked for only when you capture a meter reading or a receipt; you can decline location and continue. Please do not delete the demo account (My account > Delete my account) because other reviews use it.
+Home shows the main actions: Sell hours, Machine report, Money and Dashboard (the side menu has the rest). Camera and location are asked for only when you capture a meter reading or a receipt; you can decline location and continue. Please do not delete the demo account (My account > Delete my account) because other reviews use it.
 Support: frank.kachinga@gmail.com
 ```
 

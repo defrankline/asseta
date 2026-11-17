@@ -68,7 +68,7 @@ stored on the company's Asseta account (or, for ML Kit metrics, sent to Google).
 | Personal info | **Phone number** | Yes (customer phone numbers the user enters) | Optional | App functionality |
 | Financial info | **Other financial info** | Yes (cash collected and handed over, expenses, petty cash, customer hours sales, payment method and references) | Required | App functionality; Fraud prevention, security, and compliance |
 | Photos and videos | **Photos** | Yes (hour-meter, receipt and payment-slip photos) | Required (evidence for those records) | App functionality; Fraud prevention, security, and compliance |
-| App activity | **Other user-generated content** | Yes (job records, readings, notes, customer signatures, acknowledgements) | Required | App functionality |
+| App activity | **Other user-generated content** | Yes (machine reports, meter readings, notes, sales and payment records) | Required | App functionality |
 | App info and performance | **Diagnostics** | Yes (ML Kit SDK metrics to Google; see above) | Required (cannot be turned off in the app) | Analytics |
 | Device or other IDs | **Device or other IDs** | Yes (random per-install device id created by the app, sent as `X-Device-Id` for offline sync; ML Kit's per-installation id) | Required | App functionality; Fraud prevention, security, and compliance; Analytics |
 
@@ -83,12 +83,12 @@ latency metrics fit better under "Other app performance data", tick that too wit
 
 | Category | Data type | Collected | Required or optional | Purposes |
 |---|---|---|---|---|
-| Personal info | **Name** | Yes (the user; names entered on jobs and decisions) | Required | App functionality; Account management |
+| Personal info | **Name** | Yes (the user; names on approvals and decisions) | Required | App functionality; Account management |
 | Personal info | **Email address** | Yes (the user's sign-in) | Required | App functionality; Account management |
 | Personal info | **User IDs** | Yes | Required | App functionality; Account management; Fraud prevention, security, and compliance |
-| Personal info | **Phone number** | Yes (customer phone on a new job, when entered) | Optional | App functionality |
+| Personal info | **Phone number** | Yes (customer phone, when entered) | Optional | App functionality |
 | Financial info | **Other financial info** | Yes (approval decisions on petty cash and money records, cash handover confirmations) | Required | App functionality; Fraud prevention, security, and compliance |
-| App activity | **Other user-generated content** | Yes (approval and rejection reasons, notes, new jobs) | Required | App functionality |
+| App activity | **Other user-generated content** | Yes (approval and rejection reasons, notes, payments recorded) | Required | App functionality |
 
 Not collected by Owner: Location (it shows machines' tracker positions from the server, but never reads the phone's
 location; no location permission), Photos (it only displays evidence photos), Device or other IDs (no device id is
@@ -115,4 +115,4 @@ same types, purposes, no sharing, encryption in transit, and deletion.
    company's policy makes them optional, the answer can still stay "Required" (the strict reading).
 5. Owner 0.8.2 (5) declares no location or Wi-Fi permissions (the map library's ones are removed in the manifest),
    so "Location: not collected" matches the bundle.
-6. Owner app collection is minimal because it mostly displays data; what it sends is decisions, notes and new jobs.
+6. Owner app collection is minimal because it mostly displays data; what it sends is decisions, notes and payments recorded.

@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Package | `com.asseta.owner` |
-| Version | 0.8.2 (versionCode 5) |
+| Version | 0.9.1 (versionCode 8) |
 | Default language | English (United States) – en-US |
 | Added language | Swahili – sw |
 | App or game | App |
@@ -35,7 +35,7 @@ Asseta Owner
 Run your equipment-hire business from your phone: approvals, cash, fleet map.
 ```
 
-**Full description** (1623/4000)
+**Full description** (1822/4000)
 
 ```
 Asseta Owner is the phone app for owners and managers of equipment-hire companies that run their business on Asseta. It puts the decisions and the numbers that matter in your pocket, so you can keep revenue and machines safe even when you are away from the office.
@@ -43,12 +43,12 @@ Asseta Owner is the phone app for owners and managers of equipment-hire companie
 Your company gives you your login. There is no public sign-up: you need an account from a company that uses Asseta.
 
 WHAT YOU CAN DO
-• Approvals: approve or reject job requests, petty cash and other requests from your supervisors, with the reason and the evidence in front of you. Whoever proposes a request cannot approve it.
-• Accountability overview: hours worked, money collected, cash still with supervisors and field spend, at a glance.
-• Fleet map: see where your machines are and open each machine's details and track.
-• Jobs: follow every job from request to completion.
-• Cash with supervisors: see who holds how much cash and follow every handover.
-• Field spend: review fuel and expenses with their receipts.
+• Approvals: approve or reject your supervisors' machine reports (every hour since the last meter reading, split between customers and non-productive reasons, with the meter photo and a tracker cross-check), credit sales, expenses and petty cash. Whoever proposes a request cannot approve it.
+• Customers & hours: hours each customer bought, used and has left, and their credit invoices.
+• Machines: see where your machines are, their productive and non-productive hours, and which ones have no recent report.
+• Money: sales by payment method, cash still with each supervisor, credit invoices and payments.
+• Reports: machine hours by reason, hours sold against hours used, sales and collections.
+• Field spend: review expenses (and fuel, when your company uses it) with their receipts.
 • Meter exceptions and investigations: follow up readings that do not add up.
 • Notifications: an inbox of everything that needs your attention.
 • Several companies: switch between companies if you have access to more than one.
@@ -73,7 +73,7 @@ Asseta is operated by Crysalion Tech Company Ltd. Privacy policy: https://asseta
 Endesha biashara ya kukodisha mitambo kwa simu: idhini, pesa, ramani ya mitambo.
 ```
 
-**Full description** (1674/4000)
+**Full description** (1836/4000)
 
 ```
 Asseta Owner ni programu ya simu kwa wamiliki na mameneja wa kampuni zinazokodisha mitambo na zinazoendesha biashara yao kwa Asseta. Inakuwekea maamuzi na takwimu muhimu mfukoni, ili ulinde mapato na mitambo yako hata ukiwa mbali na ofisi.
@@ -81,12 +81,12 @@ Asseta Owner ni programu ya simu kwa wamiliki na mameneja wa kampuni zinazokodis
 Kampuni yako ndiyo inakupa akaunti ya kuingia. Hakuna usajili wa wazi: unahitaji akaunti kutoka kwa kampuni inayotumia Asseta.
 
 UNACHOWEZA KUFANYA
-• Idhini: kubali au kataa maombi ya kazi, pesa ndogo (petty cash) na maombi mengine kutoka kwa wasimamizi wako, ukiona sababu na ushahidi. Aliyeomba hawezi kuidhinisha ombi lake.
-• Muhtasari wa uwajibikaji: saa zilizofanyika, pesa zilizokusanywa, pesa taslimu zilizo kwa wasimamizi na matumizi ya uwanjani, kwa mtazamo mmoja.
-• Ramani ya mitambo: ona mitambo yako ilipo na fungua taarifa na njia ya kila mtambo.
-• Kazi: fuatilia kila kazi tangu ombi hadi kukamilika.
-• Pesa kwa wasimamizi: ona nani ana pesa kiasi gani na fuatilia kila makabidhiano.
-• Matumizi ya uwanjani: kagua mafuta na matumizi pamoja na risiti zake.
+• Idhini: kubali au kataa ripoti za mitambo za wasimamizi wako (kila saa tangu usomaji uliopita wa mita, zimegawanywa kwa wateja na sababu zisizo za uzalishaji, pamoja na picha ya mita na ulinganisho na tracker), mauzo ya mkopo, matumizi na pesa ndogo. Aliyeomba hawezi kuidhinisha ombi lake.
+• Wateja na saa: saa kila mteja alizonunua, alizotumia na zilizobaki, pamoja na ankara za mkopo.
+• Mitambo: ona mitambo yako ilipo, saa za uzalishaji na zisizo, na ipi haina ripoti ya karibuni.
+• Pesa: mauzo kwa njia ya malipo, pesa zilizo kwa kila msimamizi, ankara za mkopo na malipo yake.
+• Ripoti: saa za mitambo kwa sababu, saa zilizouzwa dhidi ya zilizotumika, mauzo na makusanyo.
+• Matumizi ya uwanjani: kagua matumizi (na mafuta, pale kampuni yako inapotumia) pamoja na risiti zake.
 • Tofauti za mita na uchunguzi: fuatilia usomaji usiolingana.
 • Arifa: sanduku la kila jambo linalohitaji umakini wako.
 • Kampuni zaidi ya moja: hamia kampuni nyingine kama una ruhusa.
