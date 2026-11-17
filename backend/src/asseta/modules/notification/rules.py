@@ -382,7 +382,7 @@ def _account_deleted(_: Session, e: DomainEvent) -> list[Intent]:
     return [
         Intent(
             "ACCOUNT_DELETED",
-            (perm("tenant.access.manage"),),
+            (perm("tenant.company.close"),),  # owners only (owner decision 2026-11-17); the permission only owners hold
             "A user deleted their account",
             f"{p['former_name']} deleted their Asseta account; they can no longer sign in. Their records stay, shown "
             f"as {p['anonymised_name']}.{staff_note}",

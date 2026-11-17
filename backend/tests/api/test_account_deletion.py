@@ -76,7 +76,7 @@ def test_user_deletes_own_account(api: Api) -> None:
     assert sql("SELECT submitted_by FROM expense WHERE id = :i", i=expense_id)[0][0] == uid
     # The phone's sync session is revoked: its next call answers the wipe instruction.
     assert sql("SELECT status FROM device_session WHERE user_id = :u", u=uid)[0][0] == "REVOKED"
-    # Audited, and the company's user managers are told.
+    # Audited, and the company's owners are told.
     actions = {r[0] for r in sql("SELECT action FROM audit_event WHERE entity_id = :u", u=str(uid))}
     assert {"identity.account.deleted", "platform.account.deleted"} <= actions
     drain(api)
@@ -84,7 +84,7 @@ def test_user_deletes_own_account(api: Api) -> None:
         "SELECT recipient_user_id, body FROM notification WHERE notification_type = 'ACCOUNT_DELETED' AND tenant_id = :t",
         t=tid,
     )
-    assert user_id(f.owner.subject) in {t[0] for t in told}
+    assert {t[0] for t in told} == {user_id(f.owner.subject)}  # owners only, not every user manager
     assert all("can no longer sign in" in t[1] for t in told)
     # Deleting again: the account is already gone.
     assert sup.post(DELETE, {"confirm": True}).status_code == 403
