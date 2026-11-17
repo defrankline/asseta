@@ -51,7 +51,7 @@ def by_kind(events: list[Any], kind: str, machine: str | None = None) -> list[An
 
 def test_full_week_matches_the_requested_days(demo: ModuleType) -> None:
     seeded, now = local(2026, 10, 15, 9), local(2026, 10, 24, 15, 30)  # seeded 9 days ago
-    past, today, runs, events = plan(demo, seeded, now)
+    past, today, _runs, events = plan(demo, seeded, now)
     assert len(past) == 4 and len(today) == 1
 
     def days_ago(t: datetime) -> int:
