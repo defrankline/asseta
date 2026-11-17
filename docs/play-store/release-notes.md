@@ -3,7 +3,7 @@
 Play limit: 500 characters per language. Counts measured with Python `len()` on the text between the language tags (tags not counted). Paste
 into Release → (track) → Create release → Release notes, using the language tags shown.
 
-## Asseta Supervisor 0.6.1 (12)
+## Asseta Supervisor 0.6.2 (13)
 
 English (463/500):
 
@@ -35,7 +35,7 @@ Toleo la kwanza la Asseta Supervisor, programu ya uwanjani kwa kampuni za kukodi
 </sw>
 ```
 
-## Asseta Owner 0.9.1 (8)
+## Asseta Owner 0.9.2 (9)
 
 English (425/500):
 
