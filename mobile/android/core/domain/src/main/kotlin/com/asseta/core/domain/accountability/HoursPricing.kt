@@ -121,9 +121,15 @@ sealed interface PaymentStatus {
     data object NoTotal : PaymentStatus
 }
 
-/** What is paid so far, the total when known, and the status. */
-data class PaymentSummary(val paid: BigDecimal, val quote: HoursSaleQuote?, val status: PaymentStatus) {
+/**
+ * What is covered so far (money and credit together, [paid]), the total when known, and the status. [credit]: the part of
+ * [paid] on the Credit line (paid later on its invoice), so the summary can tell money from credit.
+ */
+data class PaymentSummary(val paid: BigDecimal, val quote: HoursSaleQuote?, val status: PaymentStatus, val credit: BigDecimal = BigDecimal.ZERO) {
     val balance: BigDecimal? get() = quote?.let { (it.amount - paid).max(BigDecimal.ZERO) }
+
+    /** The money lines (cash, bank, mobile money) without the credit part. */
+    val money: BigDecimal get() = (paid - credit).max(BigDecimal.ZERO)
 }
 
 /** Payment lines of an hours sale (same rules as iOS `HoursPayments`). */
@@ -145,7 +151,8 @@ object HoursPayments {
             paid.compareTo(quote.amount) == 0 -> PaymentStatus.FullyPaid
             else -> PaymentStatus.PartPaid(quote.amount - paid)
         }
-        return PaymentSummary(paid, quote, status)
+        val credit = paid(lines.filter { it.method == PaymentMethod.CREDIT })
+        return PaymentSummary(paid, quote, status, credit)
     }
 
     /**

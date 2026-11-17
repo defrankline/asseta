@@ -154,12 +154,16 @@ public enum PaymentStatus: Sendable, Equatable {
     case noTotal
 }
 
-/// What is paid so far, the total when known, and the status.
+/// What is covered so far (money and credit together, `paid`), the total when known, and the status. `credit`: the part
+/// of `paid` on the Credit line (paid later on its invoice), so the summary can tell money from credit.
 public struct PaymentSummary: Sendable, Equatable {
     public let paid: Decimal
     public let quote: HoursSaleQuote?
     public let status: PaymentStatus
+    public var credit: Decimal = 0
     public var balance: Decimal? { quote.map { max($0.amount - paid, 0) } }
+    /// The money lines (cash, bank, mobile money) without the credit part.
+    public var money: Decimal { max(paid - credit, 0) }
 }
 
 /// Payment lines of an hours sale (same rules as Android `HoursPayments`).
@@ -183,7 +187,7 @@ public enum HoursPayments {
         } else {
             status = .noTotal
         }
-        return PaymentSummary(paid: paid, quote: quote, status: status)
+        return PaymentSummary(paid: paid, quote: quote, status: status, credit: Self.paid(lines.filter { $0.method == "CREDIT" }))
     }
 
     /// A new line: `method`, with its amount set to what is still owed when the total is known (empty otherwise). The

@@ -322,6 +322,19 @@ describe('paidSummary', () => {
     expect(paidSummary('0', '570000', 'TZS').status).toBe('Not paid yet');
     expect(paidSummary('600000', '570000', 'TZS').over).toBe(true);
   });
+
+  it('tells money from credit, never "Fully paid" with a credit line', () => {
+    expect(paidSummary('950000', '950000', 'TZS', '450000')).toEqual({
+      line: 'Paid TZS 500,000 + TZS 450,000 on credit of TZS 950,000 · Balance TZS 0',
+      status: 'Paid TZS 500,000 · on credit TZS 450,000',
+      over: false,
+    });
+    expect(paidSummary('950000', '950000', 'TZS', '950000').status).toBe('On credit TZS 950,000');
+    expect(paidSummary('750000', '950000', 'TZS', '450000').status).toBe(
+      'Paid TZS 300,000 · on credit TZS 450,000 · balance TZS 200,000',
+    );
+    expect(paidSummary('1000000', '950000', 'TZS', '500000').over).toBe(true);
+  });
 });
 
 describe('HoursPurchasesPage', () => {

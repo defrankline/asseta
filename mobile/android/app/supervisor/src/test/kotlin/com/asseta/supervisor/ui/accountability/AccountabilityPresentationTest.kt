@@ -80,6 +80,29 @@ class AccountabilityPresentationTest {
     }
 
     @Test
+    fun `sell hours status tells money from credit`() {
+        val book = com.asseta.core.domain.accountability.HoursPriceBook(
+            prices = mapOf("ex01" to com.asseta.core.domain.accountability.HoursPrice("ex01", java.math.BigDecimal("95000"), java.math.BigDecimal.ZERO, "TZS", 0)),
+        )
+        val price = com.asseta.core.domain.accountability.HoursPricing.price(book, "ex01", null, false, "10")
+        val cash = com.asseta.core.domain.accountability.PaymentMethod.CASH
+        val credit = com.asseta.core.domain.accountability.PaymentMethod.CREDIT
+        fun status(vararg lines: Pair<com.asseta.core.domain.accountability.PaymentMethod, String>) = FieldAccountabilityTexts.paymentStatus(
+            com.asseta.core.domain.accountability.HoursPayments.summary(lines.map { com.asseta.core.domain.accountability.PaymentLine(it.first, it.second) }, price),
+        )
+        // 950,000: cash 500,000 + credit 450,000 is covered, but not paid in full.
+        assertEquals("Paid 500,000 · on credit 450,000", status(cash to "500000", credit to "450000"))
+        assertEquals("On credit 950,000", status(credit to "950000"))
+        assertEquals("Paid 300,000 · on credit 450,000 · balance 200,000", status(cash to "300000", credit to "450000"))
+        assertEquals("On credit 450,000 · balance 500,000", status(credit to "450000"))
+        // Without credit, as before.
+        assertEquals("Fully paid · balance 0", status(cash to "950000"))
+        assertEquals("Part paid · balance 450,000", status(cash to "500000"))
+        assertEquals("Not paid yet", status())
+        assertEquals("The payments add up to more than the total of TZS 950,000.", status(cash to "500000", credit to "500000"))
+    }
+
+    @Test
     fun `hours sale payment wording`() {
         val book = com.asseta.core.domain.accountability.HoursPriceBook(
             prices = mapOf("ex01" to com.asseta.core.domain.accountability.HoursPrice("ex01", java.math.BigDecimal("95000"), java.math.BigDecimal.ZERO, "TZS", 2)),

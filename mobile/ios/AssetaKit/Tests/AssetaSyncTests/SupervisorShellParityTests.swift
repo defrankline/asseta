@@ -152,6 +152,26 @@ struct SupervisorShellParityTests {
             == "The payments add up to more than the sale. The sale is kept for review.")
     }
 
+    @Test func sellHoursStatusTellsMoneyFromCredit() {
+        let machine = UUID()
+        let book = HoursPriceBook(prices: [machine: HoursPrice(machineID: machine, hourlyRate: 95000, minimumHours: 0, currency: "TZS",
+                                                                minorUnits: 0)])
+        let price = HoursPricing.price(book, machineID: machine, customerID: nil, walkIn: false, hoursText: "10")
+        func status(_ lines: (String, String)...) -> String {
+            MachineReportTexts.saleStatus(HoursPayments.summary(lines.map { PaymentLine(method: $0.0, amountText: $0.1) }, price: price))
+        }
+        // 950,000: cash 500,000 + credit 450,000 is covered, but not paid in full.
+        #expect(status(("CASH", "500000"), ("CREDIT", "450000")) == "Paid 500,000 · on credit 450,000")
+        #expect(status(("CREDIT", "950000")) == "On credit 950,000")
+        #expect(status(("CASH", "300000"), ("CREDIT", "450000")) == "Paid 300,000 · on credit 450,000 · balance 200,000")
+        #expect(status(("CREDIT", "450000")) == "On credit 450,000 · balance 500,000")
+        // Without credit, as before.
+        #expect(status(("CASH", "950000")) == "Fully paid · balance 0")
+        #expect(status(("CASH", "500000")) == "Part paid · balance 450,000")
+        #expect(status() == "Not paid yet")
+        #expect(status(("CASH", "500000"), ("CREDIT", "500000")) == "The payments add up to more than the total of TZS 950,000.")
+    }
+
     @Test func invoicePaymentWording() {
         #expect(SupervisorShellTexts.invoiceOption("CI-2026-00042", "Msasani") == "CI-2026-00042 · Msasani")
         #expect(SupervisorShellTexts.invoiceOwes("2,000,000", "2026-11-30") == "owes 2,000,000 · due 2026-11-30")

@@ -2770,7 +2770,7 @@ Rules (Android `ShellModel`, `MachineReportRules`, `FieldAccess`; iOS the same n
 | field.home.tile.dashboard.subtitle | Reports, my machines |
 | field.home.recent | RECENT |
 | field.home.recent.empty | Your sales and machine reports appear here. |
-| field.home.recent.report | {machine} report · {hours} h |
+| field.home.recent.report | {machine} report · {hours} h (an opening report: {machine} report) |
 | field.home.recent.sale | Sold {hours} h · {customer} |
 | field.home.recent.when.today | Today {HH:mm} |
 | field.home.recent.when.yesterday | Yesterday {HH:mm} |
@@ -2799,6 +2799,7 @@ Rules (Android `ShellModel`, `MachineReportRules`, `FieldAccess`; iOS the same n
 | field.sell.status.full | Fully paid · balance 0 |
 | field.sell.status.part | Part paid · balance {amount} |
 | field.sell.status.none | Not paid yet |
+| field.sell.status.credit | Paid {money} · on credit {credit} (a Credit line: never "Fully paid"; nothing paid in money: `On credit {credit}`; still owed: `… · balance {amount}`). E.g. Cash 500,000 + Credit 450,000 of 950,000: `Paid 500,000 · on credit 450,000`. The web Record purchase dialog uses the same words with the currency (`Paid TZS 500,000 · on credit TZS 450,000`; its amounts line `Paid TZS 500,000 + TZS 450,000 on credit of TZS 950,000 · Balance TZS 0`). |
 | field.sell.received | No received date or time on the form: the lines are received when the sale is saved. |
 | field.sell.save | Save sale |
 | field.sell.saving | Saving… |
@@ -2962,6 +2963,7 @@ Rules (Android `ShellModel`, `MachineReportRules`, `FieldAccess`; iOS the same n
 | field.dashboard.report.submitted | Awaiting approval |
 | field.dashboard.report.approved | Approved |
 | field.dashboard.report.rejected | Rejected |
+| field.dashboard.report.readings | {start} → {end} h (an opening report: First reading {end} h) |
 | field.settings.title | Settings |
 | field.settings.version | Asseta Supervisor {version} (caption under the rows: Notifications on this phone, Change password, Delete my account, Sign out) |
 | field.sell.linePhoto | Photo of the slip or message (optional) / Photo of the message attached / Photo of the message attached ({n}) |
@@ -3045,7 +3047,7 @@ times `today 07:40`, `yesterday 18:10`, `{n} days ago` (2–6), then `12 Nov`.
 | tile | Machines — Map, readings, hours |
 | tile | Money — Collections, cash, expenses |
 | section | NEEDS YOUR ATTENTION |
-| report row | {machine} report · {h} h non-productive (all productive: {machine} report · {h} h) / {supervisor} · {today 07:40} — pill Review |
+| report row | {machine} report · {h} h non-productive (all productive: {machine} report · {h} h; an opening report: {machine} first reading · {1,520.4} h) / {supervisor} · {today 07:40} — pill Review |
 | overdue row | {machine} · no report for {n} days (never reported or first reading needed: {machine} · no report yet; rejected: {machine} · report rejected, not yet redone) / Last approved reading {reading} h (or: No approved reading yet) — pill Overdue |
 | empty | Nothing needs your attention right now. |
 | bell (accessibility) | Notifications, {n} unread |
@@ -3055,7 +3057,7 @@ times `today 07:40`, `yesterday 18:10`, `{n} days ago` (2–6), then `12 Nov`.
 | Key | Text |
 |---|---|
 | chips | All {n} · Machine reports {n} · Credit {n} · Expenses {n} |
-| machine report row | MACHINE REPORT · {time} / {machine} · {h} h · {supervisor} / {h} h to {n} customers · {h} h non-productive (one customer: `{h} h {customer}`; one reason: `{h} h {reason in words, e.g. transit}`; no lines: `{h} h to customers`) |
+| machine report row | MACHINE REPORT · {time} / {machine} · {h} h · {supervisor} / {h} h to {n} customers · {h} h non-productive (one customer: `{h} h {customer}`; one reason: `{h} h {reason in words, e.g. transit}`; no lines: `{h} h to customers`; an opening report: `{machine} · {supervisor}` / `First reading — starting point`) |
 | credit row | CREDIT SALE · {time} / {customer} · {h} h on credit / Invoice {number} · {TZS 3,800,000} · limit left {6.2M} |
 | credit buttons | Reject · Approve credit |
 | credit own sale | You recorded this sale, so someone else must approve its credit. |
@@ -3083,6 +3085,7 @@ times `today 07:40`, `yesterday 18:10`, `{n} days ago` (2–6), then `12 Nov`.
 | customers | CUSTOMERS · {220} h — rows: {customer} / · {140} → {20} h left — {120} h |
 | non-productive | NON-PRODUCTIVE · {80} h — rows: {reason name} / “{note}” — {40} h |
 | tracker | Tracker engine hours for the same period: {296} h (meter {300} h). / No tracker data for this period. |
+| opening report | The machine's first reading (`opening` true, `start_source` OPENING: no lines, 0 hours). readings: {1,520.4} h (one reading) · read line: First reading — starting point · typed by hand (or `· read by phone …`) · photo and GPS as above · instead of the tracker sentence: The machine's first reading, so there are no hours to split. Approving it makes this reading the starting point; the next report counts hours from it. · Approve / Reject as any report · approved: Reading approved. The next report counts hours from it. |
 | supervisor note | Supervisor's note |
 | reason field | Reason (needed to reject) / placeholder: e.g. Idle hours too high, explain |
 | buttons | Reject · Approve |

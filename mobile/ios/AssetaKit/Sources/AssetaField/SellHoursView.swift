@@ -228,16 +228,7 @@ struct SellHoursView: View {
     }
 
     private func paidStatus(_ price: HoursSalePrice) -> String {
-        let summary = HoursPayments.summary(draft.payments, price: price)
-        switch summary.status {
-        case .notPaid: return T.saleNotPaid
-        case .fullyPaid: return T.saleFullyPaid()
-        case let .partPaid(balance): return T.saleBalance(HoursPricing.rate(balance))
-        case .overTotal:
-            guard let q = summary.quote else { return "" }
-            return A.hoursErrPaymentsExceed(HoursPricing.money(q.amount, currency: q.currency, minorUnits: q.minorUnits))
-        case .noTotal: return T.salePaid(HoursPricing.rate(summary.paid))
-        }
+        T.saleStatus(HoursPayments.summary(draft.payments, price: price))
     }
 
     private func addPhoto(_ data: Data, line: UUID) {

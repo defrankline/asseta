@@ -187,6 +187,32 @@ public enum MachineReportTexts {
     public static func saleFullyPaid() -> String { "Fully paid · balance 0" }
     public static func saleBalance(_ amount: String) -> String { "Part paid · balance \(amount)" }
     public static func salePaid(_ amount: String) -> String { "Paid \(amount)" }
+    /// "Paid 500,000 · on credit 450,000", "On credit 950,000", then " · balance 270,000" while some is still owed.
+    public static func salePaidOnCredit(money: Decimal, credit: Decimal, balance: Decimal?) -> String {
+        [
+            money > 0 ? "Paid \(HoursPricing.rate(money))" : nil,
+            (money > 0 ? "on credit " : "On credit ") + HoursPricing.rate(credit),
+            balance.flatMap { $0 > 0 ? "balance \(HoursPricing.rate($0))" : nil },
+        ].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    /// The line under the payments (Android `FieldAccountabilityTexts.paymentStatus`): "Fully paid · balance 0", "Part
+    /// paid · balance 270,000", "Not paid yet"; with a Credit line the money and the credit are told apart.
+    public static func saleStatus(_ summary: PaymentSummary) -> String {
+        if summary.credit > 0, summary.status != .overTotal {
+            let balance: Decimal? = if case let .partPaid(b) = summary.status { b } else { nil }
+            return salePaidOnCredit(money: summary.money, credit: summary.credit, balance: balance)
+        }
+        switch summary.status {
+        case .notPaid: return saleNotPaid
+        case .fullyPaid: return saleFullyPaid()
+        case let .partPaid(balance): return saleBalance(HoursPricing.rate(balance))
+        case .overTotal:
+            guard let q = summary.quote else { return "" }
+            return FieldAccountabilityTexts.hoursErrPaymentsExceed(HoursPricing.money(q.amount, currency: q.currency, minorUnits: q.minorUnits))
+        case .noTotal: return salePaid(HoursPricing.rate(summary.paid))
+        }
+    }
     public static let saleNotPaid = "Not paid yet"
     public static let saleSaving = "Saving…"
     public static let saleErrCreditOff = "Credit sales are recorded by the office."

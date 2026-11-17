@@ -76,9 +76,16 @@ object FieldAccountabilityTexts {
         PaymentMethod.CREDIT -> "On credit"
     }
 
-    /** "Fully paid · balance 0", "Part paid · balance 270,000", "Not paid yet" (credit counts as covered). */
+    /**
+     * "Fully paid · balance 0", "Part paid · balance 270,000", "Not paid yet". With a Credit line the money and the credit
+     * are told apart: "Paid 500,000 · on credit 450,000" (nothing paid in money: "On credit 950,000"), and while some is
+     * still owed "… · balance 270,000".
+     */
     fun paymentStatus(s: PaymentSummary): String {
         val q = s.quote
+        if (s.credit.signum() > 0 && s.status != PaymentStatus.OverTotal) {
+            return paidOnCredit(s.money, s.credit, (s.status as? PaymentStatus.PartPaid)?.balance)
+        }
         return when (val st = s.status) {
             PaymentStatus.NotPaid -> NOT_PAID
             PaymentStatus.FullyPaid -> "Fully paid · balance 0"
@@ -87,6 +94,14 @@ object FieldAccountabilityTexts {
             PaymentStatus.NoTotal -> "Paid ${HoursPricing.rate(s.paid)}"
         }
     }
+
+    /** "Paid 500,000 · on credit 450,000", "On credit 950,000", then " · balance 270,000" while some is still owed. */
+    fun paidOnCredit(money: java.math.BigDecimal, credit: java.math.BigDecimal, balance: java.math.BigDecimal?): String =
+        listOfNotNull(
+            "Paid ${HoursPricing.rate(money)}".takeIf { money.signum() > 0 },
+            (if (money.signum() > 0) "on credit " else "On credit ") + HoursPricing.rate(credit),
+            balance?.takeIf { it.signum() > 0 }?.let { "balance ${HoursPricing.rate(it)}" },
+        ).joinToString(" · ")
 
     const val SECTION_CUSTOMER = "Customer"
     const val REGISTERED = "Registered"

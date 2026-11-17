@@ -322,7 +322,8 @@ function PaidSummary({ values }: { values: PurchaseValues }) {
       </Typography>
     );
   }
-  const sum = paidSummary(paid, values.quote_amount, values.quote_currency);
+  const credit = paidSoFar(values.payments.filter((l) => l.method === 'CREDIT'));
+  const sum = paidSummary(paid, values.quote_amount, values.quote_currency, credit);
   return (
     <>
       <Typography variant="body2" sx={{ fontWeight: 600 }} role="status">
