@@ -58,7 +58,14 @@ from asseta.modules.policy.capabilities import (
 )
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.sync.conflicts import is_conflict
-from asseta.modules.sync.dto import OperationIn, OperationResultDto, PushIn, PushResultDto
+from asseta.modules.sync.dto import (
+    OP_TYPES,
+    RETIRED_OP_TYPES,
+    OperationIn,
+    OperationResultDto,
+    PushIn,
+    PushResultDto,
+)
 from asseta.modules.sync.models import BlobUploadSession, ClientOperation, DeviceSession, OperationStatus
 from asseta.modules.sync.service import SyncService
 
@@ -307,6 +314,8 @@ class PushService:
                 return OperationResultDto(
                     id=op.id, status="DUPLICATE", result=existing.result, error=existing.result.get("error")
                 )
+        if op.op_type not in OP_TYPES:
+            return self._refuse_type(device, op, digest, existing)
         unmet = [
             d
             for d in op.depends_on
@@ -335,6 +344,23 @@ class PushService:
         return OperationResultDto.model_validate(
             {"id": op.id, "status": status.value, "result": result, "error": result.get("error")}
         )
+
+    def _refuse_type(
+        self, device: DeviceSession, op: OperationIn, digest: str, existing: ClientOperation | None
+    ) -> OperationResultDto:
+        """A retired (pre-ADR-008 app) or unknown operation type: refused on its own and kept for the office's sync
+        review, so the rest of the batch still applies and a retry is a DUPLICATE."""
+        retired = op.op_type in RETIRED_OP_TYPES
+        error = {
+            "code": "OPERATION_RETIRED" if retired else "UNKNOWN_OPERATION",
+            "message": (
+                f"{op.op_type} is no longer supported (jobs and site check-ins were removed); update the app"
+                if retired
+                else f"Unknown operation type {op.op_type}"
+            ),
+        }
+        self._store(device, op, digest, OperationStatus.REJECTED, {"error": error}, existing)
+        return OperationResultDto(id=op.id, status="REJECTED", error=error)
 
     def _store(
         self,

@@ -178,6 +178,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # The data steps below need the system scope under FORCE row-level security (adr8fix01 explains the upgrade's).
+    op.execute("SELECT set_config('app.scope', 'system', true)")
     _without_trigger("machine_report", "trg_machine_report_guard", "DELETE FROM machine_report WHERE opening")
     op.drop_constraint("ck_machine_report_range", "machine_report", type_="check")
     op.create_check_constraint(

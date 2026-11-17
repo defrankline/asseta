@@ -2,9 +2,9 @@
 
 import uuid
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, WithJsonSchema
 
 from asseta.modules.customers.dto import CustomerDto
 from asseta.modules.expenses.dto import ExpenseCategoryDto, ExpenseDto, FuelEventDto
@@ -291,9 +291,17 @@ OpType = Literal[
 ]
 
 
+OP_TYPES: frozenset[str] = frozenset(get_args(OpType))
+# Operation types of app versions before ADR-008 (jobs, work log, site check-ins). Phones that still queue them get
+# each one REJECTED (OPERATION_RETIRED) and the rest of their batch applied, never a failed push.
+RETIRED_OP_TYPES = frozenset({"JOB_ACTIVITY", "JOB_ACKNOWLEDGEMENT", "JOB_TRANSITION", "JOB_REQUEST", "SITE_CHECKIN"})
+
+
 class OperationIn(BaseModel):
     id: uuid.UUID = Field(description="Device-generated operation id (idempotency key)")
-    op_type: OpType
+    # The contract names the supported types (OpType); any other string is accepted here so that one retired or
+    # unknown operation is refused on its own (push.py) instead of failing the whole batch with a 422.
+    op_type: Annotated[str, WithJsonSchema({"enum": list(get_args(OpType)), "type": "string"})] = Field(max_length=40)
     created_at_device: datetime
     depends_on: list[uuid.UUID] = Field(default_factory=list, max_length=20)
     payload: dict[str, Any]
