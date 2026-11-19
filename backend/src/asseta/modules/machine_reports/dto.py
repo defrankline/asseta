@@ -1,4 +1,5 @@
-"""Machine report DTOs (ADR-008 §2). Hours are decimal strings with the machine's meter precision (one decimal)."""
+"""Machine report DTOs (ADR-008 §2). Hours are decimal strings: readings and differences in the machine's meter
+precision, report lines with at most 2 decimals."""
 
 import uuid
 from datetime import date, datetime
@@ -11,7 +12,8 @@ from asseta.modules.machine_reports.models import MachineReportStatus, ReportLin
 from asseta.modules.meter.dto import FindingDto, MeterCaptureIn
 from asseta.modules.platform_billing.dto import Reason
 
-LineHours = Annotated[Decimal, Field(gt=0, max_digits=14, decimal_places=2)]
+# At most 2 decimals (checked by the service: HOURS_PRECISION), whatever the meter's precision.
+LineHours = Annotated[Decimal, Field(gt=0, max_digits=14)]
 Note = Annotated[str, StringConstraints(min_length=1, max_length=1000, strip_whitespace=True)]
 
 
@@ -45,7 +47,9 @@ class MachineReportLineIn(BaseModel):
 class MachineReportIn(BaseModel):
     """A machine report: the new reading and how its hours split. Give the new reading as `capture` (a DAILY meter
     reading of this machine: photo, OCR, GPS, time, exactly as POST /meter-captures) or as `capture_id` (a reading
-    already recorded, e.g. the reading of a rejected report being corrected, then with `corrects_report_id`). The
+    recorded just before, e.g. by the sync operation METER_CAPTURE). A reading belongs to one report only
+    (CAPTURE_ALREADY_USED). A rejected report is final: `corrects_report_id` is kept for older apps but any value is
+    refused (CORRECTION_NOT_ALLOWED); send a new report with a new reading. Line hours have at most 2 decimals. The
     lines must add up to the difference between the machine's last approved reading and the new one exactly.
 
     Opening report (`opening: true`, `lines: []`): when the machine has no starting reading yet (no approved report,
@@ -59,7 +63,9 @@ class MachineReportIn(BaseModel):
     capture: MeterCaptureIn | None = None
     capture_id: uuid.UUID | None = None
     corrects_report_id: uuid.UUID | None = Field(
-        default=None, description="The REJECTED report this one corrects (same reading)"
+        default=None,
+        description="Retired: a rejected report is final. Any value is refused (CORRECTION_NOT_ALLOWED); send a new "
+        "report with a new reading",
     )
     opening: bool = Field(
         default=False, description="An opening report: the machine's first reading, no lines (difference 0)"
@@ -149,8 +155,43 @@ class MachineReportDto(BaseModel):
     customer_hours: Decimal
     non_productive_hours: Decimal
     status: MachineReportStatus
-    corrects_id: uuid.UUID | None
-    corrected_by_id: uuid.UUID | None = Field(default=None, description="The report that corrected this rejected one")
+    previous_visit_at: datetime | None = Field(
+        default=None,
+        description="Taken-at time of the machine's previous visit: the latest earlier reading that belongs to any "
+        "machine report (any status). Null: first visit",
+    )
+    since_previous_visit_seconds: int | None = Field(
+        default=None,
+        description="This report's reading taken-at time minus previous_visit_at, in seconds (server-computed at "
+        "submit, never changed). Null: first visit",
+    )
+    previous_visit_lat: float | None = Field(default=None, description="The previous visit's reading GPS latitude")
+    previous_visit_lng: float | None = Field(default=None, description="The previous visit's reading GPS longitude")
+    previous_visit_accuracy_m: float | None = Field(default=None, description="Its GPS accuracy (metres)")
+    previous_visit_place: str | None = Field(
+        default=None,
+        description="The previous visit's place: the area label the phone's geocoder gave its reading, or null",
+    )
+    previous_visit_site_name: str | None = Field(
+        default=None, description="Hint: the company site whose area contains the previous visit's GPS point, or null"
+    )
+    visit_lat: float | None = Field(default=None, description="This report's reading GPS latitude")
+    visit_lng: float | None = Field(default=None, description="This report's reading GPS longitude")
+    visit_accuracy_m: float | None = Field(default=None, description="Its GPS accuracy (metres)")
+    visit_place: str | None = Field(
+        default=None,
+        description="This report's place: the area label the phone's geocoder gave its reading (meter capture "
+        "place_name), or null",
+    )
+    visit_site_name: str | None = Field(
+        default=None,
+        description="Hint: the company site (geofence) containing this reading's GPS point, nearest site first; null "
+        "when none (server lookup, no outside geocoding)",
+    )
+    corrects_id: uuid.UUID | None = Field(description="History only (reports made before rejections became final)")
+    corrected_by_id: uuid.UUID | None = Field(
+        default=None, description="History only: the report that corrected this rejected one (older reports)"
+    )
     note: str | None
     source: str
     submitted_by: uuid.UUID | None
@@ -215,6 +256,20 @@ class MachineReportContextDto(BaseModel):
     meter_epoch: int
     pending_report_id: uuid.UUID | None = Field(description="A SUBMITTED report holds the machine: the next waits")
     last_report_at: datetime | None
+    last_visit_at: datetime | None = Field(
+        default=None,
+        description="The machine's last visit: taken-at time of the latest reading that belongs to any of its machine "
+        "reports (any status). Null: never visited (first visit)",
+    )
+    last_visit_lat: float | None = Field(default=None, description="The last visit's reading GPS latitude")
+    last_visit_lng: float | None = Field(default=None, description="The last visit's reading GPS longitude")
+    last_visit_accuracy_m: float | None = Field(default=None, description="Its GPS accuracy (metres)")
+    last_visit_place: str | None = Field(
+        default=None, description="The last visit's place: the area label the phone's geocoder gave its reading"
+    )
+    last_visit_site_name: str | None = Field(
+        default=None, description="Hint: the company site whose area contains the last visit's GPS point, or null"
+    )
     hours_scope: Literal["CUSTOMER", "MACHINE"]
     customers: list[AvailableHoursDto]
     reasons: list[MachineReportReasonDto]
@@ -239,11 +294,25 @@ class MachineReportStatusDto(BaseModel):
     last_approved_reading: Decimal | None
     last_approved_at: datetime | None
     last_report_at: datetime | None
+    last_visit_at: datetime | None = Field(
+        default=None,
+        description="The machine's last visit: taken-at time of the latest reading that belongs to any of its machine "
+        "reports (any status). Null: never visited",
+    )
+    last_visit_lat: float | None = Field(default=None, description="The last visit's reading GPS latitude")
+    last_visit_lng: float | None = Field(default=None, description="The last visit's reading GPS longitude")
+    last_visit_accuracy_m: float | None = Field(default=None, description="Its GPS accuracy (metres)")
+    last_visit_place: str | None = Field(
+        default=None, description="The last visit's place: the area label the phone's geocoder gave its reading"
+    )
+    last_visit_site_name: str | None = Field(
+        default=None, description="Hint: the company site whose area contains the last visit's GPS point, or null"
+    )
     days_since_report: int | None
     pending_report_id: uuid.UUID | None
     pending_report_number: str | None
     rejected_report_id: uuid.UUID | None = Field(
-        description="The machine's latest report was rejected and not yet corrected"
+        description="The machine's latest report was rejected: a new report (with a new reading) is due"
     )
 
 

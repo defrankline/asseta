@@ -126,8 +126,11 @@ REPORT_CONFLICT_CODES = frozenset(
         "REASON_NOT_FOUND",
         "CUSTOMER_NOT_FOUND",
         "CAPTURE_REJECTED",
-        "CAPTURE_ALREADY_REPORTED",
-        "CORRECTS_INVALID",
+        "CAPTURE_ALREADY_REPORTED",  # older servers
+        "CAPTURE_ALREADY_USED",
+        "CORRECTS_INVALID",  # older servers
+        # An older app's correction of a rejected report: kept for review (the split it carries is not lost).
+        "CORRECTION_NOT_ALLOWED",
     }
 )
 

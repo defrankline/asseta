@@ -116,7 +116,10 @@ def test_machine_reports_sync_offline_and_refusals_are_kept_for_review(api: Api)
         api,
         "MACHINE_REPORT",
         _report(
-            m, "1006", api.clock.now, [idle(ctx.reasons["IDLE_ON_SITE"], "1.25"), idle(ctx.reasons["TRANSIT"], "0.75")]
+            m,
+            "1006",
+            api.clock.now,
+            [idle(ctx.reasons["IDLE_ON_SITE"], "1.255"), idle(ctx.reasons["TRANSIT"], "0.745")],
         ),
     )
     [rej] = _push(api, f.supervisor, bad)
@@ -130,6 +133,45 @@ def test_machine_reports_sync_offline_and_refusals_are_kept_for_review(api: Api)
     assert [r["status"] for r in changes["data"]["my_machine_reports"]] == ["APPROVED"]
     assert Decimal(changes["data"]["machine_report_states"][0]["previous_reading"]) == 1004
     assert Decimal(changes["data"]["machine_report_hours"][0]["available"]) == 2
+
+
+def test_an_older_apps_correction_and_a_reused_reading_are_kept_for_review(api: Api) -> None:
+    """A rejected report is final: an older app's correction (corrects_report_id, same reading) and a report on a
+    reading another report used are refused, kept as conflicts with their payload (never lost)."""
+    ctx = setup_reports(api)
+    f, m = ctx.f, ctx.machine_id
+    bought(api, f, 5)
+    _register(api, f.supervisor)
+    first = _op(api, "MACHINE_REPORT", _report(m, "1004", later(api, 4), [cust(f.customer_id, 4)]))
+    [res] = _push(api, f.supervisor, first)
+    report = res["result"]["entity"]
+    ok(f.manager.post(f"{T}/machine-reports/{report['id']}/reject", {"reason": "One hour was transit"}))
+    lines = [cust(f.customer_id, 3), idle(ctx.reasons["TRANSIT"], 1)]
+    fix_op = _op(
+        api,
+        "MACHINE_REPORT",
+        {"machine_id": m, "capture_id": report["capture_id"], "corrects_report_id": report["id"], "lines": lines},
+    )
+    [held] = _push(api, f.supervisor, fix_op)
+    assert held["status"] == "CONFLICT" and held["error"]["code"] == "CORRECTION_NOT_ALLOWED", held
+    reuse = _op(api, "MACHINE_REPORT", {"machine_id": m, "capture_id": report["capture_id"], "lines": lines})
+    [held] = _push(api, f.supervisor, reuse)
+    assert held["status"] == "CONFLICT" and held["error"]["code"] == "CAPTURE_ALREADY_USED", held
+    # The phone's area label travels with the reading (METER_CAPTURE) and becomes the next report's previous place.
+    capture = reading(m, "1005", later(api, 1))
+    capture["place_name"] = "Mbezi Beach, Kinondoni, Dar es Salaam"
+    [acked] = _push(api, f.supervisor, _op(api, "METER_CAPTURE", capture, op_id=capture["id"]))
+    assert acked["status"] == "ACKED", acked
+    new = _op(
+        api,
+        "MACHINE_REPORT",
+        {"machine_id": m, "capture_id": capture["id"], "lines": [*lines[:1], idle(ctx.reasons["TRANSIT"], 2)]},
+    )
+    [res] = _push(api, f.supervisor, new)
+    assert res["status"] == "ACKED", res
+    entity = res["result"]["entity"]
+    assert entity["visit_place"] == "Mbezi Beach, Kinondoni, Dar es Salaam" and entity["previous_visit_at"]
+    assert entity["since_previous_visit_seconds"] == 3600
 
 
 def test_a_supervisor_without_the_machine_gets_a_conflict(api: Api) -> None:

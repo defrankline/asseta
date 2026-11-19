@@ -49,6 +49,12 @@ class MeterCaptureIn(BaseModel):
     ocr_engine: str | None = Field(default=None, max_length=64)
     photo_attachment_id: uuid.UUID | None = None
     gps: GpsIn
+    place_name: str | None = Field(
+        default=None,
+        max_length=200,
+        description="Optional area label from the phone's geocoder for the GPS point (e.g. 'Mbezi Beach, Kinondoni, "
+        "Dar es Salaam'); stored as given, a label and not evidence. Null: offline or no result",
+    )
     device_id: str = Field(min_length=3, max_length=128)
     captured_at: datetime
     policy_version_ids: list[uuid.UUID] = Field(
@@ -80,6 +86,7 @@ class MeterCaptureDto(Dto):
     longitude: float | None
     accuracy_m: float | None
     location_captured_at: datetime | None
+    place_name: str | None = None
     captured_at: datetime
     received_at: datetime
     policy_version: str

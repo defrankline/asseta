@@ -19807,6 +19807,79 @@
             ],
             "title": "Last Report At"
           },
+          "last_visit_accuracy_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its GPS accuracy (metres)",
+            "title": "Last Visit Accuracy M"
+          },
+          "last_visit_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The machine's last visit: taken-at time of the latest reading that belongs to any of its machine reports (any status). Null: never visited (first visit)",
+            "title": "Last Visit At"
+          },
+          "last_visit_lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last visit's reading GPS latitude",
+            "title": "Last Visit Lat"
+          },
+          "last_visit_lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last visit's reading GPS longitude",
+            "title": "Last Visit Lng"
+          },
+          "last_visit_place": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last visit's place: the area label the phone's geocoder gave its reading",
+            "title": "Last Visit Place"
+          },
+          "last_visit_site_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hint: the company site whose area contains the last visit's GPS point, or null",
+            "title": "Last Visit Site Name"
+          },
           "machine_code": {
             "anyOf": [
               {
@@ -19977,7 +20050,7 @@
                 "type": "null"
               }
             ],
-            "description": "The report that corrected this rejected one",
+            "description": "History only: the report that corrected this rejected one (older reports)",
             "title": "Corrected By Id"
           },
           "corrects_id": {
@@ -19990,6 +20063,7 @@
                 "type": "null"
               }
             ],
+            "description": "History only (reports made before rejections became final)",
             "title": "Corrects Id"
           },
           "customer_hours": {
@@ -20140,9 +20214,94 @@
             "title": "Policy Version",
             "type": "string"
           },
+          "previous_visit_accuracy_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its GPS accuracy (metres)",
+            "title": "Previous Visit Accuracy M"
+          },
+          "previous_visit_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Taken-at time of the machine's previous visit: the latest earlier reading that belongs to any machine report (any status). Null: first visit",
+            "title": "Previous Visit At"
+          },
+          "previous_visit_lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The previous visit's reading GPS latitude",
+            "title": "Previous Visit Lat"
+          },
+          "previous_visit_lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The previous visit's reading GPS longitude",
+            "title": "Previous Visit Lng"
+          },
+          "previous_visit_place": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The previous visit's place: the area label the phone's geocoder gave its reading, or null",
+            "title": "Previous Visit Place"
+          },
+          "previous_visit_site_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hint: the company site whose area contains the previous visit's GPS point, or null",
+            "title": "Previous Visit Site Name"
+          },
           "report_number": {
             "title": "Report Number",
             "type": "string"
+          },
+          "since_previous_visit_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This report's reading taken-at time minus previous_visit_at, in seconds (server-computed at submit, never changed). Null: first visit",
+            "title": "Since Previous Visit Seconds"
           },
           "source": {
             "title": "Source",
@@ -20206,6 +20365,66 @@
               }
             ],
             "description": "Detail only: tracker cross-check"
+          },
+          "visit_accuracy_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its GPS accuracy (metres)",
+            "title": "Visit Accuracy M"
+          },
+          "visit_lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This report's reading GPS latitude",
+            "title": "Visit Lat"
+          },
+          "visit_lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This report's reading GPS longitude",
+            "title": "Visit Lng"
+          },
+          "visit_place": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This report's place: the area label the phone's geocoder gave its reading (meter capture place_name), or null",
+            "title": "Visit Place"
+          },
+          "visit_site_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hint: the company site (geofence) containing this reading's GPS point, nearest site first; null when none (server lookup, no outside geocoding)",
+            "title": "Visit Site Name"
           }
         },
         "required": [
@@ -20238,7 +20457,7 @@
         "type": "object"
       },
       "MachineReportIn": {
-        "description": "A machine report: the new reading and how its hours split. Give the new reading as `capture` (a DAILY meter\nreading of this machine: photo, OCR, GPS, time, exactly as POST /meter-captures) or as `capture_id` (a reading\nalready recorded, e.g. the reading of a rejected report being corrected, then with `corrects_report_id`). The\nlines must add up to the difference between the machine's last approved reading and the new one exactly.\n\nOpening report (`opening: true`, `lines: []`): when the machine has no starting reading yet (no approved report,\nbaseline or reset; `opening_required` in its status), the first report gives only the reading. It is approved like\nany report and its reading then becomes where the next report starts.",
+        "description": "A machine report: the new reading and how its hours split. Give the new reading as `capture` (a DAILY meter\nreading of this machine: photo, OCR, GPS, time, exactly as POST /meter-captures) or as `capture_id` (a reading\nrecorded just before, e.g. by the sync operation METER_CAPTURE). A reading belongs to one report only\n(CAPTURE_ALREADY_USED). A rejected report is final: `corrects_report_id` is kept for older apps but any value is\nrefused (CORRECTION_NOT_ALLOWED); send a new report with a new reading. Line hours have at most 2 decimals. The\nlines must add up to the difference between the machine's last approved reading and the new one exactly.\n\nOpening report (`opening: true`, `lines: []`): when the machine has no starting reading yet (no approved report,\nbaseline or reset; `opening_required` in its status), the first report gives only the reading. It is approved like\nany report and its reading then becomes where the next report starts.",
         "properties": {
           "capture": {
             "anyOf": [
@@ -20285,7 +20504,7 @@
                 "type": "null"
               }
             ],
-            "description": "The REJECTED report this one corrects (same reading)",
+            "description": "Retired: a rejected report is final. Any value is refused (CORRECTION_NOT_ALLOWED); send a new report with a new reading",
             "title": "Corrects Report Id"
           },
           "id": {
@@ -20675,6 +20894,79 @@
             ],
             "title": "Last Report At"
           },
+          "last_visit_accuracy_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its GPS accuracy (metres)",
+            "title": "Last Visit Accuracy M"
+          },
+          "last_visit_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The machine's last visit: taken-at time of the latest reading that belongs to any of its machine reports (any status). Null: never visited",
+            "title": "Last Visit At"
+          },
+          "last_visit_lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last visit's reading GPS latitude",
+            "title": "Last Visit Lat"
+          },
+          "last_visit_lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last visit's reading GPS longitude",
+            "title": "Last Visit Lng"
+          },
+          "last_visit_place": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last visit's place: the area label the phone's geocoder gave its reading",
+            "title": "Last Visit Place"
+          },
+          "last_visit_site_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hint: the company site whose area contains the last visit's GPS point, or null",
+            "title": "Last Visit Site Name"
+          },
           "machine_code": {
             "anyOf": [
               {
@@ -20780,7 +21072,7 @@
                 "type": "null"
               }
             ],
-            "description": "The machine's latest report was rejected and not yet corrected",
+            "description": "The machine's latest report was rejected: a new report (with a new reading) is due",
             "title": "Rejected Report Id"
           }
         },
@@ -21980,6 +22272,17 @@
             ],
             "title": "Photo Sha256"
           },
+          "place_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place Name"
+          },
           "policy_version": {
             "title": "Policy Version",
             "type": "string"
@@ -22152,6 +22455,19 @@
               }
             ],
             "title": "Photo Attachment Id"
+          },
+          "place_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional area label from the phone's geocoder for the GPS point (e.g. 'Mbezi Beach, Kinondoni, Dar es Salaam'); stored as given, a label and not evidence. Null: offline or no result",
+            "title": "Place Name"
           },
           "policy_version_ids": {
             "description": "METER_CAPTURE snapshot the device enforced offline",
@@ -37027,6 +37343,17 @@
               }
             ],
             "title": "Photo Sha256"
+          },
+          "place_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place Name"
           },
           "policy_version": {
             "title": "Policy Version",
@@ -98553,7 +98880,7 @@
     },
     "/api/v1/tenant/machine-reports/{report_id}/reject": {
       "post": {
-        "description": "Reject with a reason (never your own): the reservation is released; the supervisor corrects the split on the\nsame reading (a new report with corrects_report_id).",
+        "description": "Reject with a reason (never your own): the reservation is released. The rejection is final: the report stays as\na record and the supervisor sends a new report with a new reading.",
         "operationId": "rejectMachineReport",
         "parameters": [
           {

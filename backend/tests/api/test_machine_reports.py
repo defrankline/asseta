@@ -7,9 +7,13 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 
+import pytest
+from sqlalchemy.exc import DBAPIError
+
 from asseta.modules.machine_reports.reasons import DEFAULT_REASONS
 from tests.support.api import Api
 from tests.support.finance import role, tenant_sql
+from tests.support.hours import hours_policy
 from tests.support.machine_reports import (
     ReportCtx,
     T,
@@ -28,7 +32,9 @@ from tests.support.machine_reports import (
     setup_reports,
     submit,
 )
+from tests.support.meter import fix
 from tests.support.notify import drain, member, sql
+from tests.support.telemetry import DAR
 
 DEVICE = "android-machine-report-01"
 
@@ -55,9 +61,10 @@ def test_lines_must_add_up_to_the_meter_difference(api: Api) -> None:
     assert "4.0" in r.json()["error"]["message"] or "4" in r.json()["error"]["message"]
     r = f.supervisor.post(
         f"{T}/machine-reports",
-        report_body(m, "1005.0", at, [cust(f.customer_id, "4.25"), idle(ctx.reasons["TRANSIT"], "0.75")]),
+        report_body(m, "1005.0", at, [cust(f.customer_id, "4.255"), idle(ctx.reasons["TRANSIT"], "0.745")]),
     )
     assert r.status_code == 422 and code(r) == "HOURS_PRECISION", r.text
+    assert "at most 2 decimals" in r.json()["error"]["message"]
     # Nothing was kept from the refused reports (not even the reading).
     assert tenant_sql(f.tid, "SELECT count(*) FROM meter_capture WHERE kind = 'DAILY'")[0][0] == 0
 
@@ -274,7 +281,30 @@ def test_the_person_who_submitted_a_report_never_decides_it(api: Api) -> None:
     assert code(r) == "REPORT_NOT_PENDING", r.text
 
 
-def test_rejection_releases_the_reservation_and_the_same_reading_is_reported_again(api: Api) -> None:
+def test_split_lines_take_hundredths_whatever_the_meter_precision(api: Api) -> None:
+    """Customers' hours are kept with 2 decimals: a customer with 1.15 h gets exactly 1.15 h of a 1-decimal meter's
+    difference (no 0.05 h stranded); the reading and the difference keep the meter's precision."""
+    ctx = setup_reports(api)
+    f, m = ctx.f, ctx.machine_id
+    bought(api, f, 2)
+    lines = [cust(f.customer_id, "0.85"), idle(ctx.reasons["TRANSIT"], "0.05")]
+    rep = submit(f.supervisor, report_body(m, "1000.9", later(api, 1), lines))
+    assert Decimal(rep["lines"][0]["hours"]) == Decimal("0.85") and Decimal(rep["hours"]) == Decimal("0.9")
+    ok(f.manager.post(f"{T}/machine-reports/{rep['id']}/approve", {}))
+    assert _available(ctx, f.customer_id) == Decimal("1.15")
+    # The whole 1.15 h left go to the customer; the lines still add up to the difference exactly.
+    at = later(api, 2)
+    over = [cust(f.customer_id, "1.16"), idle(ctx.reasons["TRANSIT"], "0.84")]
+    r = f.supervisor.post(f"{T}/machine-reports", report_body(m, "1002.9", at, over))
+    assert code(r) == "HOURS_NOT_AVAILABLE", r.text
+    short = [cust(f.customer_id, "1.15"), idle(ctx.reasons["TRANSIT"], "0.84")]
+    assert code(f.supervisor.post(f"{T}/machine-reports", report_body(m, "1002.9", at, short))) == "REPORT_SUM_MISMATCH"
+    exact = [cust(f.customer_id, "1.15"), idle(ctx.reasons["TRANSIT"], "0.85")]
+    done = submit(f.supervisor, report_body(m, "1002.9", at, exact))
+    assert Decimal(done["hours"]) == 2 and Decimal(done["customer_hours"]) == Decimal("1.15")
+
+
+def test_a_rejected_report_is_final_and_a_new_report_needs_a_new_reading(api: Api) -> None:
     ctx = setup_reports(api)
     f, m = ctx.f, ctx.machine_id
     bought(api, f, 5)
@@ -287,21 +317,118 @@ def test_rejection_releases_the_reservation_and_the_same_reading_is_reported_aga
     status = ok(f.supervisor.get(f"{T}/machine-reports/status"))[0]
     assert status["rejected_report_id"] == first["id"] and status["pending_report_id"] is None
 
-    # The same reading again, corrected; a new reading for the same hours is not needed.
+    # No correction: corrects_report_id is refused whatever it names, and the rejected report's reading is used.
     lines = [cust(f.customer_id, 3), idle(ctx.reasons["TRANSIT"], 1, "Moved to the second site")]
     again = report_body(m, None, None, lines, capture_id=first["capture_id"], corrects_report_id=first["id"])
-    fixed = submit(f.supervisor, again)
-    assert fixed["capture_id"] == first["capture_id"] and fixed["corrects_id"] == first["id"]
-    assert Decimal(fixed["start_reading"]) == 1000 and Decimal(fixed["hours"]) == 4
-    assert ok(f.supervisor.get(f"{T}/machine-reports/{first['id']}"))["corrected_by_id"] == fixed["id"]
-    # One live report per reading: the waiting one first, then the approved one.
-    dup = report_body(m, None, None, lines, capture_id=first["capture_id"])
-    r = f.owner.post(f"{T}/machine-reports", dup)
-    assert code(r) == "REPORT_PENDING", r.text
-    bad = report_body(m, None, None, lines, capture_id=first["capture_id"], corrects_report_id=fixed["id"])
-    assert code(f.supervisor.post(f"{T}/machine-reports", bad)) == "REPORT_PENDING"
-    ok(f.manager.post(f"{T}/machine-reports/{fixed['id']}/approve", {}))
-    assert code(f.manager.post(f"{T}/machine-reports", dup)) == "CAPTURE_ALREADY_REPORTED"
+    r = f.supervisor.post(f"{T}/machine-reports", again)
+    assert r.status_code == 422 and code(r) == "CORRECTION_NOT_ALLOWED", r.text
+    assert r.json()["error"]["message"] == "A rejected report can't be corrected; send a new report with a new reading."
+    new_lines = [cust(f.customer_id, 3), idle(ctx.reasons["TRANSIT"], 2)]
+    fresh = report_body(m, "1005", later(api, 1), new_lines, corrects_report_id=first["id"])
+    assert code(f.supervisor.post(f"{T}/machine-reports", fresh)) == "CORRECTION_NOT_ALLOWED"
+    r = f.supervisor.post(f"{T}/machine-reports", report_body(m, None, None, lines, capture_id=first["capture_id"]))
+    assert r.status_code == 422 and code(r) == "CAPTURE_ALREADY_USED", r.text
+    # The rejected report stays as it was (a record).
+    kept = ok(f.supervisor.get(f"{T}/machine-reports/{first['id']}"))
+    assert kept["status"] == "REJECTED" and kept["corrected_by_id"] is None and len(kept["lines"]) == 1
+
+    # A brand-new report with a new reading, from the last APPROVED reading (the baseline).
+    new = submit(f.supervisor, report_body(m, "1005", later(api, 1), new_lines))
+    assert new["corrects_id"] is None and new["capture_id"] != first["capture_id"]
+    assert Decimal(new["start_reading"]) == 1000 and Decimal(new["hours"]) == 5
+    ok(f.manager.post(f"{T}/machine-reports/{new['id']}/approve", {}))
+    r = f.manager.post(f"{T}/machine-reports", report_body(m, None, None, lines, capture_id=new["capture_id"]))
+    assert code(r) == "CAPTURE_ALREADY_USED"
+
+
+def _yard(f: Any) -> None:
+    """The company's yard: a job site with a site-boundary geofence around DAR (about 1 km each way)."""
+    centre = {"type": "Point", "coordinates": [DAR[1], DAR[0]]}
+    site = ok(f.owner.post(f"{T}/job-sites", {"code": "YARD", "name": "Kigamboni yard", "center": centre}), 201)
+    corners = ((-0.01, -0.01), (0.01, -0.01), (0.01, 0.01), (-0.01, 0.01), (-0.01, -0.01))
+    ring = [[DAR[1] + dx, DAR[0] + dy] for dx, dy in corners]
+    fence = {
+        "name": "Yard fence",
+        "kind": "SITE_BOUNDARY",
+        "job_site_id": site["id"],
+        "polygon": {"type": "Polygon", "coordinates": [ring]},
+    }
+    ok(f.owner.post(f"{T}/geofences", fence), 201)
+
+
+def test_time_and_place_since_the_last_visit_are_recorded(api: Api) -> None:
+    """Last visit = the latest earlier reading of the machine that belongs to any report (a rejected one counts), by
+    the reading's taken-at time; the first report has none. Its place is the phone's area label for the reading; the
+    company site containing the point is a hint (null outside every site)."""
+    ctx = setup_reports(api)
+    f, m = ctx.f, ctx.machine_id
+    bought(api, f, 20)
+    _yard(f)
+    before = ok(f.supervisor.get(f"{T}/machine-reports/context/{m}"))
+    assert before["last_visit_at"] is None and before["last_visit_place"] is None
+
+    first_at = later(api, 3)
+    body = report_body(m, "1003", first_at, [cust(f.customer_id, 3)])
+    body["capture"]["place_name"] = "Mbezi Beach, Kinondoni, Dar es Salaam"
+    first = submit(f.supervisor, body)
+    assert first["previous_visit_at"] is None and first["since_previous_visit_seconds"] is None
+    assert first["visit_place"] == "Mbezi Beach, Kinondoni, Dar es Salaam"
+    assert first["visit_site_name"] == "Kigamboni yard" and first["visit_lat"] == DAR[0]
+    ok(f.manager.post(f"{T}/machine-reports/{first['id']}/reject", {"reason": "Wrong customer"}))
+
+    context = ok(f.supervisor.get(f"{T}/machine-reports/context/{m}"))
+    assert context["last_visit_at"] is not None and context["last_visit_site_name"] == "Kigamboni yard"
+    assert context["last_visit_place"] == "Mbezi Beach, Kinondoni, Dar es Salaam"
+    assert context["last_visit_lat"] == DAR[0] and context["last_visit_accuracy_m"] == 8.0
+    state = ok(f.supervisor.get(f"{T}/machine-reports/status"))[0]
+    assert state["last_visit_at"] == context["last_visit_at"] and state["last_visit_site_name"] == "Kigamboni yard"
+
+    # 27 h 30 min later, outside the yard, no area label: the rejected report's reading is the last visit.
+    second_at = later(api, 27.5)
+    body = report_body(m, "1005", second_at, [cust(f.customer_id, 5)])
+    body["capture"]["gps"] = fix(second_at, lat=DAR[0] + 0.5, lon=DAR[1] + 0.5)
+    second = submit(f.supervisor, body)
+    assert second["since_previous_visit_seconds"] == int(27.5 * 3600)
+    assert second["previous_visit_at"] == context["last_visit_at"]
+    assert second["previous_visit_place"] == "Mbezi Beach, Kinondoni, Dar es Salaam"
+    assert second["previous_visit_site_name"] == "Kigamboni yard" and second["previous_visit_lat"] == DAR[0]
+    assert second["visit_place"] is None and second["visit_site_name"] is None
+    assert second["visit_lat"] == DAR[0] + 0.5
+    listed = ok(f.owner.get(f"{T}/machine-reports", queue="PENDING"))["items"][0]
+    assert listed["since_previous_visit_seconds"] == int(27.5 * 3600)
+
+    # Never changed afterwards: the report's guard refuses it.
+    with pytest.raises(DBAPIError):
+        tenant_sql(f.tid, "UPDATE machine_report SET since_previous_visit_seconds = 60 WHERE id = :i", i=second["id"])
+    assert ok(f.owner.get(f"{T}/machine-reports/{second['id']}"))["since_previous_visit_seconds"] == int(27.5 * 3600)
+
+
+def test_a_reading_carries_an_optional_area_label(api: Api) -> None:
+    ctx = setup_reports(api)
+    f, m = ctx.f, ctx.machine_id
+    at = later(api, 1)
+    labelled = reading(m, "1001", at)
+    labelled["place_name"] = "  Mbezi Beach, Kinondoni, Dar es Salaam  "
+    saved = ok(f.supervisor.post(f"{T}/meter-captures", labelled), 201)
+    assert saved["capture"]["place_name"] == "Mbezi Beach, Kinondoni, Dar es Salaam"
+    too_long = reading(m, "1002", later(api, 1))
+    too_long["place_name"] = "x" * 201
+    r = f.supervisor.post(f"{T}/meter-captures", too_long)
+    assert r.status_code == 422 and code(r) == "VALIDATION_FAILED", r.text
+    # Older apps send no label at all.
+    plain = ok(f.supervisor.post(f"{T}/meter-captures", reading(m, "1002", later(api, 1))), 201)
+    assert plain["capture"]["place_name"] is None
+
+
+def test_the_visit_gap_warning_is_a_company_setting(api: Api) -> None:
+    ctx = setup_reports(api)
+    effective = ok(ctx.f.owner.get(f"{T}/policies/CUSTOMER_HOURS/effective"))
+    assert effective["values"]["visit_gap_warning_hours"] == 24
+    hours_policy(ctx.f, visit_gap_warning_hours=36)
+    effective = ok(ctx.f.owner.get(f"{T}/policies/CUSTOMER_HOURS/effective"))
+    assert effective["values"]["visit_gap_warning_hours"] == 36
+    hours_policy(ctx.f, visit_gap_warning_hours=None)
+    assert ok(ctx.f.owner.get(f"{T}/policies/CUSTOMER_HOURS/effective"))["values"]["visit_gap_warning_hours"] is None
 
 
 def test_approval_consumes_the_oldest_orders_first_and_writes_both_ledgers(api: Api) -> None:

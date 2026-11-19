@@ -5586,8 +5586,8 @@ export interface paths {
         put?: never;
         /**
          * Reject Report
-         * @description Reject with a reason (never your own): the reservation is released; the supervisor corrects the split on the
-         *     same reading (a new report with corrects_report_id).
+         * @description Reject with a reason (never your own): the reservation is released. The rejection is final: the report stays as
+         *     a record and the supervisor sends a new report with a new reading.
          */
         post: operations["rejectMachineReport"];
         delete?: never;
@@ -15021,6 +15021,36 @@ export interface components {
             hours_scope: "CUSTOMER" | "MACHINE";
             /** Last Report At */
             last_report_at: string | null;
+            /**
+             * Last Visit Accuracy M
+             * @description Its GPS accuracy (metres)
+             */
+            last_visit_accuracy_m?: number | null;
+            /**
+             * Last Visit At
+             * @description The machine's last visit: taken-at time of the latest reading that belongs to any of its machine reports (any status). Null: never visited (first visit)
+             */
+            last_visit_at?: string | null;
+            /**
+             * Last Visit Lat
+             * @description The last visit's reading GPS latitude
+             */
+            last_visit_lat?: number | null;
+            /**
+             * Last Visit Lng
+             * @description The last visit's reading GPS longitude
+             */
+            last_visit_lng?: number | null;
+            /**
+             * Last Visit Place
+             * @description The last visit's place: the area label the phone's geocoder gave its reading
+             */
+            last_visit_place?: string | null;
+            /**
+             * Last Visit Site Name
+             * @description Hint: the company site whose area contains the last visit's GPS point, or null
+             */
+            last_visit_site_name?: string | null;
             /** Machine Code */
             machine_code?: string | null;
             /**
@@ -15074,10 +15104,13 @@ export interface components {
             client_created_at: string | null;
             /**
              * Corrected By Id
-             * @description The report that corrected this rejected one
+             * @description History only: the report that corrected this rejected one (older reports)
              */
             corrected_by_id?: string | null;
-            /** Corrects Id */
+            /**
+             * Corrects Id
+             * @description History only (reports made before rejections became final)
+             */
             corrects_id: string | null;
             /** Customer Hours */
             customer_hours: string;
@@ -15136,8 +15169,43 @@ export interface components {
             photo_attachment_id?: string | null;
             /** Policy Version */
             policy_version: string;
+            /**
+             * Previous Visit Accuracy M
+             * @description Its GPS accuracy (metres)
+             */
+            previous_visit_accuracy_m?: number | null;
+            /**
+             * Previous Visit At
+             * @description Taken-at time of the machine's previous visit: the latest earlier reading that belongs to any machine report (any status). Null: first visit
+             */
+            previous_visit_at?: string | null;
+            /**
+             * Previous Visit Lat
+             * @description The previous visit's reading GPS latitude
+             */
+            previous_visit_lat?: number | null;
+            /**
+             * Previous Visit Lng
+             * @description The previous visit's reading GPS longitude
+             */
+            previous_visit_lng?: number | null;
+            /**
+             * Previous Visit Place
+             * @description The previous visit's place: the area label the phone's geocoder gave its reading, or null
+             */
+            previous_visit_place?: string | null;
+            /**
+             * Previous Visit Site Name
+             * @description Hint: the company site whose area contains the previous visit's GPS point, or null
+             */
+            previous_visit_site_name?: string | null;
             /** Report Number */
             report_number: string;
+            /**
+             * Since Previous Visit Seconds
+             * @description This report's reading taken-at time minus previous_visit_at, in seconds (server-computed at submit, never changed). Null: first visit
+             */
+            since_previous_visit_seconds?: number | null;
             /** Source */
             source: string;
             /**
@@ -15165,12 +15233,39 @@ export interface components {
             submitted_by_name?: string | null;
             /** @description Detail only: tracker cross-check */
             tracker?: components["schemas"]["TrackerCheckDto"] | null;
+            /**
+             * Visit Accuracy M
+             * @description Its GPS accuracy (metres)
+             */
+            visit_accuracy_m?: number | null;
+            /**
+             * Visit Lat
+             * @description This report's reading GPS latitude
+             */
+            visit_lat?: number | null;
+            /**
+             * Visit Lng
+             * @description This report's reading GPS longitude
+             */
+            visit_lng?: number | null;
+            /**
+             * Visit Place
+             * @description This report's place: the area label the phone's geocoder gave its reading (meter capture place_name), or null
+             */
+            visit_place?: string | null;
+            /**
+             * Visit Site Name
+             * @description Hint: the company site (geofence) containing this reading's GPS point, nearest site first; null when none (server lookup, no outside geocoding)
+             */
+            visit_site_name?: string | null;
         };
         /**
          * MachineReportIn
          * @description A machine report: the new reading and how its hours split. Give the new reading as `capture` (a DAILY meter
          *     reading of this machine: photo, OCR, GPS, time, exactly as POST /meter-captures) or as `capture_id` (a reading
-         *     already recorded, e.g. the reading of a rejected report being corrected, then with `corrects_report_id`). The
+         *     recorded just before, e.g. by the sync operation METER_CAPTURE). A reading belongs to one report only
+         *     (CAPTURE_ALREADY_USED). A rejected report is final: `corrects_report_id` is kept for older apps but any value is
+         *     refused (CORRECTION_NOT_ALLOWED); send a new report with a new reading. Line hours have at most 2 decimals. The
          *     lines must add up to the difference between the machine's last approved reading and the new one exactly.
          *
          *     Opening report (`opening: true`, `lines: []`): when the machine has no starting reading yet (no approved report,
@@ -15188,7 +15283,7 @@ export interface components {
             client_created_at?: string | null;
             /**
              * Corrects Report Id
-             * @description The REJECTED report this one corrects (same reading)
+             * @description Retired: a rejected report is final. Any value is refused (CORRECTION_NOT_ALLOWED); send a new report with a new reading
              */
             corrects_report_id?: string | null;
             /**
@@ -15316,6 +15411,36 @@ export interface components {
             last_approved_reading: string | null;
             /** Last Report At */
             last_report_at: string | null;
+            /**
+             * Last Visit Accuracy M
+             * @description Its GPS accuracy (metres)
+             */
+            last_visit_accuracy_m?: number | null;
+            /**
+             * Last Visit At
+             * @description The machine's last visit: taken-at time of the latest reading that belongs to any of its machine reports (any status). Null: never visited
+             */
+            last_visit_at?: string | null;
+            /**
+             * Last Visit Lat
+             * @description The last visit's reading GPS latitude
+             */
+            last_visit_lat?: number | null;
+            /**
+             * Last Visit Lng
+             * @description The last visit's reading GPS longitude
+             */
+            last_visit_lng?: number | null;
+            /**
+             * Last Visit Place
+             * @description The last visit's place: the area label the phone's geocoder gave its reading
+             */
+            last_visit_place?: string | null;
+            /**
+             * Last Visit Site Name
+             * @description Hint: the company site whose area contains the last visit's GPS point, or null
+             */
+            last_visit_site_name?: string | null;
             /** Machine Code */
             machine_code?: string | null;
             /**
@@ -15350,7 +15475,7 @@ export interface components {
             previous_source?: components["schemas"]["StartSource"] | null;
             /**
              * Rejected Report Id
-             * @description The machine's latest report was rejected and not yet corrected
+             * @description The machine's latest report was rejected: a new report (with a new reading) is due
              */
             rejected_report_id: string | null;
         };
@@ -15820,6 +15945,8 @@ export interface components {
             photo_attachment_id: string | null;
             /** Photo Sha256 */
             photo_sha256: string | null;
+            /** Place Name */
+            place_name?: string | null;
             /** Policy Version */
             policy_version: string;
             /** Reading */
@@ -15871,6 +15998,11 @@ export interface components {
             ocr_value?: number | string | null;
             /** Photo Attachment Id */
             photo_attachment_id?: string | null;
+            /**
+             * Place Name
+             * @description Optional area label from the phone's geocoder for the GPS point (e.g. 'Mbezi Beach, Kinondoni, Dar es Salaam'); stored as given, a label and not evidence. Null: offline or no result
+             */
+            place_name?: string | null;
             /**
              * Policy Version Ids
              * @description METER_CAPTURE snapshot the device enforced offline
@@ -21309,6 +21441,8 @@ export interface components {
             photo_attachment_id: string | null;
             /** Photo Sha256 */
             photo_sha256: string | null;
+            /** Place Name */
+            place_name?: string | null;
             /** Policy Version */
             policy_version: string;
             /** Reading */

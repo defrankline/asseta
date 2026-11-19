@@ -2,9 +2,9 @@
 machine's last approved reading to a new one, split across customers (hours they bought) and non-productive reasons.
 
 Append-only in the database (guard triggers, migration mrep01): a report's only change is its single decision
-(SUBMITTED -> APPROVED | REJECTED with the decision stamps); its lines never change. A rejected report is corrected by
-a new report on the same reading (`corrects_id`). At most one SUBMITTED report per machine, and one live (SUBMITTED or
-APPROVED) report per reading."""
+(SUBMITTED -> APPROVED | REJECTED with the decision stamps); its lines never change. A rejected report is final: it
+stays as a record and the supervisor sends a new report with a new reading (`corrects_id` only on reports made before
+that rule; nothing new writes it). At most one SUBMITTED report per machine, and a reading belongs to one report."""
 
 import uuid
 from datetime import datetime
@@ -16,6 +16,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     Enum,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -38,7 +39,7 @@ def _enum(cls: type[StrEnum], length: int = 24) -> Enum:
 class MachineReportStatus(StrEnum):
     SUBMITTED = "SUBMITTED"  # customer hours reserved; waiting for a decision
     APPROVED = "APPROVED"  # hours consumed, allocation ledger written, the reading is the machine's last approved one
-    REJECTED = "REJECTED"  # reservation released; correct it with a new report on the same reading
+    REJECTED = "REJECTED"  # reservation released; final (a new report with a new reading follows)
 
 
 class ReportLineKind(StrEnum):
@@ -99,7 +100,23 @@ class MachineReport(UuidPk, Base):
     # reading is where the next report starts.
     opening: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
     status: Mapped[MachineReportStatus] = mapped_column(_enum(MachineReportStatus, 16), nullable=False)
+    # History only: reports made while a rejected report could be corrected on the same reading. Never written now.
     corrects_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("machine_report.id"), index=True)
+    # Time since the last visit (server-computed at submit, never changed): the taken-at time of the most recent earlier
+    # reading of this machine that belongs to any machine report (any status), and this reading's taken-at time minus
+    # it in seconds. Null: no earlier report reading ("First visit").
+    previous_visit_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    since_previous_visit_seconds: Mapped[int | None] = mapped_column(Integer)
+    # Where (server-set at submit): the previous visit's reading GPS as recorded and its place (the area label the
+    # phone's geocoder gave that reading, `meter_capture.place_name`), and the company site hint (the site whose
+    # geofence contains the point, see visits.py) for both visits. Null when unknown.
+    previous_visit_lat: Mapped[float | None] = mapped_column(Float)
+    previous_visit_lng: Mapped[float | None] = mapped_column(Float)
+    previous_visit_accuracy_m: Mapped[float | None] = mapped_column(Float)
+    previous_visit_place: Mapped[str | None] = mapped_column(String(200))
+    previous_visit_site_name: Mapped[str | None] = mapped_column(String(200))
+    visit_place: Mapped[str | None] = mapped_column(String(200))
+    visit_site_name: Mapped[str | None] = mapped_column(String(200))
     note: Mapped[str | None] = mapped_column(Text)
     source: Mapped[str] = mapped_column(String(8), nullable=False)  # API | SYNC
     submitted_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))

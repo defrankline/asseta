@@ -237,6 +237,7 @@ class MeterService:
             accuracy_m=body.gps.accuracy_m,
             location_captured_at=body.gps.captured_at,
             location_provider=body.gps.provider,
+            place_name=(body.place_name or "").strip() or None,
             device_id=body.device_id,
             captured_at=body.captured_at,
             received_at=now,

@@ -246,6 +246,9 @@ class CustomerHoursPolicy(BaseModel):
     # ADR-008 §2: tell the report approvers when a machine moved (meter or tracker) and has had no machine report for
     # this many days. Null = no reminder.
     machine_report_reminder_days: int | None = Field(default=3, ge=1, le=90)
+    # ADR-008 §2: machine reports record the time since the machine's last visit; the approvers' lists flag a report
+    # (warning colour) when that gap is longer than this many hours. Null = no flag.
+    visit_gap_warning_hours: int | None = Field(default=24, ge=1, le=8760)
 
     @model_validator(mode="after")
     def _consistent(self) -> "CustomerHoursPolicy":
@@ -636,5 +639,6 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "field_credit_sales": False,
         "report_hours_scope": "CUSTOMER",
         "machine_report_reminder_days": 3,
+        "visit_gap_warning_hours": 24,
     },
 }

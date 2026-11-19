@@ -4,7 +4,8 @@ ADR-008 sync snapshot). The Android, iOS and web suites decode every fixture, so
 optional, an unknown enum value, a differently shaped finding) fails their build instead of a screen on live.
 
 The scenario covers the shapes that differ: an OPENING report (first reading: no lines, 0 hours, a finding on its
-reading), a normal SUBMITTED report, a REJECTED report and its APPROVED correction (lots), and a cash + credit sale
+reading), a normal SUBMITTED report, a REJECTED report (final) and the new APPROVED report with a new reading (lots,
+time and place since the last visit), and a cash + credit sale
 with a part-paid credit invoice. `ASSETA_WRITE_FIXTURES=1` rewrites the files; otherwise the test checks that every
 committed fixture still has exactly the fields the server sends (recursively), so the fixtures cannot drift."""
 
@@ -97,14 +98,17 @@ def test_contract_fixtures_for_reports_credit_and_customer_hours(api: Api) -> No
     _keep(REPORTS / "report-opening-submitted.json", detail)
     _keep(REPORTS / "meter-capture-opening.json", ok(f.owner.get(f"{T}/meter-captures/{first['id']}")))
 
-    # A normal report, rejected, then corrected on the same reading and approved (its customer line gets lots).
+    # A normal report, rejected (final), then a new report with a new reading, approved (its customer line gets lots;
+    # its previous visit is the rejected report's reading, with the phone's area label).
     at = later(api, 4)
     lines = [cust(f.customer_id, 3), idle(ctx.reasons["TRANSIT"], 1)]
-    rejected = submit(f.supervisor, report_body(m, "1004", at, lines))
+    body = report_body(m, "1004", at, lines)
+    body["capture"]["place_name"] = "Mbezi Beach, Kinondoni, Dar es Salaam"
+    rejected = submit(f.supervisor, body)
     ok(f.manager.post(f"{T}/machine-reports/{rejected['id']}/reject", {"reason": "Customer hours look too high"}))
-    fixed_lines = [cust(f.customer_id, 2), idle(ctx.reasons["TRANSIT"], 2, "Moved to the second site")]
-    body = report_body(m, None, None, fixed_lines, capture_id=rejected["capture_id"])
-    fixed = submit(f.supervisor, {**body, "corrects_report_id": rejected["id"]})
+    fixed_lines = [cust(f.customer_id, "2.25"), idle(ctx.reasons["TRANSIT"], "2.75", "Moved to the second site")]
+    fixed = submit(f.supervisor, report_body(m, "1005", later(api, 1), fixed_lines))
+    assert fixed["since_previous_visit_seconds"] == 3600 and fixed["previous_visit_place"]
     _keep(REPORTS / "report-rejected.json", ok(f.owner.get(f"{T}/machine-reports/{rejected['id']}")))
     _keep(REPORTS / "report-approved.json", ok(f.manager.post(f"{T}/machine-reports/{fixed['id']}/approve", {})))
 
@@ -112,7 +116,7 @@ def test_contract_fixtures_for_reports_credit_and_customer_hours(api: Api) -> No
     at = later(api, 3)
     pending = submit(
         f.supervisor,
-        report_body(m, "1007", at, [cust(f.customer_id, 2), idle(ctx.reasons["IDLE_ON_SITE"], 1)], note="Rain"),
+        report_body(m, "1007", at, [cust(f.customer_id, 1), idle(ctx.reasons["IDLE_ON_SITE"], 1)], note="Rain"),
     )
     _keep(REPORTS / "report-submitted.json", ok(f.owner.get(f"{T}/machine-reports/{pending['id']}")))
 

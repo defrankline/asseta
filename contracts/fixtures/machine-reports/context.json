@@ -1,31 +1,37 @@
 {
   "customers": [
     {
-      "available": "6.00",
-      "customer_id": "8267b96f-7628-4c95-b223-3c9084b91c24",
+      "available": "6.75",
+      "customer_id": "7abe1c6c-0000-45ad-bd30-b0b0f2d0fd37",
       "customer_name": "Road Builders Ltd",
       "machine_id": null,
-      "remaining": "8.00",
-      "reserved": "2.00"
+      "remaining": "7.75",
+      "reserved": "1.00"
     }
   ],
   "hours_scope": "CUSTOMER",
-  "last_report_at": "2026-11-01T17:00:00Z",
+  "last_report_at": "2026-11-01T18:00:00Z",
+  "last_visit_accuracy_m": 8.0,
+  "last_visit_at": "2026-11-01T18:00:00Z",
+  "last_visit_lat": -6.8,
+  "last_visit_lng": 39.28,
+  "last_visit_place": null,
+  "last_visit_site_name": null,
   "machine_code": "FIX1-000",
-  "machine_id": "8e178798-d2d5-4b00-9d05-e721e9b44c9a",
+  "machine_id": "4afa5e8a-f14f-4a5f-b989-97b20b13b605",
   "machine_name": "Machine 0",
   "meter_decimal_places": 1,
   "meter_epoch": 0,
   "opening_required": false,
-  "pending_report_id": "570ae2f2-953d-463a-8dcc-d0951439e0be",
-  "previous_at": "2026-11-01T14:00:00Z",
-  "previous_reading": "1004.00",
+  "pending_report_id": "6070d03f-4a6c-4005-9027-93e947882b5b",
+  "previous_at": "2026-11-01T15:00:00Z",
+  "previous_reading": "1005.00",
   "previous_source": "REPORT",
   "reasons": [
     {
       "code": "BREAKDOWN",
       "description": null,
-      "id": "b35e7fad-742d-4014-bbbb-552d85115d54",
+      "id": "d5a3635b-7f8e-43ba-a0d0-bbbcbda03abd",
       "is_active": true,
       "name": "Breakdown / repair",
       "version": 1
@@ -33,7 +39,7 @@
     {
       "code": "IDLE_ON_SITE",
       "description": null,
-      "id": "55885f9d-f2fc-44e9-87b5-a05939cd6c40",
+      "id": "db81b207-0911-484c-a5a8-4ef52de00c04",
       "is_active": true,
       "name": "Idle on site",
       "version": 1
@@ -41,7 +47,7 @@
     {
       "code": "SERVICING",
       "description": null,
-      "id": "88edec66-495f-4a7e-8090-42af4be4ee5a",
+      "id": "da225d3e-20bb-44de-bd0d-24474ab9d229",
       "is_active": true,
       "name": "Servicing",
       "version": 1
@@ -49,7 +55,7 @@
     {
       "code": "TRANSIT",
       "description": null,
-      "id": "d8714f0d-7631-46a2-b4ee-00f568dbe83f",
+      "id": "0b3c007e-3a69-4377-8b2f-153ec84bc43b",
       "is_active": true,
       "name": "Transit between sites",
       "version": 1
@@ -57,7 +63,7 @@
     {
       "code": "WAITING_CUSTOMER",
       "description": null,
-      "id": "3885d268-18f2-464a-aeef-3a22afb82c87",
+      "id": "00a22eeb-ebfc-42b5-9f6d-79c79c16aaf2",
       "is_active": true,
       "name": "Waiting for customer",
       "version": 1
@@ -65,7 +71,7 @@
     {
       "code": "WEATHER",
       "description": null,
-      "id": "1cd1ee70-dfd3-4bee-8adc-07bb6c70519a",
+      "id": "d3f25411-b491-4478-ba8f-cf32c3341c3c",
       "is_active": true,
       "name": "Weather",
       "version": 1

@@ -654,7 +654,7 @@ def _machine_report_submitted(session: Session, e: DomainEvent) -> list[Intent]:
 
 @rule("MachineReportApproved", "MachineReportRejected")
 def _machine_report_decided(session: Session, e: DomainEvent) -> list[Intent]:
-    """ADR-008 §2: the submitter learns the decision; a rejection asks for a corrected split on the same reading."""
+    """ADR-008 §2: the submitter learns the decision; a rejection asks for a new report with a new reading."""
     p = e.payload
     if not p.get("submitted_by"):
         return []
@@ -665,8 +665,8 @@ def _machine_report_decided(session: Session, e: DomainEvent) -> list[Intent]:
     else:
         kind, title = "MACHINE_REPORT_REJECTED", f"Machine report rejected — {p['report_number']}"
         body = (
-            f"{machine}: your report was rejected ({p.get('decision_note') or 'no reason given'}). Correct the split "
-            "and send it again on the same reading."
+            f"{machine}: your report was rejected ({p.get('decision_note') or 'no reason given'}). Send a new report "
+            "for this machine with a new reading."
         )
     return [
         Intent(

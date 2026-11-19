@@ -169,8 +169,8 @@ def reject_report(
     now: Now,
     ctx: Annotated[RequestContext, Depends(APPROVE)],
 ) -> MachineReportDto:
-    """Reject with a reason (never your own): the reservation is released; the supervisor corrects the split on the
-    same reading (a new report with corrects_report_id)."""
+    """Reject with a reason (never your own): the reservation is released. The rejection is final: the report stays as
+    a record and the supervisor sends a new report with a new reading."""
     return MachineReportService(session, ctx, now).reject(report_id, body)
 
 

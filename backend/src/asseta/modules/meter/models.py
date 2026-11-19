@@ -122,6 +122,10 @@ class MeterCapture(UuidPk, SyncRevisioned, Base):
     accuracy_m: Mapped[float | None] = mapped_column(Float)
     location_captured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     location_provider: Mapped[str | None] = mapped_column(String(32))
+    # The area the phone's own geocoder named for the coordinates when the reading was taken (e.g. "Mbezi Beach,
+    # Kinondoni, Dar es Salaam"); a display label stored as given, not evidence (the coordinates are). Null: offline
+    # or no result.
+    place_name: Mapped[str | None] = mapped_column(String(200))
     device_id: Mapped[str] = mapped_column(String(128), nullable=False)
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)  # device clock
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)  # server clock

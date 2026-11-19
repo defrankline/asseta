@@ -5,12 +5,16 @@ Rules, all enforced here (the phone checks the sum and its cached available hour
   approve permission may report on any machine, but never decide their own report.
 - The previous reading is the machine's last approved one (else its approved baseline); the new reading must be
   higher; the lines (customers' hours and non-productive hours with a reason and a note) add up to the difference
-  exactly, in the machine's meter precision.
+  exactly. Line hours have at most 2 decimals (customers' hours are kept in hundredths), whatever the meter's
+  precision; the reading and the difference keep the meter's precision.
 - A customer's total in a report is at most the customer's available hours: activated - used - reserved by other
   SUBMITTED reports. One SUBMITTED report per machine at a time (the next waits).
 - Approval consumes the customers' hours FIFO (hours ledger CONSUMED), writes the allocation ledger and makes the
-  reading the machine's last approved one. Rejection (with a reason) releases the reservation; a corrected report on
-  the same reading follows."""
+  reading the machine's last approved one. Rejection (with a reason) releases the reservation and is final: the
+  rejected report stays as a record and is never corrected; the supervisor sends a new report with a new reading
+  (a reading belongs to one report only).
+- Every report records the time since the machine's last visit: the taken-at time of the most recent earlier reading
+  of the machine that belongs to any report (any status), and the gap to this report's reading (null: first visit)."""
 
 import uuid
 from collections import defaultdict
@@ -66,6 +70,7 @@ from asseta.modules.machine_reports.readings import (
     tracker_hours,
     write_allocations,
 )
+from asseta.modules.machine_reports.visits import site_name
 from asseta.modules.meter.dto import FindingDto
 from asseta.modules.meter.engine_models import EngineHourReason, EngineHourReasonKind
 from asseta.modules.meter.models import CaptureState, ExceptionStatus, ExceptionType, MeterCapture, MeterException
@@ -148,8 +153,18 @@ def report_query(
     return stmt
 
 
-def _decimals(machine: Machine) -> int:
-    return max(1, machine.meter_decimal_places)
+LINE_STEP = Decimal("0.01")  # report lines are in hundredths of an hour (customers' hours are kept with 2 decimals)
+
+
+def report_visits(machine_id: uuid.UUID) -> Select[MeterCapture, str | None]:
+    """The machine's visits: its readings that belong to a machine report (any status), latest first, with the
+    report's company-site hint."""
+    return (
+        select(MeterCapture, MachineReport.visit_site_name)
+        .join(MachineReport, MachineReport.capture_id == MeterCapture.id)
+        .where(MachineReport.machine_id == machine_id)
+        .order_by(MeterCapture.captured_at.desc(), MachineReport.submitted_at)
+    )
 
 
 class MachineReportService:
@@ -238,6 +253,18 @@ class MachineReportService:
                 customer_hours=sum((x.hours for x in mine if x.kind is ReportLineKind.CUSTOMER), ZERO),
                 non_productive_hours=sum((x.hours for x in mine if x.kind is ReportLineKind.NON_PRODUCTIVE), ZERO),
                 status=r.status,
+                previous_visit_at=r.previous_visit_at,
+                since_previous_visit_seconds=r.since_previous_visit_seconds,
+                previous_visit_lat=r.previous_visit_lat,
+                previous_visit_lng=r.previous_visit_lng,
+                previous_visit_accuracy_m=r.previous_visit_accuracy_m,
+                previous_visit_place=r.previous_visit_place,
+                previous_visit_site_name=r.previous_visit_site_name,
+                visit_lat=capture.latitude if capture else None,
+                visit_lng=capture.longitude if capture else None,
+                visit_accuracy_m=capture.accuracy_m if capture else None,
+                visit_place=r.visit_place,
+                visit_site_name=r.visit_site_name,
                 corrects_id=r.corrects_id,
                 corrected_by_id=corrected.get(r.id),
                 note=r.note,
@@ -342,12 +369,38 @@ class MachineReportService:
             meter_epoch=point.epoch if point else 0,
             pending_report_id=pending.id if pending else None,
             last_report_at=last,
+            **self._last_visit_fields(machine.id),
             hours_scope=self.engine.policy.report_hours_scope.value,
             customers=sorted(
                 (a for a in self.available(machine.id) if a.available > 0), key=lambda a: str(a.customer_id)
             ),
             reasons=self.reasons(),
         )
+
+    def _last_visit(
+        self, machine_id: uuid.UUID, before: datetime | None = None
+    ) -> tuple[MeterCapture, str | None] | None:
+        """The machine's last visit: the latest reading that belongs to any of its reports (rejected ones included),
+        taken before `before` when given, with that report's company-site hint."""
+        stmt = report_visits(machine_id).limit(1)
+        if before is not None:
+            stmt = stmt.where(MeterCapture.captured_at < before)
+        row = self._s.execute(stmt).first()
+        return (row[0], row[1]) if row is not None else None
+
+    def _last_visit_fields(self, machine_id: uuid.UUID) -> dict[str, Any]:
+        last = self._last_visit(machine_id)
+        if last is None:
+            return {}
+        capture, site = last
+        return {
+            "last_visit_at": capture.captured_at,
+            "last_visit_lat": capture.latitude,
+            "last_visit_lng": capture.longitude,
+            "last_visit_accuracy_m": capture.accuracy_m,
+            "last_visit_place": capture.place_name,
+            "last_visit_site_name": site,
+        }
 
     def statuses(self, machine_ids: list[uuid.UUID] | None = None) -> list[MachineReportStatusDto]:
         """Report status of the caller's machines (field users: those assigned to them; others: every active one)."""
@@ -384,6 +437,7 @@ class MachineReportService:
                     last_approved_reading=approved.end_reading if approved else None,
                     last_approved_at=approved.end_at if approved else None,
                     last_report_at=latest.submitted_at if latest else None,
+                    **self._last_visit_fields(m.id),
                     days_since_report=(today - latest.submitted_at.astimezone(tz).date()).days if latest else None,
                     pending_report_id=pending.id if pending else None,
                     pending_report_number=pending.report_number if pending else None,
@@ -491,14 +545,17 @@ class MachineReportService:
             raise BusinessRuleViolation(
                 f"The reading was {capture.state.value.lower()}; take a new reading", code="CAPTURE_REJECTED"
             )
-        live = self._s.execute(
-            select(MachineReport.report_number).where(
-                MachineReport.capture_id == capture.id,
-                MachineReport.status.in_((MachineReportStatus.SUBMITTED, MachineReportStatus.APPROVED)),
-            )
+        used = self._s.execute(
+            select(MachineReport.report_number)
+            .where(MachineReport.capture_id == capture.id)
+            .order_by(MachineReport.submitted_at)
+            .limit(1)
         ).scalar_one_or_none()
-        if live is not None:
-            raise BusinessRuleViolation(f"This reading is already reported in {live}", code="CAPTURE_ALREADY_REPORTED")
+        if used is not None:
+            raise BusinessRuleViolation(
+                f"This reading was already used in {used}; take a new reading for a new report",
+                code="CAPTURE_ALREADY_USED",
+            )
         return capture
 
     def _telemetry_finding(self, machine: Machine, capture: MeterCapture, point: StartPoint) -> None:
@@ -530,19 +587,14 @@ class MachineReportService:
                 .on_conflict_do_nothing()
             )
 
-    def _check_corrects(self, body: MachineReportIn, capture: MeterCapture) -> None:
-        if body.corrects_report_id is None:
-            return
-        old = self._s.get(MachineReport, body.corrects_report_id)
-        if (
-            old is None
-            or old.status is not MachineReportStatus.REJECTED
-            or old.machine_id != body.machine_id
-            or old.capture_id != capture.id
-        ):
+    @staticmethod
+    def _refuse_correction(body: MachineReportIn) -> None:
+        """A rejected report is final (client requirement): it is kept as a record and never corrected or resubmitted.
+        `corrects_report_id` stays in the request shape for older apps, but any value is refused."""
+        if body.corrects_report_id is not None:
             raise BusinessRuleViolation(
-                "corrects_report_id must name a rejected report of this machine on the same reading",
-                code="CORRECTS_INVALID",
+                "A rejected report can't be corrected; send a new report with a new reading.",
+                code="CORRECTION_NOT_ALLOWED",
             )
 
     def _lock_customers(self, customer_ids: set[uuid.UUID]) -> dict[uuid.UUID, Customer]:
@@ -578,12 +630,9 @@ class MachineReportService:
                     code="HOURS_NOT_AVAILABLE",
                 )
 
-    def _check_lines(self, body: MachineReportIn, machine: Machine, difference: Decimal) -> dict[uuid.UUID, Decimal]:
-        step = Decimal(1).scaleb(-_decimals(machine))
-        if any(line.hours != line.hours.quantize(step) for line in body.lines):
-            raise BusinessRuleViolation(
-                f"Hours are reported in steps of {step} (the machine's meter precision)", code="HOURS_PRECISION"
-            )
+    def _check_lines(self, body: MachineReportIn, difference: Decimal) -> dict[uuid.UUID, Decimal]:
+        if any(line.hours != line.hours.quantize(LINE_STEP) for line in body.lines):
+            raise BusinessRuleViolation("Hours have at most 2 decimals (steps of 0.01)", code="HOURS_PRECISION")
         total = sum((line.hours for line in body.lines), ZERO)
         if total != difference:
             raise BusinessRuleViolation(
@@ -614,6 +663,7 @@ class MachineReportService:
     ) -> MachineReportDto:
         if (replay := self._replay(body)) is not None:
             return self.dto(replay)  # offline retry: exactly one report
+        self._refuse_correction(body)
         machine = self._machine(body.machine_id, lock=True)
         self._check_machine_access(machine)
         pending = self._pending(machine.id)
@@ -623,7 +673,6 @@ class MachineReportService:
                 code="REPORT_PENDING",
             )
         capture = self._reading(body, machine, device_session_id)
-        self._check_corrects(body, capture)
         point = start_point(self._s, machine.id)
         if point is None and not body.opening:
             raise BusinessRuleViolation(
@@ -656,13 +705,15 @@ class MachineReportService:
                     "The meter has not moved since the last approved reading", code="NOTHING_TO_REPORT"
                 )
             self._telemetry_finding(machine, capture, point)
-        wanted = self._check_lines(body, machine, difference) if not body.opening else {}
+        wanted = self._check_lines(body, difference) if not body.opening else {}
         customers: dict[uuid.UUID, Customer] = {}
         if wanted:
             require_capability(self._s, self._tid, CUSTOMER_HOURS, self._now)
             customers = self._lock_customers(set(wanted))
             self._check_available(machine.id, wanted, customers, None)
         local = self._now.astimezone(ZoneInfo(tenant_settings(self._s, self._tid).timezone))
+        previous = self._last_visit(machine.id, before=capture.captured_at)
+        previous_visit = previous[0] if previous else None
         report = MachineReport(
             id=body.id or uuid.uuid4(),
             tenant_id=self._tid,
@@ -679,7 +730,17 @@ class MachineReportService:
             hours=difference,
             opening=body.opening,
             status=MachineReportStatus.SUBMITTED,
-            corrects_id=body.corrects_report_id,
+            previous_visit_at=previous_visit.captured_at if previous_visit else None,
+            since_previous_visit_seconds=int((capture.captured_at - previous_visit.captured_at).total_seconds())
+            if previous_visit is not None
+            else None,
+            previous_visit_lat=previous_visit.latitude if previous_visit else None,
+            previous_visit_lng=previous_visit.longitude if previous_visit else None,
+            previous_visit_accuracy_m=previous_visit.accuracy_m if previous_visit else None,
+            previous_visit_place=previous_visit.place_name if previous_visit else None,
+            previous_visit_site_name=previous[1] if previous else None,
+            visit_place=capture.place_name,
+            visit_site_name=site_name(self._s, self._tid, capture.latitude, capture.longitude),
             note=body.note,
             source=source,
             submitted_by=self._ctx.user_id,
@@ -734,7 +795,9 @@ class MachineReportService:
                     }
                     for line in body.lines
                 ],
-                "corrects_id": str(body.corrects_report_id) if body.corrects_report_id else None,
+                "previous_visit_at": previous_visit.captured_at.isoformat() if previous_visit else None,
+                "since_previous_visit_seconds": report.since_previous_visit_seconds,
+                "visit_place": report.visit_place,
             },
         )
         self._emit("MachineReportSubmitted", report)

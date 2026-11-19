@@ -2,7 +2,7 @@
 data, which are separate observed dimensions on the fleet map.
 
     REPORT_PENDING   the machine has a SUBMITTED report waiting for a decision
-    REPORT_REJECTED  its latest report was rejected: the supervisor corrects it on the same reading
+    REPORT_REJECTED  its latest report was rejected (final): a new report with a new reading is due
     REPORTED         its latest report was approved
     NOT_REPORTED     no machine report yet
 """
