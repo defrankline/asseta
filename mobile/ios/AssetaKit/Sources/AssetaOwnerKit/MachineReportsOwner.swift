@@ -214,23 +214,23 @@ public struct SoldByMethod: Sendable, Equatable {
 }
 
 /// A machine the owner should chase for a report: the shared ``MachineReportStanding`` (as the Supervisor app judges it)
-/// is due, needs its first reading, or was rejected and not redone. A machine with a report waiting is never overdue.
+/// is due, needs its first reading, or its last report was rejected (no new report yet). A machine with a report waiting is never overdue.
 public enum OverdueMachine: Sendable, Equatable {
     /// No report for this many days (more than 0).
     case noReportFor(days: Int)
     /// Never reported (no report day known) or its first reading is still missing.
     case noReportYet
-    /// The last report was rejected and not yet redone.
+    /// The last report was rejected and no new report has come yet.
     case rejected
 
     /// The machine's overdue state under the tenant's reminder days (nil = reminders off), else nil.
     public static func of(_ state: MachineReportStatusDTO, reminderDays: Int?) -> OverdueMachine? {
         switch MachineReportStanding.of(state, unsentReport: false, reminderDays: reminderDays) {
         case .due:
+            if state.rejectedReportID != nil { return .rejected }
             if let days = state.daysSinceReport, days > 0 { return .noReportFor(days: days) }
             return .noReportYet
-        case .opening: return .noReportYet
-        case .rejected: return .rejected
+        case .opening: return state.rejectedReportID != nil ? .rejected : .noReportYet
         case .awaitingApproval, .upToDate: return nil
         }
     }
@@ -327,7 +327,7 @@ public enum MachineReportOwnerTexts {
     public static func attentionFirstReading(_ code: String, _ reading: String) -> String { "\(code) first reading · \(reading)" }
     public static func attentionMissing(_ code: String, _ days: Int) -> String { "\(code) · no report for \(OwnerFigures.days(days))" }
     public static func attentionNoReportYet(_ code: String) -> String { "\(code) · no report yet" }
-    public static func attentionRejected(_ code: String) -> String { "\(code) · report rejected, not yet redone" }
+    public static func attentionRejected(_ code: String) -> String { "\(code) · report rejected, no new report yet" }
 
     // Home
     public static let cashWithSupervisors = "Cash with supervisors"

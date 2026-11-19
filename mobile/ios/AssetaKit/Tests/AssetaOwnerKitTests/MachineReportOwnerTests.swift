@@ -91,11 +91,11 @@ struct MachineReportOwnerTests {
         func titles(_ days: Int?) -> [String] {
             AttentionRow.rows(pending: [], states: all, reminderDays: days, now: now).map(\.title)
         }
-        #expect(titles(3) == ["EX-02 · no report for 5 days", "EX-03 · report rejected, not yet redone",
+        #expect(titles(3) == ["EX-02 · no report for 5 days", "EX-03 · report rejected, no new report yet",
                               "GR-01 · no report yet", "DZ-01 · no report yet"])
         #expect(titles(2) == ["EX-02 · no report for 5 days", "WL-01 · no report for 2 days",
-                              "EX-03 · report rejected, not yet redone", "GR-01 · no report yet", "DZ-01 · no report yet"])
-        #expect(titles(7) == ["EX-03 · report rejected, not yet redone", "GR-01 · no report yet", "DZ-01 · no report yet"])
+                              "EX-03 · report rejected, no new report yet", "GR-01 · no report yet", "DZ-01 · no report yet"])
+        #expect(titles(7) == ["EX-03 · report rejected, no new report yet", "GR-01 · no report yet", "DZ-01 · no report yet"])
         // Reminders off: only never reported, no first reading and rejected machines.
         #expect(titles(nil) == titles(7))
         // A machine with a report waiting is never overdue.

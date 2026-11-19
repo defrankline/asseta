@@ -47,6 +47,8 @@ extension Loader where Value == EffectivePolicyDTO<CustomerHoursPolicyValues> {
     /// `machine_report_reminder_days` of the loaded CUSTOMER_HOURS policy: 3 until it loads or when the read was refused
     /// or failed (a cached copy counts while offline), nil when the tenant switched reminders off.
     var reminderDays: Int? { MachineReportStanding.reminderDays(error == nil ? value?.values : nil) }
+    /// `visit_gap_warning_hours` of the loaded policy: 24 until it loads or when the read failed, nil = never flag.
+    var visitGapWarningHours: Int? { MachineReportStanding.visitGapWarningHours(error == nil ? value?.values : nil) }
 }
 
 /// "Offline — data from 14:05 (stale)" above any screen showing cached data.

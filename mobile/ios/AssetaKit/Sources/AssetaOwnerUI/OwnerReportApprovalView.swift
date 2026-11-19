@@ -77,6 +77,11 @@ struct OwnerReportApprovalView: View {
                     if let gps = ReportPresentation.gpsLine(capture.value) {
                         Text(gps).font(.system(size: 13)).foregroundStyle(Shell.muted)
                     }
+                    // Time since the machine's last visit, where this reading was taken and where the last visit was.
+                    Text(ReportPresentation.sinceLastVisit(r)).font(.system(size: 14, weight: .semibold)).foregroundStyle(Shell.text)
+                        .padding(.top, 6).accessibilityIdentifier("report.sinceLastVisit")
+                    VisitWhereLine(visit: r.visit, identifier: "report.where")
+                    LastVisitLine(visit: r.previousVisit, identifier: "report.lastVisit")
                 }
                 .padding(16).frame(maxWidth: .infinity, alignment: .leading)
                 .background(Shell.card, in: RoundedRectangle(cornerRadius: 18))

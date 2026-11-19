@@ -79,6 +79,9 @@ public struct MachineReportStatusDTO: Codable, Hashable, Sendable, Identifiable 
     public let pendingReportID: UUID?
     public let pendingReportNumber: String?
     public let rejectedReportID: UUID?
+    /// The machine's last visit: the most recent reading that belongs to any of its reports (rejected ones included),
+    /// by the reading's time; nil = never visited.
+    public let lastVisit: VisitPoint?
 
     public var id: UUID { machineID }
 
@@ -86,7 +89,8 @@ public struct MachineReportStatusDTO: Codable, Hashable, Sendable, Identifiable 
                 previousReading: Decimal?, previousAt: Date? = nil, previousSource: String? = "REPORT",
                 lastApprovedReading: Decimal? = nil, lastApprovedAt: Date? = nil, lastReportAt: Date? = nil,
                 daysSinceReport: Int? = nil, pendingReportID: UUID? = nil, pendingReportNumber: String? = nil,
-                rejectedReportID: UUID? = nil) {
+                rejectedReportID: UUID? = nil, lastVisit: VisitPoint? = nil) {
+        self.lastVisit = lastVisit
         self.machineID = machineID
         self.machineCode = machineCode
         self.machineName = machineName
@@ -119,9 +123,34 @@ public struct MachineReportStatusDTO: Codable, Hashable, Sendable, Identifiable 
         pendingReportID = try c.decodeIfPresent(UUID.self, forKey: .pendingReportID)
         pendingReportNumber = try c.decodeIfPresent(String.self, forKey: .pendingReportNumber)
         rejectedReportID = try c.decodeIfPresent(UUID.self, forKey: .rejectedReportID)
+        lastVisit = try VisitPoint.decode(c, at: .lastVisitAt, lat: .lastVisitLat, lng: .lastVisitLng,
+                                          accuracy: .lastVisitAccuracyM, place: .lastVisitPlace, site: .lastVisitSiteName)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(machineID, forKey: .machineID)
+        try c.encodeIfPresent(machineCode, forKey: .machineCode)
+        try c.encodeIfPresent(machineName, forKey: .machineName)
+        try c.encode(meterDecimalPlaces, forKey: .meterDecimalPlaces)
+        try c.encodeIfPresent(previousReading, forKey: .previousReading)
+        try c.encodeIfPresent(previousAt, forKey: .previousAt)
+        try c.encodeIfPresent(previousSource, forKey: .previousSource)
+        try c.encodeIfPresent(lastApprovedReading, forKey: .lastApprovedReading)
+        try c.encodeIfPresent(lastApprovedAt, forKey: .lastApprovedAt)
+        try c.encodeIfPresent(lastReportAt, forKey: .lastReportAt)
+        try c.encodeIfPresent(daysSinceReport, forKey: .daysSinceReport)
+        try c.encodeIfPresent(pendingReportID, forKey: .pendingReportID)
+        try c.encodeIfPresent(pendingReportNumber, forKey: .pendingReportNumber)
+        try c.encodeIfPresent(rejectedReportID, forKey: .rejectedReportID)
+        try lastVisit?.encode(&c, at: .lastVisitAt, lat: .lastVisitLat, lng: .lastVisitLng, accuracy: .lastVisitAccuracyM,
+                              place: .lastVisitPlace, site: .lastVisitSiteName)
     }
 
     enum CodingKeys: String, CodingKey {
+        case lastVisitAt = "last_visit_at", lastVisitLat = "last_visit_lat", lastVisitLng = "last_visit_lng"
+        case lastVisitAccuracyM = "last_visit_accuracy_m", lastVisitPlace = "last_visit_place"
+        case lastVisitSiteName = "last_visit_site_name"
         case machineID = "machine_id", machineCode = "machine_code", machineName = "machine_name"
         case meterDecimalPlaces = "meter_decimal_places", previousReading = "previous_reading", previousAt = "previous_at"
         case previousSource = "previous_source", lastApprovedReading = "last_approved_reading"
@@ -189,6 +218,12 @@ public struct MachineReportDTO: Codable, Hashable, Sendable, Identifiable {
     public let photoAttachmentID: UUID?
     public let lines: [Line]
     public let tracker: TrackerCheck?
+    /// Where this report's reading was taken (time = `end_at`); nil without coordinates, place or site.
+    public let visit: VisitPoint?
+    /// The machine's visit before this report's reading (any report's reading, rejected ones included); nil = first.
+    public let previousVisit: VisitPoint?
+    /// Seconds from the previous visit to this report's reading; nil = the first visit.
+    public let sincePreviousVisitSeconds: Int?
 
     public var state: MachineReportState? { MachineReportState(rawValue: status) }
 
@@ -258,7 +293,11 @@ public struct MachineReportDTO: Codable, Hashable, Sendable, Identifiable {
                 captureID: UUID = UUID(), startReading: Decimal, startAt: Date, endReading: Decimal, endAt: Date,
                 status: MachineReportState, submittedBy: UUID? = nil, submittedByName: String? = nil, submittedAt: Date,
                 lines: [Line], note: String? = nil, decisionNote: String? = nil, tracker: TrackerCheck? = nil,
-                opening: Bool = false) {
+                opening: Bool = false, visit: VisitPoint? = nil, previousVisit: VisitPoint? = nil,
+                sincePreviousVisitSeconds: Int? = nil) {
+        self.visit = visit
+        self.previousVisit = previousVisit
+        self.sincePreviousVisitSeconds = sincePreviousVisitSeconds
         self.id = id
         self.reportNumber = reportNumber
         self.machineID = machineID
@@ -320,9 +359,57 @@ public struct MachineReportDTO: Codable, Hashable, Sendable, Identifiable {
         photoAttachmentID = try c.decodeIfPresent(UUID.self, forKey: .photoAttachmentID)
         lines = try c.decodeIfPresent([Line].self, forKey: .lines) ?? []
         tracker = try c.decodeIfPresent(TrackerCheck.self, forKey: .tracker)
+        visit = try VisitPoint.decode(c, at: nil, lat: .visitLat, lng: .visitLng, accuracy: .visitAccuracyM,
+                                      place: .visitPlace, site: .visitSiteName, defaultAt: endAt)
+        previousVisit = try VisitPoint.decode(c, at: .previousVisitAt, lat: .previousVisitLat, lng: .previousVisitLng,
+                                              accuracy: .previousVisitAccuracyM, place: .previousVisitPlace,
+                                              site: .previousVisitSiteName)
+        sincePreviousVisitSeconds = try c.decodeIfPresent(Int.self, forKey: .sincePreviousVisitSeconds)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(reportNumber, forKey: .reportNumber)
+        try c.encode(machineID, forKey: .machineID)
+        try c.encodeIfPresent(machineCode, forKey: .machineCode)
+        try c.encodeIfPresent(machineName, forKey: .machineName)
+        try c.encode(captureID, forKey: .captureID)
+        try c.encode(opening, forKey: .opening)
+        try c.encode(startSource, forKey: .startSource)
+        try c.encode(startReading, forKey: .startReading)
+        try c.encode(startAt, forKey: .startAt)
+        try c.encode(endReading, forKey: .endReading)
+        try c.encode(endAt, forKey: .endAt)
+        try c.encode(hours, forKey: .hours)
+        try c.encode(customerHours, forKey: .customerHours)
+        try c.encode(nonProductiveHours, forKey: .nonProductiveHours)
+        try c.encode(status, forKey: .status)
+        try c.encodeIfPresent(correctsID, forKey: .correctsID)
+        try c.encodeIfPresent(correctedByID, forKey: .correctedByID)
+        try c.encodeIfPresent(note, forKey: .note)
+        try c.encodeIfPresent(submittedBy, forKey: .submittedBy)
+        try c.encodeIfPresent(submittedByName, forKey: .submittedByName)
+        try c.encode(submittedAt, forKey: .submittedAt)
+        try c.encodeIfPresent(decidedByName, forKey: .decidedByName)
+        try c.encodeIfPresent(decidedAt, forKey: .decidedAt)
+        try c.encodeIfPresent(decisionNote, forKey: .decisionNote)
+        try c.encodeIfPresent(photoAttachmentID, forKey: .photoAttachmentID)
+        try c.encode(lines, forKey: .lines)
+        try c.encodeIfPresent(tracker, forKey: .tracker)
+        try visit?.encode(&c, at: nil, lat: .visitLat, lng: .visitLng, accuracy: .visitAccuracyM, place: .visitPlace,
+                          site: .visitSiteName)
+        try previousVisit?.encode(&c, at: .previousVisitAt, lat: .previousVisitLat, lng: .previousVisitLng,
+                                  accuracy: .previousVisitAccuracyM, place: .previousVisitPlace, site: .previousVisitSiteName)
+        try c.encodeIfPresent(sincePreviousVisitSeconds, forKey: .sincePreviousVisitSeconds)
     }
 
     enum CodingKeys: String, CodingKey {
+        case visitLat = "visit_lat", visitLng = "visit_lng", visitAccuracyM = "visit_accuracy_m", visitPlace = "visit_place"
+        case visitSiteName = "visit_site_name", previousVisitAt = "previous_visit_at", previousVisitLat = "previous_visit_lat"
+        case previousVisitLng = "previous_visit_lng", previousVisitAccuracyM = "previous_visit_accuracy_m"
+        case previousVisitPlace = "previous_visit_place", previousVisitSiteName = "previous_visit_site_name"
+        case sincePreviousVisitSeconds = "since_previous_visit_seconds"
         case id, hours, status, note, lines, tracker, opening
         case reportNumber = "report_number", machineID = "machine_id", machineCode = "machine_code"
         case machineName = "machine_name", captureID = "capture_id", startSource = "start_source"
@@ -503,28 +590,25 @@ public struct MachineReportLinePayload: Codable, Hashable, Sendable {
 
 /// `MACHINE_REPORT` (`MachineReportIn` without `id`: the operation id is the report id). The reading travels as its own
 /// `METER_CAPTURE` operation queued first (photo, OCR, GPS, time) and is named here by `capture_id`; the report op
-/// depends on it. A correction of a rejected report names the same reading and `corrects_report_id`.
-/// `opening`: the machine has no starting reading yet, so this reading only opens the count (no lines).
+/// depends on it. A rejected report is final: a new report always comes with a new reading (`corrects_report_id` is never
+/// sent). `opening`: the machine has no starting reading yet, so this reading only opens the count (no lines).
 public struct MachineReportPayload: Codable, Hashable, Sendable {
     public let machineID: UUID
     public let captureID: UUID
-    public let correctsReportID: UUID?
     public let lines: [MachineReportLinePayload]
     public let note: String?
     public let opening: Bool?
 
-    public init(machineID: UUID, captureID: UUID, correctsReportID: UUID?, lines: [MachineReportLinePayload], note: String?,
-                opening: Bool? = nil) {
+    public init(machineID: UUID, captureID: UUID, lines: [MachineReportLinePayload], note: String?, opening: Bool? = nil) {
         self.machineID = machineID
         self.captureID = captureID
-        self.correctsReportID = correctsReportID
         self.lines = lines
         self.note = note
         self.opening = opening
     }
 
     enum CodingKeys: String, CodingKey {
-        case lines, note, opening, machineID = "machine_id", captureID = "capture_id", correctsReportID = "corrects_report_id"
+        case lines, note, opening, machineID = "machine_id", captureID = "capture_id"
     }
 }
 
@@ -581,5 +665,62 @@ public struct CreditInvoicePaymentIn: Codable, Hashable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case amount, method, reference, note, clientID = "client_id", receivedAt = "received_at"
+    }
+}
+
+/// ADR-008: a visit of a machine = one meter reading of a machine report: when and where it was taken. `place` is the
+/// phone's geocoder label of the reading, `siteName` the company site the coordinates fall in (server hint).
+public struct VisitPoint: Hashable, Sendable {
+    public let at: Date?
+    public let latitude: Double?
+    public let longitude: Double?
+    public let accuracyM: Double?
+    public let place: String?
+    public let siteName: String?
+
+    public init(at: Date?, latitude: Double? = nil, longitude: Double? = nil, accuracyM: Double? = nil, place: String? = nil,
+                siteName: String? = nil) {
+        self.at = at
+        self.latitude = latitude
+        self.longitude = longitude
+        self.accuracyM = accuracyM
+        self.place = place
+        self.siteName = siteName
+    }
+
+    /// Both coordinates, else nil.
+    public var coordinate: (latitude: Double, longitude: Double)? {
+        guard let latitude, let longitude else { return nil }
+        return (latitude, longitude)
+    }
+
+    /// The same visit with a display-only place (never sent or saved).
+    public func with(place: String?) -> VisitPoint {
+        VisitPoint(at: at, latitude: latitude, longitude: longitude, accuracyM: accuracyM, place: place, siteName: siteName)
+    }
+
+    /// Reads the six fields. With an `at` key the visit exists only when its time does; without one (this report's own
+    /// reading, time `defaultAt`) it exists when any other field is present.
+    static func decode<K: CodingKey>(_ c: KeyedDecodingContainer<K>, at: K?, lat: K, lng: K, accuracy: K, place: K, site: K,
+                                     defaultAt: Date? = nil) throws -> VisitPoint? {
+        let time = try at.flatMap { try c.decodeIfPresent(Date.self, forKey: $0) }
+        let point = VisitPoint(
+            at: time ?? defaultAt,
+            latitude: try c.decodeIfPresent(Double.self, forKey: lat), longitude: try c.decodeIfPresent(Double.self, forKey: lng),
+            accuracyM: try c.decodeIfPresent(Double.self, forKey: accuracy),
+            place: try c.decodeIfPresent(String.self, forKey: place), siteName: try c.decodeIfPresent(String.self, forKey: site))
+        if at != nil { return time == nil ? nil : point }
+        let any = point.latitude != nil || point.longitude != nil || point.place != nil || point.siteName != nil
+        return any ? point : nil
+    }
+
+    func encode<K: CodingKey>(_ c: inout KeyedEncodingContainer<K>, at: K?, lat: K, lng: K, accuracy: K, place: K,
+                              site: K) throws {
+        if let at { try c.encodeIfPresent(self.at, forKey: at) }
+        try c.encodeIfPresent(latitude, forKey: lat)
+        try c.encodeIfPresent(longitude, forKey: lng)
+        try c.encodeIfPresent(accuracyM, forKey: accuracy)
+        try c.encodeIfPresent(self.place, forKey: place)
+        try c.encodeIfPresent(siteName, forKey: site)
     }
 }

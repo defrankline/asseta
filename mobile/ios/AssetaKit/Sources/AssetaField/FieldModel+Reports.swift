@@ -73,11 +73,9 @@ extension FieldModel {
     }
 
     /// Queues a report (and its reading) and syncs.
-    func submitReport(machineID: UUID, reading: NewReportReading?, existingCaptureID: UUID?, correctsReportID: UUID?,
-                      report: CheckedReport?, opening: Bool, reportID: UUID) throws {
+    func submitReport(machineID: UUID, reading: NewReportReading, report: CheckedReport?, opening: Bool, reportID: UUID) throws {
         try perform {
-            try $0.recordMachineReport(machineID: machineID, reading: reading, existingCaptureID: existingCaptureID,
-                                       correctsReportID: correctsReportID, report: report, opening: opening, reportID: reportID)
+            try $0.recordMachineReport(machineID: machineID, reading: reading, report: report, opening: opening, reportID: reportID)
         }
     }
 }

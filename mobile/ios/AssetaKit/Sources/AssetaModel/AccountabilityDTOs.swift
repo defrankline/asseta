@@ -618,11 +618,15 @@ public struct CustomerHoursPolicyValues: Codable, Hashable, Sendable {
     public let fieldCreditSales: Bool
     /// ADR-008: a machine with no report for this many days is due (default 3; nil = reminders off).
     public let machineReportReminderDays: Int?
+    /// ADR-008: the owner's approvals flag a machine report whose time since the machine's last visit is longer than
+    /// this many hours (default 24; nil = never flag).
+    public let visitGapWarningHours: Int?
 
     public init(enabled: Bool, walkInAllowed: Bool, transferRequiresApproval: Bool, reasonCodeRequired: Bool = false,
                 transferEvidenceRequired: Bool = false, fieldNoncashPayments: Bool = false,
                 cashActivation: HoursCashActivation = .verify, fieldCreditSales: Bool = false,
-                machineReportReminderDays: Int? = 3) {
+                machineReportReminderDays: Int? = 3, visitGapWarningHours: Int? = 24) {
+        self.visitGapWarningHours = visitGapWarningHours
         self.fieldCreditSales = fieldCreditSales
         self.machineReportReminderDays = machineReportReminderDays
         self.enabled = enabled
@@ -651,6 +655,12 @@ public struct CustomerHoursPolicyValues: Codable, Hashable, Sendable {
         } else {
             machineReportReminderDays = (try? c.decodeIfPresent(Int.self, forKey: .machineReportReminderDays)) ?? 3
         }
+        // Same as the reminder days: absent or unreadable = the default 24; an explicit null = never flag.
+        if c.contains(.visitGapWarningHours), (try? c.decodeNil(forKey: .visitGapWarningHours)) == true {
+            visitGapWarningHours = nil
+        } else {
+            visitGapWarningHours = (try? c.decodeIfPresent(Int.self, forKey: .visitGapWarningHours)) ?? 24
+        }
     }
 
     enum CodingKeys: String, CodingKey {
@@ -658,6 +668,7 @@ public struct CustomerHoursPolicyValues: Codable, Hashable, Sendable {
         case reasonCodeRequired = "reason_code_required", transferEvidenceRequired = "transfer_evidence_required"
         case fieldNoncashPayments = "field_noncash_payments", cashActivation = "cash_activation"
         case fieldCreditSales = "field_credit_sales", machineReportReminderDays = "machine_report_reminder_days"
+        case visitGapWarningHours = "visit_gap_warning_hours"
     }
 }
 

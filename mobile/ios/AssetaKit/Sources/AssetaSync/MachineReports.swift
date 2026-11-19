@@ -47,7 +47,6 @@ extension MachineReportStanding {
         case .opening: MachineReportTexts.pillOpening
         case .due: MachineReportTexts.pillDue
         case .awaitingApproval: MachineReportTexts.pillAwaiting
-        case .rejected: MachineReportTexts.stateRejected
         case .upToDate: MachineReportTexts.pillUpToDate
         }
     }
@@ -103,15 +102,31 @@ public enum MachineReportRules {
     /// Hours to account for: new − previous (0 or less means nothing to report).
     public static func difference(previous: Decimal, reading: Decimal) -> Decimal { reading - previous }
 
-    /// A line's hours as typed: more than 0, in steps of the meter's precision; nil otherwise.
-    public static func hours(_ text: String, decimalPlaces: Int) -> Decimal? {
-        if case let .success(value) = DecimalInput.parse(text, maxFractionDigits: max(0, decimalPlaces)) { return value }
+    /// Line hours have at most 2 decimals (steps of 0.01), whatever the meter's precision.
+    public static let lineDecimals = 2
+
+    /// A line's hours as typed: more than 0, at most 2 decimals; nil otherwise (an invalid line).
+    public static func hours(_ text: String) -> Decimal? {
+        if case let .success(value) = DecimalInput.parse(text, maxFractionDigits: lineDecimals) { return value }
         return nil
     }
 
-    /// The hours accounted for by the valid lines.
-    public static func accounted(_ lines: [ReportLineDraft], decimalPlaces: Int) -> Decimal {
-        lines.reduce(Decimal(0)) { $0 + (hours($1.hoursText, decimalPlaces: decimalPlaces) ?? 0) }
+    /// Whether a line's hours are valid (shown on the line's hours field when not).
+    public static func lineValid(_ line: ReportLineDraft) -> Bool { hours(line.hoursText) != nil }
+
+    /// The hours accounted for by the valid lines (an invalid line counts for nothing).
+    public static func accounted(_ lines: [ReportLineDraft]) -> Decimal {
+        lines.reduce(Decimal(0)) { $0 + (hours($1.hoursText) ?? 0) }
+    }
+
+    /// "All hours accounted for": there are lines, every line's hours are valid and they add up to `difference`.
+    public static func allAccounted(_ lines: [ReportLineDraft], difference: Decimal) -> Bool {
+        !lines.isEmpty && lines.allSatisfy(lineValid) && accounted(lines) == difference
+    }
+
+    /// What a customer has left after this report's valid lines for it ("after this").
+    public static func customerAfter(_ lines: [ReportLineDraft], customerID: UUID?, available: Decimal) -> Decimal {
+        available - accounted(lines.filter { $0.kind == .customer && $0.customerID == customerID })
     }
 
     /// Each customer's hours a report on `machineID` may draw on: the synced available hours (customer-wide, or of this
@@ -130,10 +145,10 @@ public enum MachineReportRules {
     }
 
     /// Every problem with the split, in the order the form shows them (Android `MachineReportRules.check`); empty =
-    /// Review may open. Every line has hours > 0 in the meter's steps; a customer appears once and gets no more than its
+    /// Review may open. Every line has hours > 0 with at most 2 decimals; a customer appears once and gets no more than its
     /// `available` hours (``available(_:machineID:heldByUnsent:)``); a non-productive line has a note; the lines add up
     /// to `difference` exactly.
-    public static func problems(_ lines: [ReportLineDraft], difference: Decimal, decimalPlaces: Int,
+    public static func problems(_ lines: [ReportLineDraft], difference: Decimal,
                                 available: [UUID: (name: String, hours: Decimal)]) -> [String] {
         typealias T = MachineReportTexts
         var m: [String] = []
@@ -143,8 +158,8 @@ public enum MachineReportRules {
         let customers = lines.filter { $0.kind == .customer }.compactMap(\.customerID)
         if Set(customers).count != customers.count { add(T.errDuplicateCustomer) }
         for line in lines {
-            let value = hours(line.hoursText, decimalPlaces: decimalPlaces)
-            if value == nil { add(T.errLineHours(decimalPlaces)) }
+            let value = hours(line.hoursText)
+            if value == nil { add(T.errLineHours) }
             switch line.kind {
             case .customer:
                 let cap = line.customerID.flatMap { available[$0]?.hours } ?? 0
@@ -153,27 +168,27 @@ public enum MachineReportRules {
                 if line.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { add(T.errNote(line.reasonName)) }
             }
         }
-        let left = difference - accounted(lines, decimalPlaces: decimalPlaces)
+        let left = difference - accounted(lines)
         if left != 0 { add(T.leftToAccount(left)) }
         return m
     }
 
     /// The split when it is complete (sum == difference, every line valid and within its customer's cap).
-    public static func check(_ lines: [ReportLineDraft], difference: Decimal, decimalPlaces: Int,
+    public static func check(_ lines: [ReportLineDraft], difference: Decimal,
                              available: [UUID: (name: String, hours: Decimal)], note: String) -> Result<CheckedReport, AccountabilityRules.Problems> {
-        let problems = problems(lines, difference: difference, decimalPlaces: decimalPlaces, available: available)
+        let problems = problems(lines, difference: difference, available: available)
         guard problems.isEmpty else { return .failure(AccountabilityRules.Problems(messages: problems)) }
         let payload = lines.map { line in
             MachineReportLinePayload(
                 kind: line.kind, customerID: line.kind == .customer ? line.customerID : nil,
                 reasonID: line.kind == .nonProductive ? line.reasonID : nil,
-                hours: hours(line.hoursText, decimalPlaces: decimalPlaces) ?? 0,
+                hours: hours(line.hoursText) ?? 0,
                 note: line.kind == .nonProductive ? AccountabilityRules.trimmed(line.note, max: maxNote) : nil)
         }
         return .success(CheckedReport(difference: difference, lines: payload, note: AccountabilityRules.trimmed(note, max: maxNote)))
     }
 
-    /// Hours for display: grouping, 0–1 decimals, no trailing zeros ("300", "1,210.5").
+    /// Hours for display: grouping, 0–2 decimals, no trailing zeros ("300", "1,210.5", "1.15").
     public static func hoursText(_ value: Decimal) -> String { AccountabilityRules.hoursNumber(value, locale: Locale(identifier: "en_US")) }
 
     /// A reading for display with the meter's precision ("1,210.0").
@@ -182,19 +197,10 @@ public enum MachineReportRules {
     }
 
     /// The split of a report into productive (customers) and non-productive hours.
-    public static func productive(_ lines: [ReportLineDraft], decimalPlaces: Int) -> (customers: Decimal, nonProductive: Decimal) {
+    public static func productive(_ lines: [ReportLineDraft]) -> (customers: Decimal, nonProductive: Decimal) {
         lines.reduce((Decimal(0), Decimal(0))) { sum, line in
-            let h = hours(line.hoursText, decimalPlaces: decimalPlaces) ?? 0
+            let h = hours(line.hoursText) ?? 0
             return line.kind == .customer ? (sum.0 + h, sum.1) : (sum.0, sum.1 + h)
-        }
-    }
-
-    /// The lines of a rejected report, to redo the split on the same reading.
-    public static func drafts(from report: MachineReportDTO) -> [ReportLineDraft] {
-        report.lines.sorted { $0.lineNo < $1.lineNo }.map { line in
-            ReportLineDraft(kind: line.lineKind ?? .nonProductive, customerID: line.customerID,
-                            customerName: line.customerName ?? "", reasonID: line.reasonID, reasonName: line.reasonName ?? "",
-                            hoursText: AccountabilityRules.plain(line.hours.value), note: line.note ?? "")
         }
     }
 }
@@ -284,42 +290,35 @@ public struct OpenCreditInvoice: Sendable, Equatable, Identifiable {
 // MARK: - Queueing a report
 
 extension FieldRecorder {
-    /// Queues a machine report: the new reading as a DAILY `METER_CAPTURE` (photo, OCR, GPS, time; the photo uploads
-    /// first) and the `MACHINE_REPORT` naming it, which waits for it. `existingCaptureID` instead redoes the split of a
-    /// rejected report on its own reading (`correctsReportID`). `opening`: the machine has no starting reading, so only
-    /// the reading is submitted (no lines). The operation id is the report id.
+    /// Queues a machine report: the new reading as a DAILY `METER_CAPTURE` (photo, OCR, GPS, time, area name; the photo
+    /// uploads first) and the `MACHINE_REPORT` naming it, which waits for it. Every report has its own new reading (a
+    /// rejected report is final and never corrected). `opening`: the machine has no starting reading, so only the reading
+    /// is submitted (no lines). The operation id is the report id.
     @discardableResult
-    public func recordMachineReport(machineID: UUID, reading: NewReportReading?, existingCaptureID: UUID? = nil,
-                                    correctsReportID: UUID? = nil, report: CheckedReport?, opening: Bool = false,
+    public func recordMachineReport(machineID: UUID, reading: NewReportReading?, report: CheckedReport?, opening: Bool = false,
                                     reportID: UUID = UUID()) throws -> ClientOperation {
         try requireCapability(SyncCapability.machineReport)
         guard try store.syncState.entity(type: "machine", id: machineID, tenantID: tenantID) != nil
             || store.syncState.entity(type: MachineReports.stateType, id: machineID, tenantID: tenantID) != nil else {
             throw FieldRecorderError.notAllowed(FieldAccountabilityTexts.machineMissing)
         }
-        guard reading != nil || existingCaptureID != nil else { throw FieldRecorderError.invalid(MachineReportTexts.errReading) }
+        guard let reading else { throw FieldRecorderError.invalid(MachineReportTexts.errReading) }
         if !opening && (report?.lines.isEmpty ?? true) { throw FieldRecorderError.invalid(MachineReportTexts.errNothingToReport) }
         if try alreadySaved(.machineReport, clientID: reportID) { throw FieldRecorderError.notAllowed(FieldAccountabilityTexts.alreadySaved) }
         return try store.database.transaction {
-            var captureID = existingCaptureID
-            var dependsOn: [UUID] = []
-            if let reading {
-                let photoLocal = try reading.photo.map { try addAttachment($0, purpose: .meterPhoto) }
-                let payload = capturePayload(id: reading.captureID, machineID: machineID, kind: .daily, mode: reading.mode,
-                                             reading: reading.reading, ocr: reading.ocr, gps: reading.gps,
-                                             capturedAt: reading.capturedAt, snapshot: reading.snapshot)
-                let capture = try enqueue(.meterCapture, entityType: "meter_capture", entityID: reading.captureID, payload: payload,
-                                          dependsOn: [], attachments: photoLocal.map { [($0, .photo)] } ?? [],
-                                          createdAt: reading.capturedAt)
-                captureID = reading.captureID
-                dependsOn = [capture.id]
-            }
-            guard let captureID else { throw FieldRecorderError.invalid(MachineReportTexts.errReading) }
-            let payload = MachineReportPayload(machineID: machineID, captureID: captureID, correctsReportID: correctsReportID,
+            let photoLocal = try reading.photo.map { try addAttachment($0, purpose: .meterPhoto) }
+            let capturePayload = capturePayload(id: reading.captureID, machineID: machineID, kind: .daily, mode: reading.mode,
+                                                reading: reading.reading, ocr: reading.ocr, gps: reading.gps,
+                                                capturedAt: reading.capturedAt, snapshot: reading.snapshot,
+                                                placeName: reading.placeName)
+            let capture = try enqueue(.meterCapture, entityType: "meter_capture", entityID: reading.captureID,
+                                      payload: capturePayload, dependsOn: [], attachments: photoLocal.map { [($0, .photo)] } ?? [],
+                                      createdAt: reading.capturedAt)
+            let payload = MachineReportPayload(machineID: machineID, captureID: reading.captureID,
                                                lines: opening ? [] : report?.lines ?? [], note: report?.note,
                                                opening: opening ? true : nil)
             return try enqueue(.machineReport, entityType: "machine_report", entityID: reportID, payload: payload,
-                               dependsOn: dependsOn, createdAt: reading?.capturedAt ?? Date(), operationID: reportID)
+                               dependsOn: [capture.id], createdAt: reading.capturedAt, operationID: reportID)
         }
     }
 }
@@ -335,9 +334,12 @@ public struct NewReportReading: Sendable {
     public let gps: GpsPayload
     public let capturedAt: Date
     public let snapshot: MeterPolicySnapshot
+    /// The phone's area label of the reading (reverse geocoded while online; nil otherwise), sent as `place_name`.
+    public let placeName: String?
 
     public init(captureID: UUID, mode: CaptureMode, reading: String, ocr: MeterOCRResult?, photo: StoredEvidence?, gps: GpsPayload,
-                capturedAt: Date, snapshot: MeterPolicySnapshot) {
+                capturedAt: Date, snapshot: MeterPolicySnapshot, placeName: String? = nil) {
+        self.placeName = placeName
         self.captureID = captureID
         self.mode = mode
         self.reading = reading

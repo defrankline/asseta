@@ -13,7 +13,6 @@ func standingTone(_ standing: MachineReportStanding) -> ShellPill.Tone {
     switch standing {
     case .due, .opening: .due
     case .awaitingApproval: .waiting
-    case .rejected: .bad
     case .upToDate: .good
     }
 }
@@ -157,20 +156,25 @@ struct DashboardView: View {
     }
 }
 
-/// "My machine reports": the server's of the last 30 days and those still on this phone; a row opens its machine's report.
+/// "My machine reports": the server's of the last 30 days and those still on this phone. A report the server has opens
+/// its read-only detail; one still on this phone opens its machine's report.
 struct MyReportsView: View {
     let model: FieldModel
     let open: (FieldRoute) -> Void
 
     var body: some View {
-        let rows = FieldActivity.reportRows(reports: model.myReports, operations: model.myOperations, machineCode: model.machineCode)
+        let reports = model.myReports
+        let server = Set(reports.map(\.id))
+        let rows = FieldActivity.reportRows(reports: reports, operations: model.myOperations, machineCode: model.machineCode)
         ScrollView {
             if rows.isEmpty {
                 ShellCard { Text(T.dashNoReports).font(.system(size: 14)).foregroundStyle(Shell.muted) }.padding(16)
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                        Button { if let machine = row.machineID { open(.report(machine)) } } label: {
+                        Button {
+                            if server.contains(row.id) { open(.myReport(row.id)) } else if let machine = row.machineID { open(.report(machine)) }
+                        } label: {
                             VStack(alignment: .leading, spacing: 0) {
                                 CardRow(row.title, subtitle: F.when(row.at), last: row.extra != nil || index == rows.count - 1) {
                                     ShellPill(row.pill, tone: recentTone(row.tone))

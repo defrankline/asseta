@@ -178,10 +178,15 @@ public struct MeterCapturePayload: Codable, Hashable, Sendable {
     public let deviceID: String
     public let capturedAt: Date
     public let policyVersionIDs: [UUID]
+    /// ADR-008: the area of the reading from the phone's reverse geocoder ("Mbezi Beach, Kinondoni, Dar es Salaam";
+    /// never a street address); nil offline, without a result or after the ~3 s timeout. At most 200 characters.
+    public let placeName: String?
 
     public init(id: UUID, machineID: UUID, kind: ReadingKind = .daily, captureMode: CaptureMode, reading: String,
                 ocrRawText: String?, ocrValue: String?, ocrConfidence: Double?, ocrEngine: String?,
-                photoAttachmentID: UUID?, gps: GpsPayload, deviceID: String, capturedAt: Date, policyVersionIDs: [UUID]) {
+                photoAttachmentID: UUID?, gps: GpsPayload, deviceID: String, capturedAt: Date, policyVersionIDs: [UUID],
+                placeName: String? = nil) {
+        self.placeName = placeName
         self.id = id
         self.machineID = machineID
         self.kind = kind
@@ -204,5 +209,6 @@ public struct MeterCapturePayload: Codable, Hashable, Sendable {
         case ocrValue = "ocr_value"
         case ocrConfidence = "ocr_confidence", ocrEngine = "ocr_engine", photoAttachmentID = "photo_attachment_id"
         case deviceID = "device_id", capturedAt = "captured_at", policyVersionIDs = "policy_version_ids"
+        case placeName = "place_name"
     }
 }

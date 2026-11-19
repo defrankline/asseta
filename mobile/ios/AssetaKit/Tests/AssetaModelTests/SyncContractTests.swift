@@ -257,9 +257,9 @@ struct SyncContractTests {
                               schema: "HoursPurchaseIn", opOnly: ["evidence_upload_ids"])
         let line = MachineReportLinePayload(kind: .nonProductive, customerID: nil, reasonID: id, hours: 4, note: "Transit")
         try Self.checkPayload(line, schema: "MachineReportLineIn")
-        try Self.checkPayload(MachineReportPayload(machineID: id, captureID: id, correctsReportID: id, lines: [line], note: "n"),
+        try Self.checkPayload(MachineReportPayload(machineID: id, captureID: id, lines: [line], note: "n"),
                               schema: "MachineReportIn")
-        try Self.checkPayload(MachineReportPayload(machineID: id, captureID: id, correctsReportID: nil, lines: [], note: nil,
+        try Self.checkPayload(MachineReportPayload(machineID: id, captureID: id, lines: [], note: nil,
                                                    opening: true),
                               schema: "MachineReportIn", opOnly: ["opening"])
         try Self.checkPayload(CreditInvoicePaymentPayload(invoiceID: id, amount: 85000, method: "CASH", reference: nil, receivedAt: at,
@@ -281,6 +281,12 @@ struct SyncContractTests {
                                               ocrRawText: nil, ocrValue: nil, ocrConfidence: nil, ocrEngine: nil,
                                               photoAttachmentID: nil, gps: gps, deviceID: "dev-1", capturedAt: at, policyVersionIDs: [id])
         try Self.checkPayload(replacement, schema: "MeterCaptureIn")
+        // ADR-008: the phone's area label of the reading travels as `place_name`.
+        let placed = MeterCapturePayload(id: id, machineID: id, kind: .daily, captureMode: .manual, reading: "10.0",
+                                         ocrRawText: nil, ocrValue: nil, ocrConfidence: nil, ocrEngine: nil,
+                                         photoAttachmentID: nil, gps: gps, deviceID: "dev-1", capturedAt: at, policyVersionIDs: [id],
+                                         placeName: "Mbezi Beach, Kinondoni, Dar es Salaam")
+        try Self.checkPayload(placed, schema: "MeterCaptureIn")
         try Self.checkPayload(MeterCorrectionPayload(supersededCaptureID: id, reason: "Misread digit", replacement: replacement),
                               schema: "CorrectionIn")
         try Self.checkPayload(CashRetentionIn(amount: 5, currency: "TZS", reason: "Float", reasonID: id, staffMemberID: id,

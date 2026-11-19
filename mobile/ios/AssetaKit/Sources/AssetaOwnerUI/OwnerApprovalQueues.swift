@@ -14,6 +14,8 @@ import SwiftUI
 final class ApprovalQueues {
     let features: OwnerFeatures
     let reports = Loader<Page<MachineReportDTO>>()
+    /// The tenant's CUSTOMER_HOURS policy (`visit_gap_warning_hours` flags a long time since a machine's last visit).
+    let hoursPolicy = Loader<EffectivePolicyDTO<CustomerHoursPolicyValues>>()
     let credit = Loader<Page<HoursPurchaseDTO>>()
     /// What is left of each customer's credit limit (best effort, online only).
     private(set) var limitLeft: [UUID: DecimalString] = [:]
@@ -84,6 +86,9 @@ final class ApprovalQueues {
         let f = features
         await withTaskGroup(of: Void.self) { group in
             if f.machineReports { group.addTask { await self.reports.load(model, .machineReportQueue, OwnerAPI.machineReports(pending: true)) } }
+            if f.machineReports {
+                group.addTask { await self.hoursPolicy.load(model, .customerHoursPolicy, OwnerAPI.customerHoursPolicy()) }
+            }
             if f.creditSales { group.addTask { await self.loadCredit(model) } }
             if f.approvals { group.addTask { await self.loadExpenses(model) } }
             if f.finance { group.addTask { await self.loadHandovers(model) } }

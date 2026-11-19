@@ -51,9 +51,6 @@ public enum MachineReportTexts {
     public static let pillDue = "Report due"
     public static let pillAwaiting = "Awaiting approval"
     public static let pillNotSent = "Not sent yet"
-    public static let pillRejected = "Rejected · redo"
-    /// A machine whose last report was rejected (field.report.state.rejected).
-    public static let stateRejected = "Rejected · redo the split"
     public static let pillUpToDate = "Up to date"
 
     // Step 1: reading
@@ -79,10 +76,11 @@ public enum MachineReportTexts {
     public static let openingTitle = "First reading for this machine"
     public static let openingBody = "This machine has no starting reading yet. Record the meter now; the next report counts the hours from it."
     public static let submitOpening = "Submit the reading"
-    /// "Rejected: {reason}. Split the same reading again." (no reason: "Rejected. Split the same reading again.").
+    /// A rejected report is final: "Rejected: {reason}. Send a new report for this machine." (no reason: "Rejected. Send
+    /// a new report for this machine.").
     public static func rejected(_ reason: String?) -> String {
         let r = reason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return "Rejected" + (r.isEmpty ? "" : ": \(reason ?? "")") + ". Split the same reading again."
+        return "Rejected" + (r.isEmpty ? "" : ": \(r)") + ". Send a new report for this machine."
     }
     public static func rejectedReason(_ reason: String) -> String { "Reason: \(reason)" }
 
@@ -126,6 +124,19 @@ public enum MachineReportTexts {
     public static let submitting = "Submitting…"
     public static let queued = "Saved on this phone. It is sent when you are online."
 
+    // Report detail (read-only; a rejected report is final)
+    public static let detailMachine = "Machine"
+    public static let detailStatus = "Status"
+    public static let detailReadings = "Readings"
+    public static let detailPeriod = "Period"
+    public static let detailHours = "Hours"
+    public static let detailVisit = "VISIT"
+    public static let detailPhoto = "Meter photo"
+    public static let detailNoPhoto = "No photo with this report."
+    public static let detailSplit = "HOURS ACCOUNTED FOR"
+    public static func detailNote(_ note: String) -> String { "Note: \(note)" }
+    public static let detailMissing = "This report is no longer on this phone. Sync to see your latest reports."
+
     // Errors
     public static let errReading = "Take the meter reading first."
     public static let errReadingInvalid = "Enter the new reading."
@@ -133,10 +144,9 @@ public enum MachineReportTexts {
     public static let errNothingToReport = "No difference since the last reading? Nothing to report."
     public static let errNoLines = "Add a customer or a non-productive line."
     public static let errTooManyLines = "At most 50 lines per report."
-    public static func errLineHours(_ decimals: Int) -> String {
-        decimals <= 0 ? "Enter whole hours (more than 0)."
-            : "Enter the hours (more than 0, at most \(decimals) decimal\(decimals == 1 ? "" : "s"))."
-    }
+    /// A line's hours: more than 0, at most 2 decimals (whatever the meter's precision).
+    public static let errLineHours = "Enter the hours (more than 0, at most 2 decimals)."
+
     public static let errDuplicateCustomer = "Each customer can appear only once."
     public static func errNote(_ reason: String) -> String { "Say what happened for “\(reason)”." }
     public static func errOverCap(_ name: String, _ available: String) -> String { "\(name) has only \(available) h available." }

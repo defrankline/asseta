@@ -217,9 +217,11 @@ public struct MeterCaptureDTO: Codable, Hashable, Sendable, Identifiable {
     public let capturedAt: Date
     public let receivedAt: Date
     public let state: String
+    /// The phone's area label of the reading (ADR-008); nil when the phone had none.
+    public let placeName: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, machineID = "machine_id", kind, captureMode = "capture_mode", reading
+        case id, machineID = "machine_id", kind, captureMode = "capture_mode", reading, placeName = "place_name"
         case ocrValue = "ocr_value", ocrConfidence = "ocr_confidence", manuallyCorrected = "manually_corrected"
         case photoAttachmentID = "photo_attachment_id", gpsStatus = "gps_status", latitude, longitude
         case capturedAt = "captured_at", receivedAt = "received_at", state

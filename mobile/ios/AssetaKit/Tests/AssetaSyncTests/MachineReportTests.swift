@@ -37,15 +37,15 @@ struct MachineReportTests {
     @Test func reviewOnlyWhenTheSumEqualsTheDifference() {
         var lines = [Self.customer(Self.pwani, "120"), Self.customer(Self.msasani, "100"), Self.idle("40"), Self.idle("25")]
         lines[3].reasonID = UUID() // another reason
-        let short = MachineReportRules.problems(lines, difference: 300, decimalPlaces: 1, available: Self.caps)
+        let short = MachineReportRules.problems(lines, difference: 300, available: Self.caps)
         #expect(short == [MachineReportTexts.stillToAccount("15")])
-        #expect(MachineReportRules.accounted(lines, decimalPlaces: 1) == 285)
+        #expect(MachineReportRules.accounted(lines) == 285)
         lines.append(Self.idle("15"))
-        #expect(MachineReportRules.problems(lines, difference: 300, decimalPlaces: 1, available: Self.caps).isEmpty)
+        #expect(MachineReportRules.problems(lines, difference: 300, available: Self.caps).isEmpty)
         lines.append(Self.idle("1"))
-        #expect(MachineReportRules.problems(lines, difference: 300, decimalPlaces: 1, available: Self.caps)
+        #expect(MachineReportRules.problems(lines, difference: 300, available: Self.caps)
             == [MachineReportTexts.overAccounted("1")])
-        guard case let .success(checked) = MachineReportRules.check(Array(lines.dropLast()), difference: 300, decimalPlaces: 1,
+        guard case let .success(checked) = MachineReportRules.check(Array(lines.dropLast()), difference: 300,
                                                                     available: Self.caps, note: "  Hose failure  ") else {
             Issue.record("valid split refused"); return
         }
@@ -56,28 +56,66 @@ struct MachineReportTests {
 
     @Test func eachCustomerIsCappedByTheirAvailableHours() {
         let lines = [Self.customer(Self.pwani, "150"), Self.idle("150")]
-        let problems = MachineReportRules.problems(lines, difference: 300, decimalPlaces: 1, available: Self.caps)
+        let problems = MachineReportRules.problems(lines, difference: 300, available: Self.caps)
         #expect(problems == [MachineReportTexts.errOverCap("C", "140")])
         // Unknown customer (no usable hours) is capped at 0.
-        let stranger = MachineReportRules.problems([Self.customer(UUID(), "10")], difference: 10, decimalPlaces: 1, available: Self.caps)
+        let stranger = MachineReportRules.problems([Self.customer(UUID(), "10")], difference: 10, available: Self.caps)
         #expect(stranger.count == 1 && stranger[0].contains("0 h available"))
         // A customer twice is refused.
         let twice = MachineReportRules.problems([Self.customer(Self.pwani, "5"), Self.customer(Self.pwani, "5")], difference: 10,
-                                                decimalPlaces: 1, available: Self.caps)
+                                                available: Self.caps)
         #expect(twice.contains(MachineReportTexts.errDuplicateCustomer))
     }
 
-    @Test func linesNeedHoursInMeterStepsAndNonProductiveNeedsANote() {
-        let line = Self.idle("2.55", note: "  ")
-        let problems = MachineReportRules.problems([line], difference: Decimal(string: "2.5")!, decimalPlaces: 1, available: [:])
-        #expect(problems == ["Enter the hours (more than 0, at most 1 decimal).", "Say what happened for “Breakdown / repair”.",
+    @Test func linesTakeHundredthsAndNonProductiveNeedsANote() {
+        let line = Self.idle("2.555", note: "  ")
+        let problems = MachineReportRules.problems([line], difference: Decimal(string: "2.5")!, available: [:])
+        #expect(problems == ["Enter the hours (more than 0, at most 2 decimals).", "Say what happened for “Breakdown / repair”.",
                              "2.5 h still to account for"])
-        #expect(MachineReportTexts.errLineHours(0) == "Enter whole hours (more than 0).")
-        #expect(MachineReportTexts.errLineHours(2) == "Enter the hours (more than 0, at most 2 decimals).")
-        #expect(MachineReportRules.problems([], difference: 10, decimalPlaces: 1, available: [:])
+        #expect(MachineReportTexts.errLineHours == "Enter the hours (more than 0, at most 2 decimals).")
+        #expect(MachineReportRules.problems([], difference: 10, available: [:])
             == ["Add a customer or a non-productive line.", "10 h still to account for"])
         let many = Array(repeating: Self.idle("1"), count: 51)
-        #expect(MachineReportRules.problems(many, difference: 51, decimalPlaces: 0, available: [:]) == ["At most 50 lines per report."])
+        #expect(MachineReportRules.problems(many, difference: 51, available: [:]) == ["At most 50 lines per report."])
+    }
+
+    /// Line hours take up to 2 decimals whatever the meter shows (a 1-decimal meter's 9.0 h split 7.85 + 1.15).
+    @Test func lineHoursAcceptTwoDecimalsWhateverTheMeter() {
+        #expect(MachineReportRules.hours("1.15") == Decimal(string: "1.15"))
+        #expect(MachineReportRules.hours("1,15") == Decimal(string: "1.15"))
+        #expect(MachineReportRules.hours("0.01") == Decimal(string: "0.01"))
+        #expect(MachineReportRules.hours("1.155") == nil)
+        #expect(MachineReportRules.hours("0") == nil && MachineReportRules.hours("0.00") == nil)
+        #expect(MachineReportRules.hours("-1") == nil && MachineReportRules.hours("abc") == nil && MachineReportRules.hours("") == nil)
+        let lines = [Self.customer(Self.pwani, "7.85"), Self.idle("1.15")]
+        #expect(MachineReportRules.problems(lines, difference: 9, available: Self.caps).isEmpty)
+        #expect(MachineReportRules.allAccounted(lines, difference: 9))
+        guard case let .success(checked) = MachineReportRules.check(lines, difference: 9, available: Self.caps, note: "") else {
+            Issue.record("hundredths refused"); return
+        }
+        #expect(checked.lines.map(\.hours.value) == [Decimal(string: "7.85")!, Decimal(string: "1.15")!])
+        #expect(MachineReportRules.hoursText(Decimal(string: "1.15")!) == "1.15")
+        // The sum must still be exact.
+        #expect(MachineReportRules.problems([Self.customer(Self.pwani, "7.84"), Self.idle("1.15")], difference: 9,
+                                            available: Self.caps) == ["0.01 h still to account for"])
+    }
+
+    /// The Android bug: an invalid line was counted as 0 and the header still said "All hours accounted for".
+    @Test func anInvalidLineNeverCountsTowardsAccountedFor() {
+        let bad = Self.idle("1.155")
+        let lines = [Self.customer(Self.pwani, "9"), bad]
+        #expect(!MachineReportRules.lineValid(bad) && MachineReportRules.lineValid(lines[0]))
+        #expect(MachineReportRules.accounted(lines) == 9)
+        // The valid lines add up to 9 h, but one line is invalid: not "All hours accounted for".
+        #expect(!MachineReportRules.allAccounted(lines, difference: 9))
+        #expect(MachineReportRules.problems(lines, difference: 9, available: Self.caps)
+            == [MachineReportTexts.errLineHours])
+        #expect(MachineReportRules.allAccounted([Self.customer(Self.pwani, "9")], difference: 9))
+        #expect(!MachineReportRules.allAccounted([], difference: 0))
+        // The customer's "after this" ignores an invalid line of theirs.
+        let customerLines = [Self.customer(Self.pwani, "7.85"), Self.customer(Self.pwani, "1.155")]
+        #expect(MachineReportRules.customerAfter(customerLines, customerID: Self.pwani, available: 9) == Decimal(string: "1.15"))
+        #expect(MachineReportRules.customerAfter(customerLines, customerID: Self.msasani, available: 5) == 5)
     }
 
     @Test func availableHoursFollowTheScopeAndUnsentReports() {
@@ -103,9 +141,15 @@ struct MachineReportTests {
         #expect(MachineReportStanding.of(state(previous: nil), unsentReport: false, reminderDays: 3) == .opening)
         #expect(MachineReportStanding.of(state(pending: UUID()), unsentReport: false, reminderDays: 3) == .awaitingApproval(notSent: false))
         #expect(MachineReportStanding.of(state(), unsentReport: true, reminderDays: 3) == .awaitingApproval(notSent: true))
-        let rejected = UUID()
-        #expect(MachineReportStanding.of(state(rejected: rejected), unsentReport: false, reminderDays: 3) == .rejected(reportID: rejected))
-        #expect(MachineReportStanding.rejected(reportID: rejected).needsReport && MachineReportStanding.opening.needsReport)
+        // A rejected report is final: the machine is due again (even when reported yesterday), or needs its first
+        // reading when the rejected report was the opening one.
+        #expect(MachineReportStanding.of(state(rejected: UUID()), unsentReport: false, reminderDays: 3) == .due)
+        #expect(MachineReportStanding.of(state(days: 0, rejected: UUID()), unsentReport: false, reminderDays: nil) == .due)
+        #expect(MachineReportStanding.of(state(previous: nil, rejected: UUID()), unsentReport: false, reminderDays: 3) == .opening)
+        // A new report already waiting wins over the rejection.
+        #expect(MachineReportStanding.of(state(pending: UUID(), rejected: UUID()), unsentReport: false, reminderDays: 3)
+            == .awaitingApproval(notSent: false))
+        #expect(MachineReportStanding.due.needsReport && MachineReportStanding.opening.needsReport)
         #expect(!MachineReportStanding.upToDate.needsReport)
         // The Supervisor's reminder days: a policy that failed to load counts as 3; an explicit null switches them off.
         #expect(MachineReportStanding.reminderDays(nil) == 3)
@@ -118,15 +162,14 @@ struct MachineReportTests {
                                          reminderDays: MachineReportStanding.reminderDays(nil)) == .due)
     }
 
-    @Test func aRejectedReportIsRedoneFromItsLines() {
-        let report = MachineReportDTO(
-            id: UUID(), reportNumber: "MR-2026-00001", machineID: UUID(), startReading: 1210, startAt: Date(), endReading: 1510,
-            endAt: Date(), status: .rejected, submittedAt: Date(),
-            lines: [.init(lineNo: 2, kind: .nonProductive, reasonID: Self.breakdown, reasonName: "Breakdown", hours: 80, note: "Hose"),
-                    .init(lineNo: 1, kind: .customer, customerID: Self.pwani, customerName: "Pwani", hours: 220)])
-        let drafts = MachineReportRules.drafts(from: report)
-        #expect(drafts.map(\.hoursText) == ["220", "80"] && drafts[0].kind == .customer && drafts[1].note == "Hose")
-        #expect(report.customerHours.value == 220 && report.nonProductiveHours.value == 80)
+    @Test func aRejectedReportIsFinal() {
+        #expect(MachineReportTexts.rejected("Wrong customer") == "Rejected: Wrong customer. Send a new report for this machine.")
+        #expect(MachineReportTexts.rejected("  ") == "Rejected. Send a new report for this machine.")
+        #expect(MachineReportTexts.rejected(nil) == "Rejected. Send a new report for this machine.")
+        #expect(MachineReportTexts.conflict("CORRECTION_NOT_ALLOWED")
+            == "A rejected report can't be corrected; send a new report with a new reading.")
+        #expect(MachineReportTexts.conflict("CAPTURE_ALREADY_USED") == "This reading was already used in another report. Take a new reading.")
+        #expect(MachineReportTexts.conflict("HOURS_PRECISION") == "The hours have more than 2 decimals.")
     }
 
     // MARK: - Gating
@@ -169,6 +212,12 @@ struct MachineReportTests {
         let older = #"{"enabled":true,"walk_in_allowed":false,"transfer_requires_approval":true,"reason_code_required":false}"#
         let old = try AssetaJSON.decoder().decode(CustomerHoursPolicyValues.self, from: Data(older.utf8))
         #expect(!old.fieldCreditSales && old.machineReportReminderDays == 3)
+        // visit_gap_warning_hours: absent = 24, null = never flag, a number as set.
+        #expect(old.visitGapWarningHours == 24 && values.visitGapWarningHours == 24)
+        let gap = #"{"enabled":true,"walk_in_allowed":false,"transfer_requires_approval":true,"reason_code_required":false,"visit_gap_warning_hours":48}"#
+        #expect(try AssetaJSON.decoder().decode(CustomerHoursPolicyValues.self, from: Data(gap.utf8)).visitGapWarningHours == 48)
+        let noFlag = #"{"enabled":true,"walk_in_allowed":false,"transfer_requires_approval":true,"reason_code_required":false,"visit_gap_warning_hours":null}"#
+        #expect(try AssetaJSON.decoder().decode(CustomerHoursPolicyValues.self, from: Data(noFlag.utf8)).visitGapWarningHours == nil)
     }
 
     // MARK: - Sale with a CREDIT line
@@ -229,12 +278,12 @@ struct MachineReportTests {
 
     // MARK: - Offline report
 
-    static func reading(_ h: SyncHarness, _ value: String = "1510.0") throws -> NewReportReading {
+    static func reading(_ h: SyncHarness, _ value: String = "1510.0", place: String? = nil) throws -> NewReportReading {
         let photo = try h.evidence.store(Data((0..<2000).map { UInt8($0 % 251) }), fileExtension: "jpg", contentType: "image/jpeg")
         return NewReportReading(captureID: UUID(), mode: .automatic, reading: value,
                                 ocr: MeterOCRResult(value: value, confidence: 0.97, rawText: value, engine: "test", note: ""),
                                 photo: photo, gps: .fix(latitude: -6.8, longitude: 39.28, accuracyM: 6, capturedAt: h.clock.wallNow),
-                                capturedAt: h.clock.wallNow, snapshot: SyncFixtures.meterSnapshot)
+                                capturedAt: h.clock.wallNow, snapshot: SyncFixtures.meterSnapshot, placeName: place)
     }
 
     @Test func reportQueuesTheReadingThenTheReportDependingOnIt() throws {
@@ -245,9 +294,9 @@ struct MachineReportTests {
                                                                                "asset_code": "EX-07", "name": "Excavator"]).jsonString())],
                                      tenantID: SyncFixtures.tenant)
         let lines = [Self.customer(Self.pwani, "120"), Self.customer(Self.msasani, "100"), Self.idle("80")]
-        guard case let .success(checked) = MachineReportRules.check(lines, difference: 300, decimalPlaces: 1, available: Self.caps,
+        guard case let .success(checked) = MachineReportRules.check(lines, difference: 300, available: Self.caps,
                                                                     note: "") else { Issue.record("invalid"); return }
-        let reading = try Self.reading(h)
+        let reading = try Self.reading(h, place: "  Mbezi Beach, Kinondoni, Dar es Salaam ")
         let reportID = UUID()
         let op = try h.recorder.recordMachineReport(machineID: SyncFixtures.machineID, reading: reading, report: checked,
                                                     reportID: reportID)
@@ -257,6 +306,7 @@ struct MachineReportTests {
         #expect(op.dependencies == [capture.id])
         let capturePayload = try JSONValue.parse(capture.payloadJSON)
         #expect(capturePayload["kind"]?.stringValue == "DAILY" && capturePayload["job_id"] == nil)
+        #expect(capturePayload["place_name"]?.stringValue == "Mbezi Beach, Kinondoni, Dar es Salaam")
         #expect(try h.store.attachments.attachments(operationID: capture.id).count == 1)
         let payload = try JSONValue.parse(op.payloadJSON)
         #expect(payload["capture_id"]?.stringValue == reading.captureID.uuidString.lowercased())
@@ -272,8 +322,7 @@ struct MachineReportTests {
         #expect(directory.hoursHeldByUnsentReports(excluding: SyncFixtures.machineID).isEmpty)
         // A second save of the same visit is refused.
         #expect(throws: FieldRecorderError.self) {
-            try h.recorder.recordMachineReport(machineID: SyncFixtures.machineID, reading: nil, existingCaptureID: reading.captureID,
-                                               report: checked, reportID: reportID)
+            try h.recorder.recordMachineReport(machineID: SyncFixtures.machineID, reading: reading, report: checked, reportID: reportID)
         }
     }
 
@@ -296,22 +345,26 @@ struct MachineReportTests {
         }
     }
 
-    @Test func correctionReusesTheRejectedReading() throws {
+    @Test func aReportAlwaysNeedsItsOwnNewReadingAndAPlaceIsOptional() throws {
         let h = try SyncHarness()
         try AccountabilityTests.supported(h.store, Self.all)
         try h.store.syncState.upsert([StoredEntity(entityType: "machine", id: SyncFixtures.machineID, revision: 1, version: 1,
                                                    json: try JSONValue.encode(["id": SyncFixtures.machineID.uuidString.lowercased(),
                                                                                "asset_code": "EX-07", "name": "Excavator"]).jsonString())],
                                      tenantID: SyncFixtures.tenant)
-        let capture = UUID(), rejected = UUID()
-        guard case let .success(checked) = MachineReportRules.check([Self.idle("10")], difference: 10, decimalPlaces: 1,
+        guard case let .success(checked) = MachineReportRules.check([Self.idle("10")], difference: 10,
                                                                     available: [:], note: "") else { Issue.record("invalid"); return }
-        let op = try h.recorder.recordMachineReport(machineID: SyncFixtures.machineID, reading: nil, existingCaptureID: capture,
-                                                    correctsReportID: rejected, report: checked)
-        let payload = try JSONValue.parse(op.payloadJSON)
-        #expect(op.dependencies.isEmpty)
-        #expect(payload["capture_id"]?.stringValue == capture.uuidString.lowercased())
-        #expect(payload["corrects_report_id"]?.stringValue == rejected.uuidString.lowercased())
+        // No reading: refused (a rejected report's reading is never reused).
+        #expect(throws: FieldRecorderError.self) {
+            try h.recorder.recordMachineReport(machineID: SyncFixtures.machineID, reading: nil, report: checked)
+        }
+        // Offline / no geocoder result: the capture goes without a place, never delayed.
+        let op = try h.recorder.recordMachineReport(machineID: SyncFixtures.machineID, reading: try Self.reading(h), report: checked)
+        let all = try h.store.outbox.operations(tenantID: SyncFixtures.tenant, statuses: Set(ClientOperationStatus.allCases))
+        let capture = try #require(all.first { $0.opType == "METER_CAPTURE" })
+        #expect(op.dependencies == [capture.id])
+        #expect(try JSONValue.parse(capture.payloadJSON)["place_name"] == nil)
+        #expect(try JSONValue.parse(op.payloadJSON)["corrects_report_id"] == nil)
     }
 
     @Test func aServerWithoutReportsRefusesTheReport() throws {

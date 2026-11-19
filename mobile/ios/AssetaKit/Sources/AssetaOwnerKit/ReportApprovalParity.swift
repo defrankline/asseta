@@ -20,9 +20,9 @@ public enum ReportTexts {
     public static let reject = "Reject"
     public static let cancel = "Cancel"
     public static let confirmReject = "Reject this report?"
-    public static let confirmRejectText = "The supervisor is told your reason and corrects the split on the same reading."
+    public static let confirmRejectText = "The supervisor is told your reason. A rejected report is kept as a record; the supervisor sends a new report with a new reading."
     public static let approved = "Report approved. The customers' hours are used."
-    public static let rejected = "Report rejected. The supervisor will correct it."
+    public static let rejected = "Report rejected. The supervisor will send a new report."
     public static let ownReport = "You submitted this report, so someone else must approve or reject it."
     public static let noPermission = "Only people allowed to approve machine reports can decide it."
     /// The photo button: "View meter photo" / "Meter photo (online only)".
@@ -43,9 +43,9 @@ public enum ReportTexts {
         case "SEGREGATION_OF_DUTIES": "You submitted this report, so you can't decide it. Someone else with approval rights must."
         case "REPORT_NOT_PENDING": "This report was already decided by someone else. It has been refreshed."
         case "REPORT_READINGS_CHANGED":
-            "The machine's previous reading changed after this report was sent (a baseline or meter reset). Reject it so the supervisor can send it again."
+            "The machine's previous reading changed after this report was sent (a baseline or meter reset). Reject it so the supervisor sends a new report."
         case "HOURS_NOT_AVAILABLE":
-            "A customer no longer has these hours (cancelled or expired). Reject the report so the supervisor can correct it."
+            "A customer no longer has these hours (cancelled or expired). Reject the report so the supervisor sends a new report."
         case "REPORT_NOT_FOUND": "This report no longer exists."
         default: fallback
         }
@@ -105,6 +105,17 @@ public enum ReportPresentation {
     public static func rowTitle(_ r: MachineReportDTO) -> String {
         [machine(r), r.isOpening ? nil : OwnerFigures.hours(r.hours.value), r.submittedByName.flatMap { $0.isBlank ? nil : $0 }]
             .compactMap { $0 }.joined(separator: " · ")
+    }
+
+    /// "Since last visit: 1 day 3 h" (or "Since last visit: First visit").
+    public static func sinceLastVisit(_ r: MachineReportDTO) -> String {
+        VisitTexts.sinceLastVisit(seconds: r.sincePreviousVisitSeconds)
+    }
+
+    /// The approvals row shows the time since the last visit in the warning colour when it is longer than the tenant's
+    /// `visit_gap_warning_hours` (nil = never).
+    public static func visitGapFlagged(_ r: MachineReportDTO, warningHours: Int?) -> Bool {
+        MachineReportStanding.visitGapFlagged(seconds: r.sincePreviousVisitSeconds, warningHours: warningHours)
     }
 
     /// Short reason ("transit", "breakdown"): the code in words, else the name.

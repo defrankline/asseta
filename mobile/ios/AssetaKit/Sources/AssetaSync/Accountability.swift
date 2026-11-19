@@ -679,11 +679,13 @@ extension FieldRecorder {
     }
 
     func capturePayload(id: UUID, machineID: UUID, kind: ReadingKind, mode: CaptureMode, reading: String,
-                        ocr: MeterOCRResult?, gps: GpsPayload, capturedAt: Date, snapshot: MeterPolicySnapshot) -> MeterCapturePayload {
+                        ocr: MeterOCRResult?, gps: GpsPayload, capturedAt: Date, snapshot: MeterPolicySnapshot,
+                        placeName: String? = nil) -> MeterCapturePayload {
         MeterCapturePayload(
             id: id, machineID: machineID, kind: kind, captureMode: mode, reading: reading,
             ocrRawText: ocr.map { String($0.rawText.prefix(500)) }, ocrValue: ocr?.value,
             ocrConfidence: ocr.map { ($0.confidence * 1000).rounded() / 1000 }, ocrEngine: ocr?.engine,
-            photoAttachmentID: nil, gps: gps, deviceID: deviceID, capturedAt: capturedAt, policyVersionIDs: snapshot.versionIDs)
+            photoAttachmentID: nil, gps: gps, deviceID: deviceID, capturedAt: capturedAt, policyVersionIDs: snapshot.versionIDs,
+            placeName: placeName.flatMap { VisitTexts.placeLabel(subLocality: $0, district: nil, locality: nil) })
     }
 }

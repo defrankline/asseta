@@ -10,6 +10,8 @@ private typealias T = MachineReportTexts
 enum FieldRoute: Hashable {
     // ADR-008 shell
     case sellHours, report(UUID?), money, dashboard, inbox, moneyRecords, myReports, mySales, fuelList, settings
+    /// One of my machine reports (read-only detail).
+    case myReport(UUID)
     case reading(UUID), machine(UUID), resetDetail(UUID), fuel(UUID), expense(UUID)
     case cash(UUID, collection: Bool), notification(UUID), syncStatus
     /// A request to keep cash (client id or server id).
@@ -189,6 +191,7 @@ public struct FieldRootView: View {
             MoneyTabView(model: model, acknowledge: { sheet = .cashAck($0, isFloat: $1) }).navigationTitle(T.dashMyCash)
                 .toolbar { moneyToolbar }
         case .myReports: MyReportsView(model: model, open: open)
+        case let .myReport(id): MachineReportDetailView(model: model, reportID: id)
         case .mySales: MySalesView(model: model)
         case .fuelList:
             FuelTabView(model: model).navigationTitle(T.menuFuel)

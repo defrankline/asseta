@@ -106,6 +106,11 @@ struct OwnerApprovalsHubView: View {
                     kindLine(ReportTexts.kind, report.submittedAt)
                     Text(ReportPresentation.rowTitle(report)).font(.system(size: 16, weight: .semibold)).foregroundStyle(Shell.text)
                     Text(ReportPresentation.split(report)).font(.system(size: 13)).foregroundStyle(Shell.accent)
+                    // Neutral wording; the warning colour when longer than the tenant's visit_gap_warning_hours.
+                    let flagged = ReportPresentation.visitGapFlagged(report, warningHours: queues.hoursPolicy.visitGapWarningHours)
+                    Text(ReportPresentation.sinceLastVisit(report)).font(.system(size: 13, weight: flagged ? .semibold : .regular))
+                        .foregroundStyle(flagged ? Shell.warnText : Shell.muted)
+                        .accessibilityIdentifier("approvals.report.sinceLastVisit")
                 }
             }
             .buttonStyle(.plain)
