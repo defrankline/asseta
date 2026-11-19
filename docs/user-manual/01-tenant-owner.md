@@ -213,7 +213,7 @@ To stop billing a machine (sold, scrapped or returned), contact the Platform Own
 
 1. Choose the **Policy type**.
 2. Look at the **Effective policy** (what applies now) and the **Version history**.
-3. To change it, click **New override**. The dialog is **New {type} policy version**.
+3. To change it, click **Change settings**. The dialog is **New {type} policy version**.
 4. Choose the **Scope**:
    - **Tenant default (all fields)**: applies to everything.
    - **Machine category override**: applies to every machine of one category (only for **Fuel norm per engine hour** in Risk signals).

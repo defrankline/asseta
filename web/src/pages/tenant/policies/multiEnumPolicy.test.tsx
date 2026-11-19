@@ -81,7 +81,7 @@ describe('multi-select policy fields', () => {
     expect(credit).toBeChecked();
     await user.click(credit);
     await user.click(screen.getByRole('button', { name: 'Next' }));
-    await user.click(await screen.findByRole('button', { name: 'Create version' }));
+    await user.click(await screen.findByRole('button', { name: 'Save changes' }));
     await waitFor(() => {
       expect(mocks.create).toHaveBeenCalledWith(
         'CUSTOMER_HOURS',

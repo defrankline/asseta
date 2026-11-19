@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Apply one company's policy settings from a JSON file (the same change as Administration -> Policies -> New override:
+# Apply one company's policy settings from a JSON file (the same change as Administration -> Policies -> Change settings:
 # new company policy versions, validated, with a reason and audit events). Keep the company's file on the server; see
 # deploy/tenant-policies.example.json for the format.
 #

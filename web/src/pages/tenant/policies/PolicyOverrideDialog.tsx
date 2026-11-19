@@ -239,11 +239,11 @@ export function PolicyOverrideDialog(props: PolicyOverrideDialogProps) {
   return (
     <StepperFormDialog<PolicyFormValues>
       open
-      title={`New ${POLICY_TYPE_LABELS[policyType].toLowerCase()} policy version`}
+      title={`Change ${POLICY_TYPE_LABELS[policyType].toLowerCase()} settings`}
       steps={steps}
       initialValues={initialValues}
       validationSchema={policyFormSchema}
-      submitLabel="Create version"
+      submitLabel="Save changes"
       onClose={onClose}
       renderReview={(v) => {
         const payload = toPolicyPayload(v);

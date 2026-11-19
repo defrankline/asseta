@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Apply one company's policy settings from a JSON file, as ordinary tenant policy versions.
 
-Run through scripts/apply-tenant-policies.sh. It is the same change as Administration -> Policies -> New override:
+Run through scripts/apply-tenant-policies.sh. It is the same change as Administration -> Policies -> Change settings:
 each policy type that really changes gets a new tenant version with a reason and an audit event, validated by the
 policy service, in one transaction. Without --yes it only prints what would change. Fields already at the wanted value
 are skipped, so a second run changes nothing.

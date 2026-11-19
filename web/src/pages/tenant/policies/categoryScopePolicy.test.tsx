@@ -75,7 +75,7 @@ describe('fuel norm per machine category (FRAUD_CONTROLS MACHINE_CATEGORY scope)
     await user.click(screen.getByRole('button', { name: 'Next' }));
     expect(await screen.findByText('Machine category override')).toBeInTheDocument();
     expect(screen.getByText('Excavators')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Create version' }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => {
       expect(mocks.create).toHaveBeenCalledWith(
         'FRAUD_CONTROLS',

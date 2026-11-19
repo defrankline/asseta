@@ -81,7 +81,7 @@ describe('cash holding allowance (CASH_CUSTODY site / staff overrides)', () => {
     await user.type(input, '5');
     await user.click(screen.getByRole('button', { name: 'Next' }));
     expect(await screen.findByText('Staff member override')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Create version' }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => {
       expect(mocks.create).toHaveBeenCalledWith(
         'CASH_CUSTODY',

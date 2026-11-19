@@ -1,4 +1,4 @@
-import Add from '@mui/icons-material/Add';
+import Edit from '@mui/icons-material/Edit';
 import {
   Box,
   Button,
@@ -142,12 +142,12 @@ export function PoliciesPage() {
           <CanMutate permission={PERMISSIONS.tenantPolicyManage}>
             <Button
               variant="contained"
-              startIcon={<Add />}
+              startIcon={<Edit />}
               onClick={() => {
                 setCreating(true);
               }}
             >
-              New override
+              Change settings
             </Button>
           </CanMutate>
         }

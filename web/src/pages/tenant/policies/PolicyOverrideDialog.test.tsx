@@ -123,7 +123,7 @@ describe('PolicyOverrideDialog', () => {
     await user.clear(input);
     await user.type(input, '900');
     await user.click(screen.getByRole('button', { name: 'Next' }));
-    await user.click(await screen.findByRole('button', { name: 'Create version' }));
+    await user.click(await screen.findByRole('button', { name: 'Save changes' }));
     await waitFor(() => {
       expect(mocks.create).toHaveBeenCalledWith(
         'TRACKING',
@@ -155,7 +155,7 @@ describe('PolicyOverrideDialog', () => {
     expect(await screen.findByText('Override at least one field')).toBeInTheDocument();
     await user.click(screen.getByLabelText('Override Stale after'));
     await user.click(screen.getByRole('button', { name: 'Next' }));
-    await user.click(await screen.findByRole('button', { name: 'Create version' }));
+    await user.click(await screen.findByRole('button', { name: 'Save changes' }));
     expect(await screen.findByText(/POLICY_INVALID: require live_max_age/)).toBeInTheDocument();
   });
 });

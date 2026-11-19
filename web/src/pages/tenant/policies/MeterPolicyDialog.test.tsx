@@ -80,7 +80,7 @@ describe('PolicyOverrideDialog · METER_CAPTURE / DEVICE_SYNC', () => {
     await choose(user, 'Reading mode', 'Manual (numeric entry)');
     await user.click(screen.getByLabelText('Override Max meter hours per elapsed hour'));
     await user.click(screen.getByRole('button', { name: 'Next' }));
-    await user.click(await screen.findByRole('button', { name: 'Create version' }));
+    await user.click(await screen.findByRole('button', { name: 'Save changes' }));
     await waitFor(() => {
       expect(mocks.create).toHaveBeenCalledWith(
         'METER_CAPTURE',
@@ -136,7 +136,7 @@ describe('PolicyOverrideDialog · METER_CAPTURE / DEVICE_SYNC', () => {
     expect(screen.getAllByRole('switch')).toHaveLength(4);
     await user.click(screen.getByLabelText('Override Offline grant'));
     await user.click(screen.getByRole('button', { name: 'Next' }));
-    await user.click(await screen.findByRole('button', { name: 'Create version' }));
+    await user.click(await screen.findByRole('button', { name: 'Save changes' }));
     await waitFor(() => {
       expect(mocks.create).toHaveBeenCalledWith(
         'DEVICE_SYNC',
