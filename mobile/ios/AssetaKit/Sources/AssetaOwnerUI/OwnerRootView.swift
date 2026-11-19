@@ -59,8 +59,10 @@ public struct OwnerRootView: View {
         }
         .onChange(of: push.pendingLink) { _, _ in consumePendingLink() }
         .confirmationDialog(OwnerMenuTexts.signOutConfirm, isPresented: $confirmSignOut, titleVisibility: .visible) {
-            Button(OwnerMenuTexts.signOutAction, role: .destructive) { Task { await model.signOut() } }
+            Button(OwnerMenuTexts.signOutAction) { Task { await model.signOut() } }
             Button(OwnerMenuTexts.cancel, role: .cancel) {}
+        } message: {
+            Text(OwnerMenuTexts.signOutBody)
         }
         .alert("Access changed", isPresented: Binding(get: { model.accessLostMessage != nil }, set: { _ in })) {
             Button("OK") { model.leaveTenant() }

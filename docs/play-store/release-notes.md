@@ -35,7 +35,7 @@ Toleo la kwanza la Asseta Supervisor, programu ya uwanjani kwa kampuni za kukodi
 </sw>
 ```
 
-## Asseta Owner 0.9.4 (11)
+## Asseta Owner 0.9.5 (12)
 
 English (435/500):
 

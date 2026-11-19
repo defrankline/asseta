@@ -155,7 +155,8 @@ fun OwnerHome(graph: OwnerGraph, session: OwnerSession, modifier: Modifier = Mod
         AlertDialog(
             onDismissRequest = { confirmSignOut = false },
             title = { Text(SettingsText.SIGN_OUT_CONFIRM) },
-            confirmButton = { TextButton({ confirmSignOut = false; actions.signOut() }) { Text(SettingsText.SIGN_OUT_ACTION, color = MaterialTheme.colorScheme.error) } },
+            text = { Text(SettingsText.SIGN_OUT_BODY) },
+            confirmButton = { TextButton({ confirmSignOut = false; actions.signOut() }) { Text(SettingsText.SIGN_OUT_ACTION) } },
             dismissButton = { TextButton({ confirmSignOut = false }) { Text("Cancel") } },
         )
     }

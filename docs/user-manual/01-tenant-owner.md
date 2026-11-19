@@ -1287,7 +1287,7 @@ Expenses that need a closer look show **To check** with the reason, on **Field s
 - **Push priorities**: switch push on or off for each category (Needs your action, Anomalies & alerts, Reminders, Billing, Information) and severity (Critical, Warning, Info). Switches marked **(required)** stay on. Tap **Save**. Everything still arrives in the in-app inbox.
 - **Push devices**: **Enable push notifications** on this phone, or **Stop push to this device**.
 - **Offline data**: an explanation of how saved data works (see below).
-- **Account**: **Switch company**, **Change password** (needs a connection) and **Sign out**. Signing out erases the saved data on the phone.
+- **Account**: **Switch company**, **Change password** (needs a connection) and **Sign out**. Signing out removes the copy kept on the phone; nothing is deleted from Asseta.
 
 ### Offline use (read-only)
 

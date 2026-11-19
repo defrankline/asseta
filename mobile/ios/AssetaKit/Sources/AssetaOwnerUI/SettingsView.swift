@@ -82,7 +82,9 @@ struct SettingsView: View {
         .task { await reload() }
         .refreshable { await reload() }
         .confirmationDialog(SettingsText.signOutConfirm, isPresented: $confirmSignOut, titleVisibility: .visible) {
-            Button(SettingsText.signOutAction, role: .destructive) { Task { await model.signOut() } }
+            Button(SettingsText.signOutAction) { Task { await model.signOut() } }
+        } message: {
+            Text(SettingsText.signOutBody)
         }
     }
 

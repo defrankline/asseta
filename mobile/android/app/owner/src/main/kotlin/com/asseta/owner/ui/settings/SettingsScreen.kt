@@ -64,9 +64,10 @@ object SettingsText {
     const val DEVICES_FOOTER = "Push notifications go to this phone for the company that is open. Signing out unregisters it."
     const val PUSH_UNAVAILABLE = "Push is not configured for this build. You still get notifications in the inbox and live while the app is open."
     const val OFFLINE_DATA = "Screens you have opened are kept encrypted on this phone for up to 7 days so you can look at them offline. " +
-        "Saved data is clearly marked stale and can't be changed. Signing out erases it."
+        "Saved data is clearly marked stale and can't be changed. Signing out removes this copy; nothing is deleted from Asseta."
     const val SIGN_OUT_CONFIRM = "Sign out?"
-    const val SIGN_OUT_ACTION = "Sign out and erase saved data"
+    const val SIGN_OUT_ACTION = "Sign out"
+    const val SIGN_OUT_BODY = "Your company's records stay safe on Asseta. This only removes the copy kept on this phone for offline viewing."
 
     fun severityLabel(severity: String, locked: Boolean): String = OwnerFormat.humanize(severity) + if (locked) " (required)" else ""
 
@@ -159,8 +160,9 @@ fun SettingsScreen(vm: SettingsViewModel, session: OwnerSession, online: Boolean
         AlertDialog(
             onDismissRequest = { confirmSignOut = false },
             title = { Text(SettingsText.SIGN_OUT_CONFIRM) },
+            text = { Text(SettingsText.SIGN_OUT_BODY) },
             confirmButton = {
-                TextButton({ confirmSignOut = false; actions.signOut() }) { Text(SettingsText.SIGN_OUT_ACTION, color = MaterialTheme.colorScheme.error) }
+                TextButton({ confirmSignOut = false; actions.signOut() }) { Text(SettingsText.SIGN_OUT_ACTION) }
             },
             dismissButton = { TextButton({ confirmSignOut = false }) { Text("Cancel") } },
         )

@@ -64,7 +64,8 @@ public enum OwnerMenuTexts {
     public static let readOnly = "This company is read-only. Viewing only."
     /// Sign-out dialog (Settings wording): title, confirm, cancel.
     public static let signOutConfirm = "Sign out?"
-    public static let signOutAction = "Sign out and erase saved data"
+    public static let signOutAction = "Sign out"
+    public static let signOutBody = "Your company's records stay safe on Asseta. This only removes the copy kept on this phone for offline viewing."
     public static let cancel = "Cancel"
 }
 

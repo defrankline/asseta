@@ -409,9 +409,10 @@ public enum SettingsText {
     public static let pushUnavailable = "Push is not configured for this build. You still get notifications in the inbox and "
         + "live while the app is open."
     public static let offlineData = "Screens you have opened are kept encrypted on this phone for up to 7 days so you can look "
-        + "at them offline. Saved data is clearly marked stale and can't be changed. Signing out erases it."
+        + "at them offline. Saved data is clearly marked stale and can't be changed. Signing out removes this copy; nothing is deleted from Asseta."
     public static let signOutConfirm = "Sign out?"
-    public static let signOutAction = "Sign out and erase saved data"
+    public static let signOutAction = "Sign out"
+    public static let signOutBody = "Your company's records stay safe on Asseta. This only removes the copy kept on this phone for offline viewing."
 
     public static func pushStatus(available: Bool, registered: Bool, tenantName: String) -> String {
         if !available { return "Not available in this build" }
