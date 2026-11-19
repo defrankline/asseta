@@ -731,7 +731,7 @@ interface TenantApi {
     @POST("api/v1/tenant/machine-reports/{id}/approve")
     suspend fun approveMachineReport(@Path("id") id: String, @Body body: com.asseta.core.model.sync.MachineReportDecisionIn): com.asseta.core.model.sync.MachineReportDto
 
-    /** rejectMachineReport: the reason is required; the supervisor corrects the split on the same reading. */
+    /** rejectMachineReport: the reason is required; the report is final and the supervisor sends a new report with a new reading. */
     @POST("api/v1/tenant/machine-reports/{id}/reject")
     suspend fun rejectMachineReport(@Path("id") id: String, @Body body: com.asseta.core.model.sync.MachineReportRejectIn): com.asseta.core.model.sync.MachineReportDto
 

@@ -40,6 +40,15 @@ data class MachineReportStatusDto(
     @SerialName("pending_report_id") val pendingReportId: String? = null,
     @SerialName("pending_report_number") val pendingReportNumber: String? = null,
     @SerialName("rejected_report_id") val rejectedReportId: String? = null,
+    /** The machine's last visit: the newest reading of any of its reports (any status); null = never visited. */
+    @SerialName("last_visit_at") val lastVisitAt: String? = null,
+    @SerialName("last_visit_lat") val lastVisitLat: Double? = null,
+    @SerialName("last_visit_lng") val lastVisitLng: Double? = null,
+    @SerialName("last_visit_accuracy_m") val lastVisitAccuracyM: Double? = null,
+    /** The phone geocoder's area label of that reading. */
+    @SerialName("last_visit_place") val lastVisitPlace: String? = null,
+    /** The company site the reading was taken near. */
+    @SerialName("last_visit_site_name") val lastVisitSiteName: String? = null,
 )
 
 /** `AvailableHoursDto`: hours a customer can still be given in a report (per machine when the scope is MACHINE). */
@@ -152,6 +161,20 @@ data class MachineReportDto(
     val findings: List<ReportFindingDto> = emptyList(),
     val tracker: TrackerCheckDto? = null,
     val lines: List<MachineReportLineDto> = emptyList(),
+    /** The previous visit of the machine (the reading before this report's, any report status); null = first visit. */
+    @SerialName("previous_visit_at") val previousVisitAt: String? = null,
+    @SerialName("since_previous_visit_seconds") val sincePreviousVisitSeconds: Long? = null,
+    @SerialName("previous_visit_lat") val previousVisitLat: Double? = null,
+    @SerialName("previous_visit_lng") val previousVisitLng: Double? = null,
+    @SerialName("previous_visit_accuracy_m") val previousVisitAccuracyM: Double? = null,
+    @SerialName("previous_visit_place") val previousVisitPlace: String? = null,
+    @SerialName("previous_visit_site_name") val previousVisitSiteName: String? = null,
+    /** Where this report's reading was taken. */
+    @SerialName("visit_lat") val visitLat: Double? = null,
+    @SerialName("visit_lng") val visitLng: Double? = null,
+    @SerialName("visit_accuracy_m") val visitAccuracyM: Double? = null,
+    @SerialName("visit_place") val visitPlace: String? = null,
+    @SerialName("visit_site_name") val visitSiteName: String? = null,
 ) {
     companion object {
         const val SUBMITTED = "SUBMITTED"
@@ -258,15 +281,14 @@ data class MachineReportLinePayload(
 
 /**
  * `MACHINE_REPORT` sync operation (`MachineReportIn` without `id`: the operation id is the report id). [captureId] names
- * the reading: the DAILY `METER_CAPTURE` queued just before it (the report depends on that operation), or the reading of
- * a rejected report being corrected, with [correctsReportId]. [opening]: the machine's first reading, no lines (the
+ * the reading: the DAILY `METER_CAPTURE` queued just before it (the report depends on that operation). A rejected report
+ * is final: it is never corrected (no `corrects_report_id`); a new report takes a new reading. [opening]: the machine's first reading, no lines (the
  * server takes it as the starting reading).
  */
 @Serializable
 data class MachineReportPayload(
     @SerialName("machine_id") val machineId: String,
     @SerialName("capture_id") val captureId: String? = null,
-    @SerialName("corrects_report_id") val correctsReportId: String? = null,
     val lines: List<MachineReportLinePayload> = emptyList(),
     val note: String? = null,
     @SerialName("client_created_at") val clientCreatedAt: String? = null,

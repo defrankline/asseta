@@ -114,6 +114,8 @@ class ApprovalsViewModel(
 
     val expenses: Section<ExpenseQueue>? = if (expenseRequests) Section(viewModelScope) { data.expenseApprovals(expenseDetails) } else null
     val reports: Section<List<MachineReportDto>>? = if (machineReports) Section(viewModelScope) { data.pendingMachineReports() } else null
+    /** The company's visit-gap warning hours (CUSTOMER_HOURS); 24 until read or when it cannot be read. */
+    val reminder: Section<com.asseta.owner.data.ReportReminder>? = if (machineReports) Section(viewModelScope) { data.reportReminder() } else null
     val credit: Section<List<CreditSale>>? = if (creditSales) Section(viewModelScope) { data.creditSalesToApprove() } else null
     val resets: Section<List<MeterResetDto>>? = if (meterResets) Section(viewModelScope) { data.meterResets("PENDING") } else null
     val claimedHandovers: Section<HandoverList>? = if (handovers) Section(viewModelScope) { data.handovers(HandoverText.CLAIMED) } else null
@@ -239,6 +241,7 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, session: OwnerSession, online: Boole
     var rejecting by remember { mutableStateOf<CreditSale?>(null) }
     val zone = ZoneId.systemDefault()
     val now = nowMs()
+    val visitGapHours = ReportPresentation.visitGapHours(vm.reminder?.state?.collectAsStateWithLifecycle()?.value?.data)
     Column(Modifier.fillMaxSize()) {
         ChipRow(approvalChips(vm).map { it to counts.chip(it) }, filter, vm::select)
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
@@ -255,6 +258,11 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, session: OwnerSession, online: Boole
                                 KindLine(ReportTexts.KIND, Figures.relative(r.submittedAt, now, zone))
                                 CardTitle(ReportPresentation.rowTitle(r))
                                 CardDetail(ReportPresentation.split(r), accent = true)
+                                // Time since the machine's previous visit, in the warning colour over the company's hours.
+                                CardDetail(
+                                    ReportPresentation.sinceLastVisit(r),
+                                    color = if (ReportPresentation.visitGapFlagged(r, visitGapHours)) palette.warning else null,
+                                )
                             }
                             CardGap()
                         }

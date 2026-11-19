@@ -425,7 +425,7 @@ class MachineReportOwnerTest {
                 {"machine_id":"n4","machine_code":"PD-01","previous_reading":"10","rejected_report_id":"r8","pending_report_id":"r10"}]""",
         )
         assertEquals(
-            setOf("NV-01 · no report yet", "OP-01 · no report yet", "RJ-01 · report rejected, not yet redone"),
+            setOf("NV-01 · no report yet", "OP-01 · no report yet", "RJ-01 · report rejected, no new report yet"),
             HomePresentation.attention(null, more, null, now, utc).map { it.title }.toSet(),
         )
         assertEquals(3, ReportPresentation.reminderDays(null))
@@ -454,6 +454,32 @@ class MachineReportOwnerTest {
         assertEquals(LocalDate.parse("2026-11-16"), Period.WEEK.range(tuesday).from)
         assertEquals(LocalDate.parse("2026-11-01"), Period.MONTH.range(tuesday).from)
         assertEquals(tuesday, Period.TODAY.range(tuesday).from)
+    }
+
+    @Test
+    fun `visit lines and the visit gap flag`() {
+        val raw = """{"id":"r1","report_number":"MR-2026-00009","machine_id":"m1","machine_code":"EX-01","capture_id":"c1",
+            "start_source":"REPORT","start_ref":"r0","start_reading":"1210.0","start_at":"2026-11-12T14:30:00Z","end_reading":"1510.0",
+            "end_at":"2026-11-17T12:26:00Z","hours":"300.0","customer_hours":"300.0","non_productive_hours":"0","status":"REJECTED",
+            "corrects_id":null,"note":null,"source":"SYNC","submitted_by":"u1","submitted_at":"2026-11-17T12:30:00Z","client_created_at":null,
+            "decided_by":"u2","decided_at":"2026-11-17T13:00:00Z","decision_note":"Hours too high","policy_version":"v1",
+            "previous_visit_at":"2026-11-16T09:26:00Z","since_previous_visit_seconds":97200,"previous_visit_lat":-6.8,"previous_visit_lng":39.28,
+            "previous_visit_accuracy_m":8.0,"previous_visit_place":null,"previous_visit_site_name":"Mbezi yard",
+            "visit_lat":-6.7924,"visit_lng":39.2083,"visit_accuracy_m":4.6,"visit_place":"Mbezi Beach, Kinondoni, Dar es Salaam","visit_site_name":null}"""
+        val r = json.decodeFromString(MachineReportDto.serializer(), raw)
+        assertEquals("Since last visit: 1 day 3 h", ReportPresentation.sinceLastVisit(r))
+        assertEquals("Where: Mbezi Beach, Kinondoni, Dar es Salaam · -6.7924, 39.2083 (±5 m)", ReportPresentation.where(r))
+        assertEquals("Last visit: 16 Nov, 09:26 · Where: at Mbezi yard · -6.8000, 39.2800 (±8 m)", ReportPresentation.lastVisit(r, utc))
+        // Flagged over the company's hours (24 until read); never when switched off.
+        assertTrue(ReportPresentation.visitGapFlagged(r, ReportPresentation.visitGapHours(null)))
+        assertFalse(ReportPresentation.visitGapFlagged(r, ReportPresentation.visitGapHours(com.asseta.owner.data.ReportReminder(3, 48))))
+        assertFalse(ReportPresentation.visitGapFlagged(r, ReportPresentation.visitGapHours(com.asseta.owner.data.ReportReminder(3, null))))
+        val first = json.decodeFromString(MachineReportDto.serializer(), raw.replace("97200", "null").replace("\"2026-11-16T09:26:00Z\"", "null"))
+        assertEquals("Since last visit: First visit", ReportPresentation.sinceLastVisit(first))
+        assertNull(ReportPresentation.lastVisit(first, utc))
+        assertFalse(ReportPresentation.visitGapFlagged(first, 24))
+        // A rejected report is final: the supervisor sends a new report.
+        assertEquals("Report rejected. The supervisor will send a new report.", ReportPresentation.decided(r, approved = false))
     }
 
     @Test

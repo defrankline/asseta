@@ -134,6 +134,9 @@ class FieldGraph(context: Context, val container: AssetaAppContainer) {
     val ocr by lazy { MeterOcr(appContext) }
     val gps by lazy { GpsLocator(appContext) }
 
+    /** Area labels of readings by the phone geocoder (online, ~3 s, never blocking a reading). */
+    val places by lazy { com.asseta.supervisor.capture.PlaceNamer(appContext) }
+
     /** Optional FCM push (app SUPERVISOR); off on builds without google-services.json. */
     val push: SupervisorPush by lazy {
         val provider = if (FcmPushTokenProvider.isConfigured(appContext, BuildConfig.FCM_ENABLED)) FcmPushTokenProvider() else NoOpPushTokenProvider

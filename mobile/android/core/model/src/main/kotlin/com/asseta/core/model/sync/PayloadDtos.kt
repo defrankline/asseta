@@ -35,4 +35,6 @@ data class MeterCaptureIn(
     @SerialName("policy_version_ids") val policyVersionIds: List<String> = emptyList(),
     /** The machine read (the server requires it). */
     @SerialName("machine_id") val machineId: String? = null,
+    /** The phone geocoder's area label of the reading's location ("Mbezi Beach, Kinondoni, Dar es Salaam"); max 200. */
+    @SerialName("place_name") val placeName: String? = null,
 )

@@ -29,6 +29,8 @@ data class MeterCaptureDto(
     @SerialName("location_captured_at") val locationCapturedAt: String? = null,
     @SerialName("supersedes_id") val supersedesId: SerializableUuid? = null,
     @SerialName("tracker_comparison") val trackerComparison: Map<String, kotlinx.serialization.json.JsonElement>? = null,
+    /** The phone geocoder's area label of where the reading was taken. */
+    @SerialName("place_name") val placeName: String? = null,
 )
 
 /** `ExceptionDto` (listMeterExceptions): a meter-evidence finding. [evidence] is server-defined and not shown. */

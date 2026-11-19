@@ -14,6 +14,7 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -55,11 +56,18 @@ class ContractFixturesTest {
 
         val rejected = decode("machine-reports/report-rejected.json", report)
         assertEquals(MachineReportDto.REJECTED, rejected.status)
-        assertTrue(rejected.correctedById != null && rejected.decisionNote != null)
+        // A rejected report is final: never corrected; its reading's place is kept.
+        assertTrue(rejected.correctedById == null && rejected.decisionNote != null)
+        assertEquals("Mbezi Beach, Kinondoni, Dar es Salaam", rejected.visitPlace)
+        assertNull(rejected.sincePreviousVisitSeconds)
 
         val approved = decode("machine-reports/report-approved.json", report)
         assertEquals(MachineReportDto.APPROVED, approved.status)
-        assertEquals(rejected.id, approved.correctsId)
+        assertNull(approved.correctsId)
+        // The previous visit (the rejected report's reading) with its place.
+        assertEquals(3600L, approved.sincePreviousVisitSeconds)
+        assertEquals("Mbezi Beach, Kinondoni, Dar es Salaam", approved.previousVisitPlace)
+        assertEquals(-6.8, approved.visitLat!!, 0.0)
         assertTrue(approved.lines.any { it.lots.isNotEmpty() })
 
         val pending = decode("machine-reports/list-pending.json", reportPage)
@@ -74,9 +82,11 @@ class ContractFixturesTest {
         val statuses = decode("machine-reports/status.json", ListSerializer(MachineReportStatusDto.serializer()))
         assertEquals(2, statuses.size)
         assertTrue(statuses.any { it.pendingReportId != null })
+        assertTrue(statuses.all { it.lastVisitAt != null && it.lastVisitLat != null })
         assertTrue(decode("machine-reports/available-hours.json", ListSerializer(AvailableHoursDto.serializer())).isNotEmpty())
         val capture = decode("machine-reports/meter-capture-opening.json", MeterCaptureDto.serializer())
         assertEquals(900.0, capture.accuracyM!!, 0.0)
+        assertNull(capture.placeName)
         val snapshot = decode("machine-reports/sync-snapshot.json", SyncData.serializer())
         assertTrue(snapshot.myMachineReports.any { it.isOpening })
         assertTrue(snapshot.machineReportStates.isNotEmpty() && snapshot.machineReportReasons.isNotEmpty())

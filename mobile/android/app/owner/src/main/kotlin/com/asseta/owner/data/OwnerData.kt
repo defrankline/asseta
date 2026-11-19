@@ -77,9 +77,15 @@ data class ExceptionList(val items: List<ExceptionDto>) {
 }
 
 /** ADR-008: a machine report with its meter reading when the role may read it ([capture] null otherwise). */
-/** The company's machine-report reminder days (null = reminders off). */
+/**
+ * The company's machine-report reminder days (null = reminders off) and the visit-gap warning hours of the approval
+ * list (`visit_gap_warning_hours`; null = never flagged).
+ */
 @Serializable
-data class ReportReminder(val days: Int?)
+data class ReportReminder(
+    val days: Int?,
+    val visitGapHours: Int? = com.asseta.core.domain.accountability.CustomerHoursPolicy.DEFAULT_VISIT_GAP_HOURS,
+)
 
 @Serializable
 data class MachineReportDetail(val report: com.asseta.core.model.sync.MachineReportDto, val capture: MeterCaptureDto? = null)
@@ -550,12 +556,12 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
      */
     suspend fun reportReminder(): Load<ReportReminder> =
         repo.load(tenantId, "report_reminder", ReportReminder.serializer()) {
+            val policy = com.asseta.core.domain.accountability.CustomerHoursPolicy.fromValues(
+                effectivePolicy(com.asseta.core.domain.accountability.CustomerHoursPolicy.TYPE).values,
+            )
             ReportReminder(
-                com.asseta.core.domain.accountability.CustomerHoursPolicy.reminderDays(
-                    com.asseta.core.domain.accountability.CustomerHoursPolicy.fromValues(
-                        effectivePolicy(com.asseta.core.domain.accountability.CustomerHoursPolicy.TYPE).values,
-                    ),
-                ),
+                com.asseta.core.domain.accountability.CustomerHoursPolicy.reminderDays(policy),
+                com.asseta.core.domain.accountability.CustomerHoursPolicy.visitGapHours(policy),
             )
         }
 

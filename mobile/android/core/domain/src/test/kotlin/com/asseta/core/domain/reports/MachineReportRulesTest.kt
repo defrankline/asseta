@@ -33,49 +33,84 @@ class MachineReportRulesTest {
     @Test
     fun `review only when the lines add up to the difference exactly`() {
         val partial = listOf(pwani, msasani, breakdown, transit)
-        assertEquals(BigDecimal("285"), MachineReportRules.accounted(partial, 1))
-        assertEquals(BigDecimal("15"), MachineReportRules.left(diff, partial, 1))
-        assertEquals(0.95f, MachineReportRules.progress(diff, partial, 1), 0.001f)
-        assertFalse(MachineReportRules.canReview(diff, partial, available, 1))
-        assertEquals(listOf("15 h still to account for"), (MachineReportRules.check(diff, partial, available, 1) as FormCheck.Invalid).messages)
+        assertEquals(BigDecimal("285"), MachineReportRules.accounted(partial))
+        assertEquals(BigDecimal("15"), MachineReportRules.left(diff, partial))
+        assertEquals(0.95f, MachineReportRules.progress(diff, partial), 0.001f)
+        assertFalse(MachineReportRules.canReview(diff, partial, available))
+        assertEquals(listOf("15 h still to account for"), (MachineReportRules.check(diff, partial, available) as FormCheck.Invalid).messages)
 
         val full = partial + idle
-        assertTrue(MachineReportRules.canReview(diff, full, available, 1))
-        val lines = (MachineReportRules.check(diff, full, available, 1) as FormCheck.Valid).value
+        assertTrue(MachineReportRules.canReview(diff, full, available))
+        val lines = (MachineReportRules.check(diff, full, available) as FormCheck.Valid).value
         assertEquals(5, lines.size)
         assertEquals(ReportLine.NonProductive("r1", BigDecimal("40"), "Hydraulic hose replaced on site"), lines[2])
 
         val over = full + ReportLineDraft.NonProductive("r4", "Weather", "5", "Rain")
-        assertEquals(listOf("5 h more than the meter shows"), (MachineReportRules.check(diff, over, available, 1) as FormCheck.Invalid).messages)
+        assertEquals(listOf("5 h more than the meter shows"), (MachineReportRules.check(diff, over, available) as FormCheck.Invalid).messages)
     }
 
     @Test
     fun `a customer cannot get more than its available hours and appears once`() {
         val greedy = listOf(pwani.copy(hoursText = "150"), msasani, breakdown.copy(hoursText = "50"))
-        val messages = (MachineReportRules.check(diff, greedy, available, 1) as FormCheck.Invalid).messages
+        val messages = (MachineReportRules.check(diff, greedy, available) as FormCheck.Invalid).messages
         assertEquals(listOf("Pwani Road Contractors has only 140 h available."), messages)
-        assertEquals(BigDecimal("20"), MachineReportRules.afterThis(BigDecimal("140"), pwani, 1))
+        assertEquals(BigDecimal("20"), MachineReportRules.afterThis(BigDecimal("140"), pwani))
 
         val twice = listOf(pwani, pwani.copy(hoursText = "10"), msasani, idle.copy(hoursText = "70"))
-        assertTrue(MachineReportMessages.CUSTOMER_TWICE in (MachineReportRules.check(diff, twice, available, 1) as FormCheck.Invalid).messages)
+        assertTrue(MachineReportMessages.CUSTOMER_TWICE in (MachineReportRules.check(diff, twice, available) as FormCheck.Invalid).messages)
 
         // A customer with no available hours on this phone gets nothing.
         val unknown = listOf(ReportLineDraft.Customer("c9", "New Co", "1"), idle.copy(hoursText = "299"))
-        assertEquals(listOf("New Co has only 0 h available."), (MachineReportRules.check(diff, unknown, available, 1) as FormCheck.Invalid).messages)
+        assertEquals(listOf("New Co has only 0 h available."), (MachineReportRules.check(diff, unknown, available) as FormCheck.Invalid).messages)
     }
 
     @Test
-    fun `non-productive lines need a note and hours follow the meter precision`() {
+    fun `non-productive lines need a note and line hours go in hundredths`() {
         val noNote = listOf(pwani, msasani, breakdown.copy(note = "  "), transit, idle)
-        assertEquals(listOf("Say what happened for “Breakdown / repair”."), (MachineReportRules.check(diff, noNote, available, 1) as FormCheck.Invalid).messages)
-        assertEquals(BigDecimal("2.5"), MachineReportRules.hours("2.5", 1))
-        assertNull(MachineReportRules.hours("2.55", 1))
-        assertNull(MachineReportRules.hours("0", 1))
-        assertNull(MachineReportRules.hours("-1", 1))
-        assertNull(MachineReportRules.hours("2.5", 0))
-        assertEquals(BigDecimal("3"), MachineReportRules.hours("3,0", 0))
+        assertEquals(listOf("Say what happened for “Breakdown / repair”."), (MachineReportRules.check(diff, noNote, available) as FormCheck.Invalid).messages)
+        assertEquals(BigDecimal("2.5"), MachineReportRules.hours("2.5"))
+        assertEquals(BigDecimal("2.55"), MachineReportRules.hours("2.55"))
+        assertEquals(BigDecimal("1.15"), MachineReportRules.hours("1,15"))
+        assertNull(MachineReportRules.hours("2.555"))
+        assertNull(MachineReportRules.hours("0"))
+        assertNull(MachineReportRules.hours("0.00"))
+        assertNull(MachineReportRules.hours("-1"))
+        assertNull(MachineReportRules.hours("1.2.3"))
+        assertEquals(BigDecimal("3"), MachineReportRules.hours("3,0"))
+        assertEquals("Enter the hours (more than 0, at most 2 decimals).", MachineReportMessages.HOURS_FORMAT)
         assertEquals(listOf(MachineReportMessages.NO_LINES, "300 h still to account for"),
-            (MachineReportRules.check(diff, emptyList(), available, 1) as FormCheck.Invalid).messages)
+            (MachineReportRules.check(diff, emptyList(), available) as FormCheck.Invalid).messages)
+    }
+
+    @Test
+    fun `split lines in hundredths whatever the meter precision`() {
+        val nine = BigDecimal("9.0")
+        val lines = listOf(ReportLineDraft.Customer("c1", "Pwani Road Contractors", "7.85"), ReportLineDraft.NonProductive("r1", "Transit", "1.15", "Kibamba"))
+        assertTrue(MachineReportRules.allAccounted(nine, lines))
+        assertTrue(MachineReportRules.canReview(nine, lines, available))
+        assertEquals(BigDecimal("132.15"), MachineReportRules.afterThis(BigDecimal("140"), lines[0] as ReportLineDraft.Customer))
+    }
+
+    @Test
+    fun `an invalid line counts as nothing and is never all accounted for`() {
+        // The reported bug: 9 h on one line and an invalid line read as "9 / 9 h · All hours accounted for".
+        val nine = BigDecimal("9")
+        val good = ReportLineDraft.NonProductive("r1", "Transit", "9", "Kibamba to Kigamboni")
+        val invalid = ReportLineDraft.Customer("c1", "Pwani Road Contractors", "1.155")
+        val lines = listOf(good, invalid)
+        assertTrue(MachineReportRules.lineInvalid(invalid))
+        assertFalse(MachineReportRules.lineInvalid(good))
+        assertEquals(BigDecimal("9"), MachineReportRules.accounted(lines))
+        assertEquals(0, MachineReportRules.left(nine, lines).signum())
+        assertFalse(MachineReportRules.allAccounted(nine, lines))
+        assertFalse(MachineReportRules.canReview(nine, lines, available))
+        assertEquals(listOf(MachineReportMessages.HOURS_FORMAT), (MachineReportRules.check(nine, lines, available) as FormCheck.Invalid).messages)
+        // The customer's "after this" ignores the invalid line.
+        assertEquals(BigDecimal("140"), MachineReportRules.afterThis(BigDecimal("140"), invalid))
+        // An empty line is not valid either; with no lines nothing is accounted for.
+        assertFalse(MachineReportRules.allAccounted(nine, listOf(good, invalid.copy(hoursText = ""))))
+        assertFalse(MachineReportRules.allAccounted(BigDecimal.ZERO, emptyList()))
+        assertTrue(MachineReportRules.allAccounted(nine, listOf(good)))
     }
 
     @Test
@@ -88,10 +123,13 @@ class MachineReportRulesTest {
         assertEquals(ReportState.UP_TO_DATE, state(days = 30, remind = null))
         assertEquals(ReportState.AWAITING_APPROVAL, state(server = true, days = 9))
         assertEquals(ReportState.AWAITING_APPROVAL, state(phone = true, rejected = true))
-        assertEquals(ReportState.REJECTED, state(rejected = true))
+        // A rejected report is final: the machine is due again, even inside the reminder days or with reminders off.
+        assertEquals(ReportState.DUE, state(rejected = true))
+        assertEquals(ReportState.DUE, state(rejected = true, days = 0, remind = null))
         assertEquals(ReportState.OPENING, state(prev = null, days = null))
+        assertEquals(ReportState.OPENING, state(prev = null, rejected = true))
         assertTrue(ReportState.OPENING.needsReport)
-        assertTrue(ReportState.REJECTED.needsReport)
+        assertTrue(ReportState.DUE.needsReport)
         assertFalse(ReportState.AWAITING_APPROVAL.needsReport)
     }
 

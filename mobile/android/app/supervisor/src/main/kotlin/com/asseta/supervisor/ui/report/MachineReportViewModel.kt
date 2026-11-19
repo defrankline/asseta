@@ -18,7 +18,6 @@ import com.asseta.core.domain.policy.ReadingKind
 import com.asseta.core.domain.reports.MachineReportRules
 import com.asseta.core.domain.reports.ReportLineDraft
 import com.asseta.core.domain.reports.ReportState
-import com.asseta.core.model.sync.MachineReportLineDto
 import com.asseta.core.sync.data.MachineReportView
 import com.asseta.core.sync.data.ReportMachine
 import com.asseta.core.sync.usecase.FinanceResult
@@ -52,9 +51,11 @@ data class ReportForm(
     val machineId: String? = null,
     val capture: CaptureUi = CaptureUi(ReadingKind.DAILY, loading = false),
     val lines: List<ReportLineDraft> = emptyList(),
-    /** The lines the report opened with (a correction brings back the rejected report's): not new input. */
-    val startingLines: List<ReportLineDraft> = emptyList(),
     val note: String = "",
+    /** The phone geocoder's area label of the reading's GPS fix (online only; never waited for). */
+    val place: FixPlace? = null,
+    /** The last visit's area label found on this phone when the server has none (display only, never sent). */
+    val lastVisitPlace: String? = null,
     val saving: Boolean = false,
     val saved: Boolean = false,
     val messages: List<String> = emptyList(),
@@ -62,9 +63,12 @@ data class ReportForm(
     val confirmDiscard: Boolean = false,
 )
 
+/** The area label found for one GPS fix. */
+data class FixPlace(val latitude: Double, val longitude: Double, val name: String?)
+
 /**
- * A machine report: pick one of my machines, take its reading (or, after a rejection, reuse the rejected report's
- * reading), split the hours across customers and non-productive reasons, review, submit (queued offline as
+ * A machine report: pick one of my machines, take its reading (always a new reading: a rejected report is final),
+ * split the hours across customers and non-productive reasons, review, submit (queued offline as
  * MACHINE_REPORT). The report id is generated once per visit (exactly-once).
  */
 class MachineReportViewModel(
@@ -82,6 +86,8 @@ class MachineReportViewModel(
     private val _access = MutableStateFlow<FieldAccess?>(null)
     val access: StateFlow<FieldAccess?> = _access.asStateFlow()
     private var gpsJob: Job? = null
+    private var placeJob: Job? = null
+    private var lastVisitJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -97,23 +103,13 @@ class MachineReportViewModel(
 
     fun machine(v: MachineReportView = view.value): ReportMachine? = machines(v).firstOrNull { it.id == _form.value.machineId }
 
-    /** Choose the machine; a rejected report brings back its reading and lines (same reading, new split). */
+    /** Choose the machine; every report takes a new reading (a rejected report is final). */
     fun select(machineId: String?) {
         _form.update { ReportForm(machineId = machineId) }
         machineId ?: return
         viewModelScope.launch {
             val m = machines(field.machineReports.observe(tenantId).first()).firstOrNull { it.id == machineId } ?: return@launch
-            m.rejected?.takeIf { m.state == ReportState.REJECTED }?.let { r ->
-                val lines = r.lines.sortedBy { it.lineNo }.map { l ->
-                    if (l.kind == MachineReportLineDto.CUSTOMER) {
-                        ReportLineDraft.Customer(l.customerId.orEmpty(), l.customerName ?: view.value.customerName(l.customerId.orEmpty()) ?: "Customer", MachineReportRules.formatHours(BigDecimal(l.hours)).replace(",", ""))
-                    } else {
-                        ReportLineDraft.NonProductive(l.reasonId.orEmpty(), l.reasonName ?: "Non-productive", MachineReportRules.formatHours(BigDecimal(l.hours)).replace(",", ""), l.note.orEmpty())
-                    }
-                }
-                _form.update { it.copy(lines = lines, startingLines = lines, capture = it.capture.copy(readingText = r.endReading, decimals = m.decimals)) }
-                return@launch
-            }
+            nameLastVisit(m)
             when (val decision = field.repository.capturePolicy(tenantId, machineId)) {
                 is CapturePolicyDecision.Blocked -> _form.update { it.copy(capture = it.capture.copy(blocked = decision.message, decimals = m.decimals)) }
                 is CapturePolicyDecision.Allowed -> _form.update {
@@ -126,21 +122,50 @@ class MachineReportViewModel(
         }
     }
 
-    /** The reading of the report: the rejected report's (a correction) or the one typed / read from the photo. */
+    /** The reading of the report: the one typed / read from the photo. */
     fun reading(f: ReportForm = _form.value): BigDecimal? {
         val m = machine() ?: return null
-        if (m.state == ReportState.REJECTED && m.rejected != null) return m.rejected!!.endReading.toBigDecimalOrNull()
         return (ReadingValidator.validate(f.capture.readingText, m.decimals) as? ReadingInput.Valid)?.normalized?.toBigDecimalOrNull()
     }
 
-    /** The reading the report starts from (the rejected report's start when correcting). */
-    fun previous(): BigDecimal? {
-        val m = machine() ?: return null
-        if (m.state == ReportState.REJECTED && m.rejected != null) return m.rejected!!.startReading.toBigDecimalOrNull()
-        return m.previous
+    /** The reading the report starts from: the machine's last approved reading (or its baseline / reset). */
+    fun previous(): BigDecimal? = machine()?.previous
+
+    /** When the reading was taken (the photo), else now: the end of "Time since last visit". */
+    fun visitAtMs(): Long = _form.value.capture.photo?.takenAtMs ?: field.clock.nowMs()
+
+    /**
+     * The last visit's area label: the server's, else (online) the phone geocoder's for display only, never sent.
+     */
+    fun lastVisitPlace(m: ReportMachine): String? = m.status.lastVisitPlace?.takeIf { it.isNotBlank() } ?: _form.value.lastVisitPlace
+
+    private fun nameLastVisit(m: ReportMachine) {
+        val s = m.status
+        if (!s.lastVisitPlace.isNullOrBlank()) return
+        val lat = s.lastVisitLat ?: return
+        val lng = s.lastVisitLng ?: return
+        lastVisitJob?.cancel()
+        lastVisitJob = viewModelScope.launch {
+            val name = field.places.placeName(lat, lng) ?: return@launch
+            _form.update { if (it.machineId == m.id) it.copy(lastVisitPlace = name) else it }
+        }
     }
 
-    fun correcting(): Boolean = machine()?.let { it.state == ReportState.REJECTED && it.rejected != null } == true
+    /** Names the place of a fresh GPS fix in the background (online, ~3 s); the reading never waits for it. */
+    private fun namePlace(gps: GpsOutcome?) {
+        val fix = gps as? GpsOutcome.Fix ?: return
+        placeJob?.cancel()
+        placeJob = viewModelScope.launch {
+            val name = field.places.placeName(fix.latitude, fix.longitude)
+            _form.update { it.copy(place = FixPlace(fix.latitude, fix.longitude, name)) }
+        }
+    }
+
+    /** The place name of [gps] if it was already found (never waited for). */
+    private fun placeOf(gps: GpsOutcome?, f: ReportForm = _form.value): String? {
+        val fix = gps as? GpsOutcome.Fix ?: return null
+        return f.place?.takeIf { it.latitude == fix.latitude && it.longitude == fix.longitude }?.name
+    }
 
     fun difference(): BigDecimal? = reading()?.let { r -> MachineReportRules.difference(previous(), r) }
 
@@ -148,7 +173,6 @@ class MachineReportViewModel(
     fun readingIssues(): List<String> {
         val m = machine() ?: return listOf(ReportTexts.CHOOSE_MACHINE)
         if (m.state == ReportState.AWAITING_APPROVAL) return listOf(ReportTexts.state(ReportState.AWAITING_APPROVAL))
-        if (correcting()) return emptyList()
         val c = _form.value.capture
         c.blocked?.let { return listOf(it) }
         if (c.mode == null) return listOf(ReportTexts.CHOOSE_MACHINE)
@@ -173,6 +197,7 @@ class MachineReportViewModel(
             val startedAt = field.clock.nowMs()
             val outcome = field.gps.attempt()
             _form.update { it.copy(capture = it.capture.copy(gpsBusy = false, gps = outcome, gpsAttemptAtMs = startedAt)) }
+            namePlace(outcome)
         }
     }
 
@@ -217,8 +242,8 @@ class MachineReportViewModel(
 
     /** A new line starts with the hours still to account for (empty when none are left). */
     private fun suggestedHours(f: ReportForm): String {
-        val m = machine() ?: return ""
-        val left = difference()?.let { MachineReportRules.left(it, f.lines, m.decimals) } ?: return ""
+        machine() ?: return ""
+        val left = difference()?.let { MachineReportRules.left(it, f.lines) } ?: return ""
         return if (left.signum() > 0) left.stripTrailingZeros().toPlainString() else ""
     }
 
@@ -228,9 +253,9 @@ class MachineReportViewModel(
     fun removeLine(index: Int) = _form.update { f -> f.copy(lines = f.lines.filterIndexed { i, _ -> i != index }) }
 
     fun canReview(): Boolean {
-        val m = machine() ?: return false
+        machine() ?: return false
         val d = difference() ?: return false
-        return MachineReportRules.canReview(d, _form.value.lines, available(), m.decimals)
+        return MachineReportRules.canReview(d, _form.value.lines, available())
     }
 
     fun review() {
@@ -250,8 +275,8 @@ class MachineReportViewModel(
     /** A photo, a typed reading, a note or changed lines: leaving would throw them away. */
     fun hasEnteredData(f: ReportForm = _form.value): Boolean = FormLeave.reportEntered(
         hasPhoto = f.capture.photo != null,
-        typedReading = if (correcting()) "" else f.capture.readingText,
-        lines = f.lines, startingLines = f.startingLines, note = f.note,
+        typedReading = f.capture.readingText,
+        lines = f.lines, startingLines = emptyList(), note = f.note,
     )
 
     /**
@@ -280,22 +305,19 @@ class MachineReportViewModel(
         val m = machine() ?: return
         _form.update { it.copy(saving = true, messages = emptyList()) }
         viewModelScope.launch {
-            val correction = m.rejected?.takeIf { correcting() }
             val c = f.capture
-            if (correction == null) {
-                refreshGpsIfStale(c.photo?.takenAtMs ?: field.clock.nowMs())
-                gpsJob?.join()
-            }
+            refreshGpsIfStale(c.photo?.takenAtMs ?: field.clock.nowMs())
+            gpsJob?.join()
             val latest = _form.value.capture
             val result = field.reportCapture.submit(
                 MachineReportRequest(
                     tenantId = tenantId, reportId = reportId, machineId = m.id, decimals = m.decimals, previous = previous(),
-                    reading = if (correction != null) null else ReportReading(
+                    reading = ReportReading(
                         captureId, latest.mode ?: CaptureMode.MANUAL, latest.readingText, latest.photo?.jpeg,
                         latest.attempts.takeIf { latest.mode == CaptureMode.AUTOMATIC } ?: 0, latest.ocr, latest.gps,
                         latest.photo?.takenAtMs ?: field.clock.nowMs(),
+                        placeName = placeOf(latest.gps),
                     ),
-                    existingCaptureId = correction?.captureId, existingReading = correction?.endReading, correctsReportId = correction?.id,
                     lines = f.lines, available = available(), note = f.note, createdAtMs = field.clock.nowMs(),
                 ),
             )

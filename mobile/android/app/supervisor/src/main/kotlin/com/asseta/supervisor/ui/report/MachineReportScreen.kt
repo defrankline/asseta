@@ -44,7 +44,10 @@ import com.asseta.core.domain.capture.OcrStep
 import com.asseta.core.domain.finance.FormCheck
 import com.asseta.core.domain.forms.FormLeave
 import com.asseta.core.domain.policy.CaptureMode
+import com.asseta.core.domain.reports.MachineReportMessages
 import com.asseta.core.domain.reports.MachineReportRules
+import com.asseta.core.domain.reports.VisitPlace
+import com.asseta.core.domain.reports.Visits
 import com.asseta.core.domain.reports.ReportLineDraft
 import com.asseta.core.domain.reports.ReportState
 import com.asseta.core.sync.data.ReportMachine
@@ -145,16 +148,9 @@ private fun ReadingStep(vm: MachineReportViewModel, machines: List<ReportMachine
             Text(T.OPENING_BODY, color = palette.secondaryText, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
         }
     } else {
-        LastReadingCard(machine, vm.previous(), vm.correcting())
+        LastVisitCard(vm, machine)
     }
-    if (vm.correcting()) {
-        ShellCard {
-            StatusPill(T.state(ReportState.REJECTED), PillTone.BAD)
-            Text(T.rejected(machine.rejected?.decisionNote), color = palette.secondaryText, modifier = Modifier.padding(top = 8.dp))
-            Text(T.NEW_READING, style = MaterialTheme.typography.bodySmall, color = palette.secondaryText, modifier = Modifier.padding(top = 12.dp))
-            Text(MachineReportRules.formatReading(vm.reading() ?: BigDecimal.ZERO, machine.decimals), fontSize = 28.sp, fontWeight = FontWeight.Bold)
-        }
-    } else {
+    run {
         c.blocked?.let { ShellCard { Text(it, color = palette.offline) } }
         if (c.blocked == null && c.mode != null) {
             // The meter photo: on-phone OCR fills the reading; the supervisor checks the number.
@@ -217,7 +213,7 @@ private fun ReadingStep(vm: MachineReportViewModel, machines: List<ReportMachine
             Text("${MachineReportRules.formatReading(d, machine.decimals)} h", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = palette.accent)
         }
     }
-    if (issues.isNotEmpty() && (c.photo != null || c.readingText.isNotEmpty() || vm.correcting())) IssueList(issues)
+    if (issues.isNotEmpty() && (c.photo != null || c.readingText.isNotEmpty())) IssueList(issues)
     PrimaryAction(vm.difference()?.takeIf { it.signum() > 0 }?.let(T::nextAccount) ?: T.NEXT, enabled = issues.isEmpty(), onClick = vm::next)
     Text(T.NOTHING_TO_REPORT, style = MaterialTheme.typography.bodySmall, color = palette.secondaryText, modifier = Modifier.padding(horizontal = 20.dp))
 }
@@ -229,21 +225,26 @@ private fun IssueList(issues: List<String>) {
 
 private fun gpsLabel(gps: GpsOutcome?): String? = (gps as? GpsOutcome.Fix)?.let { ReportTexts.gpsAccuracy(it.accuracyM) }
 
-/** "Last reading 1,210.0 h · 12 Nov, 17:30 · approved". */
+/**
+ * The last-visit card: "Last reading 1,210.0 h · 12 Nov, 17:30 · approved", then "Time since last visit: 1 day 3 h
+ * (last visit 17 Nov, 15:26)" (to the reading's time, from the cached machine state) and the last visit's Where line.
+ */
 @Composable
-private fun LastReadingCard(machine: ReportMachine, previous: BigDecimal?, correcting: Boolean) {
+private fun LastVisitCard(vm: MachineReportViewModel, machine: ReportMachine) {
+    val s = machine.status
     ShellCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(T.LAST_READING, style = MaterialTheme.typography.bodySmall, color = palette.secondaryText)
-                Text(previous?.let { "${MachineReportRules.formatReading(it, machine.decimals)} h" } ?: "—", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text(vm.previous()?.let { "${MachineReportRules.formatReading(it, machine.decimals)} h" } ?: "—", fontSize = 22.sp, fontWeight = FontWeight.Bold)
             }
             Column(horizontalAlignment = Alignment.End) {
-                val at = if (correcting) machine.rejected?.startAt else machine.status.previousAt
-                at?.let { Text(dayTime(it), style = MaterialTheme.typography.bodySmall, color = palette.secondaryText) }
-                Text(source(machine.status.previousSource), style = MaterialTheme.typography.bodySmall, color = palette.live)
+                s.previousAt?.let { Text(dayTime(it), style = MaterialTheme.typography.bodySmall, color = palette.secondaryText) }
+                Text(source(s.previousSource), style = MaterialTheme.typography.bodySmall, color = palette.live)
             }
         }
+        Text(Visits.timeSinceLastVisit(s.lastVisitAt, vm.visitAtMs()), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
+        WhereLine(VisitPlace(vm.lastVisitPlace(machine), s.lastVisitSiteName, s.lastVisitLat, s.lastVisitLng, s.lastVisitAccuracyM), Modifier.padding(top = 4.dp))
     }
 }
 
@@ -266,9 +267,9 @@ private fun SplitStep(vm: MachineReportViewModel, machine: ReportMachine, custom
     val difference = vm.difference() ?: return
     val previous = vm.previous() ?: return
     val available = vm.available()
-    val decimals = machine.decimals
-    val accounted = MachineReportRules.accounted(form.lines, decimals)
+    val accounted = MachineReportRules.accounted(form.lines)
     val left = difference - accounted
+    val allAccounted = MachineReportRules.allAccounted(difference, form.lines)
     var picker by remember { mutableStateOf<String?>(null) }
     StepBars(2, label = T.STEP_SPLIT)
     ShellCard {
@@ -277,14 +278,16 @@ private fun SplitStep(vm: MachineReportViewModel, machine: ReportMachine, custom
             Text(MachineReportRules.formatHours(accounted), fontSize = 28.sp, fontWeight = FontWeight.Bold)
             Text(" " + T.ofTotal(difference), color = palette.secondaryText, modifier = Modifier.padding(bottom = 4.dp))
         }
-        ShellProgress(MachineReportRules.progress(difference, form.lines, decimals), Modifier.padding(top = 8.dp))
+        ShellProgress(MachineReportRules.progress(difference, form.lines), Modifier.padding(top = 8.dp))
+        // "All hours accounted for" only when every line is valid and they add up; an invalid line counts as nothing.
         Text(
             when {
                 left.signum() > 0 -> T.left(left)
                 left.signum() < 0 -> T.over(left.negate())
-                else -> T.ALL_ACCOUNTED
+                allAccounted -> T.ALL_ACCOUNTED
+                else -> MachineReportMessages.HOURS_FORMAT
             },
-            color = if (left.signum() == 0) palette.live else palette.accent, modifier = Modifier.padding(top = 8.dp),
+            color = if (allAccounted) palette.live else palette.accent, modifier = Modifier.padding(top = 8.dp),
         )
     }
     if (customerLines) {
@@ -293,10 +296,10 @@ private fun SplitStep(vm: MachineReportViewModel, machine: ReportMachine, custom
             val line = l as ReportLineDraft.Customer
             val cap = available[line.customerId] ?: BigDecimal.ZERO
             LineCard(
-                title = line.customerName, subtitle = T.available(cap, MachineReportRules.afterThis(cap, line, decimals)),
+                title = line.customerName, subtitle = T.available(cap, MachineReportRules.afterThis(cap, line)),
                 hours = line.hoursText, onHours = { h -> vm.editLine(i) { (it as ReportLineDraft.Customer).copy(hoursText = h) } },
-                onRemove = { vm.removeLine(i) }, decimals = decimals,
-                error = (MachineReportRules.hours(line.hoursText, decimals)?.let { it > cap } == true),
+                onRemove = { vm.removeLine(i) },
+                overAvailable = (MachineReportRules.hours(line.hoursText)?.let { it > cap } == true),
             )
         }
     }
@@ -305,7 +308,7 @@ private fun SplitStep(vm: MachineReportViewModel, machine: ReportMachine, custom
         val line = l as ReportLineDraft.NonProductive
         LineCard(
             title = line.reasonName, subtitle = null, hours = line.hoursText,
-            onHours = { h -> vm.editLine(i) { (it as ReportLineDraft.NonProductive).copy(hoursText = h) } }, onRemove = { vm.removeLine(i) }, decimals = decimals,
+            onHours = { h -> vm.editLine(i) { (it as ReportLineDraft.NonProductive).copy(hoursText = h) } }, onRemove = { vm.removeLine(i) },
             note = line.note, onNote = { n -> vm.editLine(i) { (it as ReportLineDraft.NonProductive).copy(note = n) } },
         )
     }
@@ -313,7 +316,7 @@ private fun SplitStep(vm: MachineReportViewModel, machine: ReportMachine, custom
         if (customerLines) SecondaryAction(T.ADD_CUSTOMER, modifier = Modifier.weight(1f)) { picker = "customer" }
         SecondaryAction(T.ADD_NON_PRODUCTIVE, modifier = Modifier.weight(1f)) { picker = "reason" }
     }
-    val check = MachineReportRules.check(difference, form.lines, available, decimals)
+    val check = MachineReportRules.check(difference, form.lines, available)
     (check as? FormCheck.Invalid)?.messages?.filter { left.signum() == 0 || !it.endsWith("still to account for") }?.takeIf { form.lines.isNotEmpty() }?.let { IssueList(it) }
     PrimaryAction(T.reviewButton(left), enabled = vm.canReview(), onClick = vm::review)
     Text(T.CAP_FOOTER, style = MaterialTheme.typography.bodySmall, color = palette.secondaryText, modifier = Modifier.padding(horizontal = 20.dp))
@@ -352,23 +355,26 @@ private fun LineCard(
     hours: String,
     onHours: (String) -> Unit,
     onRemove: () -> Unit,
-    decimals: Int,
     note: String? = null,
     onNote: ((String) -> Unit)? = null,
-    error: Boolean = false,
+    overAvailable: Boolean = false,
 ) {
+    // A line whose hours are not valid is marked on its hours field (and counts as nothing).
+    val invalidHours = MachineReportRules.hours(hours) == null
+    val error = overAvailable || invalidHours
     ShellCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(title, fontWeight = FontWeight.SemiBold)
-                subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = if (error) palette.offline else palette.secondaryText) }
+                subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = if (overAvailable) palette.offline else palette.secondaryText) }
             }
             OutlinedTextField(
                 value = hours, onValueChange = { t -> onHours(t.filter { it.isDigit() || it == '.' || it == ',' }) }, singleLine = true,
                 suffix = { Text("h") }, isError = error, modifier = Modifier.width(110.dp),
-                keyboardOptions = KeyboardOptions(keyboardType = if (decimals == 0) KeyboardType.Number else KeyboardType.Decimal),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             )
         }
+        if (invalidHours) Text(MachineReportMessages.HOURS_FORMAT, style = MaterialTheme.typography.bodySmall, color = palette.offline, modifier = Modifier.padding(top = 4.dp))
         if (onNote != null) {
             OutlinedTextField(note.orEmpty(), onNote, label = { Text(T.WHAT_HAPPENED) }, isError = note.isNullOrBlank(), modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
         }
@@ -385,15 +391,16 @@ private fun ReviewStep(vm: MachineReportViewModel, machine: ReportMachine) {
     val decimals = machine.decimals
     val customers = form.lines.filterIsInstance<ReportLineDraft.Customer>()
     val non = form.lines.filterIsInstance<ReportLineDraft.NonProductive>()
-    fun sum(lines: List<ReportLineDraft>) = lines.fold(BigDecimal.ZERO) { s, l -> s + (MachineReportRules.hours(l.hoursText, decimals) ?: BigDecimal.ZERO) }
+    fun sum(lines: List<ReportLineDraft>) = MachineReportRules.accounted(lines)
     StepBars(3, label = T.STEP_REVIEW)
     ShellCard {
         Text(machine.label, fontWeight = FontWeight.Bold, fontSize = 17.sp)
         Text(T.readings(MachineReportRules.formatReading(previous, decimals), MachineReportRules.formatReading(reading, decimals)), modifier = Modifier.padding(top = 4.dp))
-        val from = (if (vm.correcting()) machine.rejected?.startAt else machine.status.previousAt)?.let(::dayTime)
-        val to = if (vm.correcting()) machine.rejected?.endAt?.let(::dayTime) else form.capture.photo?.takenAtMs?.let { dayTime(Instant.ofEpochMilli(it).toString()) }
+        val from = machine.status.previousAt?.let(::dayTime)
+        val to = form.capture.photo?.takenAtMs?.let { dayTime(Instant.ofEpochMilli(it).toString()) }
         Text(T.period(from, to ?: dayTime(Instant.now().toString())), style = MaterialTheme.typography.bodySmall, color = palette.secondaryText)
     }
+    LastVisitCard(vm, machine)
     if (customers.isNotEmpty()) {
         SectionLabel(T.productive(sum(customers)))
         ShellCard { customers.forEach { ReviewRow(it.customerName, it.hoursText) } }

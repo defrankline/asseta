@@ -36,31 +36,38 @@ enum class ReportState {
     /** A report waits for the owner or manager (on the server, or still on this phone). */
     AWAITING_APPROVAL,
 
-    /** The last report was rejected: a corrected split on the same reading is needed. */
-    REJECTED,
-
-    /** No report for the company's reminder days (or never). */
+    /** No report for the company's reminder days (or never), or the last report was rejected (a new report is due). */
     DUE,
 
     UP_TO_DATE,
     ;
 
     /** Counts towards "Hours to report" and the "n due" badge. */
-    val needsReport: Boolean get() = this == OPENING || this == REJECTED || this == DUE
+    val needsReport: Boolean get() = this == OPENING || this == DUE
 }
 
 object MachineReportRules {
     const val MAX_NOTE = 1000
     const val MAX_LINES = 50
 
-    /** Hours as typed in steps of the machine's meter precision ([decimals] places), more than 0; else null. */
-    fun hours(text: String, decimals: Int): BigDecimal? {
+    /** Line hours go in hundredths (steps of 0.01) whatever the meter's precision. */
+    const val LINE_DECIMALS = 2
+
+    /** A line's hours as typed: more than 0, at most 2 decimals; else null (an invalid line). */
+    fun hours(text: String): BigDecimal? {
         val t = text.trim().replace(',', '.')
         if (!Regex("^\\d+(\\.\\d+)?$").matches(t)) return null
         val v = BigDecimal(t).stripTrailingZeros().let { if (it.scale() < 0) it.setScale(0) else it }
-        if (v.signum() <= 0 || v.scale() > decimals.coerceAtLeast(0)) return null
+        if (v.signum() <= 0 || v.scale() > LINE_DECIMALS) return null
         return v
     }
+
+    /** A line whose hours are not valid (empty, 0, or more than 2 decimals): marked on the line, counts as nothing. */
+    fun lineInvalid(line: ReportLineDraft): Boolean = hours(line.hoursText) == null
+
+    /** "All hours accounted for": every line has valid hours and they add up to [difference] exactly. */
+    fun allAccounted(difference: BigDecimal, lines: List<ReportLineDraft>): Boolean =
+        lines.isNotEmpty() && lines.none(::lineInvalid) && accounted(lines).compareTo(difference) == 0
 
     /** A meter reading as typed (0 or more, the meter's precision), else null. */
     fun reading(text: String, decimals: Int): BigDecimal? {
@@ -83,35 +90,35 @@ object MachineReportRules {
     }
 
     /** The lines' valid hours added up (a line without valid hours counts as nothing yet). */
-    fun accounted(lines: List<ReportLineDraft>, decimals: Int): BigDecimal =
-        lines.fold(BigDecimal.ZERO) { sum, l -> sum + (hours(l.hoursText, decimals) ?: BigDecimal.ZERO) }
+    fun accounted(lines: List<ReportLineDraft>): BigDecimal =
+        lines.fold(BigDecimal.ZERO) { sum, l -> sum + (hours(l.hoursText) ?: BigDecimal.ZERO) }
 
     /** Hours still to account for (negative when the lines are over the difference). */
-    fun left(difference: BigDecimal, lines: List<ReportLineDraft>, decimals: Int): BigDecimal = difference - accounted(lines, decimals)
+    fun left(difference: BigDecimal, lines: List<ReportLineDraft>): BigDecimal = difference - accounted(lines)
 
     /** Share of the difference accounted for, 0..1, for the progress bar. */
-    fun progress(difference: BigDecimal, lines: List<ReportLineDraft>, decimals: Int): Float {
+    fun progress(difference: BigDecimal, lines: List<ReportLineDraft>): Float {
         if (difference.signum() <= 0) return 0f
-        return accounted(lines, decimals).divide(difference, 4, RoundingMode.HALF_UP).toFloat().coerceIn(0f, 1f)
+        return accounted(lines).divide(difference, 4, RoundingMode.HALF_UP).toFloat().coerceIn(0f, 1f)
     }
 
-    /** A customer's hours left after this report ([available] − the hours given on its line). */
-    fun afterThis(available: BigDecimal, line: ReportLineDraft.Customer, decimals: Int): BigDecimal =
-        available - (hours(line.hoursText, decimals) ?: BigDecimal.ZERO)
+    /** A customer's hours left after this report ([available] − the hours on its line; an invalid line gives none). */
+    fun afterThis(available: BigDecimal, line: ReportLineDraft.Customer): BigDecimal =
+        available - (hours(line.hoursText) ?: BigDecimal.ZERO)
 
     /**
-     * The split: every line has hours > 0 in the meter's steps; a customer appears once and gets no more than its
+     * The split: every line has hours > 0 with at most 2 decimals; a customer appears once and gets no more than its
      * [available] hours; a non-productive line has a note; and the lines add up to [difference] exactly.
      */
-    fun check(difference: BigDecimal, lines: List<ReportLineDraft>, available: Map<String, BigDecimal>, decimals: Int): FormCheck<List<ReportLine>> {
+    fun check(difference: BigDecimal, lines: List<ReportLineDraft>, available: Map<String, BigDecimal>): FormCheck<List<ReportLine>> {
         val m = linkedSetOf<String>()
         if (lines.isEmpty()) m += MachineReportMessages.NO_LINES
         if (lines.size > MAX_LINES) m += MachineReportMessages.TOO_MANY_LINES
         val customers = lines.filterIsInstance<ReportLineDraft.Customer>()
         if (customers.groupBy { it.customerId }.any { it.value.size > 1 }) m += MachineReportMessages.CUSTOMER_TWICE
         val checked = lines.mapNotNull { line ->
-            val h = hours(line.hoursText, decimals)
-            if (h == null) m += MachineReportMessages.hoursFormat(decimals)
+            val h = hours(line.hoursText)
+            if (h == null) m += MachineReportMessages.HOURS_FORMAT
             when (line) {
                 is ReportLineDraft.Customer -> {
                     val cap = available[line.customerId] ?: BigDecimal.ZERO
@@ -125,19 +132,20 @@ object MachineReportRules {
                 }
             }
         }
-        val left = left(difference, lines, decimals)
+        val left = left(difference, lines)
         if (left.signum() > 0) m += MachineReportMessages.leftToAccount(left)
         if (left.signum() < 0) m += MachineReportMessages.overDifference(left.negate())
         return if (m.isEmpty()) FormCheck.Valid(checked) else FormCheck.Invalid(m.toList())
     }
 
     /** Review is offered only when the split is complete and valid (sum == difference). */
-    fun canReview(difference: BigDecimal, lines: List<ReportLineDraft>, available: Map<String, BigDecimal>, decimals: Int): Boolean =
-        check(difference, lines, available, decimals) is FormCheck.Valid
+    fun canReview(difference: BigDecimal, lines: List<ReportLineDraft>, available: Map<String, BigDecimal>): Boolean =
+        check(difference, lines, available) is FormCheck.Valid
 
     /**
      * The machine's state. [previousReading] null = no starting reading (opening report). [pendingOnServer] /
-     * [pendingOnPhone]: a report waits for approval; [rejected]: the last report was rejected; [daysSinceReport] null =
+     * [pendingOnPhone]: a report waits for approval; [rejected]: the last report was rejected (final: the machine is due again,
+     * a new report takes a new reading); [daysSinceReport] null =
      * never reported; [reminderDays] null = the company does not remind (then only "never reported" is due).
      */
     fun state(
@@ -149,8 +157,8 @@ object MachineReportRules {
         reminderDays: Int?,
     ): ReportState = when {
         pendingOnServer || pendingOnPhone -> ReportState.AWAITING_APPROVAL
-        rejected -> ReportState.REJECTED
         previousReading == null -> ReportState.OPENING
+        rejected -> ReportState.DUE
         daysSinceReport == null -> ReportState.DUE
         reminderDays != null && daysSinceReport >= reminderDays -> ReportState.DUE
         else -> ReportState.UP_TO_DATE
@@ -188,7 +196,7 @@ object MachineReportMessages {
     const val TOO_MANY_LINES = "At most 50 lines per report."
     const val CUSTOMER_TWICE = "Each customer can appear only once."
 
-    fun hoursFormat(decimals: Int) = if (decimals <= 0) "Enter whole hours (more than 0)." else "Enter the hours (more than 0, at most $decimals decimal${if (decimals == 1) "" else "s"})."
+    const val HOURS_FORMAT = "Enter the hours (more than 0, at most 2 decimals)."
     fun overAvailable(customer: String, available: BigDecimal) = "$customer has only ${MachineReportRules.formatHours(available)} h available."
     fun noteNeeded(reason: String) = "Say what happened for “$reason”."
     fun leftToAccount(left: BigDecimal) = "${MachineReportRules.formatHours(left)} h still to account for"

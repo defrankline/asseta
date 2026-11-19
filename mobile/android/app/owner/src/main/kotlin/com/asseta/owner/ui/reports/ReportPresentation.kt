@@ -3,6 +3,8 @@ package com.asseta.owner.ui.reports
 import com.asseta.core.domain.reports.MachineReportApproval
 import com.asseta.core.domain.reports.MachineReportRules
 import com.asseta.core.domain.reports.ReportState
+import com.asseta.core.domain.reports.VisitPlace
+import com.asseta.core.domain.reports.Visits
 import com.asseta.core.model.owner.MeterCaptureDto
 import com.asseta.core.model.sync.MachineReportDto
 import com.asseta.core.model.sync.MachineReportLineDto
@@ -24,9 +26,9 @@ object ReportTexts {
     const val APPROVE = "Approve"
     const val REJECT = "Reject"
     const val CONFIRM_REJECT = "Reject this report?"
-    const val CONFIRM_REJECT_TEXT = "The supervisor is told your reason and corrects the split on the same reading."
+    const val CONFIRM_REJECT_TEXT = "The supervisor is told your reason. A rejected report is kept as a record; the supervisor sends a new report with a new reading."
     const val APPROVED = "Report approved. The customers' hours are used."
-    const val REJECTED = "Report rejected. The supervisor will correct it."
+    const val REJECTED = "Report rejected. The supervisor will send a new report."
     const val OWN_REPORT = "You submitted this report, so someone else must approve or reject it."
     const val NO_PERMISSION = "Only people allowed to approve machine reports can decide it."
     const val VIEW_PHOTO = "meter photo"
@@ -46,8 +48,8 @@ object ReportTexts {
     fun refusal(code: String?, fallback: String): String = when (code) {
         "SEGREGATION_OF_DUTIES" -> "You submitted this report, so you can't decide it. Someone else with approval rights must."
         "REPORT_NOT_PENDING" -> "This report was already decided by someone else. It has been refreshed."
-        "REPORT_READINGS_CHANGED" -> "The machine's previous reading changed after this report was sent (a baseline or meter reset). Reject it so the supervisor can send it again."
-        "HOURS_NOT_AVAILABLE" -> "A customer no longer has these hours (cancelled or expired). Reject the report so the supervisor can correct it."
+        "REPORT_READINGS_CHANGED" -> "The machine's previous reading changed after this report was sent (a baseline or meter reset). Reject it so the supervisor sends a new report."
+        "HOURS_NOT_AVAILABLE" -> "A customer no longer has these hours (cancelled or expired). Reject the report so the supervisor sends a new report."
         "REPORT_NOT_FOUND" -> "This report no longer exists."
         else -> fallback
     }
@@ -180,7 +182,7 @@ object ReportPresentation {
 
     /**
      * Where a machine stands for its next report, by the shared rule [MachineReportRules.state] (as the Supervisor app
-     * and iOS): it is overdue exactly when that gives DUE, OPENING or REJECTED; a report waiting is never overdue.
+     * and iOS): it is overdue exactly when that gives DUE or OPENING (a rejected report makes it DUE); a report waiting is never overdue.
      * [reminderDays] is the company's `CUSTOMER_HOURS.machine_report_reminder_days` (null = reminders off).
      */
     fun reportState(s: MachineReportStatusDto, reminderDays: Int?): ReportState = MachineReportRules.state(
@@ -194,19 +196,40 @@ object ReportPresentation {
 
     fun isOverdue(s: MachineReportStatusDto, reminderDays: Int?): Boolean = reportState(s, reminderDays).needsReport
 
+    /** The visit-gap warning hours to apply: the company's once read (null = never flag), else 24. */
+    fun visitGapHours(reminder: com.asseta.owner.data.ReportReminder?): Int? =
+        if (reminder == null) com.asseta.core.domain.accountability.CustomerHoursPolicy.DEFAULT_VISIT_GAP_HOURS else reminder.visitGapHours
+
+    /** "Since last visit: 1 day 3 h" / "Since last visit: First visit". */
+    fun sinceLastVisit(r: MachineReportDto): String = Visits.sinceLastVisit(r.sincePreviousVisitSeconds)
+
+    /** The gap is over the company's `visit_gap_warning_hours` (null = never flagged). */
+    fun visitGapFlagged(r: MachineReportDto, warningHours: Int?): Boolean = Visits.gapFlagged(r.sincePreviousVisitSeconds, warningHours)
+
+    /** Where this report's reading was taken; null without coordinates. */
+    fun where(r: MachineReportDto): String? = Visits.where(visit(r))
+
+    fun visit(r: MachineReportDto): VisitPlace = VisitPlace(r.visitPlace, r.visitSiteName, r.visitLat, r.visitLng, r.visitAccuracyM)
+
+    fun previousVisit(r: MachineReportDto): VisitPlace =
+        VisitPlace(r.previousVisitPlace, r.previousVisitSiteName, r.previousVisitLat, r.previousVisitLng, r.previousVisitAccuracyM)
+
+    /** "Last visit: 17 Nov, 15:26 · Where: …"; null on a first visit. */
+    fun lastVisit(r: MachineReportDto, zone: ZoneId = ZoneId.systemDefault()): String? = Visits.lastVisit(r.previousVisitAt, previousVisit(r), zone)
+
     /** The reminder days to apply: the company's setting once read (null = off), else 3 (loading, failed, refused). */
     fun reminderDays(reminder: com.asseta.owner.data.ReportReminder?): Int? =
         if (reminder == null) com.asseta.core.domain.accountability.CustomerHoursPolicy.DEFAULT_REMINDER_DAYS else reminder.days
 
     /**
      * "EX-02 · no report for 3 days"; "EX-02 · no report yet" (never reported, or no starting reading);
-     * "EX-02 · report rejected, not yet redone".
+     * "EX-02 · report rejected, no new report yet".
      */
     fun overdueTitle(s: MachineReportStatusDto, reminderDays: Int?): String {
         val machine = s.machineCode ?: s.machineName ?: "Machine"
         val days = s.daysSinceReport
         return when {
-            reportState(s, reminderDays) == ReportState.REJECTED -> "$machine · report rejected, not yet redone"
+            reportState(s, reminderDays) == ReportState.DUE && s.rejectedReportId != null -> "$machine · report rejected, no new report yet"
             reportState(s, reminderDays) == ReportState.OPENING || days == null || days <= 0 -> "$machine · no report yet"
             else -> "$machine · no report for ${Figures.days(days)}"
         }

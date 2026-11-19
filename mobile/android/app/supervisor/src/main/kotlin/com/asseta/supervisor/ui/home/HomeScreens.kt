@@ -300,7 +300,6 @@ fun DashboardScreen(field: FieldGraph, tenantId: String, data: ShellData, permis
 fun stateTone(s: ReportState) = when (s) {
     ReportState.AWAITING_APPROVAL -> PillTone.WAITING
     ReportState.DUE, ReportState.OPENING -> PillTone.ACCENT
-    ReportState.REJECTED -> PillTone.BAD
     ReportState.UP_TO_DATE -> PillTone.GOOD
 }
 
@@ -338,8 +337,10 @@ fun MyReportsScreen(data: ShellData, onRoute: (Route) -> Unit) {
                         rep.decisionNote?.takeIf { rep.status == MachineReportDto.REJECTED },
                     ).joinToString(" · ")
                 } ?: data.reports.local.firstOrNull { it.operationId == id }?.let { ReportTexts.conflict(it.errorCode) ?: it.error }
+                // The server's report opens read-only; one still on this phone opens its machine's report screen.
                 CardRow(r.title, r.subtitle, last = i == rows.lastIndex, detail = detail, onClick = {
-                    (report?.machineId ?: data.reports.local.firstOrNull { it.operationId == id }?.machineId)?.let { onRoute(Route.MachineReport(it)) }
+                    if (report != null) onRoute(Route.ReportDetail(report.id))
+                    else data.reports.local.firstOrNull { it.operationId == id }?.machineId?.let { onRoute(Route.MachineReport(it)) }
                 }) { StatusPill(r.pill, tone(r.tone)) }
             }
         }

@@ -77,6 +77,17 @@ class SaleCreditTest {
     }
 
     @Test
+    fun `the policy reads the visit gap warning hours`() {
+        val base = mapOf("enabled" to JsonPrimitive(true), "walk_in_allowed" to JsonPrimitive(true),
+            "transfer_requires_approval" to JsonPrimitive(true), "reason_code_required" to JsonPrimitive(false))
+        // Missing (older server) = 24; a set value; explicit null = never flag; unknown policy = 24.
+        assertEquals(24, CustomerHoursPolicy.fromValues(JsonObject(base))!!.visitGapWarningHours)
+        assertEquals(48, CustomerHoursPolicy.visitGapHours(CustomerHoursPolicy.fromValues(JsonObject(base + ("visit_gap_warning_hours" to JsonPrimitive(48))))))
+        assertNull(CustomerHoursPolicy.visitGapHours(CustomerHoursPolicy.fromValues(JsonObject(base + ("visit_gap_warning_hours" to JsonNull)))))
+        assertEquals(24, CustomerHoursPolicy.visitGapHours(null))
+    }
+
+    @Test
     fun `fuel is hidden when the company switched it off`() {
         assertTrue(FuelSwitch.on(emptyList()))
         assertFalse(FuelSwitch.on(listOf(TenantAccess.FUEL)))

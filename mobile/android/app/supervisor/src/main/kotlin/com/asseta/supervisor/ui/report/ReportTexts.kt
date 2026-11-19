@@ -55,8 +55,11 @@ object ReportTexts {
     const val OPENING_BODY = "This machine has no starting reading yet. Record the meter now; the next report counts the hours from it."
     const val SUBMIT_OPENING = "Submit the reading"
 
-    // Rejected report: the same reading, a new split
-    fun rejected(reason: String?) = "Rejected" + (reason?.takeIf { it.isNotBlank() }?.let { ": $it" } ?: "") + ". Split the same reading again."
+    // Rejected report: final (kept as a record); a new report takes a new reading.
+    fun rejected(reason: String?) = "Rejected" + (reason?.takeIf { it.isNotBlank() }?.let { ": $it" } ?: "") + ". Send a new report for this machine."
+
+    /** Report detail: the section of "Since last visit", "Where" and "Last visit". */
+    const val VISIT = "VISIT"
 
     // Step 2
     const val ACCOUNTED = "Accounted for"
@@ -106,7 +109,6 @@ object ReportTexts {
     fun state(s: ReportState): String = when (s) {
         ReportState.OPENING -> "First reading needed"
         ReportState.AWAITING_APPROVAL -> "Awaiting approval"
-        ReportState.REJECTED -> "Rejected · redo the split"
         ReportState.DUE -> "Report due"
         ReportState.UP_TO_DATE -> "Up to date"
     }
@@ -143,8 +145,9 @@ object ReportTexts {
         "CUSTOMER_NOT_FOUND" -> "A customer you chose is no longer on record. Redo the split."
         "CAPTURE_REJECTED" -> "The meter reading was not accepted. Take the reading again."
         "CAPTURE_ALREADY_REPORTED" -> "This reading already has a report."
-        "CORRECTS_INVALID" -> "The rejected report could not be corrected. The report is kept for review."
-        "HOURS_PRECISION" -> "The hours have more decimals than the meter shows."
+        "CAPTURE_ALREADY_USED" -> "This reading was already used in another report. Take a new reading."
+        "CORRECTION_NOT_ALLOWED", "CORRECTS_INVALID" ->"A rejected report can't be corrected; send a new report with a new reading."
+        "HOURS_PRECISION" -> "The hours have more than 2 decimals."
         "DUPLICATE_CUSTOMER_LINE" -> "A customer appears twice. Redo the split."
         "INVOICE_PAID" -> "This invoice is already paid. The payment is kept for review."
         "INVOICE_OVERPAYMENT" -> "The payment is more than the invoice still owes. It is kept for review."

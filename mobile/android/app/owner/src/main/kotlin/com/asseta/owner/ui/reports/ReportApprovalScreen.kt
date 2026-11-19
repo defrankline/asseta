@@ -67,6 +67,16 @@ class ReportApprovalViewModel(val data: OwnerData, val reportId: String, reading
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
 
+    /** The company's visit-gap warning hours (CUSTOMER_HOURS); 24 until read or when it cannot be read. */
+    private val _visitGapHours = MutableStateFlow(ReportPresentation.visitGapHours(null))
+    val visitGapHours: StateFlow<Int?> = _visitGapHours.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            (data.reportReminder() as? com.asseta.owner.data.Load.Ok)?.let { _visitGapHours.value = ReportPresentation.visitGapHours(it.snapshot.data) }
+        }
+    }
+
     /** Approve (the reason is an optional note) or reject (the reason is required). */
     fun decide(approve: Boolean, reason: String) {
         if (_busy.value || (!approve && !MachineReportApproval.rejectReasonValid(reason))) return
@@ -95,6 +105,7 @@ fun ReportApprovalScreen(vm: ReportApprovalViewModel, session: OwnerSession, onl
     val busy by vm.busy.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
+    val visitGapHours by vm.visitGapHours.collectAsStateWithLifecycle()
     var reason by rememberSaveable { mutableStateOf("") }
     var confirmReject by rememberSaveable { mutableStateOf(false) }
     val zone = ZoneId.systemDefault()
@@ -120,6 +131,7 @@ fun ReportApprovalScreen(vm: ReportApprovalViewModel, session: OwnerSession, onl
                     Text(ReportPresentation.readings(r), fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
                     Text(ReportPresentation.readLine(r, detail.capture), fontSize = 14.sp, color = palette.accent)
                     ReportPresentation.gpsLine(detail.capture)?.let { Text(it, fontSize = 13.sp, color = palette.secondaryText) }
+                    VisitLines(r, ReportPresentation.visitGapFlagged(r, visitGapHours))
                 }
             }
             if (customers.isNotEmpty()) {

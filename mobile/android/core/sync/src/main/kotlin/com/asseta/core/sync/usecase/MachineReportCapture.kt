@@ -51,12 +51,17 @@ data class ReportReading(
     val latestOcr: OcrReading?,
     val gps: GpsOutcome?,
     val capturedAtMs: Long,
+    /**
+     * The phone geocoder's area label of [gps] ("Mbezi Beach, Kinondoni, Dar es Salaam"), when it was found in time
+     * (online); null otherwise. Sent as the reading's `place_name`; never delays the reading.
+     */
+    val placeName: String? = null,
 )
 
 /**
  * One machine report as the three steps produced it. [reportId] is generated once per report (the operation id = the
- * server's report id, so a replay stays exactly-once). Give [reading] (a new reading) or [existingCaptureId] (the reading
- * of the rejected report [correctsReportId], split again). [previous] null = the machine has no starting reading: an
+ * server's report id, so a replay stays exactly-once). [reading] is always a new reading: a rejected report is final
+ * and never corrected. [previous] null = the machine has no starting reading: an
  * opening report (the reading only, no lines).
  */
 data class MachineReportRequest(
@@ -66,9 +71,6 @@ data class MachineReportRequest(
     val decimals: Int,
     val previous: BigDecimal?,
     val reading: ReportReading?,
-    val existingCaptureId: String? = null,
-    val existingReading: String? = null,
-    val correctsReportId: String? = null,
     val lines: List<ReportLineDraft>,
     /** Hours each customer can still get (the phone's cached snapshot less its unsent reports). */
     val available: Map<String, BigDecimal>,
@@ -109,37 +111,31 @@ class MachineReportCapture(
 ) {
     suspend fun submit(r: MachineReportRequest): FinanceResult {
         unavailable(r.tenantId, SyncCapabilities.OP_MACHINE_REPORT)?.let { return FinanceResult.Blocked(it) }
-        if (r.reading == null && r.existingCaptureId == null) return FinanceResult.Invalid(listOf(MachineReportMessages.READING))
-        // The reading: a new capture (validated like any reading) or the rejected report's reading.
-        val readingValue: BigDecimal
-        var capture: MeterCaptureIn? = null
-        val reading = r.reading
-        if (reading != null) {
-            val decision = repository.capturePolicy(r.tenantId, r.machineId)
-            if (decision is CapturePolicyDecision.Blocked) return FinanceResult.Blocked(decision.message)
-            decision as CapturePolicyDecision.Allowed
-            val draft = CaptureDraft(ReadingKind.DAILY, reading.mode, reading.readingText, reading.photoJpeg != null, reading.ocrAttempts, reading.latestOcr, reading.gps != null)
-            val violations = CaptureValidator.validate(draft, decision.policy, r.decimals)
-            if (violations.isNotEmpty()) return FinanceResult.Invalid(violations.map { it.message })
-            val normalized = (ReadingValidator.validate(reading.readingText, r.decimals) as ReadingInput.Valid).normalized
-            readingValue = BigDecimal(normalized)
-            val ocr = reading.latestOcr.takeIf { reading.mode == CaptureMode.AUTOMATIC }
-            capture = MeterCaptureIn(
-                id = reading.captureId, kind = ReadingKind.DAILY.name, captureMode = reading.mode.name, reading = normalized,
-                ocrRawText = ocr?.rawText?.take(500), ocrValue = ocr?.value, ocrConfidence = ocr?.confidence, ocrEngine = ocr?.let { CaptureMeterReading.OCR_ENGINE },
-                photoAttachmentId = null, gps = reading.gps!!.toWire(), deviceId = deviceId(), capturedAt = IsoTime.format(reading.capturedAtMs),
-                policyVersionIds = decision.snapshot.versionIds, machineId = r.machineId,
-            )
-        } else {
-            readingValue = r.existingReading?.toBigDecimalOrNull() ?: return FinanceResult.Invalid(listOf(MachineReportMessages.READING))
-        }
-        val opening = r.previous == null && r.correctsReportId == null
+        // The reading: always a new capture, validated like any reading.
+        val reading = r.reading ?: return FinanceResult.Invalid(listOf(MachineReportMessages.READING))
+        val decision = repository.capturePolicy(r.tenantId, r.machineId)
+        if (decision is CapturePolicyDecision.Blocked) return FinanceResult.Blocked(decision.message)
+        decision as CapturePolicyDecision.Allowed
+        val draft = CaptureDraft(ReadingKind.DAILY, reading.mode, reading.readingText, reading.photoJpeg != null, reading.ocrAttempts, reading.latestOcr, reading.gps != null)
+        val violations = CaptureValidator.validate(draft, decision.policy, r.decimals)
+        if (violations.isNotEmpty()) return FinanceResult.Invalid(violations.map { it.message })
+        val normalized = (ReadingValidator.validate(reading.readingText, r.decimals) as ReadingInput.Valid).normalized
+        val readingValue = BigDecimal(normalized)
+        val ocr = reading.latestOcr.takeIf { reading.mode == CaptureMode.AUTOMATIC }
+        val capture = MeterCaptureIn(
+            id = reading.captureId, kind = ReadingKind.DAILY.name, captureMode = reading.mode.name, reading = normalized,
+            ocrRawText = ocr?.rawText?.take(500), ocrValue = ocr?.value, ocrConfidence = ocr?.confidence, ocrEngine = ocr?.let { CaptureMeterReading.OCR_ENGINE },
+            photoAttachmentId = null, gps = reading.gps!!.toWire(), deviceId = deviceId(), capturedAt = IsoTime.format(reading.capturedAtMs),
+            policyVersionIds = decision.snapshot.versionIds, machineId = r.machineId,
+            placeName = reading.placeName?.trim()?.take(MAX_PLACE_NAME)?.trim()?.ifEmpty { null },
+        )
+        val opening = r.previous == null
         val lines: List<ReportLine> = if (opening) {
             emptyList()
         } else {
             MachineReportRules.readingProblem(r.previous, readingValue)?.let { return FinanceResult.Invalid(listOf(it)) }
             val difference = MachineReportRules.difference(r.previous, readingValue)!!
-            when (val check = MachineReportRules.check(difference, r.lines, r.available, r.decimals)) {
+            when (val check = MachineReportRules.check(difference, r.lines, r.available)) {
                 is FormCheck.Invalid -> return FinanceResult.Invalid(check.messages)
                 is FormCheck.Valid -> check.value
             }
@@ -147,8 +143,7 @@ class MachineReportCapture(
         if (alreadySaved(r.tenantId, r.reportId)) return FinanceResult.AlreadySaved
         val payload = MachineReportPayload(
             machineId = r.machineId,
-            captureId = capture?.id ?: r.existingCaptureId!!,
-            correctsReportId = r.correctsReportId,
+            captureId = capture.id,
             lines = lines.map {
                 when (it) {
                     is ReportLine.Customer -> MachineReportLinePayload(MachineReportLineDto.CUSTOMER, customerId = it.customerId, hours = AccountabilityRules.plain(it.hours))
@@ -159,7 +154,7 @@ class MachineReportCapture(
             clientCreatedAt = IsoTime.format(r.createdAtMs),
             opening = true.takeIf { opening },
         )
-        val photo = reading?.photoJpeg
+        val photo = reading.photoJpeg
         val photoFile = photo?.let { files.write(it) }
         val attachmentId = photoFile?.let { UUID.randomUUID().toString() }
         val database = db()
@@ -170,7 +165,7 @@ class MachineReportCapture(
             }
             // A new reading goes first as a normal DAILY METER_CAPTURE, gated by its meter photo (the completed upload
             // writes the photo's attachment id into it); the report names that reading and waits for it.
-            val dependsOn = if (capture != null && reading != null) {
+            val dependsOn = run {
                 if (photo != null && photoFile != null && attachmentId != null) {
                     database.evidenceDao().insertAttachment(
                         AttachmentEntity(attachmentId, r.tenantId, BlobPurpose.METER_PHOTO, photoFile, Sha256.hex(photo), photo.size.toLong(),
@@ -183,8 +178,6 @@ class MachineReportCapture(
                         json.encodeToJsonElement(MeterCaptureIn.serializer(), capture).jsonObject, listOfNotNull(attachmentId),
                     ),
                 )
-            } else {
-                emptyList()
             }
             // The operation id is the report id.
             val opId = outbox.enqueueOperation(
@@ -258,6 +251,9 @@ class MachineReportCapture(
 
     companion object {
         const val MAX_EVIDENCE = 10
+
+        /** `place_name` of a reading: at most 200 characters. */
+        const val MAX_PLACE_NAME = 200
     }
 }
 

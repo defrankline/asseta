@@ -71,6 +71,8 @@ data class CustomerHoursPolicy(
     val fieldCreditSales: Boolean = false,
     /** ADR-008: a machine is due for a report after this many days (`machine_report_reminder_days`; null = off). */
     val reportReminderDays: Int? = DEFAULT_REMINDER_DAYS,
+    /** ADR-008: approvers see a visit gap over this many hours flagged (`visit_gap_warning_hours`; null = never). */
+    val visitGapWarningHours: Int? = DEFAULT_VISIT_GAP_HOURS,
 ) {
     companion object {
         const val TYPE = "CUSTOMER_HOURS"
@@ -90,6 +92,11 @@ data class CustomerHoursPolicy(
                 } else {
                     DEFAULT_REMINDER_DAYS
                 },
+                visitGapWarningHours = if ("visit_gap_warning_hours" in values) {
+                    (values["visit_gap_warning_hours"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull()
+                } else {
+                    DEFAULT_VISIT_GAP_HOURS
+                },
             )
         }.getOrNull()
 
@@ -101,6 +108,12 @@ data class CustomerHoursPolicy(
          * [DEFAULT_REMINDER_DAYS] while the policy is unknown (not loaded, refused, unreadable). Same rule as iOS.
          */
         fun reminderDays(policy: CustomerHoursPolicy?): Int? = if (policy == null) DEFAULT_REMINDER_DAYS else policy.reportReminderDays
+
+        /** The server's default for `visit_gap_warning_hours`. */
+        const val DEFAULT_VISIT_GAP_HOURS = 24
+
+        /** The visit-gap warning hours to apply: the policy's (explicit null = never flag), or 24 while unknown. */
+        fun visitGapHours(policy: CustomerHoursPolicy?): Int? = if (policy == null) DEFAULT_VISIT_GAP_HOURS else policy.visitGapWarningHours
     }
 }
 

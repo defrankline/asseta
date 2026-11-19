@@ -54,7 +54,7 @@ class MachineReportSyncTest : SyncTestBase() {
         data = MachineReportData({ db }, json, { account })
     }
 
-    private fun snapshots(previous: String? = "1210.0", pending: String? = null) {
+    private fun snapshots(previous: String? = "1210.0", pending: String? = null, rejected: String? = null) {
         fake.captureMode = "MANUAL" // the test company reads meters by hand
         fake.capabilities = fake.capabilities.orEmpty() + SyncCapabilities.OP_MACHINE_REPORT + SyncCapabilities.OP_CREDIT_INVOICE_PAYMENT
         fake.inbox = mapOf(
@@ -63,7 +63,9 @@ class MachineReportSyncTest : SyncTestBase() {
                 put("previous_reading", previous); put("previous_at", previous?.let { "2026-10-20T14:30:00Z" })
                 put("previous_source", previous?.let { "REPORT" }); put("last_approved_reading", previous); put("last_approved_at", previous?.let { "2026-10-20T14:30:00Z" })
                 put("last_report_at", previous?.let { "2026-10-17T14:30:00Z" }); put("days_since_report", previous?.let { 4 })
-                put("pending_report_id", pending); put("pending_report_number", pending?.let { "MR-2026-00001" }); put("rejected_report_id", null as String?)
+                put("pending_report_id", pending); put("pending_report_number", pending?.let { "MR-2026-00001" }); put("rejected_report_id", rejected)
+                put("last_visit_at", "2026-10-21T09:15:00Z"); put("last_visit_lat", -6.7924); put("last_visit_lng", 39.2083)
+                put("last_visit_accuracy_m", 5.0); put("last_visit_place", "Mbezi Beach, Kinondoni, Dar es Salaam"); put("last_visit_site_name", null as String?)
             }),
             "machine_report_hours" to listOf(buildJsonObject {
                 put("customer_id", fake.customerId); put("customer_name", "Pwani Road Contractors"); put("remaining", "160"); put("reserved", "20"); put("available", "140")
@@ -200,23 +202,39 @@ class MachineReportSyncTest : SyncTestBase() {
     }
 
     @Test
-    fun aRejectedReportIsRedoneOnTheSameReadingWithoutANewCapture() = runBlocking {
+    fun aRejectedReportIsFinalTheMachineIsDueAndTheNextReportTakesANewReadingWithItsPlace() = runBlocking {
+        snapshots(rejected = UUID.randomUUID().toString())
+        synced()
+        val machine = data.observe(tenant).first().machines(reminderDays = 30).single()
+        // Rejected: due again (counts in the due badge), never "redo the split".
+        assertEquals(ReportState.DUE, machine.state)
+        assertTrue(machine.rejected)
+        // The last visit (any report's reading, the rejected one included) comes with the cached state, for offline use.
+        assertEquals("2026-10-21T09:15:00Z", machine.status.lastVisitAt)
+        assertEquals("Mbezi Beach, Kinondoni, Dar es Salaam", machine.status.lastVisitPlace)
+        assertEquals(-6.7924, machine.status.lastVisitLat!!, 0.0)
+        // The new report: a new METER_CAPTURE with the phone's place name, hours in hundredths, no correction.
+        val r = request(listOf(customer.copy(hoursText = "120.25"), breakdown.copy(hoursText = "179.75")))
+        val withPlace = r.copy(reading = r.reading!!.copy(placeName = "  Mbezi Beach, Kinondoni, Dar es Salaam  "))
+        reports.submit(withPlace) as FinanceResult.Saved
+        val captureOpId = db.clientOperationDao().dependenciesOf(r.reportId).single()
+        assertEquals("Mbezi Beach, Kinondoni, Dar es Salaam", payload(captureOpId)["place_name"]!!.jsonPrimitive.content)
+        val p = payload(r.reportId)
+        assertNull(p["corrects_report_id"])
+        assertEquals(listOf("120.25", "179.75"), p["lines"]!!.jsonArray.map { it.jsonObject["hours"]!!.jsonPrimitive.content })
+    }
+
+    @Test
+    fun withoutAPlaceNameTheReadingIsSentWithout() = runBlocking {
         snapshots()
         synced()
-        val rejectedId = UUID.randomUUID().toString()
-        val oldCapture = UUID.randomUUID().toString()
-        val r = request(listOf(customer, breakdown)).copy(
-            reading = null, existingCaptureId = oldCapture, existingReading = "1510.0", correctsReportId = rejectedId,
-        )
+        val r = request(listOf(customer, breakdown))
         reports.submit(r) as FinanceResult.Saved
-        assertTrue(db.clientOperationDao().dependenciesOf(r.reportId).isEmpty())
-        val p = payload(r.reportId)
-        assertEquals(oldCapture, p["capture_id"]!!.jsonPrimitive.content)
-        assertEquals(rejectedId, p["corrects_report_id"]!!.jsonPrimitive.content)
-        assertNull(p["opening"])
-        assertEquals(2, p["lines"]!!.jsonArray.size)
-        // Only the report was queued: no new reading.
-        assertEquals(listOf(MachineReportOps.MACHINE_REPORT), db.clientOperationDao().observeUnsynced(tenant, USER_A.subject).first().map { it.opType })
+        val captureOpId = db.clientOperationDao().dependenciesOf(r.reportId).single()
+        assertNull(payload(captureOpId)["place_name"])
+        // Three decimals on a line are refused before queueing.
+        val bad = reports.submit(request(listOf(customer.copy(hoursText = "120.125"), breakdown.copy(hoursText = "179.875"))))
+        assertTrue(MachineReportMessages.HOURS_FORMAT in (bad as FinanceResult.Invalid).messages)
     }
 
     @Test

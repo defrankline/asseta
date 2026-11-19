@@ -122,6 +122,8 @@ sealed interface Route {
     /** A machine report; [machineId] preselects one of my machines. */
     data class MachineReport(val machineId: String? = null) : Route
     data object MyReports : Route
+    /** One of my reports, read-only (the server's copy). */
+    data class ReportDetail(val reportId: String) : Route
     data object MySales : Route
     data object CustomerBalances : Route
     /** My cash custody, today's figures and my money records (the former Money tab). */
@@ -180,6 +182,7 @@ fun Route.title(companyName: String): String = when (this) {
     Route.Fuel -> "Fuel"
     is Route.MachineReport -> ReportTexts.TITLE
     Route.MyReports -> HomeTexts.MY_REPORTS
+    is Route.ReportDetail -> ReportTexts.TITLE
     Route.MySales -> HomeTexts.MY_SALES
     Route.CustomerBalances -> HomeTexts.CUSTOMER_BALANCES
     Route.MoneyRecords -> HomeTexts.MY_CASH
@@ -433,9 +436,12 @@ fun SupervisorHome(
             }
             // One of my remittances: its detail once it is on the phone, else Money.
             is InboxLink.Handover -> snapshot.handovers.firstOrNull { it.key == link.id }?.let { push(Route.CashDetail(it.key, collection = false)) } ?: money()
-            // ADR-008: a report decided (or waiting) opens its machine's report screen; else my reports.
-            is InboxLink.MachineReport -> (reports.myReports.firstOrNull { it.id == link.id }?.machineId ?: reports.local.firstOrNull { it.operationId == link.id }?.machineId)
-                ?.let { push(Route.MachineReport(it)) } ?: push(Route.MyReports)
+            // ADR-008: a report decided (or waiting) opens the report (read-only); one only on this phone opens its machine's
+            // report screen; else my reports.
+            is InboxLink.MachineReport -> when {
+                reports.myReports.any { it.id == link.id } -> push(Route.ReportDetail(link.id))
+                else -> reports.local.firstOrNull { it.operationId == link.id }?.machineId?.let { push(Route.MachineReport(it)) } ?: push(Route.MyReports)
+            }
             is InboxLink.CreditInvoice -> if (access?.creditInvoicePayment == true && reports.invoices.any { it.id == link.id }) push(Route.InvoicePayment(link.id)) else money()
             InboxLink.None -> fallback()
         }
@@ -631,6 +637,11 @@ private fun RouteContent(
         Route.MoneyRecords -> MoneyScreen(field, tenantId, snapshot, syncing, onRefresh, push, permissions, access)
         Route.Dashboard -> DashboardScreen(field, tenantId, data, permissions, push)
         Route.MyReports -> MyReportsScreen(data, push)
+        is Route.ReportDetail -> com.asseta.supervisor.ui.report.ReportDetailScreen(
+            data.reports.myReports.firstOrNull { it.id == route.reportId },
+            photoUrl = { id -> field.online.attachmentUrl(id) },
+            onNewReport = { machineId -> push(Route.MachineReport(machineId)) },
+        )
         Route.MySales -> MySalesScreen(data)
         Route.CustomerBalances -> CustomerBalancesScreen(data)
         // Fuel only while the company uses it (ADR-008 §3); a stale route shows nothing.

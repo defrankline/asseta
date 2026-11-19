@@ -74,9 +74,11 @@ object MachinesTexts {
     /** The pill of a machine that needs a report: "No report 4 days", "No report yet" (never reported / no starting reading), "Rejected". */
     fun pill(s: MachineReportStatusDto, reminderDays: Int?): String {
         val days = s.daysSinceReport
-        return when (ReportPresentation.reportState(s, reminderDays)) {
-            ReportState.REJECTED -> REJECTED
-            ReportState.OPENING -> NO_REPORT_YET
+        val state = ReportPresentation.reportState(s, reminderDays)
+        return when {
+            // A rejected report is final: the machine is due again (a new report with a new reading).
+            state == ReportState.DUE && s.rejectedReportId != null -> REJECTED
+            state == ReportState.OPENING -> NO_REPORT_YET
             else -> if (days == null || days <= 0) NO_REPORT_YET else noReport(days)
         }
     }

@@ -48,8 +48,8 @@ data class ReportMachine(
     val state: ReportState,
     /** The newest report on this phone not yet replaced by the server's copy. */
     val local: LocalReport?,
-    /** The rejected report to correct (same reading, new split). */
-    val rejected: MachineReportDto?,
+    /** The machine's last report was rejected (final): a new report with a new reading is due. */
+    val rejected: Boolean = false,
 ) {
     val id: String get() = status.machineId
     val code: String get() = status.machineCode ?: status.machineName ?: status.machineId.take(8)
@@ -72,13 +72,13 @@ data class MachineReportView(
     /** My machines with their state; [reminderDays] is the company's `machine_report_reminder_days`. */
     fun machines(reminderDays: Int?): List<ReportMachine> = states.map { s ->
         val local = local.filter { it.machineId == s.machineId && !acknowledgedByServer(it) }.maxByOrNull { it.createdAtMs }
-        val rejected = s.rejectedReportId?.let { id -> myReports.firstOrNull { it.id == id } }
-            ?: myReports.filter { it.machineId == s.machineId }.maxByOrNull { it.submittedAt }?.takeIf { it.status == MachineReportDto.REJECTED && it.correctedById == null }
+        val rejected = s.rejectedReportId != null ||
+            myReports.filter { it.machineId == s.machineId }.maxByOrNull { it.submittedAt }?.status == MachineReportDto.REJECTED
         val state = MachineReportRules.state(
             previousReading = s.previousReading,
             pendingOnServer = s.pendingReportId != null,
             pendingOnPhone = local?.waiting == true,
-            rejected = rejected != null,
+            rejected = rejected,
             daysSinceReport = s.daysSinceReport,
             reminderDays = reminderDays,
         )
