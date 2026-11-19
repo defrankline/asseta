@@ -28,6 +28,7 @@ Approval is by permission, never by role, and the person who submitted a report 
 | `CUSTOMER_HOURS.field_noncash_payments` | `false` (exists) | Field staff may record BANK / MOBILE_MONEY lines and invoice payments. |
 | `CUSTOMER_HOURS.report_hours_scope` | `CUSTOMER` | Hours a report draws on: `CUSTOMER` = any of the customer's hours; `MACHINE` = only the customer's hours on the reported machine. |
 | `CUSTOMER_HOURS.machine_report_reminder_days` | `3` | Remind approvers about a machine that moved (meter or tracker) with no report for this many days; `null` = off. |
+| `CUSTOMER_HOURS.visit_gap_warning_hours` | `24` | The approvers' lists (Owner app Approvals, web approvals) flag a report whose time since the machine's last visit is longer than this many hours (1–8760); `null` = no flag. Web label "Warn when a machine wasn't visited for (hours)". |
 | `EXPENSE_CAPTURE.fuel_enabled` | `true` | Fuel on/off (§3). |
 
 Retired settings (jobs, contracts, hire invoices, site check-ins and job revenue differences are gone): stored
@@ -180,7 +181,11 @@ Permission `tenant.machine_report.submit`. `Idempotency-Key` supported; `id` mak
 
 - The reading: give `capture` (a new DAILY reading, same shape and evidence rules as `POST /meter-captures`) **or**
   `capture_id` (a reading already recorded, e.g. with `POST /meter-captures` or the sync operation `METER_CAPTURE` just
-  before). To correct a rejected report send `capture_id` = its reading and `corrects_report_id` = the rejected report.
+  before). A reading belongs to **one** report only (`CAPTURE_ALREADY_USED`, whatever that report's status).
+- **A rejected report is final**: it is kept as a record and never corrected or resubmitted. `corrects_report_id`
+  stays in the request shape for older apps, but any value is refused with `CORRECTION_NOT_ALLOWED` ("A rejected
+  report can't be corrected; send a new report with a new reading."). The supervisor sends a brand-new report with a
+  new reading; it starts, as always, from the machine's last APPROVED reading.
 - **Opening report** (`"opening": true`, `"lines": []`): a machine with no starting reading yet (no approved report,
   no approved baseline: `opening_required: true` in its status/context, `previous_reading` null) gets an opening report
   first. It carries only the reading (difference 0, `hours` 0, `start_source` `OPENING`, `start_reading` =
@@ -194,18 +199,38 @@ Permission `tenant.machine_report.submit`. `Idempotency-Key` supported; `id` mak
 - Previous reading = end of the machine's last APPROVED report, else its approved meter baseline; an approved meter
   reset after that restarts the count at the reset's new reading. Difference = new − previous.
 - Lines (a normal report: at least one): CUSTOMER (`customer_id`, `hours` > 0) or NON_PRODUCTIVE (`reason_id` from the reason list, `hours` > 0,
-  `note` required). One line per customer. Hours in steps of the machine's meter precision (0.1 for one decimal).
+  `note` required). One line per customer. Line hours have **at most 2 decimals** (0.01 steps) whatever the meter's
+  precision (customers' hours are kept in hundredths); the reading and the difference keep the meter's precision.
   Sum of lines == difference exactly.
 - Each customer's hours ≤ available = activated − used − reserved by other SUBMITTED reports (scope per
   `report_hours_scope`). The submitted report reserves them.
-- One SUBMITTED report per machine; one SUBMITTED/APPROVED report per reading.
+- One SUBMITTED report per machine; one report per reading.
+- **Time and place since the last visit** (server-computed at submit, never changed): last visit = the most recent
+  earlier reading (meter capture) of the same machine that belongs to any machine report (opening or normal, any
+  status, rejected included), by the readings' taken-at time (`captured_at`). `previous_visit_at` = its taken-at time,
+  `since_previous_visit_seconds` = this report's reading `captured_at` − `previous_visit_at` (whole seconds); both null
+  on a first visit. Where: `previous_visit_lat/lng/accuracy_m` (that reading's GPS), `previous_visit_place` (its
+  `place_name`), `previous_visit_site_name`, and for this report `visit_lat/lng/accuracy_m` (its reading's GPS, read
+  from the reading), `visit_place` (its reading's `place_name`), `visit_site_name`. `*_place` is the area label the
+  phone's geocoder gave the reading (see below); `*_site_name` is a hint: the company's job site whose geofence
+  (SITE_BOUNDARY or ALLOWED_AREA, active) contains the point, nearest site centre first (the site's name, else the
+  geofence's), null outside every site. The server calls no outside geocoding service. Reports made before
+  migration `visit01` were filled by its data step (no place labels: readings had none).
+- **Reading place label**: `capture.place_name` (also on `POST /meter-captures` and the sync operation
+  `METER_CAPTURE`; optional, at most 200 characters, trimmed) is the area the phone's own geocoder named for the GPS
+  point when the reading was taken and the phone was online (e.g. "Mbezi Beach, Kinondoni, Dar es Salaam"; never a
+  street address). Stored as given: a label, not evidence (the coordinates are). `MeterCaptureDto.place_name`
+  returns it. Older apps send none.
 - Meter vs tracker: when the machine's tracker has an engine-hour counter at both ends of the report's period and the
   meter moved more or less than it beyond `METER_CAPTURE.telemetry_engine_hours_tolerance`, the report's reading gets
   a `TELEMETRY_MISMATCH` finding (evidence for the approver, shown in `findings`; it does not hold the reading).
 
 Response `MachineReportDto`: `id, report_number (MR-yyyy-nnnnn), machine_id, machine_code, machine_name, capture_id,
 opening, start_source (REPORT|BASELINE|RESET|OPENING), start_ref, start_reading, start_at, end_reading, end_at, hours, customer_hours,
-non_productive_hours, status (SUBMITTED|APPROVED|REJECTED), corrects_id, corrected_by_id, note, source (API|SYNC),
+non_productive_hours, status (SUBMITTED|APPROVED|REJECTED), previous_visit_at, since_previous_visit_seconds,
+previous_visit_lat, previous_visit_lng, previous_visit_accuracy_m, previous_visit_place, previous_visit_site_name,
+visit_lat, visit_lng, visit_accuracy_m, visit_place, visit_site_name, corrects_id, corrected_by_id (both history only:
+reports made before rejections became final), note, source (API|SYNC),
 submitted_by(_name), submitted_at, client_created_at, decided_by(_name), decided_at, decision_note, policy_version,
 photo_attachment_id, capture_state, findings[], tracker, lines[]`. Lines: `id, line_no, kind, customer_id,
 customer_name, reason_id, reason_code, reason_name, hours, note, available_hours (SUBMITTED detail), lots[]
@@ -223,14 +248,14 @@ tell "my reports"; `mine=true` on the list filters on it server side).
 | `OPENING_NOT_ALLOWED` | 422 | `opening: true` but the machine already has a starting reading |
 | `READING_NOT_HIGHER` / `NOTHING_TO_REPORT` | 422 | New reading below / equal to the previous |
 | `REPORT_SUM_MISMATCH` | 422 | Lines ≠ difference |
-| `HOURS_PRECISION` | 422 | Hours not in the meter's steps |
+| `HOURS_PRECISION` | 422 | Line hours with more than 2 decimals ("Hours have at most 2 decimals (steps of 0.01)") |
 | `DUPLICATE_CUSTOMER_LINE` | 422 | A customer twice |
 | `HOURS_NOT_AVAILABLE` | 422 | A customer's total above their available hours |
 | `CUSTOMER_NOT_FOUND`, `REASON_NOT_FOUND` | 404 | |
 | `REASON_INVALID` | 422 | Not an active machine-report reason |
 | `CAPTURE_NOT_FOUND` / `CAPTURE_MACHINE_MISMATCH` / `CAPTURE_REJECTED` | 404/422 | Bad `capture_id` / reading refused by evidence rules |
-| `CAPTURE_ALREADY_REPORTED` | 422 | The reading has a SUBMITTED/APPROVED report |
-| `CORRECTS_INVALID` | 422 | `corrects_report_id` is not a rejected report of this machine on the same reading |
+| `CAPTURE_ALREADY_USED` | 422 | The reading was already used by a report (any status, rejected included): take a new reading |
+| `CORRECTION_NOT_ALLOWED` | 422 | `corrects_report_id` given: a rejected report can't be corrected; send a new report with a new reading |
 | `REPORT_ID_CONFLICT` | 409 | `id` reused with another machine/reading |
 | `HOURS_DISABLED` | 422 | Customer lines while customer hours are switched off |
 | `VALIDATION_FAILED` | 422 | Shape (both/neither of capture and capture_id, missing note, lines on an opening report, no lines on a normal one, …) |
@@ -245,12 +270,16 @@ tell "my reports"; `mine=true` on the list filters on it server side).
   tracker's engine-hour counter over the report period.
 - `GET /machine-reports/status?machine_id=…` — `listMachineReportStatus`: per machine (field users: assigned ones)
   `{machine_id, machine_code, machine_name, meter_decimal_places, previous_reading, previous_at, previous_source,
-  opening_required, last_approved_reading, last_approved_at, last_report_at, days_since_report, pending_report_id,
-  pending_report_number, rejected_report_id}`.
+  opening_required, last_approved_reading, last_approved_at, last_report_at, last_visit_at, last_visit_lat,
+  last_visit_lng, last_visit_accuracy_m, last_visit_place, last_visit_site_name, days_since_report, pending_report_id,
+  pending_report_number, rejected_report_id}`. `rejected_report_id`: the latest report was rejected; a new report (new
+  reading) is due. `last_visit_*`: the machine's last visit (its latest reading that belongs to any report, any status;
+  null: never visited) — the phones show "Time since last visit" from it while a report is made, offline too.
 - `GET /machine-reports/context/{machine_id}` — `getMachineReportContext` (submit or approve permission): the form's
   first step `{previous_reading, previous_at, previous_source, opening_required, meter_epoch, meter_decimal_places,
   pending_report_id,
-  last_report_at, hours_scope, customers[] (available hours > 0), reasons[]}`.
+  last_report_at, last_visit_at, last_visit_lat, last_visit_lng, last_visit_accuracy_m, last_visit_place,
+  last_visit_site_name, hours_scope, customers[] (available hours > 0), reasons[]}`.
 - `GET /machine-reports/available-hours?machine_id=&customer_id=…` — `listReportHours`:
   `{customer_id, machine_id (MACHINE scope), remaining, reserved, available}`.
 
@@ -263,8 +292,8 @@ tell "my reports"; `mine=true` on the list filters on it server side).
   `UNEXPLAINED_HOURS` engine-hour flags of the machine that lie inside the report's period are closed as EXPLAINED
   ("Accounted for by machine report MR-…", reviewer = the approver); they stay open while the report waits or after a
   rejection.
-- `POST /machine-reports/{id}/reject` `{"reason": "…"}` — releases the reservation; the supervisor corrects it on the
-  same reading.
+- `POST /machine-reports/{id}/reject` `{"reason": "…"}` — releases the reservation. Final: the report stays as a
+  record; the supervisor sends a new report with a new reading (the machine is due again).
 
 | Code | HTTP | When |
 |---|---|---|
@@ -305,7 +334,8 @@ from `created_at_device`), plus optional `photo_upload_id` (resumable blob uploa
 Kept for review as `CONFLICT` (the reading was taken in the field): `MACHINE_NOT_ASSIGNED`, `MACHINE_NOT_FOUND`,
 `REPORT_PENDING`, `REPORT_ID_CONFLICT`, `OPENING_REPORT_REQUIRED`, `READING_NOT_HIGHER`, `NOTHING_TO_REPORT`,
 `REPORT_SUM_MISMATCH`, `HOURS_NOT_AVAILABLE`, `HOURS_DISABLED`, `REASON_INVALID`, `REASON_NOT_FOUND`,
-`CUSTOMER_NOT_FOUND`, `CAPTURE_REJECTED`, `CAPTURE_ALREADY_REPORTED`, `CORRECTS_INVALID`. `REJECTED`:
+`CUSTOMER_NOT_FOUND`, `CAPTURE_REJECTED`, `CAPTURE_ALREADY_USED`, `CORRECTION_NOT_ALLOWED` (an older app's
+correction of a rejected report: kept with its payload, never lost). `REJECTED`:
 `HOURS_PRECISION`, `DUPLICATE_CUSTOMER_LINE`, `VALIDATION_FAILED`, `BAD_PAYLOAD`, `PERMISSION_DENIED`.
 
 The phone checks the sum and its cached available hours before queueing; the server decides. `OPENING_NOT_ALLOWED`

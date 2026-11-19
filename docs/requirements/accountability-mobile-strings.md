@@ -2711,20 +2711,25 @@ Rules (Android `ShellModel`, `MachineReportRules`, `FieldAccess`; iOS the same n
   the server announces OP_HOURS_SALE_CREDIT and the company sets `field_credit_sales` (or the user holds
   `tenant.hours.credit_activate`). Choosing Walk-in turns a Credit line back into Cash. No job is created.
 - **Machine report state** per machine: Awaiting approval (a SUBMITTED report on the server or one still on this phone),
-  Rejected · redo the split (the same reading is split again: `capture_id` + `corrects_report_id`), First reading
+  Report due after a rejection (a rejected report is final: the supervisor sends a new report with a new reading; a
+  rejected opening report means First reading needed again), First reading
   needed (no starting reading: the report sends the reading only, `opening: true`, no lines), Report due (never reported,
   or no report for `CUSTOMER_HOURS.machine_report_reminder_days`, default 3; never when the setting is off), else Up to
-  date. "Hours to report" and the tile badge count First reading needed, Rejected and Report due.
+  date. "Hours to report" and the tile badge count First reading needed and Report due (rejected included).
 - **Step 1:** the reading is a new DAILY capture with the same evidence rules as every reading (photo, on-phone OCR per
   the capture policy, a fresh GPS attempt). It must be above the previous reading; equal = nothing to report.
 - **Step 2:** lines add up to the difference exactly (Review stays off until they do); one line per customer, never more
   than the customer's usable hours (the synced `machine_report_hours` less this phone's unsent reports); every
-  non-productive line has a note; hours in steps of the meter's precision. New lines start with the hours still to
-  account for.
+  non-productive line has a note; line hours have at most 2 decimals (0.01) whatever the meter's precision (decimal
+  keyboard). A line with invalid hours is marked on its own Hours field, counts 0 toward "accounted for" and is left
+  out of the customer's "after this"; "All hours accounted for" shows only when every line is valid and the sum equals
+  the difference. New lines start with the hours still to account for.
 - **Offline:** a report queues as two operations: the new reading as a DAILY METER_CAPTURE (its meter photo uploads
   first), then MACHINE_REPORT (operation id = report id) with `capture_id` = that reading, waiting for it. An opening
-  report is the same with `opening: true` and no lines; redoing a rejected report sends no new reading, only
-  MACHINE_REPORT with the old `capture_id` and `corrects_report_id` (the form starts from the rejected report's lines);
+  report is the same with `opening: true` and no lines. There is no correction: `corrects_report_id` is never sent and
+  a reading is never reused (the server refuses both: CORRECTION_NOT_ALLOWED, CAPTURE_ALREADY_USED). When the phone is
+  online at capture, the reading carries `place_name` (the platform geocoder's area label for its GPS point:
+  sub-locality, district, city; never a street; at most 200 characters; about 3 s timeout; never delays the reading);
   a credit-invoice payment as CREDIT_INVOICE_PAYMENT (operation id = payment client id), never above
   the invoice's balance on the phone (less what the phone already queued against it). Server refusals show as sync
   conflicts with the wording below.
@@ -2838,7 +2843,7 @@ Rules (Android `ShellModel`, `MachineReportRules`, `FieldAccess`; iOS the same n
 | field.report.opening.title | First reading for this machine |
 | field.report.opening.body | This machine has no starting reading yet. Record the meter now; the next report counts the hours from it. |
 | field.report.opening.submit | Submit the reading |
-| field.report.rejected | Rejected: {reason}. Split the same reading again. |
+| field.report.rejected | Rejected: {reason}. Send a new report for this machine. (no reason: Rejected. Send a new report for this machine.) — on the read-only report detail |
 | field.report.split.header | {machine} · {from} → {to} |
 | field.report.split.accounted | Accounted for |
 | field.report.split.ofTotal | / {hours} h |
@@ -2859,7 +2864,7 @@ Rules (Android `ShellModel`, `MachineReportRules`, `FieldAccess`; iOS the same n
 | field.report.err.noLines | Add a customer or a non-productive line. |
 | field.report.err.tooManyLines | At most 50 lines per report. |
 | field.report.err.customerTwice | Each customer can appear only once. |
-| field.report.err.hours | Enter the hours (more than 0, at most {n} decimal(s)). / Enter whole hours (more than 0). |
+| field.report.err.hours | Enter the hours (more than 0, at most 2 decimals). — under the invalid line's Hours field, and in the header instead of "All hours accounted for" when the valid lines add up but a line is invalid |
 | field.report.err.overAvailable | {customer} has only {hours} h available. |
 | field.report.err.note | Say what happened for “{reason}”. |
 | field.report.review.readings | {from} h → {to} h |
@@ -2875,7 +2880,6 @@ Rules (Android `ShellModel`, `MachineReportRules`, `FieldAccess`; iOS the same n
 | field.report.queued | Saved on this phone. It is sent when you are online. |
 | field.report.state.opening | First reading needed |
 | field.report.state.awaiting | Awaiting approval |
-| field.report.state.rejected | Rejected · redo the split |
 | field.report.state.due | Report due |
 | field.report.state.upToDate | Up to date |
 | field.report.outbox | Machine report |
@@ -2893,8 +2897,9 @@ Rules (Android `ShellModel`, `MachineReportRules`, `FieldAccess`; iOS the same n
 | field.report.conflict.CUSTOMER_NOT_FOUND | A customer you chose is no longer on record. Redo the split. |
 | field.report.conflict.CAPTURE_REJECTED | The meter reading was not accepted. Take the reading again. |
 | field.report.conflict.CAPTURE_ALREADY_REPORTED | This reading already has a report. |
-| field.report.conflict.CORRECTS_INVALID | The rejected report could not be corrected. The report is kept for review. |
-| field.report.conflict.HOURS_PRECISION | The hours have more decimals than the meter shows. |
+| field.report.conflict.CORRECTION_NOT_ALLOWED (and CORRECTS_INVALID) | A rejected report can't be corrected; send a new report with a new reading. |
+| field.report.conflict.CAPTURE_ALREADY_USED | This reading was already used in another report. Take a new reading. |
+| field.report.conflict.HOURS_PRECISION | The hours have more than 2 decimals. |
 | field.report.conflict.DUPLICATE_CUSTOMER_LINE | A customer appears twice. Redo the split. |
 | field.money.period.today | Today |
 | field.money.period.week | Week |
@@ -3007,7 +3012,7 @@ Rules (Android `OwnerFeatures`, `MachineReportApproval`; iOS the same):
 - **Fuel:** while FUEL is off, no fuel choice in Field spend, no fuel card or fuel flag on a machine day.
 - **Overdue machines:** the Supervisor's "Report due" rule on the company's `CUSTOMER_HOURS.machine_report_reminder_days`,
   read from `GET /policies/CUSTOMER_HOURS/effective` (3 when it cannot be read; null = reminders off): overdue = never
-  reported, first reading needed, last report rejected and not redone, or no report for that many days; never while a
+  reported, first reading needed, last report rejected (no new report yet), or no report for that many days; never while a
   report waits for approval.
 
 
@@ -3048,7 +3053,7 @@ times `today 07:40`, `yesterday 18:10`, `{n} days ago` (2–6), then `12 Nov`.
 | tile | Money — Collections, cash, expenses |
 | section | NEEDS YOUR ATTENTION |
 | report row | {machine} report · {h} h non-productive (all productive: {machine} report · {h} h; an opening report: {machine} first reading · {1,520.4} h) / {supervisor} · {today 07:40} — pill Review |
-| overdue row | {machine} · no report for {n} days (never reported or first reading needed: {machine} · no report yet; rejected: {machine} · report rejected, not yet redone) / Last approved reading {reading} h (or: No approved reading yet) — pill Overdue |
+| overdue row | {machine} · no report for {n} days (never reported or first reading needed: {machine} · no report yet; rejected: {machine} · report rejected, no new report yet) / Last approved reading {reading} h (or: No approved reading yet) — pill Overdue |
 | empty | Nothing needs your attention right now. |
 | bell (accessibility) | Notifications, {n} unread |
 
@@ -3089,10 +3094,10 @@ times `today 07:40`, `yesterday 18:10`, `{n} days ago` (2–6), then `12 Nov`.
 | supervisor note | Supervisor's note |
 | reason field | Reason (needed to reject) / placeholder: e.g. Idle hours too high, explain |
 | buttons | Reject · Approve |
-| reject dialog | Reject this report? / The supervisor is told your reason and corrects the split on the same reading. / Reject · Cancel |
-| done | Report approved. The customers' hours are used. · Report rejected. The supervisor will correct it. |
+| reject dialog | Reject this report? / The supervisor is told your reason. A rejected report is kept as a record; the supervisor sends a new report with a new reading. / Reject · Cancel |
+| done | Report approved. The customers' hours are used. · Report rejected. The supervisor will send a new report. |
 | why no buttons | You submitted this report, so someone else must approve or reject it. · Only people allowed to approve machine reports can decide it. |
-| refusals | SEGREGATION_OF_DUTIES: You submitted this report, so you can't decide it. Someone else with approval rights must. · REPORT_NOT_PENDING: This report was already decided by someone else. It has been refreshed. · REPORT_READINGS_CHANGED: The machine's previous reading changed after this report was sent (a baseline or meter reset). Reject it so the supervisor can send it again. · HOURS_NOT_AVAILABLE: A customer no longer has these hours (cancelled or expired). Reject the report so the supervisor can correct it. · REPORT_NOT_FOUND: This report no longer exists. |
+| refusals | SEGREGATION_OF_DUTIES: You submitted this report, so you can't decide it. Someone else with approval rights must. · REPORT_NOT_PENDING: This report was already decided by someone else. It has been refreshed. · REPORT_READINGS_CHANGED: The machine's previous reading changed after this report was sent (a baseline or meter reset). Reject it so the supervisor sends a new report. · HOURS_NOT_AVAILABLE: A customer no longer has these hours (cancelled or expired). Reject the report so the supervisor sends a new report. · REPORT_NOT_FOUND: This report no longer exists. |
 | not found | Report not found / It may have been removed, or you can no longer see it. (defined, for parity) |
 
 #### Customers & hours (OwnerCustomers) — `ui/customers/CustomersScreen.kt` `CustomerTexts`
@@ -3170,3 +3175,60 @@ times `today 07:40`, `yesterday 18:10`, `{n} days ago` (2–6), then `12 Nov`.
 | Removed | Jobs tab, Job screens, "Jobs waiting for approval", "New job", Unbilled work, "Open job" links | — |
 | Field spend | Expenses / Fuel choice | Fuel choice (and fuel lists) only while FUEL is not switched off |
 | Daily sheet day | Fuel card, "Fuel above norm" flag | hidden while FUEL is switched off |
+
+### Amendments of 2026-11-19 (Supervisor 0.6.6, Owner 0.9.7, web)
+
+Owner-approved changes to machine reports ([ADR-008](../adr/ADR-008-machine-reports-replace-jobs.md) §2): line hours
+in hundredths, rejected reports are final, time and place since the last visit. Android (`core/domain`
+`reports/Visits.kt`, `reports/MachineReportRules.kt`), iOS (`AssetaModel/VisitTexts.swift`) and web
+(`pages/tenant/machineReports/visitDisplay.ts`) share the same rules and wording.
+
+**Formats (both apps and web)**
+
+| Item | Text |
+|---|---|
+| gap, none | First visit |
+| gap under 1 h | {m} min |
+| gap under 24 h | {h} h {m} min (" {m} min" left out when 0) — e.g. 5 h 20 min, 5 h |
+| gap 24 h or more | {d} day / {d} days, then " {h} h" when h > 0 (minutes dropped) — e.g. 1 day 3 h, 2 days |
+| visit date/time | 17 Nov, 15:26 (local time, 24 h) |
+| where | Where: {place} (at {site}) · {lat}, {lng} (±{acc} m) — lat/lng 4 decimals, accuracy whole metres; missing parts left out (no place: "Where: at {site} · …"; neither: "Where: {lat}, {lng} (±{acc} m)"); no coordinates: no line |
+| place | the platform geocoder's area label sent with the reading (`place_name`: sub-locality, district, city; never a street); {site} = the company site containing the point (server hint) |
+| flag | warning colour when `since_previous_visit_seconds` > `CUSTOMER_HOURS.visit_gap_warning_hours` × 3600 (24 until the policy is read; empty = never) |
+
+**Supervisor (Android and iOS)**
+
+| Where | Text |
+|---|---|
+| Step 1 and review, last-visit card (under "Last reading {r} h · {date} · approved") | Time since last visit: {gap} (last visit {date}) · Time since last visit: First visit · the last visit's Where line (tap opens the maps app; when the server has no place and the phone is online, the phone may name it for display only) |
+| Step 2, invalid line | Enter the hours (more than 0, at most 2 decimals). (under the line; the line counts 0 and is left out of "after this") |
+| Machine state | "Rejected · redo the split" removed; a rejected machine shows Report due (a rejected opening report: First reading needed) |
+| Report detail (new, read-only), title | Machine report |
+| Report detail, section VISIT | Since last visit: {gap} · Where: … · Last visit: {date} · Where: … |
+| Report detail, rejected | Rejected: {reason}. Send a new report for this machine. · Rejected. Send a new report for this machine. |
+| Report detail, not on the phone (iOS) | This report is no longer on this phone. Sync to see your latest reports. |
+| Removed | Correct report · Split the same reading again. · the correction card on step 1 |
+
+**Owner (Android and iOS)**
+
+| Where | Text |
+|---|---|
+| Approvals, machine-report row | Since last visit: {gap} (warning colour over the setting) |
+| Report approval detail | Since last visit: {gap} (flagged the same way) · Where: … (this report) · Last visit: {date} · Where: … (tap opens the maps app) |
+| Home attention row | {machine} · report rejected, no new report yet |
+| Reject dialog / done / refusals | as in the Machine report approval table above |
+
+**Web**
+
+| Where | Text |
+|---|---|
+| Report form, reading step | Time since last visit: {gap} (last visit {D MMM, HH:mm}) · Time since last visit: First visit · Where line of the last visit |
+| Report form, lines step | Hours have at most 2 decimals (on the line) · Fix the hours marked on a line. · Every hour is accounted for. (only when every line is valid and they add up) |
+| My machines | Report due · last report rejected (button New report; "Correct report" removed) |
+| Report detail, section Visit | Since last visit: {gap} (warning colour over the setting) · Where: … · Last visit: {date} · Where: … (coordinates open OpenStreetMap in a new tab) |
+| Report detail, rejected | Rejected by {name}: "{reason}". (read-only, no actions) |
+| Approvals list | column Since last visit (warning colour over the setting) |
+| Reject dialog | The supervisor is told your reason. A rejected report is kept as a record; the supervisor sends a new report with a new reading. |
+| After reject | Report rejected. The supervisor will send a new report. |
+| Errors | HOURS_PRECISION: Hours have at most 2 decimals (steps of 0.01). · CAPTURE_ALREADY_USED: This reading was already used in another report. Take a new reading. · CORRECTION_NOT_ALLOWED: A rejected report can't be corrected; send a new report with a new reading. |
+| Policies (Customer hours) | Warn when a machine wasn't visited for (hours) — Machine reports over this time since the last visit are marked for the approver; leave empty for no warning. |

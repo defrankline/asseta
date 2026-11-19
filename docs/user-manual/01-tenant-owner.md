@@ -1092,6 +1092,28 @@ Holders record expenses with the usual expense permission. Approving petty cash 
 
 ---
 
+### 49. Machine reports: approving, rejecting and time since last visit
+
+Supervisors send a **machine report** for each machine they look after: a new meter reading (photo, GPS, time) and how
+the hours since the last approved reading split across customers and non-productive reasons. Line hours have up to 2
+decimals, because customers' hours are kept in hundredths. You approve or reject them in **Approvals → Machine
+reports** (web) or **Approvals** in the Owner app. You can never decide a report you submitted.
+
+**Time since last visit.** Every report records how long it had been since the machine was last visited: from the
+previous reading sent with any report on that machine (a rejected one counts) to this report's reading. The approvals
+list shows **Since last visit: 1 day 3 h** ("First visit" for a machine's first report) and shows it in the warning
+colour when it is longer than your setting. The report detail shows **Since last visit**, **Where** this reading was
+taken and **Last visit** with where that one was, for example "Where: Mbezi Beach, Kinondoni, Dar es Salaam (at Mbezi
+site) · -6.7924, 39.2083 (±5 m)". The area name comes from the supervisor's phone when it was online; "at …" is your
+company site whose area contains the point. On the web the coordinates open the map.
+
+**The setting.** **Administration → Policies → Customer hours**: "Warn when a machine wasn't visited for (hours)"
+(default 24). Leave it empty for no warning colour.
+
+**Rejecting.** Give a reason. A rejected report is final: it is kept as a record and is never corrected or sent
+again. Its customer hours are released, and the machine shows as due again until the supervisor sends a new report
+with a new reading.
+
 ## The Asseta Owner app
 
 ### Sign in and choose a company

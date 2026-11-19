@@ -51,6 +51,7 @@ If your company has switched these controls on, you can also:
 - Say **which purchase or invoice** a cash collection pays, and **why part of your cash stays** when you remit less than your full balance.
 - Attach **evidence photos** to an hours transfer.
 - **Hold a petty cash fund**: spend from it with receipts, confirm money the office gives you, ask for a top-up, return money, count it and take over a fund handed to you ([A18](#a18-petty-cash)).
+- Send a **machine report** for each of your machines: a new reading and how its hours split; a rejected report is final, so send a new one with a new reading ([A19](#a19-machine-reports)).
 
 Each of these appears only when your company's policies switch it on and your role has the permission. If you don't see one, it is not used in your company.
 
@@ -740,6 +741,42 @@ You can also give an advance in the web console ([B5](#b5-petty-cash)).
 #### Offline
 
 Everything in this section works offline: expenses from a fund, acknowledging or disputing money, top-up requests, returns, counts (with a witness chosen from the list saved on the phone), taking over a fund, giving an advance and clearing an advance. They are saved on the phone, listed under **Recorded on this phone** with their sync state, and sent at the next sync. The server checks each one when it arrives. If something changed meanwhile (for example the fund was deactivated or someone already answered), the Sync status screen says so, for example "This petty cash fund is no longer active."
+
+---
+
+### A19. Machine reports
+
+A **machine report** accounts for every engine hour of a machine assigned to you: from the machine's last approved
+reading to a new one, the hours are split across customers (from the hours they bought) and non-productive reasons.
+Someone else (the owner or a manager) approves it. **Home → Machine report** opens it in three steps.
+
+**Step 1: Reading.** Take the meter photo; the phone reads the meter and records the GPS and the time. The card at
+the top shows the machine's last visit:
+
+- the last approved reading and its date, for example "Last reading 1,814.1 h · 17 Nov, 15:25 · approved";
+- **Time since last visit: 1 day 3 h (last visit 17 Nov, 15:26)** ("First visit" when the machine has never had a
+  report). The last visit is the last reading sent with any report on this machine, even a rejected one;
+- **Where:** the place of the last visit, for example "Where: Mbezi Beach, Kinondoni, Dar es Salaam (at Mbezi site) ·
+  -6.7924, 39.2083 (±5 m)". Tap it to open the maps app there.
+
+This works offline too (from what the phone saved at the last sync). When the phone is online while you take the
+reading, it also looks up the name of the area you are in and sends it with the reading. Without a connection only
+the coordinates are sent; the reading is never held up.
+
+**Step 2: Account for hours.** Add a line per customer (their hours) and per non-productive reason (hours and a
+note). Hours take up to **2 decimals** (for example 1.15). The lines must add up exactly to the hours the meter
+moved, and a customer's line can't be more than the hours they have available. A line with wrong hours is marked on
+that line and does not count; **All hours accounted for** shows only when every line is right and they add up.
+
+**Step 3: Review and submit.** Check the split and the last-visit card, then submit. The report waits for a decision;
+the next report on that machine waits until this one is decided.
+
+**If a report is rejected,** it stays as a record and can't be changed. Open it to see the reading, the photo, the
+split and the approver's reason: "Rejected: {reason}. Send a new report for this machine." The machine shows as due
+again. Go to the machine, take a **new reading** and send a new report from **Machine report**; it starts from the
+machine's last approved reading.
+
+The report detail also shows **Since last visit**, where this reading was taken and where the last visit was.
 
 ---
 

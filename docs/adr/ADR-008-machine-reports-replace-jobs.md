@@ -42,15 +42,32 @@ machine productive vs non-productive hours by reason; money collected by method;
     = activated − consumed − reserved by other pending reports. Hours are drawn from that customer's orders FIFO
     (oldest activated first), recorded as lots.
   - NON_PRODUCTIVE: `reason_id` (tenant reason list), `hours` > 0, `note` (required text).
-  - Sum of lines == difference exactly (hours with 1 decimal, the machine's meter precision).
+  - Sum of lines == difference exactly. Line hours have at most 2 decimals (0.01 steps) whatever the meter's
+    precision, because customers' hours are kept in hundredths (a customer with 1.15 h left can be given exactly
+    1.15 h); the reading and the difference keep the meter's precision (amended 2026-11-19, owner).
 - **States:** SUBMITTED → APPROVED | REJECTED. One SUBMITTED report per machine at a time (the next waits).
   - Submitted: customer hours are **reserved**.
   - Approved (permission `tenant.machine_report.approve`, owner/manager by default; proposer never approves):
     customer hours consumed from the order lots (hours ledger CONSUMED), allocation-ledger entries written
     (CUSTOMER_WORK with lots; AUTHORIZED_ACTIVITY with the reason), the reading becomes the machine's last approved
     reading.
-  - Rejected (reason required): reservation released; the supervisor submits a corrected split for the **same
-    reading** (a new report version referencing it).
+  - Rejected (reason required): reservation released. **A rejected report is final** (client requirement, amended
+    2026-11-19): it is kept as a record and never edited, corrected or resubmitted. The supervisor sends a brand-new
+    report from the normal flow with a **new** meter reading (photo + reading); after a rejection the machine is due
+    again. The server refuses `corrects_report_id` (`CORRECTION_NOT_ALLOWED`) and a reading already used by any report
+    (`CAPTURE_ALREADY_USED`); `corrects_id` stays only on reports made before this rule.
+- **Time and place since the last visit** (amended 2026-11-19, owner; so that supervisors visit machines daily):
+  every report records, server-computed at submit and never changed, `previous_visit_at` = the taken-at time of the
+  most recent earlier reading of the machine that belongs to any machine report (opening or normal, any status,
+  rejected included) and `since_previous_visit_seconds` = this report's reading taken-at time minus it (null: first
+  visit), plus where: the previous visit's GPS and place, and this visit's place. The place is the area label the
+  phone's own geocoder gives the reading's coordinates when online (e.g. "Mbezi Beach, Kinondoni, Dar es Salaam";
+  `place_name` on the meter capture, a label not evidence; the coordinates remain the evidence); the server adds the
+  company site containing the point as a hint ("at Mbezi site") from its own geofences; no outside geocoding service
+  is called by the server. The phone shows "Time since last visit" while the report is made (from the cached machine
+  state, offline too); report details and the approvers' lists show "Since last visit", and the lists flag a gap
+  longer than the company setting `CUSTOMER_HOURS.visit_gap_warning_hours` (default 24, empty = no flag) in the
+  warning colour. Neutral wording only.
 - **Approver aid:** the report detail shows tracker engine hours for the same period when the machine has a tracker
   (from existing telemetry/engine-hours data), and the difference against the meter.
 - **Reasons list:** per-tenant editable list (reuse the engine-hour reason table/kind). Default entries created for
@@ -96,3 +113,11 @@ and leave audit history readable.
   payment); Reports.
 - Web: the same functions for office and for supervisors without phones; Approvals › Machine reports; Customer hours
   balances; credit invoices and payments; reports; job menus removed.
+- Amendments of 2026-11-19 (Supervisor 0.6.6, Owner 0.9.7, web): report lines take 2 decimals (decimal keyboard,
+  "at most 2 decimals"; an invalid line is marked on its own field and never counts toward "All hours accounted
+  for"); no "Correct report" anywhere — a rejected report is read-only (Supervisor: "Rejected: {reason}. Send a new
+  report for this machine.") and the machine is due again; the Supervisor's step 1 and review show the last-visit card
+  (last reading, "Time since last visit: 1 day 3 h (last visit 17 Nov, 15:26)", "Where: {place} (at {site}) ·
+  lat, lng (±acc m)", tap opens the maps app); report details show "Since last visit" and both locations; the Owner's
+  Approvals and the web approvals list show the gap, flagged above `visit_gap_warning_hours`. Exact strings:
+  [accountability-mobile-strings.md](../requirements/accountability-mobile-strings.md) (ADR-008 apps section).
