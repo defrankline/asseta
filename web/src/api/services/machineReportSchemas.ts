@@ -2,7 +2,7 @@
  * Runtime (Yup) response schemas for machine reports (ADR-008): reports and their lines, the tracker
  * cross-check, per-machine report status, the form context, available hours and the reason list.
  */
-import { array, mixed, object, string, type Schema } from 'yup';
+import { array, mixed, number, object, string, type Schema } from 'yup';
 import type {
   AvailableHoursDto,
   LotDto,
@@ -20,6 +20,19 @@ import { findingSchema } from './meterSchemas';
 import { bool, id, int, nullableId, nullableOneOf, nullableText, oneOf, text } from './schemaKit';
 
 const optionalText = () => string().nullable().default(null);
+/** Newer optional fields (older servers and cached rows may not send them). */
+const maybeText = () => string().nullable().optional();
+const maybeNum = () => number().nullable().optional();
+
+/** The machine's last visit (status and context): its reading's time, place and GPS point. */
+const lastVisitFields = {
+  last_visit_at: maybeText(),
+  last_visit_lat: maybeNum(),
+  last_visit_lng: maybeNum(),
+  last_visit_accuracy_m: maybeNum(),
+  last_visit_place: maybeText(),
+  last_visit_site_name: maybeText(),
+};
 
 export const MACHINE_REPORT_STATUSES: readonly MachineReportStatus[] = [
   'SUBMITTED',
@@ -117,6 +130,19 @@ export const machineReportSchema: Schema<MachineReportDto> = object({
     .default(null)
     .test('tracker', 'invalid tracker check', (v) => v == null || trackerSchema.isValidSync(v)),
   lines: array(lineSchema).default([]),
+  // Time since the previous visit and where both readings were taken.
+  previous_visit_at: maybeText(),
+  since_previous_visit_seconds: number().integer().nullable().optional(),
+  previous_visit_lat: maybeNum(),
+  previous_visit_lng: maybeNum(),
+  previous_visit_accuracy_m: maybeNum(),
+  previous_visit_place: maybeText(),
+  previous_visit_site_name: maybeText(),
+  visit_lat: maybeNum(),
+  visit_lng: maybeNum(),
+  visit_accuracy_m: maybeNum(),
+  visit_place: maybeText(),
+  visit_site_name: maybeText(),
 });
 
 export const machineReportStatusSchema: Schema<MachineReportStatusDto> = object({
@@ -135,6 +161,7 @@ export const machineReportStatusSchema: Schema<MachineReportStatusDto> = object(
   pending_report_id: nullableId(),
   pending_report_number: nullableText(),
   rejected_report_id: nullableId(),
+  ...lastVisitFields,
 });
 
 export const machineReportContextSchema: Schema<MachineReportContextDto> = object({
@@ -152,4 +179,5 @@ export const machineReportContextSchema: Schema<MachineReportContextDto> = objec
   hours_scope: oneOf(['CUSTOMER', 'MACHINE'] as const),
   customers: array(availableHoursSchema).required(),
   reasons: array(machineReportReasonSchema).required(),
+  ...lastVisitFields,
 });

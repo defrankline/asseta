@@ -13,6 +13,7 @@ import {
 } from './machineReportSchemas';
 import { meterCaptureSchema } from './meterSchemas';
 import { tenantPageSchema } from './tenantRequest';
+import { formatVisitGap, whereLine } from '../../pages/tenant/machineReports/visitDisplay';
 
 /**
  * Real server responses (contracts/fixtures, written by backend tests/api/test_contract_fixtures.py) through the
@@ -31,6 +32,21 @@ describe('contract fixtures', () => {
     for (const name of ['report-submitted', 'report-rejected', 'report-approved']) {
       parse(machineReportSchema, `machine-reports/${name}.json`);
     }
+    // Time since the previous visit and where both readings were taken.
+    const approved = parse(machineReportSchema, 'machine-reports/report-approved.json');
+    expect(formatVisitGap(approved.since_previous_visit_seconds)).toBe('1 h');
+    expect(
+      whereLine({
+        place: approved.previous_visit_place,
+        site: approved.previous_visit_site_name,
+        lat: approved.previous_visit_lat,
+        lng: approved.previous_visit_lng,
+        accuracy: approved.previous_visit_accuracy_m,
+      }),
+    ).toBe('Where: Mbezi Beach, Kinondoni, Dar es Salaam · -6.8000, 39.2800 (±8 m)');
+    const rejected = parse(machineReportSchema, 'machine-reports/report-rejected.json');
+    expect(formatVisitGap(rejected.since_previous_visit_seconds)).toBe('First visit');
+    expect(rejected.visit_place).toBe('Mbezi Beach, Kinondoni, Dar es Salaam');
     const page = tenantPageSchema(machineReportSchema);
     for (const name of ['list-pending', 'list-all', 'list-mine']) {
       expect(parse(page, `machine-reports/${name}.json`).items.length).toBeGreaterThan(0);
@@ -47,9 +63,14 @@ describe('contract fixtures', () => {
       parse(machineReportContextSchema, 'machine-reports/context-opening-required.json')
         .opening_required,
     ).toBe(true);
-    parse(machineReportContextSchema, 'machine-reports/context.json');
+    const context = parse(machineReportContextSchema, 'machine-reports/context.json');
+    expect(context.last_visit_at).toBe('2026-11-01T18:00:00Z');
+    expect(context.last_visit_lat).toBe(-6.8);
+    expect(statuses.every((s) => s.last_visit_at !== undefined)).toBe(true);
     parse(array(availableHoursSchema).required(), 'machine-reports/available-hours.json');
-    parse(meterCaptureSchema, 'machine-reports/meter-capture-opening.json');
+    expect(
+      parse(meterCaptureSchema, 'machine-reports/meter-capture-opening.json').place_name,
+    ).toBeNull();
   });
 
   it('credit sales, credit invoices and customer hours', () => {

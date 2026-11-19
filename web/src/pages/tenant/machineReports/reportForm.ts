@@ -1,6 +1,5 @@
 import { array, mixed, object, string, type ObjectSchema } from 'yup';
 import type {
-  MachineReportDto,
   MachineReportIn,
   MachineReportLineIn,
   ReportLineKind,
@@ -34,14 +33,8 @@ export interface ReportValues {
 export interface ReportRules {
   /** Where the report starts; null = no starting reading yet. */
   previous: string | null;
-  /**
-   * An opening report (`opening_required` in the context, or correcting a rejected opening report):
-   * the machine's first reading only, no lines.
-   */
+  /** An opening report (`opening_required` in the context): the machine's first reading only, no lines. */
   opening: boolean;
-  decimals: number;
-  /** A correction keeps the rejected report's reading. */
-  fixedReading: string | null;
   /** Usable hours per customer for this report. */
   available: Readonly<Record<string, string>>;
 }
@@ -76,22 +69,16 @@ export function emptyReportValues(): ReportValues {
   return { capture_mode: '', reading: '', lines: [], note: '' };
 }
 
-/** The rejected report's lines, to correct them on the same reading. */
-export function correctionValues(rejected: MachineReportDto): ReportValues {
-  return {
-    capture_mode: 'MANUAL',
-    reading: rejected.end_reading,
-    note: '',
-    lines: rejected.lines.map((l) => ({
-      ...emptyLine(l.kind, l.hours),
-      customer_id: l.customer_id ?? '',
-      reason_id: l.reason_id ?? '',
-      note: l.note ?? '',
-    })),
-  };
-}
+/** Line hours have at most 2 decimals (steps of 0.01), whatever the meter's precision. */
+export const LINE_DECIMALS = 2;
 
-const validHours = (v: string) => isDecimalString(v) && signOfDecimal(v) > 0;
+const positiveHours = (v: string) => isDecimalString(v) && signOfDecimal(v) > 0;
+
+/** Valid line hours: a number above 0 with at most 2 decimals. */
+export function lineHoursValid(hours: string): boolean {
+  const v = hours.trim();
+  return positiveHours(v) && inMeterSteps(v, LINE_DECIMALS);
+}
 
 const text = (v: unknown): string => (typeof v === 'string' ? v : '');
 
@@ -106,14 +93,28 @@ function normalized(lines: readonly LineValues[]): LineValues[] {
   }));
 }
 
-/** Sum of the lines with valid hours. */
+/** Sum of the lines with valid hours (a line with invalid hours counts for nothing). */
 export function accountedFor(lines: readonly LineValues[]): string {
-  return sumDecimals(['0', ...lines.map((l) => l.hours.trim()).filter(validHours)]);
+  return sumDecimals(['0', ...lines.map((l) => l.hours.trim()).filter(lineHoursValid)]);
+}
+
+/** Every line has valid hours. */
+export function allLinesValid(lines: readonly LineValues[]): boolean {
+  return lines.every((l) => lineHoursValid(l.hours));
+}
+
+/** "All hours accounted for": every line valid and the lines add up exactly to the difference. */
+export function allAccountedFor(lines: readonly LineValues[], difference: string | null): boolean {
+  return (
+    difference !== null &&
+    allLinesValid(lines) &&
+    balanceText(difference, accountedFor(lines)) === null
+  );
 }
 
 /** Hours the meter moved since the previous reading; null while unknown or not a number. */
 export function meterDifference(rules: ReportRules, reading: string): string | null {
-  const end = rules.fixedReading ?? reading.trim();
+  const end = reading.trim();
   if (rules.previous === null || !isDecimalString(end)) return null;
   return minus(end, rules.previous);
 }
@@ -150,13 +151,11 @@ export function reportSchema(rules: ReportRules): ObjectSchema<ReportValues> {
     hours: string()
       .trim()
       .required('Enter the hours')
-      .test('positive', 'Enter hours above 0', validHours)
+      .test('positive', 'Enter hours above 0', positiveHours)
       .test(
         'steps',
-        rules.decimals === 0
-          ? 'Use whole hours (the meter shows whole hours)'
-          : `Use at most ${String(rules.decimals)} decimal(s), as the meter shows`,
-        (v) => !validHours(v) || inMeterSteps(v, rules.decimals),
+        'Hours have at most 2 decimals',
+        (v) => !positiveHours(v) || inMeterSteps(v, LINE_DECIMALS),
       ),
     note: optionalText('Note', 1000).test(
       'note',
@@ -167,18 +166,15 @@ export function reportSchema(rules: ReportRules): ObjectSchema<ReportValues> {
     ),
   });
   return object({
-    capture_mode:
-      rules.fixedReading === null ? captureModeField() : mixed<CaptureMode | ''>().defined(),
+    capture_mode: captureModeField(),
     reading: string()
       .ensure()
-      .test('reading', 'Reading is required', (v) => rules.fixedReading !== null || v.trim() !== '')
-      .test(
-        'format',
-        'Enter the meter reading as shown (up to 4 decimals)',
-        (v) => rules.fixedReading !== null || /^\d+(\.\d{1,4})?$/.test(v.trim()),
+      .test('reading', 'Reading is required', (v) => v.trim() !== '')
+      .test('format', 'Enter the meter reading as shown (up to 4 decimals)', (v) =>
+        /^\d+(\.\d{1,4})?$/.test(v.trim()),
       )
       .test('higher', 'The new reading must be higher than the last one', (v) => {
-        if (rules.fixedReading !== null || rules.previous === null || !isDecimalString(v)) {
+        if (rules.previous === null || !isDecimalString(v)) {
           return true;
         }
         return compareDecimal(v.trim(), rules.previous) > 0;
@@ -214,13 +210,14 @@ export function reportSchema(rules: ReportRules): ObjectSchema<ReportValues> {
 interface CaptureEvidence {
   captureId: string;
   capturedAt: string;
-  /** The browser's real GPS outcome (null only for a correction: no new reading). */
+  /** The browser's real GPS outcome. */
   gps: GpsIn | null;
   photoId: string | null;
 }
 
 /**
- * submitMachineReport body: a new DAILY reading (or the rejected report's reading) and the split; an
+ * submitMachineReport body: always a new DAILY reading and the split (a rejected report is final: never
+ * `corrects_report_id`); an
  * opening report sends `opening: true` with no lines. The new reading goes inline as `capture`:
  * REST takes it in the same request as the report (the phones send it as a METER_CAPTURE operation
  * first and then `capture_id`), so a supervisor holding only the machine-report permission can send it.
@@ -231,8 +228,6 @@ export function toReportPayload(
     reportId: string;
     machineId: string;
     evidence: CaptureEvidence;
-    /** Correcting this rejected report on its reading. */
-    corrects: MachineReportDto | null;
     /** An opening report: the reading only. */
     opening: boolean;
   },
@@ -257,13 +252,6 @@ export function toReportPayload(
     note: orNull(v.note),
     client_created_at: options.evidence.capturedAt,
   };
-  if (options.corrects !== null) {
-    return {
-      ...base,
-      capture_id: options.corrects.capture_id,
-      corrects_report_id: options.corrects.id,
-    };
-  }
   const { evidence } = options;
   if (evidence.gps === null) throw new Error('A new reading needs the GPS outcome');
   return {

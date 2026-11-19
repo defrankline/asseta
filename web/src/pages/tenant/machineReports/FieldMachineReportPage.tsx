@@ -31,11 +31,12 @@ import {
 import { MachineReportDialog } from './MachineReportDialog';
 import { reportColumns } from './reportColumns';
 
-type Opened = { machineId: string; corrects: MachineReportDto | null } | null;
+type Opened = { machineId: string } | null;
 
 /**
  * Field work › Machine report: the caller's machines with their report status, a new report (reading
- * → account for hours → review), corrections of rejected reports and the caller's own reports.
+ * → account for hours → review) and the caller's own reports. A rejected report is final: the machine
+ * is due again and takes a new report with a new reading.
  */
 export function FieldMachineReportPage() {
   const navigate = useNavigate();
@@ -51,7 +52,6 @@ export function FieldMachineReportPage() {
   const [opened, setOpened] = useState<Opened>(null);
   const [other, setOther] = useState<MachineDto | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const [error, setError] = useState<string | null>(null);
   const loadStatus = useCallback(
     (signal: AbortSignal) => machineReportService.status(undefined, signal),
     [],
@@ -61,17 +61,6 @@ export function FieldMachineReportPage() {
     (query, signal) => machineReportService.list(query, signal),
     [],
   );
-  const correct = (reportId: string, machineId: string) => {
-    setError(null);
-    machineReportService.get(reportId).then(
-      (r) => {
-        setOpened({ machineId, corrects: r });
-      },
-      () => {
-        setError('Could not load the rejected report. Try again.');
-      },
-    );
-  };
   return (
     <>
       <PageHeader
@@ -84,11 +73,6 @@ export function FieldMachineReportPage() {
             <Typography variant="h6" component="h2">
               My machines
             </Typography>
-            {error !== null && (
-              <Typography color="error" role="alert">
-                {error}
-              </Typography>
-            )}
             <AsyncContent
               resource={status}
               isEmpty={(rows) => rows.length === 0}
@@ -140,7 +124,9 @@ export function FieldMachineReportPage() {
                                 ? `${MACHINE_STATE_LABELS[state]} · ${s.pending_report_number}`
                                 : state === 'DUE' && s.previous_reading == null
                                   ? `${MACHINE_STATE_LABELS[state]} · first reading`
-                                  : MACHINE_STATE_LABELS[state]
+                                  : state === 'DUE' && s.rejected_report_id !== null
+                                    ? `${MACHINE_STATE_LABELS[state]} · last report rejected`
+                                    : MACHINE_STATE_LABELS[state]
                             }
                           />
                         );
@@ -164,26 +150,12 @@ export function FieldMachineReportPage() {
                           ) : null;
                         }
                         if (!canSubmit) return null;
-                        if (s.rejected_report_id !== null) {
-                          const id = s.rejected_report_id;
-                          return (
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              onClick={() => {
-                                correct(id, s.machine_id);
-                              }}
-                            >
-                              Correct report
-                            </Button>
-                          );
-                        }
                         return (
                           <Button
                             size="small"
                             variant="contained"
                             onClick={() => {
-                              setOpened({ machineId: s.machine_id, corrects: null });
+                              setOpened({ machineId: s.machine_id });
                             }}
                           >
                             New report
@@ -205,7 +177,7 @@ export function FieldMachineReportPage() {
                   startIcon={<Add />}
                   disabled={other === null}
                   onClick={() => {
-                    if (other !== null) setOpened({ machineId: other.id, corrects: null });
+                    if (other !== null) setOpened({ machineId: other.id });
                   }}
                 >
                   Report on this machine
@@ -240,7 +212,6 @@ export function FieldMachineReportPage() {
       {opened !== null && (
         <MachineReportDialog
           machineId={opened.machineId}
-          corrects={opened.corrects}
           onClose={() => {
             setOpened(null);
           }}

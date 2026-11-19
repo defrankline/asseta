@@ -19,6 +19,7 @@ import { urlPeriod } from '../shared/urlPeriod';
 import { UrlPeriodChip } from '../shared/UrlPeriodChip';
 import { REPORT_QUEUE_OPTIONS, REPORT_STATUS_OPTIONS } from './machineReportDisplay';
 import { reportColumns } from './reportColumns';
+import { useHoursPolicy } from '../hours/useHoursPolicy';
 
 /**
  * Approvals › Machine reports: reports waiting for a decision first (approvers), every report with
@@ -29,6 +30,9 @@ export function MachineReportsPage() {
   const timeZone = useDisplayTimeZone();
   const { hasPermission } = useSession();
   const approver = hasPermission(PERMISSIONS.tenantMachineReportApprove);
+  const hours = useHoursPolicy();
+  // The company's visit-gap warning (default 24 h while unknown; null = never flag).
+  const visitGapWarningHours = hours.policy === null ? 24 : hours.policy.visitGapWarningHours;
   const [params, setParams] = useSearchParams();
   const { dateFrom, dateTo } = urlPeriod(params);
   const [queue, setQueue] = useState(() =>
@@ -60,7 +64,7 @@ export function MachineReportsPage() {
         }
       />
       <ServerDataTable
-        columns={reportColumns(timeZone, { submitter: true })}
+        columns={reportColumns(timeZone, { submitter: true, visitGapWarningHours })}
         fetchPage={fetchPage}
         getRowId={(r) => r.id}
         searchPlaceholder="Search report number or machine"

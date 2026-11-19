@@ -6,6 +6,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Stack,
   Typography,
 } from '@mui/material';
 import { useFormikContext } from 'formik';
@@ -34,8 +35,9 @@ import { withErrorCode } from '../shared/errorHints';
 import { REPORT_ERROR_HINTS, START_SOURCE_LABELS, hoursLabel } from './machineReportDisplay';
 import { ReportLinesStep } from './ReportLinesStep';
 import { ReportReview } from './ReportReview';
+import { VisitWhere } from './VisitWhere';
+import { formatVisitAt, formatVisitGap, secondsBetween } from './visitDisplay';
 import {
-  correctionValues,
   emptyReportValues,
   lineFieldsFor,
   meterDifference,
@@ -49,13 +51,48 @@ import {
 interface ReadingStepProps {
   context: MachineReportContextDto;
   rules: ReportRules;
-  corrects: MachineReportDto | null;
+  /** When this reading is taken (the gap since the last visit counts to it). */
+  capturedAt: string;
   photo: AttachmentDto | null;
   onPhotoChange: (photo: AttachmentDto | null) => void;
   gps: ReturnType<typeof useBrowserGps>;
 }
 
-function ReadingStep({ context, rules, corrects, photo, onPhotoChange, gps }: ReadingStepProps) {
+/**
+ * "Time since last visit: 1 day 3 h (last visit 17 Nov, 15:26)" and where the last visit was. The last
+ * visit is the latest reading on any of the machine's reports (rejected ones too).
+ */
+function LastVisit({
+  context,
+  capturedAt,
+  timeZone,
+}: {
+  context: MachineReportContextDto;
+  capturedAt: string;
+  timeZone: string;
+}) {
+  const at = context.last_visit_at ?? null;
+  const gap = formatVisitGap(secondsBetween(at, capturedAt));
+  return (
+    <Stack spacing={0.5} role="status">
+      <Typography variant="body1">
+        Time since last visit: {gap}
+        {at === null ? '' : ` (last visit ${formatVisitAt(at, timeZone)})`}
+      </Typography>
+      <VisitWhere
+        place={{
+          place: context.last_visit_place,
+          site: context.last_visit_site_name,
+          lat: context.last_visit_lat,
+          lng: context.last_visit_lng,
+          accuracy: context.last_visit_accuracy_m,
+        }}
+      />
+    </Stack>
+  );
+}
+
+function ReadingStep({ context, rules, capturedAt, photo, onPhotoChange, gps }: ReadingStepProps) {
   const timeZone = useDisplayTimeZone();
   const { values } = useFormikContext<ReportValues>();
   const difference = meterDifference(rules, values.reading);
@@ -90,28 +127,23 @@ function ReadingStep({ context, rules, corrects, photo, onPhotoChange, gps }: Re
           Readings and meter resets
         </Link>
       </Typography>
-      {rules.opening && corrects === null && (
+      {rules.opening && (
         <Alert severity="info">
           This machine has no starting reading yet. Record its reading now: once approved it is the
           starting point of the next report. There are no hours to split this time.
         </Alert>
       )}
-      {corrects !== null ? (
-        <Alert severity="warning">
-          {corrects.report_number} was rejected
-          {corrects.decision_note === null ? '' : `: “${corrects.decision_note}”`}. Correct the
-          split on the same reading ({hoursLabel(corrects.end_reading)}).
-        </Alert>
-      ) : (
-        <CaptureEvidenceFields
-          machineId={context.machine_id}
-          kind="DAILY"
-          captureMode={values.capture_mode}
-          photo={photo}
-          onPhotoChange={onPhotoChange}
-          gps={gps.gps}
-          onRetryGps={gps.retry}
-        />
+      <CaptureEvidenceFields
+        machineId={context.machine_id}
+        kind="DAILY"
+        captureMode={values.capture_mode}
+        photo={photo}
+        onPhotoChange={onPhotoChange}
+        gps={gps.gps}
+        onRetryGps={gps.retry}
+      />
+      {values.reading.trim() !== '' && (
+        <LastVisit context={context} capturedAt={capturedAt} timeZone={timeZone} />
       )}
       {difference !== null && isDecimalString(difference) && (
         <Typography variant="h6" component="p" role="status">
@@ -128,55 +160,35 @@ function ReadingStep({ context, rules, corrects, photo, onPhotoChange, gps }: Re
 
 interface FormProps {
   context: MachineReportContextDto;
-  corrects: MachineReportDto | null;
   onClose: () => void;
   onSubmitted: (report: MachineReportDto) => void;
 }
 
-function ReportForm({ context, corrects, onClose, onSubmitted }: FormProps) {
+function ReportForm({ context, onClose, onSubmitted }: FormProps) {
   const keyFor = useIdempotencyKey();
   const gps = useBrowserGps();
   const [reportId] = useState(newUuid);
   const [captureId] = useState(newUuid);
   const [capturedAt] = useState(() => new Date().toISOString());
   const [photo, setPhoto] = useState<AttachmentDto | null>(null);
-  const [initial] = useState(() =>
-    corrects === null ? emptyReportValues() : correctionValues(corrects),
-  );
-  // The rejected report's customers stay choosable even if their hours are now 0.
-  const customers = useMemo<AvailableHoursDto[]>(() => {
-    const known = [...context.customers];
-    for (const l of corrects?.lines ?? []) {
-      if (l.customer_id !== null && !known.some((c) => c.customer_id === l.customer_id)) {
-        known.push({
-          customer_id: l.customer_id,
-          customer_name: l.customer_name ?? null,
-          remaining: '0',
-          reserved: '0',
-          available: '0',
-        });
-      }
-    }
-    return known;
-  }, [context.customers, corrects]);
-  // A correction keeps the rejected report's kind; otherwise the server says whether it opens.
-  const opening = corrects !== null ? corrects.opening : context.opening_required;
+  const [initial] = useState(emptyReportValues);
+  const customers: readonly AvailableHoursDto[] = context.customers;
+  // The server says whether this is an opening report (the machine's first reading).
+  const opening = context.opening_required;
   const rules = useMemo<ReportRules>(
     () => ({
       previous: opening ? null : context.previous_reading,
       opening,
-      decimals: context.meter_decimal_places,
-      fixedReading: corrects?.end_reading ?? null,
       available: Object.fromEntries(customers.map((c) => [c.customer_id, c.available])),
     }),
-    [context, corrects, customers, opening],
+    [context, customers, opening],
   );
   const schema = useMemo(() => reportSchema(rules), [rules]);
   const label = context.machine_code ?? context.machine_name ?? 'machine';
   return (
     <StepperFormDialog<ReportValues>
       open
-      title={corrects === null ? `Machine report · ${label}` : `Correct ${corrects.report_number}`}
+      title={`Machine report · ${label}`}
       initialValues={initial}
       validationSchema={schema}
       submitLabel="Submit for approval"
@@ -189,7 +201,7 @@ function ReportForm({ context, corrects, onClose, onSubmitted }: FormProps) {
             <ReadingStep
               context={context}
               rules={rules}
-              corrects={corrects}
+              capturedAt={capturedAt}
               photo={photo}
               onPhotoChange={setPhoto}
               gps={gps}
@@ -222,20 +234,18 @@ function ReportForm({ context, corrects, onClose, onSubmitted }: FormProps) {
           machineLabel={label}
           customers={customers}
           reasons={context.reasons}
-          photoAttached={corrects !== null || photo !== null}
+          photoAttached={photo !== null}
         />
       )}
       onSubmit={async (v) => {
-        if (corrects === null && gps.gps === null) throw gpsPendingError();
+        if (gps.gps === null) throw gpsPendingError();
         const body = toReportPayload(v, {
           reportId,
           machineId: context.machine_id,
-          corrects,
           opening,
           evidence: {
             captureId,
             capturedAt,
-            // A correction reuses the rejected report's reading (no new GPS needed).
             gps: gps.gps,
             photoId: photo?.id ?? null,
           },
@@ -252,8 +262,6 @@ function ReportForm({ context, corrects, onClose, onSubmitted }: FormProps) {
 
 export interface MachineReportDialogProps {
   machineId: string;
-  /** Correct this rejected report on its reading. */
-  corrects?: MachineReportDto | null;
   onClose: () => void;
   onSubmitted: (report: MachineReportDto) => void;
 }
@@ -263,12 +271,7 @@ export interface MachineReportDialogProps {
  * reading, usable customer hours and the reason list. A machine with a report waiting for a decision
  * cannot take another one; a machine with no starting reading takes an opening report (reading only).
  */
-export function MachineReportDialog({
-  machineId,
-  corrects = null,
-  onClose,
-  onSubmitted,
-}: MachineReportDialogProps) {
+export function MachineReportDialog({ machineId, onClose, onSubmitted }: MachineReportDialogProps) {
   const load = useCallback(
     (signal: AbortSignal) => machineReportService.context(machineId, signal),
     [machineId],
@@ -276,14 +279,7 @@ export function MachineReportDialog({
   const res = useAsyncResource(load);
   const context = res.data;
   if (context !== null && context.pending_report_id === null) {
-    return (
-      <ReportForm
-        context={context}
-        corrects={corrects}
-        onClose={onClose}
-        onSubmitted={onSubmitted}
-      />
-    );
+    return <ReportForm context={context} onClose={onClose} onSubmitted={onSubmitted} />;
   }
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm">

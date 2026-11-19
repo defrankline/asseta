@@ -5,12 +5,21 @@ import { formatInstantIn } from '../../../utils/time';
 import { machineText } from '../shared/names';
 import { hoursLabel } from './machineReportDisplay';
 import { ReportStatusChip } from './MachineReportParts';
+import { formatVisitGap, visitGapFlagged } from './visitDisplay';
 
 /** Report list columns shared by My reports and the approval list. */
 export function reportColumns(
   timeZone: string,
-  options: { submitter: boolean },
+  options: {
+    submitter: boolean;
+    /**
+     * Show "Since last visit" (the approval list), flagged in the warning colour over this many hours
+     * (CUSTOMER_HOURS `visit_gap_warning_hours`; null = never flag). Undefined: no column.
+     */
+    visitGapWarningHours?: number | null;
+  },
 ): DataColumn<MachineReportDto>[] {
+  const warningHours = options.visitGapWarningHours;
   return [
     { id: 'number', header: 'Report', render: (r) => <strong>{r.report_number}</strong> },
     {
@@ -37,6 +46,26 @@ export function reportColumns(
         </Stack>
       ),
     },
+    ...(warningHours === undefined
+      ? []
+      : [
+          {
+            id: 'visit',
+            header: 'Since last visit',
+            render: (r: MachineReportDto) => {
+              const flagged = visitGapFlagged(r.since_previous_visit_seconds, warningHours);
+              return (
+                <Typography
+                  variant="body2"
+                  color={flagged ? 'warning.main' : 'text.primary'}
+                  sx={flagged ? { fontWeight: 600 } : undefined}
+                >
+                  {formatVisitGap(r.since_previous_visit_seconds)}
+                </Typography>
+              );
+            },
+          },
+        ]),
     ...(options.submitter
       ? [
           {

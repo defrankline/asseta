@@ -1,5 +1,5 @@
 /** Runtime (Yup) response schemas for meter captures, evidence attachments, exceptions and resets. */
-import { array, object, type Schema } from 'yup';
+import { array, object, string, type Schema } from 'yup';
 import type {
   AttachmentDto,
   CaptureResultDto,
@@ -100,6 +100,8 @@ const captureFields = {
   state: oneOf(CAPTURE_STATES),
   tracker_comparison: nullableRecord(),
   supersedes_id: nullableId(),
+  /** The phone's area label for the reading's GPS point (newer servers). */
+  place_name: string().nullable().optional(),
 };
 
 export const meterCaptureSchema: Schema<MeterCaptureDto> = object(captureFields);

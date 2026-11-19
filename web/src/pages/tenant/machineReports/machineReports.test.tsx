@@ -14,6 +14,7 @@ import { renderWithProviders } from '../../../test/renderWithProviders';
 import { FieldMachineReportPage } from './FieldMachineReportPage';
 import { MachineReportDetailPage } from './MachineReportDetailPage';
 import { MachineReportReasonsPage } from './MachineReportReasonsPage';
+import { MachineReportsPage } from './MachineReportsPage';
 import { CONTEXT, REPORT, STATUS } from './machineReportFixtures';
 
 const ME = '33333333-3333-4333-8333-333333333333';
@@ -99,9 +100,10 @@ describe('Field work › Machine report', () => {
     const table = await screen.findByRole('table', { name: 'My machines' });
     expect(within(table).getByText('Report due')).toBeInTheDocument();
     expect(within(table).getByText('Awaiting approval · MR-2026-00001')).toBeInTheDocument();
-    expect(within(table).getByText('Rejected · redo')).toBeInTheDocument();
-    expect(within(table).getByRole('button', { name: 'New report' })).toBeInTheDocument();
-    expect(within(table).getByRole('button', { name: 'Correct report' })).toBeInTheDocument();
+    // A rejected report is final: the machine is due again and takes a new report.
+    expect(within(table).getByText('Report due · last report rejected')).toBeInTheDocument();
+    expect(within(table).getAllByRole('button', { name: 'New report' })).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Correct report' })).not.toBeInTheDocument();
     expect(within(table).getByRole('button', { name: 'View' })).toBeInTheDocument();
     expect(m.list.mock.calls[0]?.[0].filters).toMatchObject({ mine: 'true' });
   });
@@ -113,8 +115,19 @@ describe('Field work › Machine report', () => {
     expect(await screen.findByText(/1,210 h · .* · last approved report/)).toBeInTheDocument();
     await user.click(screen.getByRole('combobox', { name: /Capture mode/ }));
     await user.click(screen.getByRole('option', { name: /Manual/ }));
+    expect(screen.queryByText(/Time since last visit/)).not.toBeInTheDocument();
     await user.type(screen.getByRole('textbox', { name: /Meter reading/ }), '1510');
     expect(screen.getByText('Hours to account for: 300 h')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /^Time since last visit: \d+ days?( \d+ h)? \(last visit 12 Nov, \d\d:\d\d\)$/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Where: Mbezi Beach, Kinondoni \(at Yard\) ·/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '-6.8000, 39.2800' })).toHaveAttribute(
+      'href',
+      'https://www.openstreetmap.org/?mlat=-6.8&mlon=39.28#map=17/-6.8/39.28',
+    );
     await waitFor(() => {
       expect(m.gps).toHaveBeenCalled();
     });
@@ -151,6 +164,38 @@ describe('Field work › Machine report', () => {
       { kind: 'CUSTOMER', customer_id: 'c1', hours: '120' },
       { kind: 'NON_PRODUCTIVE', reason_id: 'r1', hours: '180', note: 'Hydraulic hose' },
     ]);
+  });
+
+  it('marks a line with invalid hours and does not count it as accounted for', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<FieldMachineReportPage />, { tenantPermissions: [SUBMIT, READ] });
+    await user.click(await screen.findByRole('button', { name: 'New report' }));
+    await user.click(await screen.findByRole('combobox', { name: /Capture mode/ }));
+    await user.click(screen.getByRole('option', { name: /Manual/ }));
+    await user.type(screen.getByRole('textbox', { name: /Meter reading/ }), '1219');
+    await waitFor(() => {
+      expect(m.gps).toHaveBeenCalled();
+    });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(await screen.findByRole('button', { name: 'Add customer' }));
+    await user.type(screen.getByRole('textbox', { name: /^Customer/ }), 'c1');
+    const hours = () => screen.getAllByRole('textbox', { name: /^Hours/ });
+    await user.clear(hours()[0] as HTMLElement);
+    await user.type(hours()[0] as HTMLElement, '7.85');
+    expect(screen.getByText('1.15 h still to account for')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Add non-productive' }));
+    expect(hours()[1]).toHaveValue('1.15');
+    await user.type(screen.getByRole('textbox', { name: /^Reason/ }), 'r1');
+    await user.type(screen.getByRole('textbox', { name: /What happened/ }), 'Waiting');
+    expect(screen.getByText('Every hour is accounted for.')).toBeInTheDocument();
+    // A third decimal: the line is marked and its hours no longer count.
+    await user.type(hours()[1] as HTMLElement, '5');
+    expect(await screen.findByText('Hours have at most 2 decimals')).toBeInTheDocument();
+    expect(screen.queryByText('Every hour is accounted for.')).not.toBeInTheDocument();
+    expect(screen.getByText('1.15 h still to account for')).toBeInTheDocument();
+    expect(screen.getByText(/Accounted for 7.85 h/)).toBeInTheDocument();
+    // On the customer line: 140 h available, after this 132.15 h.
+    expect(screen.getByText('Available 140 h · after this 132.15 h')).toBeInTheDocument();
   });
 
   it('takes the reading only when the machine has no starting reading', async () => {
@@ -233,11 +278,48 @@ describe('Approvals › Machine report detail', () => {
     expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
   });
 
+  it('shows the time since the last visit and where both readings were taken', async () => {
+    openDetail([READ]);
+    // 27 h since the last visit, over the default 24 h warning.
+    expect(await screen.findByText('Since last visit: 1 day 3 h')).toBeInTheDocument();
+    expect(screen.getByText(/^Where: Mbezi Beach, Kinondoni ·/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '-6.8000, 39.2800' })).toHaveAttribute(
+      'target',
+      '_blank',
+    );
+    expect(
+      screen.getByText(/^Last visit: \d+ Nov, \d\d:\d\d · Where: at Yard ·/),
+    ).toBeInTheDocument();
+    expect(screen.getByText('(±5 m)', { exact: false })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '-6.7924, 39.2083' })).toHaveAttribute(
+      'href',
+      'https://www.openstreetmap.org/?mlat=-6.7924&mlon=39.2083#map=17/-6.7924/39.2083',
+    );
+  });
+
+  it('says "First visit" for a machine visited for the first time', async () => {
+    m.get.mockResolvedValue({
+      ...REPORT,
+      previous_visit_at: null,
+      since_previous_visit_seconds: null,
+      previous_visit_lat: null,
+      previous_visit_lng: null,
+    });
+    openDetail([READ]);
+    expect(await screen.findByText('Since last visit: First visit')).toBeInTheDocument();
+    expect(screen.queryByText(/^Last visit:/)).not.toBeInTheDocument();
+  });
+
   it('rejects only with a reason', async () => {
     const user = userEvent.setup();
     openDetail([READ, APPROVE]);
     await user.click(await screen.findByRole('button', { name: 'Reject' }));
     const dialog = await screen.findByRole('dialog');
+    expect(
+      within(dialog).getByText(
+        'The supervisor is told your reason. A rejected report is kept as a record; the supervisor sends a new report with a new reading.',
+      ),
+    ).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Reject' }));
     expect(await within(dialog).findByText('A reason is required')).toBeInTheDocument();
     expect(m.reject).not.toHaveBeenCalled();
@@ -247,6 +329,9 @@ describe('Approvals › Machine report detail', () => {
       expect(m.reject).toHaveBeenCalled();
     });
     expect(m.reject.mock.calls[0]?.[1]).toEqual({ reason: 'Split the transit' });
+    expect(
+      await screen.findByText('Report rejected. The supervisor will send a new report.'),
+    ).toBeInTheDocument();
   });
 
   it('explains the server refusing a decision on your own report', async () => {
@@ -268,11 +353,51 @@ describe('Approvals › Machine report detail', () => {
     ).toBeInTheDocument();
   });
 
-  it('offers the submitter a correction of a rejected report', async () => {
-    m.get.mockResolvedValue({ ...REPORT, status: 'REJECTED', decision_note: 'Wrong customer' });
-    openDetail([READ, SUBMIT]);
-    expect(await screen.findByText(/Wrong customer/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Correct report' })).toBeInTheDocument();
+  it('shows a rejected report read-only, with the approver’s reason', async () => {
+    m.get.mockResolvedValue({
+      ...REPORT,
+      status: 'REJECTED',
+      decided_by_name: 'Asha Owner',
+      decided_at: '2026-11-16T06:00:00Z',
+      decision_note: 'Wrong customer',
+    });
+    openDetail([READ, SUBMIT, APPROVE]);
+    expect(await screen.findByText('Rejected by Asha Owner: “Wrong customer”')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Correct report' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/correct/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('Approvals › Machine reports list', () => {
+  it('shows the time since the last visit, flagged over the company warning', async () => {
+    m.list.mockResolvedValue(
+      page([
+        REPORT,
+        {
+          ...REPORT,
+          id: 'mr2',
+          report_number: 'MR-2026-00002',
+          since_previous_visit_seconds: 5 * 3600 + 20 * 60,
+        },
+        {
+          ...REPORT,
+          id: 'mr3',
+          report_number: 'MR-2026-00003',
+          since_previous_visit_seconds: null,
+        },
+      ]),
+    );
+    renderWithProviders(<MachineReportsPage />, { tenantPermissions: [READ, APPROVE] });
+    expect(
+      await screen.findByRole('columnheader', { name: 'Since last visit' }),
+    ).toBeInTheDocument();
+    const late = await screen.findByText('1 day 3 h');
+    expect(late).toHaveClass('MuiTypography-root');
+    expect(getComputedStyle(late).fontWeight).toBe('600');
+    expect(getComputedStyle(screen.getByText('5 h 20 min')).fontWeight).not.toBe('600');
+    expect(screen.getByText('First visit')).toBeInTheDocument();
   });
 });
 

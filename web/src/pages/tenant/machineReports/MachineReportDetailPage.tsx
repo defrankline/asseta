@@ -29,10 +29,12 @@ import {
   hoursLabel,
   minus,
 } from './machineReportDisplay';
-import { MachineReportDialog } from './MachineReportDialog';
 import { ReportStatusChip } from './MachineReportParts';
+import { useHoursPolicy } from '../hours/useHoursPolicy';
+import { WhereText } from './VisitWhere';
+import { formatVisitAt, formatVisitGap, visitGapFlagged, whereParts } from './visitDisplay';
 
-type Open = 'approve' | 'reject' | 'correct' | null;
+type Open = 'approve' | 'reject' | null;
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -138,6 +140,64 @@ function ReadingEvidence({ captureId, timeZone }: { captureId: string; timeZone:
   );
 }
 
+/**
+ * Time since the machine's previous visit, where this report's reading was taken and where the previous
+ * visit was (Owner/web show both places). Flagged in the warning colour over the company's setting.
+ */
+function VisitSection({
+  report,
+  warningHours,
+  timeZone,
+}: {
+  report: MachineReportDto;
+  warningHours: number | null;
+  timeZone: string;
+}) {
+  const flagged = visitGapFlagged(report.since_previous_visit_seconds, warningHours);
+  const here = {
+    place: report.visit_place,
+    site: report.visit_site_name,
+    lat: report.visit_lat,
+    lng: report.visit_lng,
+    accuracy: report.visit_accuracy_m,
+  };
+  const before = {
+    place: report.previous_visit_place,
+    site: report.previous_visit_site_name,
+    lat: report.previous_visit_lat,
+    lng: report.previous_visit_lng,
+    accuracy: report.previous_visit_accuracy_m,
+  };
+  const previousAt = report.previous_visit_at ?? null;
+  return (
+    <Stack spacing={0.5}>
+      <Typography
+        variant="body1"
+        color={flagged ? 'warning.main' : 'text.primary'}
+        sx={flagged ? { fontWeight: 600 } : undefined}
+      >
+        Since last visit: {formatVisitGap(report.since_previous_visit_seconds)}
+      </Typography>
+      {whereParts(here) !== null && (
+        <Typography variant="body2">
+          <WhereText place={here} />
+        </Typography>
+      )}
+      {previousAt !== null && (
+        <Typography variant="body2" color="text.secondary">
+          Last visit: {formatVisitAt(previousAt, timeZone)}
+          {whereParts(before) !== null && (
+            <>
+              {' · '}
+              <WhereText place={before} />
+            </>
+          )}
+        </Typography>
+      )}
+    </Stack>
+  );
+}
+
 /** One machine report: readings and evidence, the split, tracker cross-check, decision. */
 export function MachineReportDetailPage() {
   const { reportId = '' } = useParams();
@@ -145,8 +205,10 @@ export function MachineReportDetailPage() {
   const timeZone = useDisplayTimeZone();
   const { me, hasPermission } = useSession();
   const canDecide = useCanMutate(PERMISSIONS.tenantMachineReportApprove);
-  const canSubmit = useCanMutate(PERMISSIONS.tenantMachineReportSubmit);
   const canReadReadings = hasPermission(PERMISSIONS.tenantMeterRead);
+  const hours = useHoursPolicy();
+  // The company's visit-gap warning (default 24 h while unknown; null = never flag).
+  const warningHours = hours.policy === null ? 24 : hours.policy.visitGapWarningHours;
   const [open, setOpen] = useState<Open>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const load = useCallback(
@@ -193,14 +255,6 @@ export function MachineReportDetailPage() {
                       setOpen('reject');
                     },
                   },
-                  {
-                    key: 'correct',
-                    label: 'Correct report',
-                    hidden: !canSubmit || r.status !== 'REJECTED' || r.corrected_by_id != null,
-                    onClick: () => {
-                      setOpen('correct');
-                    },
-                  },
                 ]}
               />
             ),
@@ -217,9 +271,7 @@ export function MachineReportDetailPage() {
               <Alert severity="warning">
                 Rejected{d.decided_by_name == null ? '' : ` by ${d.decided_by_name}`}
                 {d.decision_note === null ? '.' : `: “${d.decision_note}”`}
-                {d.corrected_by_id == null ? (
-                  ' It is corrected on the same reading.'
-                ) : (
+                {d.corrected_by_id != null && (
                   <>
                     {' '}
                     Corrected by{' '}
@@ -231,6 +283,9 @@ export function MachineReportDetailPage() {
                 )}
               </Alert>
             )}
+            <Section title="Visit">
+              <VisitSection report={d} warningHours={warningHours} timeZone={timeZone} />
+            </Section>
             <Section title="Readings">
               <KeyValueGrid
                 columns={3}
@@ -315,7 +370,7 @@ export function MachineReportDetailPage() {
       {open === 'reject' && r !== null && (
         <LifecycleActionDialog<MachineReportDto>
           title={`Reject ${r.report_number}`}
-          description="The customers' reserved hours are released; the submitter corrects the report on the same reading."
+          description="The supervisor is told your reason. A rejected report is kept as a record; the supervisor sends a new report with a new reading."
           confirmLabel="Reject"
           destructive
           reason="required"
@@ -323,20 +378,9 @@ export function MachineReportDetailPage() {
           errorHints={REPORT_ERROR_HINTS}
           onConfirm={(reason, key) => machineReportService.reject(r.id, { reason }, key)}
           onDone={() => {
-            decided(`${r.report_number} rejected.`);
+            decided('Report rejected. The supervisor will send a new report.');
           }}
           onClose={close}
-        />
-      )}
-      {open === 'correct' && r !== null && (
-        <MachineReportDialog
-          machineId={r.machine_id}
-          corrects={r}
-          onClose={close}
-          onSubmitted={(next) => {
-            notify.success(`Report ${next.report_number} sent for approval.`);
-            setReloadKey((k) => k + 1);
-          }}
         />
       )}
     </EntityDetailsLayout>

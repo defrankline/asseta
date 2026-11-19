@@ -27,6 +27,8 @@ export interface HoursPolicy {
   fieldCreditSales: boolean;
   /** Days without a report before a machine is due (null: only never-reported machines). */
   machineReportReminderDays: number | null;
+  /** Flag a machine report whose machine went longer than this without a visit (null: never flag). */
+  visitGapWarningHours: number | null;
 }
 
 const flag = (v: unknown, fallback: boolean): boolean => (typeof v === 'boolean' ? v : fallback);
@@ -58,6 +60,12 @@ export function parseHoursPolicy(values: Record<string, unknown>): HoursPolicy {
         : typeof values.machine_report_reminder_days === 'number'
           ? values.machine_report_reminder_days
           : 3,
+    visitGapWarningHours:
+      values.visit_gap_warning_hours === null
+        ? null
+        : typeof values.visit_gap_warning_hours === 'number'
+          ? values.visit_gap_warning_hours
+          : 24,
   };
 }
 

@@ -2,6 +2,7 @@ import { screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { PolicyVersionsTable } from './PolicyVersionsTable';
+import { parseHoursPolicy } from '../hours/useHoursPolicy';
 import { findField, formatPolicyValue, inputError } from './policyFields';
 
 describe('ADR-008 policy fields', () => {
@@ -16,7 +17,22 @@ describe('ADR-008 policy fields', () => {
     expect(inputError(scope, 'SITE')).not.toBeNull();
     const reminder = findField('CUSTOMER_HOURS', 'machine_report_reminder_days');
     expect(reminder).toMatchObject({ kind: 'nullableNumber', unit: 'days' });
+    const visitGap = findField('CUSTOMER_HOURS', 'visit_gap_warning_hours');
+    if (visitGap === undefined) throw new Error('visit_gap_warning_hours missing');
+    expect(visitGap).toMatchObject({
+      kind: 'nullableNumber',
+      label: "Warn when a machine wasn't visited for (hours)",
+    });
+    expect(inputError(visitGap, '')).toBeNull();
+    expect(inputError(visitGap, '48')).toBeNull();
+    expect(inputError(visitGap, 'two days')).not.toBeNull();
     expect(findField('EXPENSE_CAPTURE', 'fuel_enabled')?.kind).toBe('bool');
+  });
+
+  it('reads the visit-gap warning: 24 h by default, null for no warning', () => {
+    expect(parseHoursPolicy({}).visitGapWarningHours).toBe(24);
+    expect(parseHoursPolicy({ visit_gap_warning_hours: 48 }).visitGapWarningHours).toBe(48);
+    expect(parseHoursPolicy({ visit_gap_warning_hours: null }).visitGapWarningHours).toBeNull();
   });
 
   it('no longer offers the retired job, booking, check-in and unbilled settings', () => {

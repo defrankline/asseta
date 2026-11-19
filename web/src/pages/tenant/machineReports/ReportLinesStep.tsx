@@ -1,5 +1,5 @@
-import { Alert, Box, Button, Stack, Typography } from '@mui/material';
-import { useFormikContext } from 'formik';
+import { Alert, Box, Button, Stack, TextField, Typography } from '@mui/material';
+import { useField, useFormikContext } from 'formik';
 import { useCallback } from 'react';
 import type { AvailableHoursDto, MachineReportReasonDto } from '../../../api/machineReportTypes';
 import { machineReportService } from '../../../api/services/machineReportService';
@@ -9,9 +9,12 @@ import { compareDecimal } from '../../../utils/money';
 import { hoursLabel, minus, plainHours } from './machineReportDisplay';
 import {
   accountedFor,
+  allAccountedFor,
+  allLinesValid,
   balanceText,
   customerTotal,
   emptyLine,
+  lineHoursValid,
   meterDifference,
   type ReportRules,
   type ReportValues,
@@ -26,10 +29,34 @@ const matches = (text: string, query: string) =>
 const customerLabel = (c: AvailableHoursDto) =>
   `${c.customer_name ?? c.customer_id} · available ${hoursLabel(c.available)}`;
 
+/**
+ * A line's hours: invalid hours are marked on the line as soon as they are typed (not only after
+ * leaving the field), because they count for nothing in "Accounted for".
+ */
+function LineHoursField({ name }: { name: string }) {
+  const [field, meta] = useField<string>(name);
+  const value = typeof field.value === 'string' ? field.value : '';
+  const invalidNow = value.trim() !== '' && !lineHoursValid(value);
+  const showError = (meta.touched && meta.error !== undefined) || invalidNow;
+  return (
+    <TextField
+      {...field}
+      id={name}
+      value={value}
+      label="Hours"
+      required
+      fullWidth
+      error={showError}
+      helperText={showError ? (meta.error ?? 'Hours have at most 2 decimals') : undefined}
+      slotProps={decimal}
+    />
+  );
+}
+
 interface LinesStepProps {
   machineId: string;
   rules: ReportRules;
-  /** Customers known when the form opened (context, plus the rejected report's customers). */
+  /** Customers known when the form opened (from the report context). */
   customers: readonly AvailableHoursDto[];
   reasons: readonly MachineReportReasonDto[];
   hoursOn: boolean;
@@ -66,6 +93,11 @@ export function ReportLinesStep({ machineId, rules, customers, reasons, hoursOn 
     void setFieldValue('lines', [...values.lines, emptyLine(kind, hours)]);
   };
   const balance = difference === null ? null : balanceText(difference, accounted);
+  // A line with invalid hours is marked on its own field and counts for nothing.
+  const linesValid = allLinesValid(values.lines);
+  const done = allAccountedFor(values.lines, difference);
+  const summary =
+    balance ?? (done ? 'Every hour is accounted for.' : 'Fix the hours marked on a line.');
   const linesError = typeof errors.lines === 'string' ? errors.lines : null;
   return (
     <>
@@ -74,8 +106,13 @@ export function ReportLinesStep({ machineId, rules, customers, reasons, hoursOn 
           Accounted for {hoursLabel(accounted)}
           {difference !== null && ` / ${hoursLabel(difference)}`}
         </Typography>
-        <Typography variant="body2" color={balance === null ? 'success.main' : 'text.secondary'}>
-          {balance ?? 'Every hour is accounted for.'}
+        <Typography
+          variant="body2"
+          color={
+            done ? 'success.main' : balance === null && !linesValid ? 'error' : 'text.secondary'
+          }
+        >
+          {summary}
         </Typography>
       </Box>
       {values.lines.map((line, i) => {
@@ -128,7 +165,7 @@ export function ReportLinesStep({ machineId, rules, customers, reasons, hoursOn 
                 noOptionsText="No reason matches"
               />
             )}
-            <FormikTextField name={at('hours')} label="Hours" required slotProps={decimal} />
+            <LineHoursField name={at('hours')} />
             {line.kind === 'CUSTOMER' && line.customer_id !== '' && available !== undefined && (
               <Typography variant="body2" color="text.secondary">
                 Available {hoursLabel(available)} · after this{' '}

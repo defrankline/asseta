@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { machineReportState } from './machineReportDisplay';
-import { REPORT, STATUS } from './machineReportFixtures';
+import { STATUS } from './machineReportFixtures';
 import {
+  accountedFor,
+  allAccountedFor,
+  allLinesValid,
+  customerTotal,
   emptyLine,
+  lineHoursValid,
   reportSchema,
   toReportPayload,
   type ReportRules,
@@ -12,8 +17,6 @@ import {
 const RULES: ReportRules = {
   previous: '1210.0',
   opening: false,
-  decimals: 1,
-  fixedReading: null,
   available: { c1: '140' },
 };
 const values = (over: Partial<ReportValues>): ReportValues => ({
@@ -64,9 +67,44 @@ describe('machine report rules', () => {
         }),
       ),
     ).toContain('Put each customer on one line only');
+    // Line hours take 2 decimals whatever the meter's precision; the sum must still be exact.
     expect(
-      errorsOf(values({ reading: '1210.25', lines: [line('CUSTOMER', '0.25', 'c1')] })),
-    ).toContain('Use at most 1 decimal(s), as the meter shows');
+      errorsOf(
+        values({
+          reading: '1219.0',
+          lines: [line('CUSTOMER', '8.85', 'c1'), line('NON_PRODUCTIVE', '0.15', 'r1', 'Wait')],
+        }),
+      ),
+    ).toEqual([]);
+    expect(
+      errorsOf(values({ reading: '1210.3', lines: [line('CUSTOMER', '0.255', 'c1')] })),
+    ).toContain('Hours have at most 2 decimals');
+  });
+
+  it('does not count a line with invalid hours as accounted for', () => {
+    expect(lineHoursValid('1.15')).toBe(true);
+    expect(lineHoursValid(' 7.85 ')).toBe(true);
+    for (const bad of ['', '0', '-1', 'abc', '1.155', '1.2.3']) {
+      expect(lineHoursValid(bad)).toBe(false);
+    }
+    // The meter moved 9 h; a customer line of 9 h and a second line with invalid hours.
+    const lines = [line('CUSTOMER', '9', 'c1'), line('CUSTOMER', '1.155', 'c2')];
+    expect(accountedFor(lines)).toBe('9');
+    expect(allLinesValid(lines)).toBe(false);
+    // The sum matches, but not every line is valid: not "all hours accounted for".
+    expect(allAccountedFor(lines, '9')).toBe(false);
+    // The customer's "after this" ignores the invalid line.
+    expect(customerTotal(lines, 'c2')).toBe('0');
+    expect(
+      errorsOf(values({ reading: '1219.0', lines }), {
+        ...RULES,
+        available: { c1: '140', c2: '140' },
+      }),
+    ).toEqual(['Hours have at most 2 decimals']);
+    const ok = [line('CUSTOMER', '7.85', 'c1'), line('CUSTOMER', '1.15', 'c2')];
+    expect(allAccountedFor(ok, '9.0')).toBe(true);
+    expect(allAccountedFor(ok, '9.1')).toBe(false);
+    expect(allAccountedFor(ok, null)).toBe(false);
   });
 
   it('needs a reason and a note for non-productive hours, and a higher reading', () => {
@@ -78,7 +116,7 @@ describe('machine report rules', () => {
     expect(errors).toContain('The new reading must be higher than the last one');
   });
 
-  it('sends a new reading, or the rejected report’s reading when correcting', () => {
+  it('always sends a new reading and never a correction', () => {
     const v = values({
       lines: [line('CUSTOMER', '120', 'c1'), line('NON_PRODUCTIVE', '180', 'r1', ' Hose ')],
     });
@@ -92,9 +130,10 @@ describe('machine report rules', () => {
       reportId: 'id1',
       machineId: 'm1',
       evidence,
-      corrects: null,
       opening: false,
     });
+    expect(fresh).not.toHaveProperty('corrects_report_id');
+    expect(fresh).not.toHaveProperty('capture_id');
     expect(fresh.capture).toMatchObject({ id: 'cap9', kind: 'DAILY', reading: '1510.0' });
     expect(fresh.lines?.[1]).toEqual({
       kind: 'NON_PRODUCTIVE',
@@ -103,32 +142,22 @@ describe('machine report rules', () => {
       note: 'Hose',
     });
     expect(fresh.opening).toBe(false);
-    const fixed = toReportPayload(v, {
-      reportId: 'id2',
-      machineId: 'm1',
-      evidence: { ...evidence, gps: null },
-      corrects: { ...REPORT, status: 'REJECTED' },
-      opening: false,
-    });
-    expect(fixed).toMatchObject({ capture_id: 'cap1', corrects_report_id: 'mr1' });
-    expect(fixed).not.toHaveProperty('capture');
     const opening = toReportPayload(v, {
       reportId: 'id3',
       machineId: 'm1',
       evidence,
-      corrects: null,
       opening: true,
     });
     expect(opening).toMatchObject({ opening: true, lines: [] });
     expect(opening.capture).toMatchObject({ id: 'cap9', kind: 'DAILY', reading: '1510.0' });
-    const reopened = toReportPayload(values({}), {
-      reportId: 'id4',
-      machineId: 'm1',
-      evidence: { ...evidence, gps: null },
-      corrects: { ...REPORT, status: 'REJECTED', opening: true, lines: [] },
-      opening: true,
-    });
-    expect(reopened).toMatchObject({ opening: true, lines: [], capture_id: 'cap1' });
+    expect(() =>
+      toReportPayload(v, {
+        reportId: 'id4',
+        machineId: 'm1',
+        evidence: { ...evidence, gps: null },
+        opening: false,
+      }),
+    ).toThrow();
   });
 });
 
@@ -140,7 +169,8 @@ describe('report due', () => {
     expect(machineReportState({ ...STATUS, days_since_report: null }, null)).toBe('DUE');
     expect(machineReportState({ ...STATUS, previous_reading: null }, 3)).toBe('DUE');
     expect(machineReportState({ ...STATUS, opening_required: true }, 3)).toBe('DUE');
-    expect(machineReportState({ ...STATUS, rejected_report_id: 'r' }, 3)).toBe('REJECTED');
+    // A rejected report is final: the machine is due again.
+    expect(machineReportState({ ...STATUS, rejected_report_id: 'r' }, 3)).toBe('DUE');
     expect(machineReportState({ ...STATUS, pending_report_id: 'p' }, 3)).toBe('AWAITING');
   });
 });

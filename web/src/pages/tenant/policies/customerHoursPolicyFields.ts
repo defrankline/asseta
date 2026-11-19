@@ -127,6 +127,12 @@ export const CUSTOMER_HOURS_FIELDS: readonly PolicyFieldDef[] = [
     help: 'Counted from the meter or tracker; leave empty for no reminder.',
   },
   {
+    key: 'visit_gap_warning_hours',
+    label: "Warn when a machine wasn't visited for (hours)",
+    kind: 'nullableNumber',
+    help: 'Machine reports over this time since the last visit are marked for the approver; leave empty for no warning.',
+  },
+  {
     key: 'cash_activation',
     label: 'When cash on an hours sale counts as verified',
     kind: 'enum',

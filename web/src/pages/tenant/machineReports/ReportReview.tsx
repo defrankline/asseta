@@ -22,7 +22,7 @@ export function ReportReview({
   reasons,
   photoAttached,
 }: ReportReviewProps) {
-  const end = rules.fixedReading ?? values.reading.trim();
+  const end = values.reading.trim();
   const difference = meterDifference(rules, values.reading);
   const customerLines = values.lines.filter((l) => l.kind === 'CUSTOMER');
   const otherLines = values.lines.filter((l) => l.kind === 'NON_PRODUCTIVE');
