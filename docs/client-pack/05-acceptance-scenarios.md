@@ -301,7 +301,7 @@ The final test in your guideline is to select any customer, excavator, employee 
 
 | # | Who | Device | Do | Should see | ✓ |
 |---|---|---|---|---|---|
-| 1 | Owner | WEB | **Administration → Policies**, **Cash custody**, **Change settings**. Turn on **Staff may spend from cash collected from customers** and set it off. A reason, **Create version** | A new version in the **Version history** | ☐ |
+| 1 | Owner | WEB | **Administration → Policies**, **Cash custody**, **Change settings**. Turn on **Staff may spend from cash collected from customers** and set it off. A reason, **Save changes** | A new version in the **Version history** | ☐ |
 | 2 | Accountant | WEB | **Finance → Cash custody → All custodians**. Note the Supervisor's outstanding cash | Figure noted | ☐ |
 | 3 | Supervisor | WEB | **Field work → Expenses → Submit expense**. **Paid from** Supervisor cash custody, amount 5,000. Submit | Refused: "This company does not allow spending from cash collected from customers; pay from a petty cash fund or by the office" | ☐ |
 | 4 | Supervisor | PHONE | Sync. **Record expense**, **Paid from** My cash, 5,000, a receipt. Save and sync | Synced | ☐ |
@@ -327,7 +327,7 @@ Leave the setting as your company has decided after the demonstration.
 
 | # | Who | Device | Do | Should see | ✓ |
 |---|---|---|---|---|---|
-| 1 | Owner | WEB | **Administration → Policies**, **Petty cash**, **Change settings**. Turn on **Cash advances**. A reason, **Create version** | A new version in the **Version history** | ☐ |
+| 1 | Owner | WEB | **Administration → Policies**, **Petty cash**, **Change settings**. Turn on **Cash advances**. A reason, **Save changes** | A new version in the **Version history** | ☐ |
 | 2 | Supervisor | PHONE | Sync. Note PC-SITE's **Balance** (200,000 after scenario 18). Switch on **airplane mode** | Offline banner | ☐ |
 | 3 | Supervisor | PHONE | On PC-SITE: **Give an advance**. Recipient **Juma**, **Amount** 20,000, purpose "Diesel at the quarry". Save | Saved. Listed under **Recorded on this phone** as **Waiting to sync** | ☐ |
 | 4 | Supervisor | PHONE | Switch off airplane mode, **Sync now**. Then tap **Sync now** again | **Synced**. Under **Advances**: "Given to Juma", 20,000. The second sync changes nothing | ☐ |
