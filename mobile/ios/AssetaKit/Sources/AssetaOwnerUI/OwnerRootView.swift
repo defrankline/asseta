@@ -16,7 +16,6 @@ public struct OwnerRootView: View {
     @State private var path = NavigationPath()
     @State private var top: AnyHashable?
     @State private var menuOpen = false
-    @State private var confirmSignOut = false
     @State private var push = PushCenter.shared
     @Environment(\.scenePhase) private var scenePhase
 
@@ -44,7 +43,7 @@ public struct OwnerRootView: View {
                       switchCompany: model.me.tenants.filter({ $0.accessState.allowsEntry }).count > 1
                           ? { menuOpen = false; model.leaveTenant() } : nil,
                       settings: { go(OwnerScreen.settings) },
-                      signOut: { menuOpen = false; confirmSignOut = true })
+                      signOut: { menuOpen = false; Task { await model.signOut() } })
         }
         .tint(Brand.amber)
         .task {
@@ -58,12 +57,6 @@ public struct OwnerRootView: View {
             if phase == .background { model.background() }
         }
         .onChange(of: push.pendingLink) { _, _ in consumePendingLink() }
-        .confirmationDialog(OwnerMenuTexts.signOutConfirm, isPresented: $confirmSignOut, titleVisibility: .visible) {
-            Button(OwnerMenuTexts.signOutAction) { Task { await model.signOut() } }
-            Button(OwnerMenuTexts.cancel, role: .cancel) {}
-        } message: {
-            Text(OwnerMenuTexts.signOutBody)
-        }
         .alert("Access changed", isPresented: Binding(get: { model.accessLostMessage != nil }, set: { _ in })) {
             Button("OK") { model.leaveTenant() }
         } message: {

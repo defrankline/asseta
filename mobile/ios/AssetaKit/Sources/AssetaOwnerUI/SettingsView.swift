@@ -15,7 +15,6 @@ struct SettingsView: View {
     @State private var saving = false
     @State private var message: String?
     @State private var deviceError: String?
-    @State private var confirmSignOut = false
     @State private var push = PushCenter.shared
 
     var body: some View {
@@ -64,7 +63,7 @@ struct SettingsView: View {
                     Button("Switch company") { model.leaveTenant() }
                 }
                 ChangePasswordButton(session: model.session, isOnline: model.isOnline)
-                Button("Sign out", role: .destructive) { confirmSignOut = true }
+                Button("Sign out") { Task { await model.signOut() } }
                     .accessibilityIdentifier("settings.signOut")
                 NavigationLink {
                     AccountDeletionView(session: model.session, isOnline: model.isOnline)
@@ -81,11 +80,6 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .task { await reload() }
         .refreshable { await reload() }
-        .confirmationDialog(SettingsText.signOutConfirm, isPresented: $confirmSignOut, titleVisibility: .visible) {
-            Button(SettingsText.signOutAction) { Task { await model.signOut() } }
-        } message: {
-            Text(SettingsText.signOutBody)
-        }
     }
 
     @ViewBuilder private var pushMatrix: some View {

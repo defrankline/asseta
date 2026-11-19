@@ -3032,7 +3032,7 @@ times `today 07:40`, `yesterday 18:10`, `{n} days ago` (2–6), then `12 Nov`.
 | more entries | Go-live checklist · Dashboard · Accountability (existing text) · Find a reference (existing) · People scorecard (existing) · Fleet map · Alerts · Meter exceptions · Field spend · Cash with supervisors · Investigations |
 | footer | Switch company · Settings · Sign out |
 | caption (read-only company) | This company is read-only. Viewing only. |
-| sign-out dialog | Sign out? / "Your company's records stay safe on Asseta. This only removes the copy kept on this phone for offline viewing." / Sign out / Cancel (existing Settings wording) |
+| sign-out | No question: Sign out signs out straight away (the Owner app keeps no unsent work) |
 
 #### Home (OwnerHome) — `ui/home/OwnerHomeScreen.kt` `HomeTexts`
 

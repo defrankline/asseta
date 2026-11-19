@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Package | `com.asseta.owner` |
-| Version | 0.9.5 (versionCode 12) |
+| Version | 0.9.6 (versionCode 13) |
 | Default language | English (United States) – en-US |
 | Added language | Swahili – sw |
 | App or game | App |

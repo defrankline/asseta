@@ -65,9 +65,6 @@ object SettingsText {
     const val PUSH_UNAVAILABLE = "Push is not configured for this build. You still get notifications in the inbox and live while the app is open."
     const val OFFLINE_DATA = "Screens you have opened are kept encrypted on this phone for up to 7 days so you can look at them offline. " +
         "Saved data is clearly marked stale and can't be changed. Signing out removes this copy; nothing is deleted from Asseta."
-    const val SIGN_OUT_CONFIRM = "Sign out?"
-    const val SIGN_OUT_ACTION = "Sign out"
-    const val SIGN_OUT_BODY = "Your company's records stay safe on Asseta. This only removes the copy kept on this phone for offline viewing."
 
     fun severityLabel(severity: String, locked: Boolean): String = OwnerFormat.humanize(severity) + if (locked) " (required)" else ""
 
@@ -83,7 +80,6 @@ object SettingsText {
 fun SettingsScreen(vm: SettingsViewModel, session: OwnerSession, online: Boolean) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val actions = LocalSessionActions.current
-    var confirmSignOut by rememberSaveable { mutableStateOf(false) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> if (granted) vm.enablePush() }
     // Routing is read live (never cached), so only connectivity and a read-only company block changes.
     val gate = MutationGate.check(online, DataSource.LIVE, permitted = true, tenantReadOnly = session.readOnly)
@@ -147,7 +143,7 @@ fun SettingsScreen(vm: SettingsViewModel, session: OwnerSession, online: Boolean
                 if (session.userEmail.isNotEmpty()) KeyValue("Signed in as", session.userEmail)
                 if (session.canSwitchTenant) ButtonRow("Switch company", onClick = actions.switchTenant)
                 ButtonRow(PasswordChangeText.ACTION, enabled = online && !actions.changingPassword, onClick = actions.changePassword)
-                ButtonRow("Sign out", destructive = true) { confirmSignOut = true }
+                ButtonRow("Sign out") { actions.signOut() }
             }
         }
         item {
@@ -155,16 +151,5 @@ fun SettingsScreen(vm: SettingsViewModel, session: OwnerSession, online: Boolean
                 ButtonRow(AccountDeletionText.ACTION, Modifier.testTag("delete-account"), enabled = online, destructive = true, onClick = actions.deleteAccount)
             }
         }
-    }
-    if (confirmSignOut) {
-        AlertDialog(
-            onDismissRequest = { confirmSignOut = false },
-            title = { Text(SettingsText.SIGN_OUT_CONFIRM) },
-            text = { Text(SettingsText.SIGN_OUT_BODY) },
-            confirmButton = {
-                TextButton({ confirmSignOut = false; actions.signOut() }) { Text(SettingsText.SIGN_OUT_ACTION) }
-            },
-            dismissButton = { TextButton({ confirmSignOut = false }) { Text("Cancel") } },
-        )
     }
 }

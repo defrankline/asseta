@@ -26,7 +26,7 @@ class FieldTextsTest {
         assertEquals("Held", FieldTexts.syncState(ClientOperationStatus.QUARANTINED))
         assertEquals("Rejected", FieldTexts.syncState(ClientOperationStatus.FAILED))
         assertEquals("Waiting for its photo/receipt upload", FieldTexts.waiting(WaitingReason.UPLOAD))
-        assertEquals("You can sign in again at any time.", FieldTexts.signOutMessage(0))
+        assertEquals(null, FieldTexts.signOutMessage(0))
         assertEquals(
             "3 item(s) are not synced yet. They stay encrypted on this phone and sync after you sign in again.",
             FieldTexts.signOutMessage(3),

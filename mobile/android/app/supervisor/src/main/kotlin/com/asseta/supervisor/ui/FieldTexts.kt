@@ -55,8 +55,9 @@ object FieldTexts {
             opType == com.asseta.core.model.sync.PettyCashOps.RETURN || opType == com.asseta.core.model.sync.PettyCashOps.COUNT) FieldAccountabilityTexts.OUTBOX_WAITING_PHOTOS else "Waiting for its photo/receipt upload"
     }
 
-    fun signOutMessage(unsynced: Int): String =
-        if (unsynced == 0) "You can sign in again at any time."
+    /** Asked before signing out only when work has not reached the office yet; null = sign out straight away. */
+    fun signOutMessage(unsynced: Int): String? =
+        if (unsynced == 0) null
         else "$unsynced item(s) are not synced yet. They stay encrypted on this phone and sync after you sign in again."
 
     /** Another account's unsynced work on this phone (sync status); [label] null when that account is not known. */

@@ -39,7 +39,7 @@ class SupervisorApplication : Application(), AssetaContainerOwner, SyncHost {
                 field.push.forget()
             }
 
-            override suspend fun signOutConfirmation(): String = FieldTexts.signOutMessage(unsyncedCount())
+            override suspend fun signOutConfirmation(): String? = FieldTexts.signOutMessage(unsyncedCount())
 
             // Delete my account: this user's unsent records are counted and can be synced first.
             override suspend fun unsyncedCount(): Int {

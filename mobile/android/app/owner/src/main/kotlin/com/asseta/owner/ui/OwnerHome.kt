@@ -52,7 +52,6 @@ fun OwnerHome(graph: OwnerGraph, session: OwnerSession, modifier: Modifier = Mod
     val features = session.features
     var stack by remember(tenantId) { mutableStateOf(listOf(OwnerNavigation.start(features))) }
     var accessLost by remember(tenantId) { mutableStateOf(false) }
-    var confirmSignOut by remember { mutableStateOf(false) }
     val drawer = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     // A destination of a capability the tenant switched off falls back (follow-up F1).
@@ -120,7 +119,7 @@ fun OwnerHome(graph: OwnerGraph, session: OwnerSession, modifier: Modifier = Mod
                 scope.launch { drawer.close() }
                 when (e.key) {
                     MenuTexts.KEY_SWITCH -> actions.switchTenant()
-                    MenuTexts.KEY_SIGN_OUT -> confirmSignOut = true
+                    MenuTexts.KEY_SIGN_OUT -> actions.signOut()
                     else -> e.destination?.let(open)
                 }
             }
@@ -150,15 +149,6 @@ fun OwnerHome(graph: OwnerGraph, session: OwnerSession, modifier: Modifier = Mod
                 }
             }
         }
-    }
-    if (confirmSignOut) {
-        AlertDialog(
-            onDismissRequest = { confirmSignOut = false },
-            title = { Text(SettingsText.SIGN_OUT_CONFIRM) },
-            text = { Text(SettingsText.SIGN_OUT_BODY) },
-            confirmButton = { TextButton({ confirmSignOut = false; actions.signOut() }) { Text(SettingsText.SIGN_OUT_ACTION) } },
-            dismissButton = { TextButton({ confirmSignOut = false }) { Text("Cancel") } },
-        )
     }
     if (accessLost) {
         AlertDialog(

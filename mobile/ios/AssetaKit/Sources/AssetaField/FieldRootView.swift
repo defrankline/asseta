@@ -151,7 +151,7 @@ public struct FieldRootView: View {
         } menu: {
             SupervisorMenu(model: model, userName: userName, current: path.first, showsSwitchCompany: showsSwitchCompany,
                            go: go, switchCompany: { model.stop(); model.session.clearTenantSelection() },
-                           signOut: { menuOpen = false; confirmSignOut = true })
+                           signOut: { menuOpen = false; requestSignOut() })
         }
     }
 
@@ -198,7 +198,7 @@ public struct FieldRootView: View {
                     }
                 }
         case .settings:
-            SupervisorSettingsView(model: model, deleteAccount: { sheet = .deleteAccount }, signOut: { confirmSignOut = true })
+            SupervisorSettingsView(model: model, deleteAccount: { sheet = .deleteAccount }, signOut: { requestSignOut() })
         case let .reading(id): ReadingDetailView(model: model, id: id, requestReset: requestReset, capture: capture)
         case let .machine(id):
             MachineDetailView(model: model, machineID: id, requestReset: requestReset, capture: capture)
@@ -354,9 +354,13 @@ public struct FieldRootView: View {
     }
 
     private var signOutMessage: String {
-        let unsynced = model.overview?.unsyncedCount ?? 0
-        return unsynced == 0 ? "You can sign in again at any time."
-            : "\(unsynced) item(s) are not synced yet. They stay encrypted on this phone and sync after you sign in again."
+        "\(model.overview?.unsyncedCount ?? 0) item(s) are not synced yet. They stay encrypted on this phone and sync after you "
+            + "sign in again."
+    }
+
+    /// Asks first only when work has not reached the office yet; otherwise signs out straight away.
+    private func requestSignOut() {
+        if (model.overview?.unsyncedCount ?? 0) > 0 { confirmSignOut = true } else { Task { await model.signOut() } }
     }
 }
 
