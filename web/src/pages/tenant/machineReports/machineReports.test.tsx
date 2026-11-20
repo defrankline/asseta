@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router';
+import { useField } from 'formik';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../../api/ApiError';
 import type {
@@ -53,10 +54,36 @@ vi.mock('../../../api/services/machineReportService', () => ({
 }));
 vi.mock('../../../utils/geolocation', () => ({ attemptGpsFix: m.gps }));
 // Plain inputs stand in for the async pickers (their own tests cover them).
+// "Pick <label>" stands in for choosing the typed id from the list.
 vi.mock('../../../components/forms/FormikAsyncIdAutocomplete', () => ({
-  FormikAsyncIdAutocomplete: ({ name, label }: { name: string; label: string }) => (
-    <FormikTextField name={name} label={label} />
-  ),
+  FormikAsyncIdAutocomplete: ({
+    name,
+    label,
+    resolveOption,
+    onOptionChange,
+  }: {
+    name: string;
+    label: string;
+    resolveOption?: (id: string) => Promise<unknown>;
+    onOptionChange?: (option: unknown) => void;
+  }) => {
+    const [field] = useField<string>(name);
+    return (
+      <>
+        <FormikTextField name={name} label={label} />
+        {onOptionChange !== undefined && resolveOption !== undefined && (
+          <button
+            type="button"
+            onClick={() => {
+              void resolveOption(field.value).then(onOptionChange);
+            }}
+          >
+            Pick {label}
+          </button>
+        )}
+      </>
+    );
+  },
 }));
 vi.mock('../shared/financePickers', () => ({
   MachineFilter: () => null,
@@ -164,6 +191,34 @@ describe('Field work › Machine report', () => {
       { kind: 'CUSTOMER', customer_id: 'c1', hours: '120' },
       { kind: 'NON_PRODUCTIVE', reason_id: 'r1', hours: '180', note: 'Hydraulic hose' },
     ]);
+  });
+
+  it("fills a customer's line with min(their hours left, hours still to account for)", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<FieldMachineReportPage />, { tenantPermissions: [SUBMIT, READ] });
+    await user.click(await screen.findByRole('button', { name: 'New report' }));
+    await user.click(await screen.findByRole('combobox', { name: /Capture mode/ }));
+    await user.click(screen.getByRole('option', { name: /Manual/ }));
+    await user.type(screen.getByRole('textbox', { name: /Meter reading/ }), '1510');
+    await waitFor(() => {
+      expect(m.gps).toHaveBeenCalled();
+    });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(await screen.findByRole('button', { name: 'Add customer' }));
+    const hours = () => screen.getAllByRole('textbox', { name: /^Hours/ });
+    expect(hours()[0]).toHaveValue('300');
+    await user.type(screen.getByRole('textbox', { name: /^Customer/ }), 'c1');
+    // 300 h to account for, the customer has 140 h left → 140.
+    await user.click(screen.getByRole('button', { name: 'Pick Customer' }));
+    await waitFor(() => {
+      expect(hours()[0]).toHaveValue('140');
+    });
+    expect(screen.getByText('160 h still to account for')).toBeInTheDocument();
+    // Hours the supervisor typed are kept when the customer is picked again.
+    await user.clear(hours()[0] as HTMLElement);
+    await user.type(hours()[0] as HTMLElement, '100');
+    await user.click(screen.getByRole('button', { name: 'Pick Customer' }));
+    expect(hours()[0]).toHaveValue('100');
   });
 
   it('marks a line with invalid hours and does not count it as accounted for', async () => {

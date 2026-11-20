@@ -5,10 +5,13 @@ import {
   accountedFor,
   allAccountedFor,
   allLinesValid,
+  customerHoursLeft,
   customerTotal,
   emptyLine,
+  hoursAreAuto,
   lineHoursValid,
   reportSchema,
+  suggestedCustomerHours,
   toReportPayload,
   type ReportRules,
   type ReportValues,
@@ -172,5 +175,48 @@ describe('report due', () => {
     // A rejected report is final: the machine is due again.
     expect(machineReportState({ ...STATUS, rejected_report_id: 'r' }, 3)).toBe('DUE');
     expect(machineReportState({ ...STATUS, pending_report_id: 'p' }, 3)).toBe('AWAITING');
+  });
+});
+
+describe('customer hours filled in when a customer is picked', () => {
+  it('fills min(customer hours left, hours still to account for)', () => {
+    // 10 h to account for; the customer has 4 h left → 4.
+    expect(suggestedCustomerHours([emptyLine('CUSTOMER', '10')], 0, 'c1', '4', '10')).toBe('4');
+    // Customer has 20 h; 4 h already on another line → the 6 h still to account for.
+    const lines = [line('CUSTOMER', '4', 'c2'), emptyLine('CUSTOMER', '6')];
+    expect(suggestedCustomerHours(lines, 1, 'c1', '20', '10')).toBe('6');
+    // Hundredths are kept.
+    expect(suggestedCustomerHours([emptyLine('CUSTOMER')], 0, 'c1', '1.15', '9')).toBe('1.15');
+  });
+
+  it("counts the customer's hours on other lines of the same report", () => {
+    const lines = [line('CUSTOMER', '3', 'c1'), emptyLine('CUSTOMER', '7')];
+    expect(suggestedCustomerHours(lines, 1, 'c1', '5', '10')).toBe('2');
+    expect(customerHoursLeft(lines, 1, 'c1', '5')).toBe('2');
+    // All their hours used by the other lines: nothing left, so they are not offered.
+    expect(
+      customerHoursLeft([line('CUSTOMER', '5', 'c1'), emptyLine('CUSTOMER')], 1, 'c1', '5'),
+    ).toBeNull();
+    expect(customerHoursLeft([], 0, 'c1', '0')).toBeNull();
+  });
+
+  it('leaves the line alone when nothing is left or the meter difference is unknown', () => {
+    expect(
+      suggestedCustomerHours(
+        [line('CUSTOMER', '10', 'c2'), emptyLine('CUSTOMER')],
+        1,
+        'c1',
+        '4',
+        '10',
+      ),
+    ).toBeNull();
+    expect(suggestedCustomerHours([emptyLine('CUSTOMER')], 0, 'c1', '4', null)).toBeNull();
+  });
+
+  it('replaces only hours the form filled in itself', () => {
+    expect(hoursAreAuto(emptyLine('CUSTOMER', '10'))).toBe(true);
+    expect(hoursAreAuto(emptyLine('CUSTOMER'))).toBe(true);
+    expect(hoursAreAuto({ ...emptyLine('CUSTOMER', '10'), hours: '7' })).toBe(false);
+    expect(hoursAreAuto({ ...emptyLine('CUSTOMER', '10'), hours: '' })).toBe(true);
   });
 });

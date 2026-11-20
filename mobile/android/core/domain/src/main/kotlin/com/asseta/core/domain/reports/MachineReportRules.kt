@@ -96,6 +96,16 @@ object MachineReportRules {
     /** Hours still to account for (negative when the lines are over the difference). */
     fun left(difference: BigDecimal, lines: List<ReportLineDraft>): BigDecimal = difference - accounted(lines)
 
+    /**
+     * Hours a new line starts with: the hours still to account for, and for a customer line no more than the
+     * customer's [available] hours (min of the two). Empty when nothing is left.
+     */
+    fun startHours(difference: BigDecimal, lines: List<ReportLineDraft>, available: BigDecimal? = null): String {
+        val left = left(difference, lines)
+        val start = if (available != null && available < left) available else left
+        return if (start.signum() > 0) start.stripTrailingZeros().toPlainString() else ""
+    }
+
     /** Share of the difference accounted for, 0..1, for the progress bar. */
     fun progress(difference: BigDecimal, lines: List<ReportLineDraft>): Float {
         if (difference.signum() <= 0) return 0f

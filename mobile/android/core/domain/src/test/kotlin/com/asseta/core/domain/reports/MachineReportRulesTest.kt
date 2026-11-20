@@ -150,4 +150,18 @@ class MachineReportRulesTest {
         assertEquals("1,240", MachineReportRules.formatHours(BigDecimal("1240.0")))
         assertEquals("12.5", MachineReportRules.formatHours(BigDecimal("12.50")))
     }
+
+    @Test
+    fun `a new customer line starts with min(customer hours left, hours still to account for)`() {
+        // 10 h to account for, the customer has 4 h → 4.
+        assertEquals("4", MachineReportRules.startHours(BigDecimal("10"), emptyList(), BigDecimal("4.0")))
+        // The customer has 20 h, 4 h already on another line → the 6 h still to account for.
+        val first = ReportLineDraft.Customer("c2", "Msasani Bay Developers", "4")
+        assertEquals("6", MachineReportRules.startHours(BigDecimal("10"), listOf(first), BigDecimal("20")))
+        // Hundredths are kept; a non-productive line takes all that is left.
+        assertEquals("1.15", MachineReportRules.startHours(BigDecimal("9"), emptyList(), BigDecimal("1.15")))
+        assertEquals("6", MachineReportRules.startHours(BigDecimal("10"), listOf(first)))
+        // Nothing left to account for: empty.
+        assertEquals("", MachineReportRules.startHours(BigDecimal("4"), listOf(first), BigDecimal("20")))
+    }
 }

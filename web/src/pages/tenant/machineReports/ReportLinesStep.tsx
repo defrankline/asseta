@@ -12,10 +12,13 @@ import {
   allAccountedFor,
   allLinesValid,
   balanceText,
+  customerHoursLeft,
   customerTotal,
   emptyLine,
+  hoursAreAuto,
   lineHoursValid,
   meterDifference,
+  suggestedCustomerHours,
   type ReportRules,
   type ReportValues,
 } from './reportForm';
@@ -53,6 +56,50 @@ function LineHoursField({ name }: { name: string }) {
   );
 }
 
+interface CustomerFieldProps {
+  name: string;
+  machineId: string;
+  /** Customers with no hours left once the other lines are counted, comma-joined (stable key). */
+  exhausted: string;
+  resolveOption: (id: string) => Promise<AvailableHoursDto | null>;
+  onPicked: (c: AvailableHoursDto | null) => void;
+}
+
+/** A line's customer: only customers who still have hours for this report are offered. */
+function CustomerField({
+  name,
+  machineId,
+  exhausted,
+  resolveOption,
+  onPicked,
+}: CustomerFieldProps) {
+  const searchCustomers = useCallback(
+    async (query: string, signal: AbortSignal) => {
+      const none = new Set(exhausted.split(',').filter((id) => id !== ''));
+      return (await machineReportService.availableHours({ machine_id: machineId }, signal)).filter(
+        (c) =>
+          compareDecimal(c.available, '0') > 0 &&
+          !none.has(c.customer_id) &&
+          matches(c.customer_name ?? '', query),
+      );
+    },
+    [machineId, exhausted],
+  );
+  return (
+    <FormikAsyncIdAutocomplete<AvailableHoursDto>
+      name={name}
+      label="Customer"
+      required
+      fetchOptions={searchCustomers}
+      resolveOption={resolveOption}
+      getOptionId={(c) => c.customer_id}
+      getOptionLabel={customerLabel}
+      onOptionChange={onPicked}
+      noOptionsText="No customer has hours left for this machine"
+    />
+  );
+}
+
 interface LinesStepProps {
   machineId: string;
   rules: ReportRules;
@@ -67,13 +114,38 @@ export function ReportLinesStep({ machineId, rules, customers, reasons, hoursOn 
   const { values, setFieldValue, errors } = useFormikContext<ReportValues>();
   const difference = meterDifference(rules, values.reading);
   const accounted = accountedFor(values.lines);
-  const searchCustomers = useCallback(
-    async (query: string, signal: AbortSignal) =>
-      (await machineReportService.availableHours({ machine_id: machineId }, signal)).filter(
-        (c) => compareDecimal(c.available, '0') > 0 && matches(c.customer_name ?? '', query),
-      ),
-    [machineId],
-  );
+  // On line `index`, customers already on another line (one line each) or with no hours left are not offered.
+  const exhaustedFor = (index: number) =>
+    [
+      ...values.lines
+        .filter((l, j) => j !== index && l.kind === 'CUSTOMER' && l.customer_id !== '')
+        .map((l) => l.customer_id),
+      ...Object.entries(rules.available)
+        .filter(([id, available]) => customerHoursLeft(values.lines, index, id, available) === null)
+        .map(([id]) => id),
+    ]
+      .sort()
+      .join(',');
+  // Picking a customer fills the line with min(their hours left, hours still to account for),
+  // unless the supervisor has typed the hours themselves.
+  const customerPicked = (index: number, c: AvailableHoursDto | null) => {
+    const line = values.lines[index];
+    if (c === null || line === undefined || !hoursAreAuto(line)) return;
+    const hours = suggestedCustomerHours(
+      values.lines,
+      index,
+      c.customer_id,
+      rules.available[c.customer_id] ?? c.available,
+      difference,
+    );
+    if (hours === null) return;
+    void setFieldValue(`lines[${index}]`, {
+      ...line,
+      customer_id: c.customer_id,
+      hours,
+      autoHours: hours,
+    });
+  };
   const resolveCustomer = useCallback(
     (id: string) => Promise.resolve(customers.find((c) => c.customer_id === id) ?? null),
     [customers],
@@ -143,15 +215,14 @@ export function ReportLinesStep({ machineId, rules, customers, reasons, hoursOn 
               </Button>
             </Stack>
             {line.kind === 'CUSTOMER' ? (
-              <FormikAsyncIdAutocomplete<AvailableHoursDto>
+              <CustomerField
                 name={at('customer_id')}
-                label="Customer"
-                required
-                fetchOptions={searchCustomers}
+                machineId={machineId}
+                exhausted={exhaustedFor(i)}
                 resolveOption={resolveCustomer}
-                getOptionId={(c) => c.customer_id}
-                getOptionLabel={customerLabel}
-                noOptionsText="No customer has usable hours for this machine"
+                onPicked={(c) => {
+                  customerPicked(i, c);
+                }}
               />
             ) : (
               <FormikAsyncIdAutocomplete<MachineReportReasonDto>

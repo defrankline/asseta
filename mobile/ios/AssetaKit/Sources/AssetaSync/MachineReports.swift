@@ -124,6 +124,14 @@ public enum MachineReportRules {
         !lines.isEmpty && lines.allSatisfy(lineValid) && accounted(lines) == difference
     }
 
+    /// Hours a new line starts with: the hours still to account for, and for a customer line no more than the
+    /// customer's `available` hours (min of the two). Empty when nothing is left. Same as Android `startHours`.
+    public static func startHours(difference: Decimal, lines: [ReportLineDraft], available: Decimal? = nil) -> String {
+        let left = difference - accounted(lines)
+        let start = available.map { min($0, left) } ?? left
+        return start > 0 ? AccountabilityRules.plain(start) : ""
+    }
+
     /// What a customer has left after this report's valid lines for it ("after this").
     public static func customerAfter(_ lines: [ReportLineDraft], customerID: UUID?, available: Decimal) -> Decimal {
         available - accounted(lines.filter { $0.kind == .customer && $0.customerID == customerID })

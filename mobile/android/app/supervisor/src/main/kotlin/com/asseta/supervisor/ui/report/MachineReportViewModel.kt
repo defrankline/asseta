@@ -235,16 +235,18 @@ class MachineReportViewModel(
 
     fun addCustomer(id: String, name: String) = _form.update { f ->
         if (f.lines.any { it is ReportLineDraft.Customer && it.customerId == id }) f
-        else f.copy(lines = f.lines + ReportLineDraft.Customer(id, name, suggestedHours(f)), messages = emptyList())
+        else f.copy(lines = f.lines + ReportLineDraft.Customer(id, name, suggestedHours(f, available()[id])), messages = emptyList())
     }
 
     fun addNonProductive(id: String, name: String) = _form.update { f -> f.copy(lines = f.lines + ReportLineDraft.NonProductive(id, name, suggestedHours(f), ""), messages = emptyList()) }
 
-    /** A new line starts with the hours still to account for (empty when none are left). */
-    private fun suggestedHours(f: ReportForm): String {
+    /**
+     * A new line starts with the hours still to account for; a customer line with no more than the customer's
+     * [available] hours (empty when none are left).
+     */
+    private fun suggestedHours(f: ReportForm, available: BigDecimal? = null): String {
         machine() ?: return ""
-        val left = difference()?.let { MachineReportRules.left(it, f.lines) } ?: return ""
-        return if (left.signum() > 0) left.stripTrailingZeros().toPlainString() else ""
+        return difference()?.let { MachineReportRules.startHours(it, f.lines, available) } ?: ""
     }
 
     fun editLine(index: Int, change: (ReportLineDraft) -> ReportLineDraft) =

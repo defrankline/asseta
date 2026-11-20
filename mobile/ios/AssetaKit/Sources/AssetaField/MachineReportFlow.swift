@@ -130,7 +130,8 @@ struct MachineReportFlow: View {
             Button(FormLeave.discard, role: .destructive) { leave() }
         } message: { Text(FormLeave.reportBody) }
         .sheet(item: $editing) { line in
-            ReportLineEditor(model: model, line: line, caps: caps, reasons: model.reportReasons) { saved in
+            ReportLineEditor(model: model, line: line, autoHours: line.hoursText, caps: caps, reasons: model.reportReasons,
+                             others: lines.filter { $0.id != line.id }, difference: difference) { saved in
                 if let saved {
                     if let i = lines.firstIndex(where: { $0.id == saved.id }) { lines[i] = saved } else { lines.append(saved) }
                 } else {
@@ -148,7 +149,7 @@ struct MachineReportFlow: View {
     private var caps: [UUID: (name: String, hours: Decimal)] { machineID.map { model.reportCaps(machineID: $0) } ?? [:] }
 
     /// A new line starts with the hours still to account for (empty when none are left).
-    private var suggestedHours: String { left() > 0 ? AccountabilityRules.plain(left()) : "" }
+    private var suggestedHours: String { MachineReportRules.startHours(difference: difference ?? 0, lines: lines) }
 
     /// Customer lines are offered only while customer hours are on; otherwise only non-productive lines.
     private var customerLines: Bool { model.access.customerHoursOn }
@@ -690,8 +691,13 @@ struct MachineReportFlow: View {
 struct ReportLineEditor: View {
     let model: FieldModel
     @State var line: ReportLineDraft
+    /// Hours the form filled in itself; while the line still shows them, picking a customer may replace them.
+    @State var autoHours: String
     let caps: [UUID: (name: String, hours: Decimal)]
     let reasons: [MachineReportReasonDTO]
+    /// The report's other lines and the meter difference: for the hours to fill in and the customers to offer.
+    let others: [ReportLineDraft]
+    let difference: Decimal?
     let done: (ReportLineDraft?) -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -704,6 +710,7 @@ struct ReportLineEditor: View {
                         set: { id in
                             line.customerID = id
                             line.customerName = id.flatMap { caps[$0]?.name } ?? ""
+                            fillCustomerHours()
                         }), emptyMessage: T.noCustomersWithHours, identifier: "line.customer")
                 } else {
                     SearchablePickerField(label: T.reason, options: reasons.map { PickerOption(id: $0.id, title: $0.name, subtitle: nil) },
@@ -744,8 +751,22 @@ struct ReportLineEditor: View {
         .presentationDetents([.medium, .large])
     }
 
+    /// Picking a customer fills the hours with min(their hours, hours still to account for), unless the supervisor
+    /// typed the hours themselves.
+    private func fillCustomerHours() {
+        guard let id = line.customerID, let cap = caps[id]?.hours, let difference else { return }
+        let typed = line.hoursText.trimmingCharacters(in: .whitespaces)
+        guard typed.isEmpty || typed == autoHours.trimmingCharacters(in: .whitespaces) else { return }
+        let hours = MachineReportRules.startHours(difference: difference, lines: others, available: cap)
+        guard !hours.isEmpty else { return }
+        line.hoursText = hours
+        autoHours = hours
+    }
+
+    /// Only customers with hours left, and not already on another line of this report.
     private var customerOptions: [PickerOption] {
-        caps.filter { $0.value.hours > 0 }.sorted { $0.value.name < $1.value.name }.map {
+        let taken = Set(others.filter { $0.kind == .customer }.compactMap(\.customerID))
+        return caps.filter { $0.value.hours > 0 && !taken.contains($0.key) }.sorted { $0.value.name < $1.value.name }.map {
             PickerOption(id: $0.key, title: $0.value.name, subtitle: "\(MachineReportRules.hoursText($0.value.hours)) h available")
         }
     }

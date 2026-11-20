@@ -3,7 +3,7 @@
 Play limit: 500 characters per language. Counts measured with Python `len()` on the text between the language tags (tags not counted). Paste
 into Release → (track) → Create release → Release notes, using the language tags shown.
 
-## Asseta Supervisor 0.6.6 (17)
+## Asseta Supervisor 0.6.7 (18)
 
 English (472/500):
 

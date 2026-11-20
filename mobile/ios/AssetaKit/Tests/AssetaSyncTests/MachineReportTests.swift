@@ -493,4 +493,18 @@ struct MachineReportTests {
         #expect(recent.first?.title == MachineReportTexts.recentReport("EX-01", "300"))
         #expect(recent.first?.pill == MachineReportTexts.pillAwaiting)
     }
+
+    @Test("A new customer line starts with min(customer hours left, hours still to account for)")
+    func startHours() {
+        // 10 h to account for, the customer has 4 h → 4.
+        #expect(MachineReportRules.startHours(difference: 10, lines: [], available: 4) == "4")
+        // The customer has 20 h, 4 h already on another line → the 6 h still to account for.
+        let first = Self.customer(Self.msasani, "4")
+        #expect(MachineReportRules.startHours(difference: 10, lines: [first], available: 20) == "6")
+        // Hundredths are kept; a non-productive line takes all that is left.
+        #expect(MachineReportRules.startHours(difference: 9, lines: [], available: Decimal(string: "1.15")!) == "1.15")
+        #expect(MachineReportRules.startHours(difference: 10, lines: [first]) == "6")
+        // Nothing left to account for: empty.
+        #expect(MachineReportRules.startHours(difference: 4, lines: [first], available: 20) == "")
+    }
 }

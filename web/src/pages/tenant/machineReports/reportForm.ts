@@ -9,7 +9,7 @@ import { compareDecimal, isDecimalString, signOfDecimal, sumDecimals } from '../
 import { optionalText, orNull } from '../shared/formRules';
 import { CONSOLE_DEVICE_ID } from '../readings/capturePolicy';
 import { captureModeField } from '../readings/readingEvidenceKit';
-import { hoursLabel, inMeterSteps, minus } from './machineReportDisplay';
+import { hoursLabel, inMeterSteps, minus, plainHours } from './machineReportDisplay';
 
 /** One line of the split: a customer's hours or non-productive hours with a reason and a note. */
 export interface LineValues {
@@ -20,6 +20,8 @@ export interface LineValues {
   reason_id: string;
   hours: string;
   note: string;
+  /** Hours the form filled in itself (never sent); while `hours` still equals it, picking a customer may replace it. */
+  autoHours?: string;
 }
 
 export interface ReportValues {
@@ -62,6 +64,7 @@ export function emptyLine(kind: ReportLineKind, hours = ''): LineValues {
     reason_id: '',
     hours,
     note: '',
+    autoHours: hours,
   };
 }
 
@@ -122,6 +125,50 @@ export function meterDifference(rules: ReportRules, reading: string): string | n
 /** A customer's hours on this report (all their lines). */
 export function customerTotal(lines: readonly LineValues[], customerId: string): string {
   return accountedFor(lines.filter((l) => l.kind === 'CUSTOMER' && l.customer_id === customerId));
+}
+
+/** A positive decimal, or null for 0 and below. */
+const positiveOrNull = (v: string): string | null => (signOfDecimal(v) > 0 ? v : null);
+
+/**
+ * Hours a customer still has for this report once the other lines are counted (line `index`
+ * left out); null when none are left.
+ */
+export function customerHoursLeft(
+  lines: readonly LineValues[],
+  index: number,
+  customerId: string,
+  available: string,
+): string | null {
+  const others = lines.filter((_, j) => j !== index);
+  return positiveOrNull(minus(available, customerTotal(others, customerId)));
+}
+
+/**
+ * Hours to fill in when a customer is picked on line `index`: the smaller of the hours the customer
+ * still has and the hours still to account for (other lines counted). Null = leave the line as is
+ * (nothing left on one side, or the meter difference unknown).
+ */
+export function suggestedCustomerHours(
+  lines: readonly LineValues[],
+  index: number,
+  customerId: string,
+  available: string,
+  difference: string | null,
+): string | null {
+  if (difference === null) return null;
+  const customerLeft = customerHoursLeft(lines, index, customerId, available);
+  const machineLeft = positiveOrNull(
+    minus(difference, accountedFor(lines.filter((_, j) => j !== index))),
+  );
+  if (customerLeft === null || machineLeft === null) return null;
+  return plainHours(compareDecimal(customerLeft, machineLeft) <= 0 ? customerLeft : machineLeft);
+}
+
+/** Whether picking a customer may replace the line's hours: empty, or still what the form filled in. */
+export function hoursAreAuto(line: LineValues): boolean {
+  const hours = line.hours.trim();
+  return hours === '' || (line.autoHours !== undefined && hours === line.autoHours.trim());
 }
 
 /** "15 h still to account for" / "10 h more than the meter" / null when it matches. */
