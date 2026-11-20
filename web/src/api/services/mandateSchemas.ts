@@ -114,5 +114,7 @@ export const memberSchema: Schema<MemberDto> = object({
   user_id: id(),
   email: text(),
   display_name: text(),
+  status: oneOf(['ACTIVE', 'INACTIVE'] as const),
   roles: array(memberRoleSchema).required(),
+  deactivated_at: string().nullable().optional(),
 });

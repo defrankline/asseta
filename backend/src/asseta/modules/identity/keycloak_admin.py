@@ -227,6 +227,28 @@ class KeycloakAdminClient:
         rows = self._ok(self._request("GET", "/users", params={"email": email, "exact": "true"})).json()
         return str(rows[0]["id"]) if rows else None
 
+    # --- a company's own people (Users & roles) --------------------------------------------------------------
+    def update_user_name(self, subject: str, first_name: str, last_name: str) -> None:
+        self._ok(self._request("PUT", f"/users/{subject}", json={"firstName": first_name, "lastName": last_name}), 204)
+
+    def reset_password(self, subject: str) -> str:
+        temporary = secrets.token_urlsafe(18)
+        self._ok(
+            self._request(
+                "PUT",
+                f"/users/{subject}/reset-password",
+                json={"type": "password", "value": temporary, "temporary": True},
+            ),
+            204,
+        )
+        return temporary
+
+    def logout_user(self, subject: str) -> None:
+        self._ok(self._request("POST", f"/users/{subject}/logout"), 204, 404)
+
+    def enable_user(self, subject: str) -> None:
+        self._ok(self._request("PUT", f"/users/{subject}", json={"enabled": True}), 204)
+
     # --- account and company deletion ---------------------------------------------------------------
     def user_group_paths(self, subject: str) -> list[str]:
         resp = self._request("GET", f"/users/{subject}/groups", params={"max": "10000", "briefRepresentation": "true"})

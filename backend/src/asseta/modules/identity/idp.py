@@ -44,6 +44,19 @@ class IdentityProviderAdmin(Protocol):
 
     def find_user_by_email(self, email: str) -> str | None: ...
 
+    # --- a company's own people (Users & roles) --------------------------------------------------------------------
+    def update_user_name(self, subject: str, first_name: str, last_name: str) -> None: ...
+
+    def reset_password(self, subject: str) -> str:
+        """Sets a new one-time password (to be changed at the next sign-in) and returns it."""
+        ...
+
+    def logout_user(self, subject: str) -> None:
+        """Ends all the user's sessions, including the apps' offline sessions."""
+        ...
+
+    def enable_user(self, subject: str) -> None: ...
+
     # --- account and company deletion (idempotent: a user or group already gone is not an error) ----------------
     def user_group_paths(self, subject: str) -> list[str]: ...
 

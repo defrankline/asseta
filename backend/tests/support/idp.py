@@ -18,6 +18,9 @@ class InMemoryIdp:
         self.memberships: dict[str, set[str]] = {}  # subject -> group paths
         self.disabled: set[str] = set()
         self.deleted: list[str] = []  # subjects deleted, in order
+        self.names: dict[str, tuple[str, str]] = {}  # subject -> (first, last)
+        self.passwords: dict[str, str] = {}  # subject -> current one-time password
+        self.logouts: list[str] = []  # subjects signed out everywhere, in order
 
     def ensure_permission_roles(self, codes: list[str], descriptions: dict[str, str]) -> None:
         self.permission_roles |= set(codes)
@@ -43,7 +46,22 @@ class InMemoryIdp:
     def create_user(self, email: str, first_name: str, last_name: str) -> CreatedUser:
         subject = str(uuid.uuid4())
         self.users[subject] = email
-        return CreatedUser(subject, secrets.token_urlsafe(12))
+        self.names[subject] = (first_name, last_name)
+        self.passwords[subject] = secrets.token_urlsafe(12)
+        return CreatedUser(subject, self.passwords[subject])
+
+    def update_user_name(self, subject: str, first_name: str, last_name: str) -> None:
+        self.names[subject] = (first_name, last_name)
+
+    def reset_password(self, subject: str) -> str:
+        self.passwords[subject] = secrets.token_urlsafe(12)
+        return self.passwords[subject]
+
+    def logout_user(self, subject: str) -> None:
+        self.logouts.append(subject)
+
+    def enable_user(self, subject: str) -> None:
+        self.disabled.discard(subject)
 
     def add_user_to_group(self, subject: str, group_id: str) -> None:
         path = next(p for p, g in self.groups.items() if g == group_id)

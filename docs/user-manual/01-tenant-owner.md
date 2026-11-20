@@ -35,7 +35,7 @@ Everything any other role can do, plus the tasks reserved for owners by default:
 - **Review meter and GPS exceptions.** This unblocks invoicing.
 - **Decide meter reset requests.**
 - **Set company policies**: reading modes, GPS rules, expense limits, tracking thresholds, billing rounding, device offline limits and risk-signal thresholds.
-- **Manage users' roles** (Users & roles).
+- **Manage users** (Users & roles): add, edit, deactivate or reactivate them, and reset passwords.
 - **Enroll machines as billable assets** in your Asseta subscription.
 - **See your Asseta subscription**, its invoices and your SMS wallet.
 - **Review or revoke a managed-service mandate**, if the Platform Owner helps run your account.
@@ -435,16 +435,35 @@ All of these are described in the [Accountant manual](04-accountant.md). Custome
 - operator
 - operator-readings
 
-**Who may give or remove approving roles.** Only the company owner can give someone a role that approves things, or remove one. A role that carries any decision (approvals, verifications, closures and so on) needs this owner permission, whatever the role is called. Others who manage access see: "Only the company owner can give someone a role that approves things." and **Revoke** is disabled on those roles. Asseta records any attempt as a security event, and keeps at least one holder of this permission in the company. Managed-service staff do not count as that holder.
+Each row has an actions menu (**⋮**). People you deactivated are hidden; turn on **Show inactive** to see them.
 
-To remove a role from someone:
+**Adding a user.** Click **Add user**, enter the **First name**, **Last name** and **Email** (they sign in with it), choose the **Role**, then **Add user**.
 
-1. Find the user and click **Revoke** on the role.
-2. Confirm in the **Revoke role** dialog.
+- A new person gets a **one-time password**, shown once, with **Copy**. Give it to them. They sign in with their email and this password, then choose their own. If it is lost, reset the password.
+- Someone who already uses Asseta (for example in another company) just gets the role. They keep signing in with their usual password.
+- Someone you deactivated earlier can be brought back with **Reactivate** (the roles they had) or by adding them again (the role you choose).
 
-Asseta will not remove the **last owner**. Roles granted under a managed-service mandate end with the mandate.
+**Editing a user.** **⋮ → Edit** changes the name and the roles. Tick or untick roles and click **Save changes**; only what changed is saved. Keep at least one role (to remove them all, deactivate the person). The email can't be changed: it is how they sign in.
 
-**Adding a new login:** the web console does not yet have an "invite user" button. Ask the Platform Owner to create the login with the right role. The person receives a temporary password and sets their own at first sign-in.
+**Deactivating and reactivating.** **⋮ → Deactivate**, then confirm.
+
+- The person loses all their roles here and is signed out of the apps and the website. Their sales, reports and other records stay, under their name.
+- **⋮ → Reactivate** gives them back the roles they had, straight away.
+
+**Resetting a password.** **⋮ → Reset password**, then confirm.
+
+- The person is signed out of the apps and the website.
+- You get a new one-time password to give them; they choose their own when they sign in.
+
+**Limits that protect your company and the people in it:**
+
+- You can't deactivate yourself or reset your own password here; use **Forgot password** on the sign-in page, or ask another owner.
+- Asseta will not remove the **last owner**.
+- A name or password can be changed here only for someone who uses Asseta in your company alone. For someone who also uses Asseta elsewhere, the page says: "This person also uses Asseta elsewhere, so their sign-in can't be changed from here; ask them to use Forgot password." Deactivating them removes their roles in your company only; their sign-in and their other company are not affected.
+- Roles held under a managed-service mandate end with the mandate; those people have no actions here.
+- Every change is recorded in the audit log.
+
+**Who may give or remove approving roles.** Only the company owner can give someone a role that approves things, or remove one. A role that carries any decision (approvals, verifications, closures and so on) needs this owner permission, whatever the role is called. Others who manage access see: "Only the company owner can give someone a role that approves things."; those roles can't be ticked or unticked in **Edit**, and people holding them can't be deactivated or reactivated by them. Asseta records any attempt as a security event, and keeps at least one holder of this permission in the company. Managed-service staff do not count as that holder.
 
 **Linking a supervisor:** after the login exists, link it to their staff record (**Operations → Staff**, **Login subject**). Their jobs and cash then appear under their name.
 
@@ -1475,7 +1494,7 @@ Some hours are not yet allocated, for example after a reading that went down wit
 **Where did the unexplained hours in expected revenue go?**
 Unexplained hours are now shown as **value at risk**, apart from expected revenue and shortfalls. Your company keeps a value it set earlier ([Task 22](#22-revenue-checks-how-they-work)).
 
-**Revoke is disabled, or "Only the company owner can give someone a role that approves things."**
+**A role can't be ticked in Edit, or "Only the company owner can give someone a role that approves things."**
 Only the owner can give or remove a role that carries approvals.
 
 **"A custodian cannot confirm their own remittance."**

@@ -257,6 +257,12 @@ export type AssignableRoleDto = Schemas['AssignableRoleDto'];
 
 export type MemberDto = Schemas['MemberDto'];
 export type MemberRoleDto = Schemas['MemberRoleDto'];
+export type MemberStatus = Schemas['MemberStatus'];
+export type MemberNameIn = Schemas['MemberNameIn'];
+export type InviteIn = Schemas['InviteIn'];
+export type InviteResultDto = Schemas['InviteResultDto'];
+export type PasswordResetDto = Schemas['PasswordResetDto'];
+export type TenantRoleDto = Schemas['TenantRoleDto'];
 
 // ---- Record lifecycle (details, optimistic edit, deactivate / reactivate; never deleted) ----
 
